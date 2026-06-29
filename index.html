@@ -473,13 +473,13 @@ function WasteNetDashboard() {
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                 fontSize: 15, textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: monoFont, marginBottom: 4,
-                color: isActive ? '#FFFFFF' : BRAND.muted,
+                color: isActive ? '#FFFFFF' : BRAND.muted, fontWeight: isActive ? 700 : 400,
               }}>
                 {isActive && <span style={{ fontSize: 14 }}>✓</span>}
                 {s.label}
               </div>
               <div style={{
-                fontSize: 26, fontWeight: 700, fontFamily: displayFont,
+                fontSize: 26, fontWeight: isActive ? 700 : 400, fontFamily: displayFont,
                 color: isActive ? '#FFFFFF' : BRAND.green,
               }}>
                 {s.value}
@@ -576,7 +576,7 @@ function QueueView({ boxes, onSelect, monoFont, font }) {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontFamily: monoFont, fontSize: 15, color: BRAND.green, fontWeight: 700 }}>#{b.boxId}</span>
-              <span style={{ fontWeight: 600, fontSize: 14.5, fontFamily: font }}>{b.description}</span>
+              <span style={{ fontWeight: 400, fontSize: 14.5, fontFamily: font }}>{b.description}</span>
             </div>
             <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
               {b.crossedStatus === 'crossed' && <StatusPill meta={FILL_STATUS_META} statusKey="crossed" />}
