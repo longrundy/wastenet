@@ -186,7 +186,7 @@ function WasteNetDashboard() {
 
   const [query, setQuery] = useState('');
   const [signalFilter, setSignalFilter] = useState('crossed'); // ALL | crossed | stale | both | clear
-  const [sortBy, setSortBy] = useState('boxId'); // boxId | description
+  const [sortBy, setSortBy] = useState('description'); // boxId | description
   const [selected, setSelected] = useState(null);
   const [toast, setToast] = useState(null);
 
@@ -362,7 +362,7 @@ function WasteNetDashboard() {
       {/* Stat strip - each one is also the signal filter control */}
       <div style={{
         display: 'flex', gap: 10, background: BRAND.paper, borderBottom: '1px solid ' + BRAND.line,
-        overflowX: 'auto', padding: '14px 24px',
+        overflowX: 'auto', padding: '14px 24px', justifyContent: 'center',
       }}>
         {[
           { key: 'crossed', label: 'Needs Action', value: counts.crossed + counts.both },
@@ -376,7 +376,7 @@ function WasteNetDashboard() {
               onClick={() => setSignalFilter(s.key)}
               aria-pressed={isActive}
               style={{
-                flex: '1 1 150px', minWidth: 150, padding: '14px 18px', textAlign: 'center',
+                flex: '0 0 auto', width: 150, padding: '14px 18px', textAlign: 'center',
                 borderRadius: 10, cursor: 'pointer', fontFamily: font,
                 border: '1.5px solid ' + (isActive ? BRAND.green : BRAND.line),
                 background: isActive ? BRAND.green : BRAND.panel,
