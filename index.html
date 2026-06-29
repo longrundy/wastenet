@@ -328,20 +328,20 @@ function WasteNetDashboard() {
     }}>
       {/* Frozen top section: title bar, stat/filter buttons, and search - stays
           visible while the box list below scrolls. */}
-      <div style={{ flexShrink: 0, position: 'sticky', top: 0, zIndex: 10 }}>
+      <div style={{ flexShrink: 0, position: 'sticky', top: 0, zIndex: 10, background: BRAND.paper }}>
       {/* Header */}
       <header style={{
-        borderBottom: '1px solid ' + BRAND.line, padding: '14px 24px',
+        borderBottom: '1px solid ' + BRAND.line, padding: '18px 24px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
-        background: BRAND.ink, flexWrap: 'wrap',
+        background: BRAND.paper, flexWrap: 'wrap',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div>
             <div style={{
-              fontFamily: displayFont, fontWeight: 600, fontSize: 18, letterSpacing: '0.02em',
-              textTransform: 'uppercase', lineHeight: 1.1, color: '#FAFBF8',
+              fontFamily: displayFont, fontWeight: 600, fontSize: 19, letterSpacing: '0.02em',
+              textTransform: 'uppercase', lineHeight: 1.1, color: BRAND.green,
             }}>WasteNet Box Monitor Scan</div>
-            <div style={{ fontSize: 11, color: '#9CA597', fontFamily: monoFont, letterSpacing: '0.03em' }}>
+            <div style={{ fontSize: 11, color: BRAND.muted, fontFamily: monoFont, letterSpacing: '0.03em', marginTop: 2 }}>
               {fetchState === 'ok' && sheetName ? 'Live · tab "' + sheetName + '" · ' + rows.length + ' boxes' : fetchState === 'loading' ? 'Connecting to live sheet…' : 'Live data unavailable'}
             </div>
           </div>
@@ -352,9 +352,9 @@ function WasteNetDashboard() {
             { key: 'fleet', label: 'Master Box List' },
           ].map(t => (
             <button key={t.key} onClick={() => setView(t.key)} style={{
-              padding: '8px 14px', borderRadius: 5, border: '1px solid ' + (view === t.key ? BRAND.greenLight : '#3A3F36'),
-              background: view === t.key ? 'rgba(95,168,61,0.18)' : 'transparent',
-              color: view === t.key ? BRAND.greenLight : '#C7CCBE', fontFamily: monoFont, fontSize: 12.5,
+              padding: '8px 14px', borderRadius: 6, border: '1px solid ' + (view === t.key ? BRAND.green : BRAND.line),
+              background: view === t.key ? BRAND.green : 'transparent',
+              color: view === t.key ? '#FFFFFF' : BRAND.muted, fontFamily: monoFont, fontSize: 12.5,
               fontWeight: 600, letterSpacing: '0.03em', cursor: 'pointer', textTransform: 'uppercase',
             }}>{t.label}</button>
           ))}
@@ -368,20 +368,20 @@ function WasteNetDashboard() {
         }}>
           <strong>Couldn't reach the live sheet.</strong>
           <span style={{ fontFamily: monoFont, fontSize: 12 }}>{fetchError}</span>
-          <span>Click Refresh to try again, or check the Apps Script deployment.</span>
+          <span>Check the Apps Script deployment.</span>
         </div>
       )}
 
       {/* Stat strip - each one is also the signal filter control */}
       <div style={{
-        display: 'flex', gap: 8, background: BRAND.greenDark, borderBottom: '1px solid ' + BRAND.line,
-        overflowX: 'auto', padding: '10px 16px',
+        display: 'flex', gap: 10, background: BRAND.paper, borderBottom: '1px solid ' + BRAND.line,
+        overflowX: 'auto', padding: '14px 24px',
       }}>
         {[
-          { key: 'crossed', label: 'Needs Action', value: counts.crossed + counts.both, color: '#E9A089' },
-          { key: 'stale', label: 'Scan Stale', value: counts.stale + counts.both, color: '#EFC178' },
-          { key: 'clear', label: 'No Action Needed', value: counts.clear, color: '#B8E68C' },
-          { key: 'ALL', label: 'Total Boxes', value: counts.total, color: '#9CA597' },
+          { key: 'crossed', label: 'Needs Action', value: counts.crossed + counts.both },
+          { key: 'stale', label: 'Scan Stale', value: counts.stale + counts.both },
+          { key: 'clear', label: 'No Action Needed', value: counts.clear },
+          { key: 'ALL', label: 'Total Boxes', value: counts.total },
         ].map((s, i) => {
           const isActive = signalFilter === s.key;
           return (
@@ -390,27 +390,27 @@ function WasteNetDashboard() {
               onClick={() => setSignalFilter(s.key)}
               aria-pressed={isActive}
               style={{
-                flex: '1 1 150px', minWidth: 150, padding: '12px 18px', textAlign: 'left',
-                borderRadius: 8, cursor: 'pointer', fontFamily: font,
-                border: '1.5px solid ' + (isActive ? s.color : 'rgba(255,255,255,0.18)'),
-                background: isActive ? s.color : 'rgba(255,255,255,0.05)',
-                boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.25)' : 'none',
-                transition: 'background 0.15s, border-color 0.15s, transform 0.1s',
+                flex: '1 1 150px', minWidth: 150, padding: '14px 18px', textAlign: 'left',
+                borderRadius: 10, cursor: 'pointer', fontFamily: font,
+                border: '1.5px solid ' + (isActive ? BRAND.green : BRAND.line),
+                background: isActive ? BRAND.green : BRAND.panel,
+                boxShadow: isActive ? '0 2px 10px rgba(92,170,22,0.25)' : 'none',
+                transition: 'background 0.15s, border-color 0.15s',
               }}
-              onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.11)'; }}
-              onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+              onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#F1F4EC'; }}
+              onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = BRAND.panel; }}
             >
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 6,
                 fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: monoFont, marginBottom: 4,
-                color: isActive ? BRAND.ink : '#B9C2AF',
+                color: isActive ? '#FFFFFF' : BRAND.muted,
               }}>
                 {isActive && <span style={{ fontSize: 12 }}>✓</span>}
                 {s.label}
               </div>
               <div style={{
                 fontSize: 26, fontWeight: 700, fontFamily: displayFont,
-                color: isActive ? BRAND.ink : s.color,
+                color: isActive ? '#FFFFFF' : BRAND.ink,
               }}>
                 {s.value}
               </div>
@@ -486,13 +486,12 @@ function QueueView({ boxes, onSelect, monoFont, font }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {boxes.map(b => (
-        <div key={b._key} className="row-hover" style={{
-          display: 'flex', alignItems: 'center', gap: 16, padding: '14px 16px',
+        <div key={b._key} className="row-hover" onClick={() => onSelect(b)} style={{
+          display: 'flex', alignItems: 'center', gap: 16, padding: '14px 16px', cursor: 'pointer',
           background: BRAND.panel, border: '1px solid ' + BRAND.line, borderRadius: 7,
           borderLeft: '3px solid ' + (b.crossedStatus === 'crossed' ? BRAND.red : BRAND.amber),
         }}>
-          <Gauge pct={b.maxPct} />
-          <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => onSelect(b)}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontFamily: monoFont, fontSize: 12, color: BRAND.muted }}>#{b.boxId}</span>
               <span style={{ fontWeight: 600, fontSize: 14.5, fontFamily: font }}>{b.description}</span>
@@ -501,12 +500,6 @@ function QueueView({ boxes, onSelect, monoFont, font }) {
               {b.crossedStatus === 'crossed' && <StatusPill meta={FILL_STATUS_META} statusKey="crossed" />}
               {b.staleStatus === 'stale' && <StatusPill meta={STALE_STATUS_META} statusKey="stale" />}
             </div>
-            <div style={{ fontSize: 12.5, color: BRAND.muted, marginTop: 5, fontFamily: font }}>
-              Hauler {b.haulCode} · {b.serviceMethod} · trigger ({b.triggerUsedLabel}): {b.activeTrigger !== null ? b.activeTrigger + '%' : '—'}
-            </div>
-          </div>
-          <div style={{ textAlign: 'right', fontFamily: monoFont, fontSize: 22, fontWeight: 700, color: b.maxPct === null ? BRAND.muted : (b.maxPct >= 70 ? BRAND.red : b.maxPct >= 45 ? BRAND.amber : BRAND.green), minWidth: 60 }}>
-            {b.maxPct !== null ? b.maxPct + '%' : '—'}
           </div>
         </div>
       ))}
