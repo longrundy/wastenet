@@ -239,7 +239,10 @@ function WasteNetDashboard() {
     });
   }, []);
 
+  const fetchStateRef = useRef('loading');
+
   const fetchLiveData = useCallback(async () => {
+    const isManualRefresh = fetchStateRef.current !== 'loading';
     setFetchState((prev) => (prev === 'ok' ? 'ok' : 'loading'));
     try {
       const json = await jsonpLoad(SHEET_URL + '?action=latest');
@@ -249,10 +252,16 @@ function WasteNetDashboard() {
       setSheetName(json.sheetName || null);
       setScanTitle(json.scanTitle || null);
       setFetchState('ok');
+      fetchStateRef.current = 'ok';
       setFetchError(null);
       setLastFetchedAt(new Date());
+      if (isManualRefresh) {
+        setToast('Refreshed · ' + normalized.length + ' boxes loaded');
+        setTimeout(() => setToast(null), 2600);
+      }
     } catch (err) {
       setFetchState('error');
+      fetchStateRef.current = 'error';
       setFetchError(err.message || String(err));
     }
   }, [jsonpLoad]);
@@ -375,26 +384,38 @@ function WasteNetDashboard() {
         </div>
       )}
 
-      {/* Stat strip */}
+      {/* Stat strip - each one is also the signal filter control */}
       <div style={{
         display: 'flex', gap: 1, background: BRAND.greenDark, borderBottom: '1px solid ' + BRAND.line,
         overflowX: 'auto',
       }}>
         {[
-          { label: 'Needs Action', value: counts.crossed + counts.both, color: '#E9A089' },
-          { label: 'Scan Stale', value: counts.stale + counts.both, color: '#EFC178' },
-          { label: 'No Action Needed', value: counts.clear, color: '#B8E68C' },
-          { label: 'Total Boxes', value: counts.total, color: '#9CA597' },
-        ].map((s, i) => (
-          <div key={i} style={{ flex: '1 1 140px', padding: '14px 20px', minWidth: 140 }}>
-            <div style={{ fontSize: 11, color: '#B9C2AF', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: monoFont, marginBottom: 4 }}>
-              {s.label}
-            </div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: s.color, fontFamily: displayFont }}>
-              {s.value}
-            </div>
-          </div>
-        ))}
+          { key: 'crossed', label: 'Needs Action', value: counts.crossed + counts.both, color: '#E9A089' },
+          { key: 'stale', label: 'Scan Stale', value: counts.stale + counts.both, color: '#EFC178' },
+          { key: 'clear', label: 'No Action Needed', value: counts.clear, color: '#B8E68C' },
+          { key: 'ALL', label: 'Total Boxes', value: counts.total, color: '#9CA597' },
+        ].map((s, i) => {
+          const isActive = signalFilter === s.key;
+          return (
+            <button
+              key={i}
+              onClick={() => setSignalFilter(s.key)}
+              style={{
+                flex: '1 1 140px', minWidth: 140, padding: '14px 20px', textAlign: 'left',
+                border: 'none', borderBottom: '3px solid ' + (isActive ? s.color : 'transparent'),
+                background: isActive ? 'rgba(255,255,255,0.06)' : 'transparent',
+                cursor: 'pointer', fontFamily: font,
+              }}
+            >
+              <div style={{ fontSize: 11, color: '#B9C2AF', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: monoFont, marginBottom: 4 }}>
+                {s.label}
+              </div>
+              <div style={{ fontSize: 26, fontWeight: 700, color: s.color, fontFamily: displayFont }}>
+                {s.value}
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       {/* Filters */}
@@ -411,12 +432,6 @@ function WasteNetDashboard() {
             background: BRAND.paper, color: BRAND.ink, fontSize: 13, fontFamily: font,
           }}
         />
-        <select value={signalFilter} onChange={e => setSignalFilter(e.target.value)} style={selStyle}>
-          <option value="ALL">All signals</option>
-          <option value="crossed">Needs action</option>
-          <option value="stale">Scan stale</option>
-          <option value="clear">No action needed</option>
-        </select>
       </div>
 
       {/* Main content */}
@@ -455,11 +470,6 @@ function WasteNetDashboard() {
     </div>
   );
 }
-
-const selStyle = {
-  padding: '8px 10px', borderRadius: 5, border: '1px solid #E2E6DE', background: '#FAFBF8',
-  color: '#1A1D1A', fontSize: 13, fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
-};
 
 function QueueView({ boxes, onSelect, monoFont, font }) {
   if (boxes.length === 0) {
