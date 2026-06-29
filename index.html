@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WasteNet Dispatch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; }
+  * { box-sizing: border-box; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #F1F3EC; }
+  ::-webkit-scrollbar-thumb { background: #C7CCBE; border-radius: 4px; }
+  button:focus-visible, input:focus-visible, select:focus-visible {
+    outline: 2px solid #5CAA16; outline-offset: 1px;
+  }
+  .row-hover:hover { background: #F1F4EC !important; }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useMemo, useCallback, useEffect, useRef } = React;
+
+// ============================================================
+// CONFIG - change this if you ever redeploy the Apps Script to a new URL
+// ============================================================
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbwc3siwl0OTP2O5WzNZCDn4cj3MDVRfcVxJW0TZtoPnAKLwhYSwmW_m1h7ib6Yf_Dvk9w/exec';
+
+// WasteNet brand palette - sampled directly from the WASTENET logo (#5CAA16)
+const BRAND = {
+  green: '#5CAA16',
+  greenDark: '#315A0C',
+  greenLight: '#89C156',
+  ink: '#1A1D1A',
+  paper: '#FAFBF8',
+  panel: '#FFFFFF',
+  line: '#E2E6DE',
+  amber: '#C97A1A',
+  red: '#B3402B',
+  muted: '#6B7268',
+};
+
+const FILL_STATUS_META = {
+  crossed: { label: 'TRIGGER CROSSED', color: BRAND.red, bg: 'rgba(179,64,43,0.08)', ring: 'rgba(179,64,43,0.3)' },
+  clear: { label: 'BELOW TRIGGER', color: BRAND.green, bg: 'rgba(92,170,22,0.08)', ring: 'rgba(92,170,22,0.3)' },
+  unknown: { label: 'NO READING', color: BRAND.muted, bg: 'rgba(107,114,104,0.08)', ring: 'rgba(107,114,104,0.25)' },
+};
+
+const STALE_STATUS_META = {
+  stale: { label: 'SCAN STALE', color: BRAND.amber, bg: 'rgba(201,122,26,0.08)', ring: 'rgba(201,122,26,0.3)' },
+  fresh: { label: 'SCAN FRESH', color: BRAND.green, bg: 'rgba(92,170,22,0.06)', ring: 'rgba(92,170,22,0.2)' },
+};
+
+function parseNum(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseHoursFromNotes(notes) {
+  if (!notes) return null;
+  const m = String(notes).match(/Last Cycle is ([\d.]+) hours/i);
+  return m ? parseFloat(m[1]) : null;
+}
+
+function normalizeRow(raw, idx) {
+  const maxPct = parseNum(raw['Max Pct']);
+  const t1 = parseNum(raw['Trigr1 Pct']);
+  const t2 = parseNum(raw['Trigr2 Pct']);
+  const triggerUsedRaw = String(raw['Trigr Used'] || '').toLowerCase();
+  const activeTrigger = triggerUsedRaw.includes('2') ? t2 : t1;
+  const crossedRaw = String(raw['Crossed Trigr'] || '').toUpperCase().trim();
+  const crossed = crossedRaw === 'YES' ? 'crossed' : crossedRaw === 'NO' ? 'clear' : 'unknown';
+
+  const notes = raw['Notes'] || '';
+  const hours = parseHoursFromNotes(notes);
+  const forcedStale = /YES \(forced\)/i.test(notes) || (hours !== null && hours > 24);
+  const stale = forcedStale ? 'stale' : 'fresh';
+
+  const srvcNeedRaw = String(raw['Srvc Need'] || '').toUpperCase().trim();
+
+  return {
+    _key: raw['Box ID'] != null ? String(raw['Box ID']) + '-' + idx : 'row-' + idx,
+    boxId: raw['Box ID'] != null ? String(raw['Box ID']) : '—',
+    cell: raw['Cell'] || '',
+    description: raw['Description'] || '(no description)',
+    haulCode: raw['Haul Code'] || '—',
+    serviceMethod: raw['Srvc Mthd'] || '—',
+    shortcut: raw['Txt Blz Shrtct'] || '',
+    trigger1: t1,
+    trigger2: t2,
+    triggerUsedLabel: raw['Trigr Used'] || '—',
+    activeTrigger: activeTrigger,
+    maxPct: maxPct,
+    crossedStatus: crossed,
+    staleStatus: stale,
+    staleHours: hours,
+    srvcNeed: srvcNeedRaw,
+    notes: notes,
+    datePullReqd: raw["Date Pull Req'd"] || '',
+    schDate: raw['Sch Date'] || '',
+    puDate: raw['P/U Date'] || '',
+    confirmed: raw['Cnfrmd'] === true || String(raw['Cnfrmd']).toUpperCase() === 'TRUE',
+  };
+}
+
+function StatusPill({ meta, statusKey }) {
+  const m = meta[statusKey];
+  if (!m) return null;
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px',
+      borderRadius: 3, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em',
+      color: m.color, background: m.bg, border: '1px solid ' + m.ring, whiteSpace: 'nowrap',
+      fontFamily: "'JetBrains Mono', monospace",
+    }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: m.color, boxShadow: '0 0 6px ' + m.color }} />
+      {m.label}
+    </span>
+  );
+}
+
+function Gauge({ pct, size = 36 }) {
+  if (pct === null) {
+    return (
+      <div style={{
+        width: size, height: size * 1.5, borderRadius: 4, border: '1.5px dashed #C7CCBE',
+        background: '#F1F3EC', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 9, color: BRAND.muted, flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", textAlign: 'center',
+      }}>N/A</div>
+    );
+  }
+  const clamped = Math.max(0, Math.min(100, pct));
+  const color = clamped >= 70 ? BRAND.red : clamped >= 45 ? BRAND.amber : BRAND.green;
+  return (
+    <div style={{
+      position: 'relative', width: size, height: size * 1.5, borderRadius: 4,
+      border: '1.5px solid #D8DCD2', background: '#F1F3EC', overflow: 'hidden', flexShrink: 0,
+    }}>
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0, height: clamped + '%',
+        background: 'linear-gradient(180deg, ' + color + 'cc, ' + color + ')',
+        transition: 'height 0.4s ease',
+      }} />
+      <div style={{ position: 'absolute', top: '33%', left: 0, right: 0, borderTop: '1px dashed #BFC4B6' }} />
+      <div style={{ position: 'absolute', top: '66%', left: 0, right: 0, borderTop: '1px dashed #BFC4B6' }} />
+    </div>
+  );
+}
+
+function emailDraft(box) {
+  return 'Subject: Service Request - Box #' + box.boxId + ' (' + box.description + ')\n\n' +
+    'Hauler code: ' + box.haulCode + '\n' +
+    'Service method: ' + box.serviceMethod + '\n' +
+    'Max fill reading: ' + (box.maxPct !== null ? box.maxPct + '%' : 'no reading') + '\n' +
+    'Active trigger (' + box.triggerUsedLabel + '): ' + (box.activeTrigger !== null ? box.activeTrigger + '%' : '—') + '\n\n' +
+    'Please schedule a pickup for the above unit at your earliest convenience.\n\n' +
+    'Sensor line: ' + box.cell;
+}
+
+// localStorage-backed persistence (replaces the Claude-Artifact-only
+// window.storage API, which does not exist outside Claude). Plain
+// browser localStorage - same device/browser only, no cross-device
+// sync. If you want shared state across staff, that would need a real
+// backend; this keeps things simple for now.
+function loadLocal(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (e) {
+    return fallback;
+  }
+}
+function saveLocal(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {}
+}
+
+function WasteNetDashboard() {
+  const [rows, setRows] = useState([]);
+  const [sheetName, setSheetName] = useState(null);
+  const [scanTitle, setScanTitle] = useState(null);
+  const [fetchState, setFetchState] = useState('loading'); // loading | ok | error
+  const [fetchError, setFetchError] = useState(null);
+  const [lastFetchedAt, setLastFetchedAt] = useState(null);
+
+  const [localState, setLocalState] = useState(() => loadLocal('wastenet-local-box-state', {}));
+  const [log, setLog] = useState(() => loadLocal('wastenet-service-log', []));
+
+  const [query, setQuery] = useState('');
+  const [haulerFilter, setHaulerFilter] = useState('ALL');
+  const [signalFilter, setSignalFilter] = useState('ALL'); // ALL | crossed | stale | both | clear
+  const [methodFilter, setMethodFilter] = useState('ALL');
+  const [selected, setSelected] = useState(null);
+  const [view, setView] = useState('queue');
+  const [toast, setToast] = useState(null);
+
+  const pollRef = useRef(null);
+
+  const persistLocalState = useCallback((next) => {
+    setLocalState(next);
+    saveLocal('wastenet-local-box-state', next);
+  }, []);
+
+  const persistLog = useCallback((next) => {
+    setLog(next);
+    saveLocal('wastenet-service-log', next);
+  }, []);
+
+  // JSONP loader - used instead of fetch()/XHR because Apps Script Web
+  // App URLs always 302-redirect internally to a googleusercontent.com
+  // echo endpoint, and that redirected response doesn't carry an
+  // Access-Control-Allow-Origin header, so a normal fetch() is blocked
+  // by CORS even though the same URL works fine when visited directly.
+  // A <script> tag isn't subject to that restriction, so we load the
+  // URL that way and have the Apps Script (via its `callback` query
+  // parameter) wrap its JSON as a call to a one-off global function we
+  // define here.
+  const jsonpLoad = useCallback((url) => {
+    return new Promise((resolve, reject) => {
+      const callbackName = 'wastenetJsonp_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+      const script = document.createElement('script');
+      let settled = false;
+
+      const cleanup = () => {
+        delete window[callbackName];
+        if (script.parentNode) script.parentNode.removeChild(script);
+        clearTimeout(timeoutId);
+      };
+
+      window[callbackName] = (data) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(data);
+      };
+
+      const timeoutId = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(new Error('Timed out waiting for a response (15s) - check the Apps Script URL and deployment.'));
+      }, 15000);
+
+      script.onerror = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(new Error('Could not load the script (network error or invalid URL).'));
+      };
+
+      script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + callbackName;
+      document.head.appendChild(script);
+    });
+  }, []);
+
+  const fetchLiveData = useCallback(async () => {
+    setFetchState((prev) => (prev === 'ok' ? 'ok' : 'loading'));
+    try {
+      const json = await jsonpLoad(SHEET_URL + '?action=latest');
+      if (!json.ok) throw new Error(json.error || 'Unknown error from sheet endpoint');
+      const normalized = (json.rows || []).map(normalizeRow);
+      setRows(normalized);
+      setSheetName(json.sheetName || null);
+      setScanTitle(json.scanTitle || null);
+      setFetchState('ok');
+      setFetchError(null);
+      setLastFetchedAt(new Date());
+    } catch (err) {
+      setFetchState('error');
+      setFetchError(err.message || String(err));
+    }
+  }, [jsonpLoad]);
+
+  useEffect(() => {
+    fetchLiveData();
+    pollRef.current = setInterval(fetchLiveData, 5 * 60 * 1000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [fetchLiveData]);
+
+  const haulers = useMemo(() => {
+    const s = new Set(rows.map(r => r.haulCode).filter(Boolean));
+    return ['ALL', ...Array.from(s).sort()];
+  }, [rows]);
+
+  const methods = useMemo(() => {
+    const s = new Set(rows.map(r => r.serviceMethod).filter(Boolean));
+    return ['ALL', ...Array.from(s).sort()];
+  }, [rows]);
+
+  const filtered = useMemo(() => {
+    return rows.filter(r => {
+      if (haulerFilter !== 'ALL' && r.haulCode !== haulerFilter) return false;
+      if (methodFilter !== 'ALL' && r.serviceMethod !== methodFilter) return false;
+      if (signalFilter === 'crossed' && r.crossedStatus !== 'crossed') return false;
+      if (signalFilter === 'stale' && r.staleStatus !== 'stale') return false;
+      if (signalFilter === 'both' && !(r.crossedStatus === 'crossed' && r.staleStatus === 'stale')) return false;
+      if (signalFilter === 'clear' && (r.crossedStatus === 'crossed' || r.staleStatus === 'stale')) return false;
+      if (query) {
+        const q = query.toLowerCase();
+        const hay = (r.description + ' ' + r.boxId + ' ' + r.haulCode + ' ' + r.cell).toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [rows, haulerFilter, methodFilter, signalFilter, query]);
+
+  const actionQueue = useMemo(() => {
+    return filtered
+      .filter(r => (r.crossedStatus === 'crossed' || r.staleStatus === 'stale') && !(localState[r._key] && localState[r._key].dismissed))
+      .sort((a, b) => {
+        const score = (r) => (r.crossedStatus === 'crossed' ? 2 : 0) + (r.staleStatus === 'stale' ? 1 : 0);
+        const diff = score(b) - score(a);
+        if (diff !== 0) return diff;
+        return (b.maxPct || 0) - (a.maxPct || 0);
+      });
+  }, [filtered, localState]);
+
+  const counts = useMemo(() => {
+    const c = { crossed: 0, stale: 0, both: 0, clear: 0, total: rows.length };
+    rows.forEach(r => {
+      const isCrossed = r.crossedStatus === 'crossed';
+      const isStale = r.staleStatus === 'stale';
+      if (isCrossed && isStale) c.both += 1;
+      else if (isCrossed) c.crossed += 1;
+      else if (isStale) c.stale += 1;
+      else c.clear += 1;
+    });
+    return c;
+  }, [rows]);
+
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2600);
+  };
+
+  const markRequested = useCallback((box) => {
+    const next = { ...localState, [box._key]: { ...(localState[box._key] || {}), dismissed: true } };
+    persistLocalState(next);
+    const entry = {
+      id: Date.now() + '-' + box.boxId,
+      boxId: box.boxId,
+      description: box.description,
+      haulCode: box.haulCode,
+      maxPct: box.maxPct,
+      method: box.serviceMethod,
+      timestamp: new Date().toISOString(),
+    };
+    persistLog([entry, ...log]);
+    showToast('Marked Box #' + box.boxId + ' as actioned (this browser only, does not write to the Sheet)');
+  }, [localState, log, persistLocalState, persistLog]);
+
+  const copyEmail = useCallback(async (box) => {
+    const text = emailDraft(box);
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast('Email draft copied for Box #' + box.boxId);
+    } catch (e) {
+      showToast('Could not copy — select text manually');
+    }
+  }, []);
+
+  const font = "'Inter', -apple-system, sans-serif";
+  const monoFont = "'JetBrains Mono', 'SF Mono', monospace";
+  const displayFont = "'Oswald', sans-serif";
+
+  return (
+    <div style={{
+      fontFamily: font, background: BRAND.paper, color: BRAND.ink, minHeight: '100vh',
+      display: 'flex', flexDirection: 'column',
+    }}>
+      {/* Header */}
+      <header style={{
+        borderBottom: '1px solid ' + BRAND.line, padding: '14px 24px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+        background: BRAND.ink, flexWrap: 'wrap',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{
+            width: 34, height: 34, borderRadius: 6, background: BRAND.green,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800,
+            fontFamily: displayFont, color: '#FAFBF8', fontSize: 16,
+          }}>W</div>
+          <div>
+            <div style={{
+              fontFamily: displayFont, fontWeight: 600, fontSize: 18, letterSpacing: '0.02em',
+              textTransform: 'uppercase', lineHeight: 1.1, color: '#FAFBF8',
+            }}>WasteNet Dispatch</div>
+            <div style={{ fontSize: 11, color: '#9CA597', fontFamily: monoFont, letterSpacing: '0.03em' }}>
+              {fetchState === 'ok' && sheetName ? 'Live · tab "' + sheetName + '" · ' + rows.length + ' boxes' : fetchState === 'loading' ? 'Connecting to live sheet…' : 'Live data unavailable'}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button onClick={fetchLiveData} title="Refresh live data" style={{
+            padding: '8px 12px', borderRadius: 5, border: '1px solid #3A3F36', background: 'transparent',
+            color: '#C7CCBE', fontFamily: monoFont, fontSize: 12, cursor: 'pointer',
+          }}>
+            {fetchState === 'loading' ? '↻ Loading…' : '↻ Refresh'}
+          </button>
+          {[
+            { key: 'queue', label: 'Action Queue' },
+            { key: 'fleet', label: 'Fleet Overview' },
+            { key: 'log', label: 'Service Log' },
+          ].map(t => (
+            <button key={t.key} onClick={() => setView(t.key)} style={{
+              padding: '8px 14px', borderRadius: 5, border: '1px solid ' + (view === t.key ? BRAND.greenLight : '#3A3F36'),
+              background: view === t.key ? 'rgba(95,168,61,0.18)' : 'transparent',
+              color: view === t.key ? BRAND.greenLight : '#C7CCBE', fontFamily: monoFont, fontSize: 12.5,
+              fontWeight: 600, letterSpacing: '0.03em', cursor: 'pointer', textTransform: 'uppercase',
+            }}>{t.label}</button>
+          ))}
+        </div>
+      </header>
+
+      {fetchState === 'error' && (
+        <div style={{
+          background: '#FCEDE9', borderBottom: '1px solid ' + BRAND.red, padding: '10px 24px',
+          fontSize: 13, color: '#7A2D1E', fontFamily: font, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+        }}>
+          <strong>Couldn't reach the live sheet.</strong>
+          <span style={{ fontFamily: monoFont, fontSize: 12 }}>{fetchError}</span>
+          <span>Click Refresh to try again, or check the Apps Script deployment.</span>
+        </div>
+      )}
+
+      {/* Stat strip */}
+      <div style={{
+        display: 'flex', gap: 1, background: BRAND.greenDark, borderBottom: '1px solid ' + BRAND.line,
+        overflowX: 'auto',
+      }}>
+        {[
+          { label: 'Trigger Crossed', value: counts.crossed + counts.both, color: '#E9A089' },
+          { label: 'Scan Stale', value: counts.stale + counts.both, color: '#EFC178' },
+          { label: 'Both Signals', value: counts.both, color: '#FFFFFF' },
+          { label: 'Clear', value: counts.clear, color: '#B8E68C' },
+          { label: 'Total Fleet', value: counts.total, color: '#9CA597' },
+        ].map((s, i) => (
+          <div key={i} style={{ flex: '1 1 140px', padding: '14px 20px', minWidth: 140 }}>
+            <div style={{ fontSize: 11, color: '#B9C2AF', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: monoFont, marginBottom: 4 }}>
+              {s.label}
+            </div>
+            <div style={{ fontSize: 26, fontWeight: 700, color: s.color, fontFamily: displayFont }}>
+              {s.value}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div style={{
+        display: 'flex', gap: 10, padding: '12px 24px', borderBottom: '1px solid ' + BRAND.line,
+        background: BRAND.panel, flexWrap: 'wrap', alignItems: 'center',
+      }}>
+        <input
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Search site, box ID, hauler…"
+          style={{
+            flex: '1 1 220px', padding: '8px 12px', borderRadius: 5, border: '1px solid ' + BRAND.line,
+            background: BRAND.paper, color: BRAND.ink, fontSize: 13, fontFamily: font,
+          }}
+        />
+        <select value={signalFilter} onChange={e => setSignalFilter(e.target.value)} style={selStyle}>
+          <option value="ALL">All signals</option>
+          <option value="crossed">Trigger crossed</option>
+          <option value="stale">Scan stale</option>
+          <option value="both">Both signals</option>
+          <option value="clear">Clear</option>
+        </select>
+        <select value={haulerFilter} onChange={e => setHaulerFilter(e.target.value)} style={selStyle}>
+          {haulers.map(h => <option key={h} value={h}>{h === 'ALL' ? 'All haulers' : h}</option>)}
+        </select>
+        <select value={methodFilter} onChange={e => setMethodFilter(e.target.value)} style={selStyle}>
+          {methods.map(m => <option key={m} value={m}>{m === 'ALL' ? 'All methods' : m}</option>)}
+        </select>
+      </div>
+
+      {/* Main content */}
+      <div style={{ flex: 1, padding: '20px 24px', overflow: 'auto' }}>
+        {fetchState === 'loading' && rows.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '80px 20px', color: BRAND.muted, fontFamily: font }}>
+            Loading live data from the sheet…
+          </div>
+        )}
+        {view === 'queue' && rows.length > 0 && (
+          <QueueView boxes={actionQueue} onSelect={setSelected} onRequest={markRequested} onCopy={copyEmail} monoFont={monoFont} font={font} />
+        )}
+        {view === 'fleet' && rows.length > 0 && (
+          <FleetView boxes={filtered} onSelect={setSelected} monoFont={monoFont} font={font} />
+        )}
+        {view === 'log' && (
+          <LogView log={log} monoFont={monoFont} font={font} />
+        )}
+      </div>
+
+      {selected && (
+        <DetailPanel
+          box={selected}
+          onClose={() => setSelected(null)}
+          onRequest={markRequested}
+          onCopy={copyEmail}
+          monoFont={monoFont}
+          font={font}
+          displayFont={displayFont}
+        />
+      )}
+
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+          background: BRAND.ink, border: '1px solid ' + BRAND.greenLight, color: '#FAFBF8',
+          padding: '10px 18px', borderRadius: 6, fontSize: 13, fontFamily: font,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.25)', zIndex: 100, maxWidth: '80vw',
+        }}>{toast}</div>
+      )}
+    </div>
+  );
+}
+
+const selStyle = {
+  padding: '8px 10px', borderRadius: 5, border: '1px solid #E2E6DE', background: '#FAFBF8',
+  color: '#1A1D1A', fontSize: 13, fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
+};
+
+function QueueView({ boxes, onSelect, onRequest, onCopy, monoFont, font }) {
+  if (boxes.length === 0) {
+    return (
+      <div style={{ textAlign: 'center', padding: '80px 20px', color: BRAND.muted }}>
+        <div style={{ fontSize: 15, fontFamily: font }}>No boxes need attention right now.</div>
+        <div style={{ fontSize: 12.5, marginTop: 6, fontFamily: monoFont }}>Adjust filters, or check back after the next scan.</div>
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {boxes.map(b => (
+        <div key={b._key} className="row-hover" style={{
+          display: 'flex', alignItems: 'center', gap: 16, padding: '14px 16px',
+          background: BRAND.panel, border: '1px solid ' + BRAND.line, borderRadius: 7,
+          borderLeft: '3px solid ' + (b.crossedStatus === 'crossed' ? BRAND.red : BRAND.amber),
+        }}>
+          <Gauge pct={b.maxPct} />
+          <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => onSelect(b)}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontFamily: monoFont, fontSize: 12, color: BRAND.muted }}>#{b.boxId}</span>
+              <span style={{ fontWeight: 600, fontSize: 14.5, fontFamily: font }}>{b.description}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+              {b.crossedStatus === 'crossed' && <StatusPill meta={FILL_STATUS_META} statusKey="crossed" />}
+              {b.staleStatus === 'stale' && <StatusPill meta={STALE_STATUS_META} statusKey="stale" />}
+            </div>
+            <div style={{ fontSize: 12.5, color: BRAND.muted, marginTop: 5, fontFamily: font }}>
+              Hauler {b.haulCode} · {b.serviceMethod} · trigger ({b.triggerUsedLabel}): {b.activeTrigger !== null ? b.activeTrigger + '%' : '—'}
+            </div>
+          </div>
+          <div style={{ textAlign: 'right', fontFamily: monoFont, fontSize: 22, fontWeight: 700, color: b.maxPct === null ? BRAND.muted : (b.maxPct >= 70 ? BRAND.red : b.maxPct >= 45 ? BRAND.amber : BRAND.green), minWidth: 60 }}>
+            {b.maxPct !== null ? b.maxPct + '%' : '—'}
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+            <button onClick={() => onCopy(b)} style={btnGhost(monoFont)}>Copy email</button>
+            <button onClick={() => onRequest(b)} style={btnPrimary(monoFont)}>Mark actioned</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FleetView({ boxes, onSelect, monoFont, font }) {
+  return (
+    <div style={{ border: '1px solid ' + BRAND.line, borderRadius: 7, overflow: 'hidden', background: BRAND.panel }}>
+      <div style={{
+        display: 'grid', gridTemplateColumns: '60px 1fr 90px 110px 120px 120px 70px',
+        padding: '10px 16px', background: '#F1F3EC', borderBottom: '1px solid ' + BRAND.line,
+        fontSize: 11, color: BRAND.muted, fontFamily: monoFont, textTransform: 'uppercase', letterSpacing: '0.04em',
+        gap: 10,
+      }}>
+        <div>ID</div><div>Description</div><div>Hauler</div><div>Method</div><div>Signals</div><div>Trigger</div><div>Max %</div>
+      </div>
+      <div style={{ maxHeight: '62vh', overflow: 'auto' }}>
+        {boxes.map(b => (
+          <div key={b._key} className="row-hover" onClick={() => onSelect(b)} style={{
+            display: 'grid', gridTemplateColumns: '60px 1fr 90px 110px 120px 120px 70px',
+            padding: '10px 16px', cursor: 'pointer',
+            fontSize: 13, alignItems: 'center', gap: 10, fontFamily: font,
+            borderTop: '1px solid ' + BRAND.line,
+          }}>
+            <div style={{ fontFamily: monoFont, color: BRAND.muted, fontSize: 12 }}>{b.boxId}</div>
+            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.description}</div>
+            <div style={{ fontFamily: monoFont, fontSize: 12 }}>{b.haulCode}</div>
+            <div style={{ fontSize: 12, color: BRAND.muted }}>{b.serviceMethod}</div>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              {b.crossedStatus === 'crossed' && <StatusPill meta={FILL_STATUS_META} statusKey="crossed" />}
+              {b.staleStatus === 'stale' && <StatusPill meta={STALE_STATUS_META} statusKey="stale" />}
+              {b.crossedStatus !== 'crossed' && b.staleStatus !== 'stale' && <span style={{ fontSize: 11, color: BRAND.muted, fontFamily: monoFont }}>clear</span>}
+            </div>
+            <div style={{ fontSize: 11.5, color: BRAND.muted, fontFamily: monoFont }}>{b.triggerUsedLabel} ({b.activeTrigger !== null ? b.activeTrigger + '%' : '—'})</div>
+            <div style={{ fontFamily: monoFont, fontWeight: 700 }}>{b.maxPct !== null ? b.maxPct + '%' : '—'}</div>
+          </div>
+        ))}
+      </div>
+      {boxes.length === 0 && (
+        <div style={{ padding: 40, textAlign: 'center', color: BRAND.muted }}>No boxes match the current filters.</div>
+      )}
+    </div>
+  );
+}
+
+function LogView({ log, monoFont, font }) {
+  if (log.length === 0) {
+    return (
+      <div style={{ textAlign: 'center', padding: '80px 20px', color: BRAND.muted }}>
+        <div style={{ fontSize: 15, fontFamily: font }}>No actions logged yet in this browser.</div>
+        <div style={{ fontSize: 12.5, marginTop: 6, fontFamily: monoFont }}>Mark a box as actioned from the Action Queue to see it here. Note: this log is local to this browser and does not write back to the Sheet's Sch Date / P/U Date / Cnfrmd columns.</div>
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {log.map(entry => (
+        <div key={entry.id} style={{
+          display: 'flex', alignItems: 'center', gap: 16, padding: '12px 16px',
+          background: BRAND.panel, border: '1px solid ' + BRAND.line, borderRadius: 6, fontFamily: font, fontSize: 13,
+        }}>
+          <div style={{ fontFamily: monoFont, color: BRAND.green, fontSize: 12, minWidth: 130 }}>
+            {new Date(entry.timestamp).toLocaleString()}
+          </div>
+          <div style={{ flex: 1 }}>
+            Box <strong>#{entry.boxId}</strong> — {entry.description} (hauler {entry.haulCode}) actioned at {entry.maxPct !== null ? entry.maxPct + '%' : 'no reading'} via {entry.method}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DetailPanel({ box, onClose, onRequest, onCopy, monoFont, font, displayFont }) {
+  return (
+    <div style={{
+      position: 'fixed', top: 0, right: 0, height: '100vh', width: 'min(440px, 100vw)',
+      background: BRAND.panel, borderLeft: '1px solid ' + BRAND.line, boxShadow: '-12px 0 32px rgba(0,0,0,0.15)',
+      zIndex: 90, display: 'flex', flexDirection: 'column', fontFamily: font,
+    }}>
+      <div style={{ padding: '18px 20px', borderBottom: '1px solid ' + BRAND.line, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: BRAND.ink }}>
+        <div>
+          <div style={{ fontFamily: monoFont, fontSize: 12, color: '#9CA597' }}>BOX #{box.boxId}</div>
+          <div style={{ fontWeight: 700, fontSize: 16, marginTop: 2, color: '#FAFBF8' }}>{box.description}</div>
+        </div>
+        <button onClick={onClose} style={{
+          background: 'transparent', border: 'none', color: '#9CA597', fontSize: 20, cursor: 'pointer', lineHeight: 1,
+        }}>×</button>
+      </div>
+      <div style={{ padding: 20, flex: 1, overflow: 'auto' }}>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 16 }}>
+          <Gauge pct={box.maxPct} size={48} />
+          <div>
+            <div style={{ fontSize: 28, fontWeight: 700, fontFamily: displayFont, color: box.maxPct === null ? BRAND.muted : (box.maxPct >= 70 ? BRAND.red : box.maxPct >= 45 ? BRAND.amber : BRAND.green) }}>
+              {box.maxPct !== null ? box.maxPct + '%' : 'No reading'}
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+              <StatusPill meta={FILL_STATUS_META} statusKey={box.crossedStatus} />
+              <StatusPill meta={STALE_STATUS_META} statusKey={box.staleStatus} />
+            </div>
+          </div>
+        </div>
+
+        {box.notes && (
+          <div style={{
+            background: '#FBF6E9', border: '1px solid #E8D9A8', borderRadius: 6, padding: 10,
+            fontSize: 12, color: '#7A5E1E', marginBottom: 16, fontFamily: font,
+          }}>{box.notes}</div>
+        )}
+
+        {[
+          ['Hauler code', box.haulCode],
+          ['Service method', box.serviceMethod],
+          ['Text Blaze shortcut', box.shortcut || '—'],
+          ['Sensor phone', box.cell || '—'],
+          ['Trigger 1', box.trigger1 !== null ? box.trigger1 + '%' : '—'],
+          ['Trigger 2', box.trigger2 !== null ? box.trigger2 + '%' : '—'],
+          ['Trigger used', box.triggerUsedLabel],
+          ['Hours since last cycle', box.staleHours !== null ? box.staleHours.toFixed(1) + ' h' : '—'],
+          ['Service need (sheet)', box.srvcNeed || '—'],
+          ['Date pull requested', box.datePullReqd || '—'],
+          ['Scheduled date', box.schDate || '—'],
+          ['Pick-up date', box.puDate || '—'],
+          ['Confirmed', box.confirmed ? 'Yes' : 'No'],
+        ].map(([k, v]) => (
+          <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid ' + BRAND.line, fontSize: 13, gap: 12 }}>
+            <span style={{ color: BRAND.muted, flexShrink: 0 }}>{k}</span>
+            <span style={{ fontFamily: monoFont, textAlign: 'right' }}>{String(v)}</span>
+          </div>
+        ))}
+
+        <div style={{ marginTop: 20 }}>
+          <div style={{ fontSize: 11, color: BRAND.muted, textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: monoFont, marginBottom: 8 }}>
+            Service request draft
+          </div>
+          <pre style={{
+            background: '#F1F3EC', border: '1px solid ' + BRAND.line, borderRadius: 6, padding: 12,
+            fontSize: 11.5, color: '#3A3F36', whiteSpace: 'pre-wrap', fontFamily: monoFont, margin: 0,
+          }}>{emailDraft(box)}</pre>
+        </div>
+      </div>
+      <div style={{ padding: 16, borderTop: '1px solid ' + BRAND.line, display: 'flex', gap: 8 }}>
+        <button onClick={() => onCopy(box)} style={{ ...btnGhost(monoFont), flex: 1, padding: '10px' }}>Copy draft</button>
+        <button onClick={() => onRequest(box)} style={{ ...btnPrimary(monoFont), flex: 1, padding: '10px' }}>Mark actioned</button>
+      </div>
+    </div>
+  );
+}
+
+function btnGhost(monoFont) {
+  return {
+    padding: '7px 12px', borderRadius: 5, border: '1px solid #5CAA16', background: 'transparent',
+    color: '#5CAA16', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: monoFont, whiteSpace: 'nowrap',
+  };
+}
+function btnPrimary(monoFont) {
+  return {
+    padding: '7px 14px', borderRadius: 5, border: '1px solid #5CAA16', background: '#5CAA16',
+    color: '#FAFBF8', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: monoFont, whiteSpace: 'nowrap',
+  };
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<WasteNetDashboard />);
+</script>
+</body>
+</html>
