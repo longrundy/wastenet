@@ -404,16 +404,16 @@ function WasteNetDashboard() {
       <div style={{ flexShrink: 0, position: 'sticky', top: 0, zIndex: 10, background: BRAND.paper }}>
       {/* Header */}
       <header style={{
-        borderBottom: '1px solid ' + BRAND.line, padding: '24px 24px',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+        borderBottom: '1px solid ' + BRAND.line, padding: '12px 24px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
         background: BRAND.paper, textAlign: 'center',
       }}>
         <div style={{
-          fontFamily: displayFont, fontWeight: 700, fontSize: 30, letterSpacing: '0.02em',
+          fontFamily: displayFont, fontWeight: 700, fontSize: 21, letterSpacing: '0.02em',
           textTransform: 'uppercase', lineHeight: 1.1, color: BRAND.green,
         }}>WasteNet Box Monitor Scan</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginTop: 2 }}>
-          <span style={{ fontSize: 12, color: BRAND.muted, fontFamily: monoFont, letterSpacing: '0.03em' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <span style={{ fontSize: 11, color: BRAND.muted, fontFamily: monoFont, letterSpacing: '0.03em' }}>
             {fetchState === 'ok' && sheetName ? '"' + formatTabLabel(sheetName) + '"' : fetchState === 'loading' ? 'Connecting to live sheet…' : 'Live data unavailable'}
           </span>
           {availableTabs.length > 0 && (
@@ -421,8 +421,8 @@ function WasteNetDashboard() {
               value={viewingTab || ''}
               onChange={e => handleSelectTab(e.target.value)}
               style={{
-                padding: '4px 8px', borderRadius: 5, border: '1px solid ' + BRAND.line,
-                background: BRAND.panel, color: BRAND.ink, fontSize: 12, fontFamily: monoFont, cursor: 'pointer',
+                padding: '3px 6px', borderRadius: 5, border: '1px solid ' + BRAND.line,
+                background: BRAND.panel, color: BRAND.ink, fontSize: 11, fontFamily: monoFont, cursor: 'pointer',
               }}
             >
               <option value="">Live (latest scan)</option>
@@ -445,8 +445,8 @@ function WasteNetDashboard() {
 
       {/* Stat strip - each one is also the signal filter control */}
       <div style={{
-        display: 'flex', gap: 10, background: BRAND.paper, borderBottom: '1px solid ' + BRAND.line,
-        overflowX: 'auto', padding: '14px 24px', justifyContent: 'center',
+        display: 'flex', gap: 8, background: BRAND.paper, borderBottom: '1px solid ' + BRAND.line,
+        overflowX: 'auto', padding: '8px 24px', justifyContent: 'center',
       }}>
         {[
           { key: 'crossed', label: 'Action Needed', value: counts.crossed + counts.both },
@@ -460,30 +460,31 @@ function WasteNetDashboard() {
               onClick={() => setSignalFilter(s.key)}
               aria-pressed={isActive}
               style={{
-                flex: '0 0 auto', width: 150, padding: '14px 18px', textAlign: 'center',
-                borderRadius: 10, cursor: 'pointer', fontFamily: font,
+                flex: '0 0 auto', width: 150, padding: '8px 14px', textAlign: 'center',
+                borderRadius: 8, cursor: 'pointer', fontFamily: font,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 border: '1.5px solid ' + (isActive ? BRAND.green : BRAND.line),
                 background: isActive ? BRAND.green : BRAND.panel,
-                boxShadow: isActive ? '0 2px 10px rgba(92,170,22,0.25)' : 'none',
+                boxShadow: isActive ? '0 2px 8px rgba(92,170,22,0.25)' : 'none',
                 transition: 'background 0.15s, border-color 0.15s',
               }}
               onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#F1F4EC'; }}
               onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = BRAND.panel; }}
             >
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                fontSize: 15, textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: monoFont, marginBottom: 4,
-                color: isActive ? '#FFFFFF' : BRAND.muted, fontWeight: isActive ? 700 : 400,
-              }}>
-                {isActive && <span style={{ fontSize: 14 }}>✓</span>}
-                {s.label}
-              </div>
-              <div style={{
-                fontSize: 26, fontWeight: isActive ? 700 : 400, fontFamily: displayFont,
-                color: isActive ? '#FFFFFF' : BRAND.green,
+              <span style={{
+                fontSize: 19, fontWeight: isActive ? 700 : 600, fontFamily: displayFont,
+                color: isActive ? '#FFFFFF' : BRAND.green, flexShrink: 0,
               }}>
                 {s.value}
-              </div>
+              </span>
+              <span style={{
+                fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.03em', fontFamily: monoFont,
+                color: isActive ? '#FFFFFF' : BRAND.muted, fontWeight: isActive ? 700 : 400,
+                textAlign: 'left', lineHeight: 1.2,
+              }}>
+                {isActive && <span style={{ marginRight: 3 }}>✓</span>}
+                {s.label}
+              </span>
             </button>
           );
         })}
