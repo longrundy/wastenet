@@ -449,9 +449,9 @@ function WasteNetDashboard() {
         overflowX: 'auto', padding: '14px 24px', justifyContent: 'center',
       }}>
         {[
-          { key: 'crossed', label: 'Yes - Action Needed', value: counts.crossed + counts.both },
+          { key: 'crossed', label: 'Action Needed', value: counts.crossed + counts.both },
           { key: 'stale', label: 'Stale Cycles', value: counts.stale + counts.both },
-          { key: 'clear', label: 'No - Action Not Needed', value: counts.clear },
+          { key: 'clear', label: 'No Action Needed', value: counts.clear },
         ].map((s, i) => {
           const isActive = signalFilter === s.key;
           return (
