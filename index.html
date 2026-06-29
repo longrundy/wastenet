@@ -185,7 +185,7 @@ function WasteNetDashboard() {
   const [lastFetchedAt, setLastFetchedAt] = useState(null);
 
   const [query, setQuery] = useState('');
-  const [signalFilter, setSignalFilter] = useState('ALL'); // ALL | crossed | stale | both | clear
+  const [signalFilter, setSignalFilter] = useState('crossed'); // ALL | crossed | stale | both | clear
   const [selected, setSelected] = useState(null);
   const [toast, setToast] = useState(null);
 
@@ -330,20 +330,16 @@ function WasteNetDashboard() {
       <div style={{ flexShrink: 0, position: 'sticky', top: 0, zIndex: 10, background: BRAND.paper }}>
       {/* Header */}
       <header style={{
-        borderBottom: '1px solid ' + BRAND.line, padding: '18px 24px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
-        background: BRAND.paper, flexWrap: 'wrap',
+        borderBottom: '1px solid ' + BRAND.line, padding: '24px 24px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+        background: BRAND.paper, textAlign: 'center',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div>
-            <div style={{
-              fontFamily: displayFont, fontWeight: 600, fontSize: 19, letterSpacing: '0.02em',
-              textTransform: 'uppercase', lineHeight: 1.1, color: BRAND.green,
-            }}>WasteNet Box Monitor Scan</div>
-            <div style={{ fontSize: 11, color: BRAND.muted, fontFamily: monoFont, letterSpacing: '0.03em', marginTop: 2 }}>
-              {fetchState === 'ok' && sheetName ? 'Live · tab "' + sheetName + '" · ' + rows.length + ' boxes' : fetchState === 'loading' ? 'Connecting to live sheet…' : 'Live data unavailable'}
-            </div>
-          </div>
+        <div style={{
+          fontFamily: displayFont, fontWeight: 700, fontSize: 30, letterSpacing: '0.02em',
+          textTransform: 'uppercase', lineHeight: 1.1, color: BRAND.green,
+        }}>WasteNet Box Monitor Scan</div>
+        <div style={{ fontSize: 12, color: BRAND.muted, fontFamily: monoFont, letterSpacing: '0.03em' }}>
+          {fetchState === 'ok' && sheetName ? 'Live · tab "' + sheetName + '" · ' + rows.length + ' boxes' : fetchState === 'loading' ? 'Connecting to live sheet…' : 'Live data unavailable'}
         </div>
       </header>
 
