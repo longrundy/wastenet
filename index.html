@@ -66,6 +66,27 @@ function parseNum(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+// Converts a raw spreadsheet tab name (e.g. "2026-06-29" or
+// "2026-06-28 (2)" for a same-day re-run) into a friendly display label
+// (e.g. "Tue 6-29-26" or "Tue 6-28-26 (2)") for the dropdown. The
+// underlying tab name itself is NEVER changed - only how it's shown to
+// the user - since the real yyyy-MM-dd name is what the Apps Script
+// relies on for finding "today's tab" and handling same-day collisions.
+// Falls back to the raw name unchanged if it doesn't match the
+// expected pattern, so an unexpected tab name never breaks the dropdown.
+function formatTabLabel(tabName) {
+  const m = String(tabName).match(/^(\d{4})-(\d{2})-(\d{2})(\s*\(\d+\))?$/);
+  if (!m) return tabName;
+  const year = m[1], month = m[2], day = m[3], suffix = m[4];
+  const dateObj = new Date(Number(year), Number(month) - 1, Number(day));
+  if (isNaN(dateObj.getTime())) return tabName;
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const dayLabel = dayNames[dateObj.getDay()];
+  const shortYear = year.slice(-2);
+  const label = dayLabel + ' ' + Number(month) + '-' + Number(day) + '-' + shortYear;
+  return suffix ? label + ' ' + suffix.trim() : label;
+}
+
 function parseHoursFromNotes(notes) {
   if (!notes) return null;
   const m = String(notes).match(/Last Cycle is ([\d.]+) hours/i);
@@ -394,7 +415,7 @@ function WasteNetDashboard() {
         }}>WasteNet Box Monitor Scan</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginTop: 2 }}>
           <span style={{ fontSize: 12, color: BRAND.muted, fontFamily: monoFont, letterSpacing: '0.03em' }}>
-            {fetchState === 'ok' && sheetName ? '"' + sheetName + '"' : fetchState === 'loading' ? 'Connecting to live sheet…' : 'Live data unavailable'}
+            {fetchState === 'ok' && sheetName ? '"' + formatTabLabel(sheetName) + '"' : fetchState === 'loading' ? 'Connecting to live sheet…' : 'Live data unavailable'}
           </span>
           {availableTabs.length > 0 && (
             <select
@@ -406,7 +427,7 @@ function WasteNetDashboard() {
               }}
             >
               <option value="">Live (latest scan)</option>
-              {availableTabs.map(t => <option key={t} value={t}>{t}</option>)}
+              {availableTabs.map(t => <option key={t} value={t}>{formatTabLabel(t)}</option>)}
             </select>
           )}
         </div>
