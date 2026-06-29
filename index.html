@@ -408,8 +408,9 @@ function WasteNetDashboard() {
       {/* Filters */}
       <div style={{
         display: 'flex', gap: 10, padding: '12px 24px', borderBottom: '1px solid ' + BRAND.line,
-        background: BRAND.panel, flexWrap: 'wrap', alignItems: 'center',
+        background: BRAND.panel, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
       }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', width: '100%', maxWidth: 720 }}>
         <input
           value={query}
           onChange={e => setQuery(e.target.value)}
@@ -430,20 +431,23 @@ function WasteNetDashboard() {
           <option value="boxId">Sort: Box Number</option>
           <option value="description">Sort: Description</option>
         </select>
+        </div>
       </div>
       </div>
 
       {/* Main content - this is the part that scrolls; everything above
           (title bar, stat/filter buttons, search) stays pinned in view. */}
       <div style={{ flex: 1, padding: '20px 24px', overflowY: 'auto' }}>
-        {fetchState === 'loading' && rows.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '80px 20px', color: BRAND.muted, fontFamily: font }}>
-            Loading live data from the sheet…
-          </div>
-        )}
-        {rows.length > 0 && (
-          <QueueView boxes={actionQueue} onSelect={setSelected} monoFont={monoFont} font={font} />
-        )}
+        <div style={{ maxWidth: 720, margin: '0 auto' }}>
+          {fetchState === 'loading' && rows.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '80px 20px', color: BRAND.muted, fontFamily: font }}>
+              Loading live data from the sheet…
+            </div>
+          )}
+          {rows.length > 0 && (
+            <QueueView boxes={actionQueue} onSelect={setSelected} monoFont={monoFont} font={font} />
+          )}
+        </div>
       </div>
 
       {selected && (
