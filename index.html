@@ -443,7 +443,7 @@ function WasteNetDashboard() {
           { label: 'Needs Action', value: counts.crossed + counts.both, color: '#E9A089' },
           { label: 'Scan Stale', value: counts.stale + counts.both, color: '#EFC178' },
           { label: 'No Action Needed', value: counts.clear, color: '#B8E68C' },
-          { label: 'Total Fleet', value: counts.total, color: '#9CA597' },
+          { label: 'Total Boxes', value: counts.total, color: '#9CA597' },
         ].map((s, i) => (
           <div key={i} style={{ flex: '1 1 140px', padding: '14px 20px', minWidth: 140 }}>
             <div style={{ fontSize: 11, color: '#B9C2AF', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: monoFont, marginBottom: 4 }}>
@@ -472,10 +472,9 @@ function WasteNetDashboard() {
         />
         <select value={signalFilter} onChange={e => setSignalFilter(e.target.value)} style={selStyle}>
           <option value="ALL">All signals</option>
-          <option value="crossed">Trigger crossed</option>
+          <option value="crossed">Needs action</option>
           <option value="stale">Scan stale</option>
-          <option value="both">Both signals</option>
-          <option value="clear">Clear</option>
+          <option value="clear">No action needed</option>
         </select>
         <select value={haulerFilter} onChange={e => setHaulerFilter(e.target.value)} style={selStyle}>
           {haulers.map(h => <option key={h} value={h}>{h === 'ALL' ? 'All haulers' : h}</option>)}
