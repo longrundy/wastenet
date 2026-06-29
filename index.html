@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>WasteNet Dispatch</title>
+<title>WasteNet Box Monitor Scan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -395,7 +395,7 @@ function WasteNetDashboard() {
             <div style={{
               fontFamily: displayFont, fontWeight: 600, fontSize: 18, letterSpacing: '0.02em',
               textTransform: 'uppercase', lineHeight: 1.1, color: '#FAFBF8',
-            }}>WasteNet Dispatch</div>
+            }}>WasteNet Box Monitor Scan</div>
             <div style={{ fontSize: 11, color: '#9CA597', fontFamily: monoFont, letterSpacing: '0.03em' }}>
               {fetchState === 'ok' && sheetName ? 'Live · tab "' + sheetName + '" · ' + rows.length + ' boxes' : fetchState === 'loading' ? 'Connecting to live sheet…' : 'Live data unavailable'}
             </div>
@@ -440,10 +440,9 @@ function WasteNetDashboard() {
         overflowX: 'auto',
       }}>
         {[
-          { label: 'Trigger Crossed', value: counts.crossed + counts.both, color: '#E9A089' },
+          { label: 'Needs Action', value: counts.crossed + counts.both, color: '#E9A089' },
           { label: 'Scan Stale', value: counts.stale + counts.both, color: '#EFC178' },
-          { label: 'Both Signals', value: counts.both, color: '#FFFFFF' },
-          { label: 'Clear', value: counts.clear, color: '#B8E68C' },
+          { label: 'No Action Needed', value: counts.clear, color: '#B8E68C' },
           { label: 'Total Fleet', value: counts.total, color: '#9CA597' },
         ].map((s, i) => (
           <div key={i} style={{ flex: '1 1 140px', padding: '14px 20px', minWidth: 140 }}>
@@ -494,7 +493,7 @@ function WasteNetDashboard() {
           </div>
         )}
         {view === 'queue' && rows.length > 0 && (
-          <QueueView boxes={actionQueue} onSelect={setSelected} onRequest={markRequested} onCopy={copyEmail} monoFont={monoFont} font={font} />
+          <QueueView boxes={actionQueue} onSelect={setSelected} monoFont={monoFont} font={font} />
         )}
         {view === 'fleet' && rows.length > 0 && (
           <FleetView boxes={filtered} onSelect={setSelected} monoFont={monoFont} font={font} />
@@ -533,7 +532,7 @@ const selStyle = {
   color: '#1A1D1A', fontSize: 13, fontFamily: "'JetBrains Mono', monospace", cursor: 'pointer',
 };
 
-function QueueView({ boxes, onSelect, onRequest, onCopy, monoFont, font }) {
+function QueueView({ boxes, onSelect, monoFont, font }) {
   if (boxes.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '80px 20px', color: BRAND.muted }}>
@@ -566,10 +565,6 @@ function QueueView({ boxes, onSelect, onRequest, onCopy, monoFont, font }) {
           </div>
           <div style={{ textAlign: 'right', fontFamily: monoFont, fontSize: 22, fontWeight: 700, color: b.maxPct === null ? BRAND.muted : (b.maxPct >= 70 ? BRAND.red : b.maxPct >= 45 ? BRAND.amber : BRAND.green), minWidth: 60 }}>
             {b.maxPct !== null ? b.maxPct + '%' : '—'}
-          </div>
-          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-            <button onClick={() => onCopy(b)} style={btnGhost(monoFont)}>Copy email</button>
-            <button onClick={() => onRequest(b)} style={btnPrimary(monoFont)}>Mark actioned</button>
           </div>
         </div>
       ))}
