@@ -157,16 +157,6 @@ function Gauge({ pct, size = 36 }) {
   );
 }
 
-function emailDraft(box) {
-  return 'Subject: Service Request - Box #' + box.boxId + ' (' + box.description + ')\n\n' +
-    'Hauler code: ' + box.haulCode + '\n' +
-    'Service method: ' + box.serviceMethod + '\n' +
-    'Max fill reading: ' + (box.maxPct !== null ? box.maxPct + '%' : 'no reading') + '\n' +
-    'Active trigger (' + box.triggerUsedLabel + '): ' + (box.activeTrigger !== null ? box.activeTrigger + '%' : '—') + '\n\n' +
-    'Please schedule a pickup for the above unit at your earliest convenience.\n\n' +
-    'Sensor line: ' + box.cell;
-}
-
 // localStorage-backed persistence (replaces the Claude-Artifact-only
 // window.storage API, which does not exist outside Claude). Plain
 // browser localStorage - same device/browser only, no cross-device
@@ -194,8 +184,6 @@ function WasteNetDashboard() {
   const [fetchError, setFetchError] = useState(null);
   const [lastFetchedAt, setLastFetchedAt] = useState(null);
 
-  const [localState, setLocalState] = useState(() => loadLocal('wastenet-local-box-state', {}));
-
   const [query, setQuery] = useState('');
   const [signalFilter, setSignalFilter] = useState('ALL'); // ALL | crossed | stale | both | clear
   const [selected, setSelected] = useState(null);
@@ -203,11 +191,6 @@ function WasteNetDashboard() {
   const [toast, setToast] = useState(null);
 
   const pollRef = useRef(null);
-
-  const persistLocalState = useCallback((next) => {
-    setLocalState(next);
-    saveLocal('wastenet-local-box-state', next);
-  }, []);
 
   // JSONP loader - used instead of fetch()/XHR because Apps Script Web
   // App URLs always 302-redirect internally to a googleusercontent.com
@@ -307,14 +290,14 @@ function WasteNetDashboard() {
       ? filtered.filter(r => r.crossedStatus === 'crossed' || r.staleStatus === 'stale')
       : filtered;
     return base
-      .filter(r => !(localState[r._key] && localState[r._key].dismissed))
+      .slice()
       .sort((a, b) => {
         const score = (r) => (r.crossedStatus === 'crossed' ? 2 : 0) + (r.staleStatus === 'stale' ? 1 : 0);
         const diff = score(b) - score(a);
         if (diff !== 0) return diff;
         return (b.maxPct || 0) - (a.maxPct || 0);
       });
-  }, [filtered, localState, signalFilter]);
+  }, [filtered, signalFilter]);
 
   const counts = useMemo(() => {
     const c = { crossed: 0, stale: 0, both: 0, clear: 0, total: rows.length };
@@ -334,22 +317,6 @@ function WasteNetDashboard() {
     setTimeout(() => setToast(null), 2600);
   };
 
-  const markRequested = useCallback((box) => {
-    const next = { ...localState, [box._key]: { ...(localState[box._key] || {}), dismissed: true } };
-    persistLocalState(next);
-    showToast('Marked Box #' + box.boxId + ' as actioned (this browser only, does not write to the Sheet)');
-  }, [localState, persistLocalState]);
-
-  const copyEmail = useCallback(async (box) => {
-    const text = emailDraft(box);
-    try {
-      await navigator.clipboard.writeText(text);
-      showToast('Email draft copied for Box #' + box.boxId);
-    } catch (e) {
-      showToast('Could not copy — select text manually');
-    }
-  }, []);
-
   const font = "'Inter', -apple-system, sans-serif";
   const monoFont = "'JetBrains Mono', 'SF Mono', monospace";
   const displayFont = "'Oswald', sans-serif";
@@ -366,11 +333,6 @@ function WasteNetDashboard() {
         background: BRAND.ink, flexWrap: 'wrap',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: 6, background: BRAND.green,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800,
-            fontFamily: displayFont, color: '#FAFBF8', fontSize: 16,
-          }}>W</div>
           <div>
             <div style={{
               fontFamily: displayFont, fontWeight: 600, fontSize: 18, letterSpacing: '0.02em',
@@ -390,7 +352,7 @@ function WasteNetDashboard() {
           </button>
           {[
             { key: 'queue', label: 'Action Queue' },
-            { key: 'fleet', label: 'Fleet Overview' },
+            { key: 'fleet', label: 'Master Box List' },
           ].map(t => (
             <button key={t.key} onClick={() => setView(t.key)} style={{
               padding: '8px 14px', borderRadius: 5, border: '1px solid ' + (view === t.key ? BRAND.greenLight : '#3A3F36'),
@@ -476,8 +438,6 @@ function WasteNetDashboard() {
         <DetailPanel
           box={selected}
           onClose={() => setSelected(null)}
-          onRequest={markRequested}
-          onCopy={copyEmail}
           monoFont={monoFont}
           font={font}
           displayFont={displayFont}
@@ -581,7 +541,7 @@ function FleetView({ boxes, onSelect, monoFont, font }) {
   );
 }
 
-function DetailPanel({ box, onClose, onRequest, onCopy, monoFont, font, displayFont }) {
+function DetailPanel({ box, onClose, monoFont, font, displayFont }) {
   return (
     <div style={{
       position: 'fixed', top: 0, right: 0, height: '100vh', width: 'min(440px, 100vw)',
@@ -638,36 +598,9 @@ function DetailPanel({ box, onClose, onRequest, onCopy, monoFont, font, displayF
             <span style={{ fontFamily: monoFont, textAlign: 'right' }}>{String(v)}</span>
           </div>
         ))}
-
-        <div style={{ marginTop: 20 }}>
-          <div style={{ fontSize: 11, color: BRAND.muted, textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: monoFont, marginBottom: 8 }}>
-            Service request draft
-          </div>
-          <pre style={{
-            background: '#F1F3EC', border: '1px solid ' + BRAND.line, borderRadius: 6, padding: 12,
-            fontSize: 11.5, color: '#3A3F36', whiteSpace: 'pre-wrap', fontFamily: monoFont, margin: 0,
-          }}>{emailDraft(box)}</pre>
-        </div>
-      </div>
-      <div style={{ padding: 16, borderTop: '1px solid ' + BRAND.line, display: 'flex', gap: 8 }}>
-        <button onClick={() => onCopy(box)} style={{ ...btnGhost(monoFont), flex: 1, padding: '10px' }}>Copy draft</button>
-        <button onClick={() => onRequest(box)} style={{ ...btnPrimary(monoFont), flex: 1, padding: '10px' }}>Mark actioned</button>
       </div>
     </div>
   );
-}
-
-function btnGhost(monoFont) {
-  return {
-    padding: '7px 12px', borderRadius: 5, border: '1px solid #5CAA16', background: 'transparent',
-    color: '#5CAA16', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: monoFont, whiteSpace: 'nowrap',
-  };
-}
-function btnPrimary(monoFont) {
-  return {
-    padding: '7px 14px', borderRadius: 5, border: '1px solid #5CAA16', background: '#5CAA16',
-    color: '#FAFBF8', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: monoFont, whiteSpace: 'nowrap',
-  };
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
