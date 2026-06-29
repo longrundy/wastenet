@@ -184,6 +184,14 @@ function WasteNetDashboard() {
   const [fetchError, setFetchError] = useState(null);
   const [lastFetchedAt, setLastFetchedAt] = useState(null);
 
+  // null = viewing today's/latest live data (auto-refreshes); any other
+  // value = a specific past tab the user picked from the dropdown
+  // (frozen - auto-refresh won't silently pull them back to "today"
+  // while they're looking at an older scan).
+  const [viewingTab, setViewingTab] = useState(null);
+  const [availableTabs, setAvailableTabs] = useState([]);
+  const [tabsLoadError, setTabsLoadError] = useState(null);
+
   const [query, setQuery] = useState('');
   const [signalFilter, setSignalFilter] = useState('crossed'); // ALL | crossed | stale | both | clear
   const [sortBy, setSortBy] = useState('description'); // boxId | description
@@ -239,10 +247,17 @@ function WasteNetDashboard() {
     });
   }, []);
 
-  const fetchLiveData = useCallback(async () => {
+  // Loads either the live/latest scan (tabName omitted) or a specific
+  // past tab by exact name. Used for the initial load, the 5-minute
+  // auto-poll (live only), and whenever the user picks a date from the
+  // dropdown.
+  const loadTab = useCallback(async (tabName) => {
     setFetchState((prev) => (prev === 'ok' ? 'ok' : 'loading'));
     try {
-      const json = await jsonpLoad(SHEET_URL + '?action=latest');
+      const url = tabName
+        ? SHEET_URL + '?action=tab&name=' + encodeURIComponent(tabName)
+        : SHEET_URL + '?action=latest';
+      const json = await jsonpLoad(url);
       if (!json.ok) throw new Error(json.error || 'Unknown error from sheet endpoint');
       const normalized = (json.rows || []).map(normalizeRow);
       setRows(normalized);
@@ -257,11 +272,45 @@ function WasteNetDashboard() {
     }
   }, [jsonpLoad]);
 
+  // Fetches the dropdown's list of selectable past-scan tabs once on
+  // load. A failure here is non-fatal - the dashboard still works fine
+  // showing only live data, just without the history dropdown - so this
+  // is tracked separately from the main fetchState/fetchError.
+  const loadTabList = useCallback(async () => {
+    try {
+      const json = await jsonpLoad(SHEET_URL + '?action=list_tabs');
+      if (!json.ok) throw new Error(json.error || 'Unknown error loading tab list');
+      setAvailableTabs(json.tabs || []);
+      setTabsLoadError(null);
+    } catch (err) {
+      setTabsLoadError(err.message || String(err));
+    }
+  }, [jsonpLoad]);
+
+  const handleSelectTab = useCallback((name) => {
+    if (name === '') {
+      // Empty option = back to live
+      setViewingTab(null);
+      loadTab();
+    } else {
+      setViewingTab(name);
+      loadTab(name);
+    }
+  }, [loadTab]);
+
   useEffect(() => {
-    fetchLiveData();
-    pollRef.current = setInterval(fetchLiveData, 5 * 60 * 1000);
+    loadTab();
+    loadTabList();
+  }, [loadTab, loadTabList]);
+
+  useEffect(() => {
+    // Only auto-refresh while viewing live/latest data - if the user has
+    // picked a specific past tab from the dropdown, leave it alone so
+    // it doesn't silently snap back to "today" out from under them.
+    if (viewingTab !== null) return;
+    pollRef.current = setInterval(() => loadTab(), 5 * 60 * 1000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [fetchLiveData]);
+  }, [viewingTab, loadTab]);
 
   const filtered = useMemo(() => {
     return rows.filter(r => {
@@ -343,8 +392,23 @@ function WasteNetDashboard() {
           fontFamily: displayFont, fontWeight: 700, fontSize: 30, letterSpacing: '0.02em',
           textTransform: 'uppercase', lineHeight: 1.1, color: BRAND.green,
         }}>WasteNet Box Monitor Scan</div>
-        <div style={{ fontSize: 12, color: BRAND.muted, fontFamily: monoFont, letterSpacing: '0.03em' }}>
-          {fetchState === 'ok' && sheetName ? 'Live · tab "' + sheetName + '" · ' + rows.length + ' boxes' : fetchState === 'loading' ? 'Connecting to live sheet…' : 'Live data unavailable'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginTop: 2 }}>
+          <span style={{ fontSize: 12, color: BRAND.muted, fontFamily: monoFont, letterSpacing: '0.03em' }}>
+            {fetchState === 'ok' && sheetName ? '"' + sheetName + '"' : fetchState === 'loading' ? 'Connecting to live sheet…' : 'Live data unavailable'}
+          </span>
+          {availableTabs.length > 0 && (
+            <select
+              value={viewingTab || ''}
+              onChange={e => handleSelectTab(e.target.value)}
+              style={{
+                padding: '4px 8px', borderRadius: 5, border: '1px solid ' + BRAND.line,
+                background: BRAND.panel, color: BRAND.ink, fontSize: 12, fontFamily: monoFont, cursor: 'pointer',
+              }}
+            >
+              <option value="">Live (latest scan)</option>
+              {availableTabs.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          )}
         </div>
       </header>
 
