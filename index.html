@@ -186,7 +186,7 @@ function WasteNetDashboard() {
 
   const [query, setQuery] = useState('');
   const [signalFilter, setSignalFilter] = useState('crossed'); // ALL | crossed | stale | both | clear
-  const [sortBy, setSortBy] = useState('default'); // default | boxId | description
+  const [sortBy, setSortBy] = useState('boxId'); // boxId | description
   const [selected, setSelected] = useState(null);
   const [toast, setToast] = useState(null);
 
@@ -290,21 +290,14 @@ function WasteNetDashboard() {
       ? filtered.filter(r => r.crossedStatus === 'crossed' || r.staleStatus === 'stale')
       : filtered;
     const list = base.slice();
-    if (sortBy === 'boxId') {
+    if (sortBy === 'description') {
+      list.sort((a, b) => a.description.localeCompare(b.description));
+    } else {
       list.sort((a, b) => {
         const numA = parseInt(a.boxId, 10);
         const numB = parseInt(b.boxId, 10);
         if (Number.isFinite(numA) && Number.isFinite(numB)) return numA - numB;
         return String(a.boxId).localeCompare(String(b.boxId));
-      });
-    } else if (sortBy === 'description') {
-      list.sort((a, b) => a.description.localeCompare(b.description));
-    } else {
-      list.sort((a, b) => {
-        const score = (r) => (r.crossedStatus === 'crossed' ? 2 : 0) + (r.staleStatus === 'stale' ? 1 : 0);
-        const diff = score(b) - score(a);
-        if (diff !== 0) return diff;
-        return (b.maxPct || 0) - (a.maxPct || 0);
       });
     }
     return list;
@@ -383,7 +376,7 @@ function WasteNetDashboard() {
               onClick={() => setSignalFilter(s.key)}
               aria-pressed={isActive}
               style={{
-                flex: '1 1 150px', minWidth: 150, padding: '14px 18px', textAlign: 'left',
+                flex: '1 1 150px', minWidth: 150, padding: '14px 18px', textAlign: 'center',
                 borderRadius: 10, cursor: 'pointer', fontFamily: font,
                 border: '1.5px solid ' + (isActive ? BRAND.green : BRAND.line),
                 background: isActive ? BRAND.green : BRAND.panel,
@@ -394,7 +387,7 @@ function WasteNetDashboard() {
               onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = BRAND.panel; }}
             >
               <div style={{
-                display: 'flex', alignItems: 'center', gap: 6,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                 fontSize: 15, textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: monoFont, marginBottom: 4,
                 color: isActive ? '#FFFFFF' : BRAND.muted,
               }}>
@@ -434,7 +427,6 @@ function WasteNetDashboard() {
             background: BRAND.paper, color: BRAND.ink, fontSize: 13, fontFamily: font, cursor: 'pointer',
           }}
         >
-          <option value="default">Sort: Priority</option>
           <option value="boxId">Sort: Box Number</option>
           <option value="description">Sort: Description</option>
         </select>
