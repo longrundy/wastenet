@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>WasteNet Box Monitor Scan</title>
+<title>WasteNet Box Monitor Dashboard</title>
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
@@ -417,7 +417,7 @@ function WasteNetDashboard() {
           <div style={{
             fontFamily: displayFont, fontWeight: 700, fontSize: 16, letterSpacing: '0.04em',
             textTransform: 'uppercase', lineHeight: 1.1, color: BRAND.green,
-          }}>Box Monitor Scan</div>
+          }}>Box Monitor Dashboard</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
             <span style={{ fontSize: 11, color: BRAND.muted, fontFamily: monoFont, letterSpacing: '0.03em' }}>
               {fetchState === 'ok' && sheetName ? '"' + formatTabLabel(sheetName) + '"' : fetchState === 'loading' ? 'Connecting to live sheet…' : 'Live data unavailable'}
