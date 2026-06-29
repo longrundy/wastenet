@@ -239,10 +239,7 @@ function WasteNetDashboard() {
     });
   }, []);
 
-  const fetchStateRef = useRef('loading');
-
   const fetchLiveData = useCallback(async () => {
-    const isManualRefresh = fetchStateRef.current !== 'loading';
     setFetchState((prev) => (prev === 'ok' ? 'ok' : 'loading'));
     try {
       const json = await jsonpLoad(SHEET_URL + '?action=latest');
@@ -252,16 +249,10 @@ function WasteNetDashboard() {
       setSheetName(json.sheetName || null);
       setScanTitle(json.scanTitle || null);
       setFetchState('ok');
-      fetchStateRef.current = 'ok';
       setFetchError(null);
       setLastFetchedAt(new Date());
-      if (isManualRefresh) {
-        setToast('Refreshed · ' + normalized.length + ' boxes loaded');
-        setTimeout(() => setToast(null), 2600);
-      }
     } catch (err) {
       setFetchState('error');
-      fetchStateRef.current = 'error';
       setFetchError(err.message || String(err));
     }
   }, [jsonpLoad]);
@@ -332,9 +323,12 @@ function WasteNetDashboard() {
 
   return (
     <div style={{
-      fontFamily: font, background: BRAND.paper, color: BRAND.ink, minHeight: '100vh',
-      display: 'flex', flexDirection: 'column',
+      fontFamily: font, background: BRAND.paper, color: BRAND.ink, height: '100vh',
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
+      {/* Frozen top section: title bar, stat/filter buttons, and search - stays
+          visible while the box list below scrolls. */}
+      <div style={{ flexShrink: 0, position: 'sticky', top: 0, zIndex: 10 }}>
       {/* Header */}
       <header style={{
         borderBottom: '1px solid ' + BRAND.line, padding: '14px 24px',
@@ -353,12 +347,6 @@ function WasteNetDashboard() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button onClick={fetchLiveData} title="Refresh live data" style={{
-            padding: '8px 12px', borderRadius: 5, border: '1px solid #3A3F36', background: 'transparent',
-            color: '#C7CCBE', fontFamily: monoFont, fontSize: 12, cursor: 'pointer',
-          }}>
-            {fetchState === 'loading' ? '↻ Loading…' : '↻ Refresh'}
-          </button>
           {[
             { key: 'queue', label: 'Action Queue' },
             { key: 'fleet', label: 'Master Box List' },
@@ -386,8 +374,8 @@ function WasteNetDashboard() {
 
       {/* Stat strip - each one is also the signal filter control */}
       <div style={{
-        display: 'flex', gap: 1, background: BRAND.greenDark, borderBottom: '1px solid ' + BRAND.line,
-        overflowX: 'auto',
+        display: 'flex', gap: 8, background: BRAND.greenDark, borderBottom: '1px solid ' + BRAND.line,
+        overflowX: 'auto', padding: '10px 16px',
       }}>
         {[
           { key: 'crossed', label: 'Needs Action', value: counts.crossed + counts.both, color: '#E9A089' },
@@ -400,17 +388,30 @@ function WasteNetDashboard() {
             <button
               key={i}
               onClick={() => setSignalFilter(s.key)}
+              aria-pressed={isActive}
               style={{
-                flex: '1 1 140px', minWidth: 140, padding: '14px 20px', textAlign: 'left',
-                border: 'none', borderBottom: '3px solid ' + (isActive ? s.color : 'transparent'),
-                background: isActive ? 'rgba(255,255,255,0.06)' : 'transparent',
-                cursor: 'pointer', fontFamily: font,
+                flex: '1 1 150px', minWidth: 150, padding: '12px 18px', textAlign: 'left',
+                borderRadius: 8, cursor: 'pointer', fontFamily: font,
+                border: '1.5px solid ' + (isActive ? s.color : 'rgba(255,255,255,0.18)'),
+                background: isActive ? s.color : 'rgba(255,255,255,0.05)',
+                boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.25)' : 'none',
+                transition: 'background 0.15s, border-color 0.15s, transform 0.1s',
               }}
+              onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.11)'; }}
+              onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
             >
-              <div style={{ fontSize: 11, color: '#B9C2AF', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: monoFont, marginBottom: 4 }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: monoFont, marginBottom: 4,
+                color: isActive ? BRAND.ink : '#B9C2AF',
+              }}>
+                {isActive && <span style={{ fontSize: 12 }}>✓</span>}
                 {s.label}
               </div>
-              <div style={{ fontSize: 26, fontWeight: 700, color: s.color, fontFamily: displayFont }}>
+              <div style={{
+                fontSize: 26, fontWeight: 700, fontFamily: displayFont,
+                color: isActive ? BRAND.ink : s.color,
+              }}>
                 {s.value}
               </div>
             </button>
@@ -433,9 +434,11 @@ function WasteNetDashboard() {
           }}
         />
       </div>
+      </div>
 
-      {/* Main content */}
-      <div style={{ flex: 1, padding: '20px 24px', overflow: 'auto' }}>
+      {/* Main content - this is the part that scrolls; everything above
+          (title bar, stat/filter buttons, search) stays pinned in view. */}
+      <div style={{ flex: 1, padding: '20px 24px', overflowY: 'auto' }}>
         {fetchState === 'loading' && rows.length === 0 && (
           <div style={{ textAlign: 'center', padding: '80px 20px', color: BRAND.muted, fontFamily: font }}>
             Loading live data from the sheet…
@@ -513,16 +516,16 @@ function QueueView({ boxes, onSelect, monoFont, font }) {
 
 function FleetView({ boxes, onSelect, monoFont, font }) {
   return (
-    <div style={{ border: '1px solid ' + BRAND.line, borderRadius: 7, overflow: 'hidden', background: BRAND.panel }}>
+    <div style={{ border: '1px solid ' + BRAND.line, borderRadius: 7, background: BRAND.panel }}>
       <div style={{
         display: 'grid', gridTemplateColumns: '60px 1fr 90px 110px 120px 120px 70px',
         padding: '10px 16px', background: '#F1F3EC', borderBottom: '1px solid ' + BRAND.line,
         fontSize: 11, color: BRAND.muted, fontFamily: monoFont, textTransform: 'uppercase', letterSpacing: '0.04em',
-        gap: 10,
+        gap: 10, position: 'sticky', top: 0, zIndex: 1, borderRadius: '7px 7px 0 0',
       }}>
         <div>ID</div><div>Description</div><div>Hauler</div><div>Method</div><div>Signals</div><div>Trigger</div><div>Max %</div>
       </div>
-      <div style={{ maxHeight: '62vh', overflow: 'auto' }}>
+      <div style={{ borderRadius: '0 0 7px 7px', overflow: 'hidden' }}>
         {boxes.map(b => (
           <div key={b._key} className="row-hover" onClick={() => onSelect(b)} style={{
             display: 'grid', gridTemplateColumns: '60px 1fr 90px 110px 120px 120px 70px',
