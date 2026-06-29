@@ -195,12 +195,9 @@ function WasteNetDashboard() {
   const [lastFetchedAt, setLastFetchedAt] = useState(null);
 
   const [localState, setLocalState] = useState(() => loadLocal('wastenet-local-box-state', {}));
-  const [log, setLog] = useState(() => loadLocal('wastenet-service-log', []));
 
   const [query, setQuery] = useState('');
-  const [haulerFilter, setHaulerFilter] = useState('ALL');
   const [signalFilter, setSignalFilter] = useState('ALL'); // ALL | crossed | stale | both | clear
-  const [methodFilter, setMethodFilter] = useState('ALL');
   const [selected, setSelected] = useState(null);
   const [view, setView] = useState('queue');
   const [toast, setToast] = useState(null);
@@ -210,11 +207,6 @@ function WasteNetDashboard() {
   const persistLocalState = useCallback((next) => {
     setLocalState(next);
     saveLocal('wastenet-local-box-state', next);
-  }, []);
-
-  const persistLog = useCallback((next) => {
-    setLog(next);
-    saveLocal('wastenet-service-log', next);
   }, []);
 
   // JSONP loader - used instead of fetch()/XHR because Apps Script Web
@@ -288,20 +280,8 @@ function WasteNetDashboard() {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [fetchLiveData]);
 
-  const haulers = useMemo(() => {
-    const s = new Set(rows.map(r => r.haulCode).filter(Boolean));
-    return ['ALL', ...Array.from(s).sort()];
-  }, [rows]);
-
-  const methods = useMemo(() => {
-    const s = new Set(rows.map(r => r.serviceMethod).filter(Boolean));
-    return ['ALL', ...Array.from(s).sort()];
-  }, [rows]);
-
   const filtered = useMemo(() => {
     return rows.filter(r => {
-      if (haulerFilter !== 'ALL' && r.haulCode !== haulerFilter) return false;
-      if (methodFilter !== 'ALL' && r.serviceMethod !== methodFilter) return false;
       if (signalFilter === 'crossed' && r.crossedStatus !== 'crossed') return false;
       if (signalFilter === 'stale' && r.staleStatus !== 'stale') return false;
       if (signalFilter === 'both' && !(r.crossedStatus === 'crossed' && r.staleStatus === 'stale')) return false;
@@ -313,18 +293,28 @@ function WasteNetDashboard() {
       }
       return true;
     });
-  }, [rows, haulerFilter, methodFilter, signalFilter, query]);
+  }, [rows, signalFilter, query]);
 
   const actionQueue = useMemo(() => {
-    return filtered
-      .filter(r => (r.crossedStatus === 'crossed' || r.staleStatus === 'stale') && !(localState[r._key] && localState[r._key].dismissed))
+    // Default view (signalFilter === 'ALL') shows only boxes that need
+    // attention (crossed or stale) - that's the "queue" concept. But if
+    // the dropdown is explicitly set to something else (e.g. "No action
+    // needed"), `filtered` has already narrowed to exactly that signal,
+    // so re-applying the crossed/stale-only rule here would always
+    // produce an empty list for "No action needed" - respect the
+    // explicit choice instead of double-filtering against it.
+    const base = signalFilter === 'ALL'
+      ? filtered.filter(r => r.crossedStatus === 'crossed' || r.staleStatus === 'stale')
+      : filtered;
+    return base
+      .filter(r => !(localState[r._key] && localState[r._key].dismissed))
       .sort((a, b) => {
         const score = (r) => (r.crossedStatus === 'crossed' ? 2 : 0) + (r.staleStatus === 'stale' ? 1 : 0);
         const diff = score(b) - score(a);
         if (diff !== 0) return diff;
         return (b.maxPct || 0) - (a.maxPct || 0);
       });
-  }, [filtered, localState]);
+  }, [filtered, localState, signalFilter]);
 
   const counts = useMemo(() => {
     const c = { crossed: 0, stale: 0, both: 0, clear: 0, total: rows.length };
@@ -347,18 +337,8 @@ function WasteNetDashboard() {
   const markRequested = useCallback((box) => {
     const next = { ...localState, [box._key]: { ...(localState[box._key] || {}), dismissed: true } };
     persistLocalState(next);
-    const entry = {
-      id: Date.now() + '-' + box.boxId,
-      boxId: box.boxId,
-      description: box.description,
-      haulCode: box.haulCode,
-      maxPct: box.maxPct,
-      method: box.serviceMethod,
-      timestamp: new Date().toISOString(),
-    };
-    persistLog([entry, ...log]);
     showToast('Marked Box #' + box.boxId + ' as actioned (this browser only, does not write to the Sheet)');
-  }, [localState, log, persistLocalState, persistLog]);
+  }, [localState, persistLocalState]);
 
   const copyEmail = useCallback(async (box) => {
     const text = emailDraft(box);
@@ -411,7 +391,6 @@ function WasteNetDashboard() {
           {[
             { key: 'queue', label: 'Action Queue' },
             { key: 'fleet', label: 'Fleet Overview' },
-            { key: 'log', label: 'Service Log' },
           ].map(t => (
             <button key={t.key} onClick={() => setView(t.key)} style={{
               padding: '8px 14px', borderRadius: 5, border: '1px solid ' + (view === t.key ? BRAND.greenLight : '#3A3F36'),
@@ -476,12 +455,6 @@ function WasteNetDashboard() {
           <option value="stale">Scan stale</option>
           <option value="clear">No action needed</option>
         </select>
-        <select value={haulerFilter} onChange={e => setHaulerFilter(e.target.value)} style={selStyle}>
-          {haulers.map(h => <option key={h} value={h}>{h === 'ALL' ? 'All haulers' : h}</option>)}
-        </select>
-        <select value={methodFilter} onChange={e => setMethodFilter(e.target.value)} style={selStyle}>
-          {methods.map(m => <option key={m} value={m}>{m === 'ALL' ? 'All methods' : m}</option>)}
-        </select>
       </div>
 
       {/* Main content */}
@@ -496,9 +469,6 @@ function WasteNetDashboard() {
         )}
         {view === 'fleet' && rows.length > 0 && (
           <FleetView boxes={filtered} onSelect={setSelected} monoFont={monoFont} font={font} />
-        )}
-        {view === 'log' && (
-          <LogView log={log} monoFont={monoFont} font={font} />
         )}
       </div>
 
@@ -607,34 +577,6 @@ function FleetView({ boxes, onSelect, monoFont, font }) {
       {boxes.length === 0 && (
         <div style={{ padding: 40, textAlign: 'center', color: BRAND.muted }}>No boxes match the current filters.</div>
       )}
-    </div>
-  );
-}
-
-function LogView({ log, monoFont, font }) {
-  if (log.length === 0) {
-    return (
-      <div style={{ textAlign: 'center', padding: '80px 20px', color: BRAND.muted }}>
-        <div style={{ fontSize: 15, fontFamily: font }}>No actions logged yet in this browser.</div>
-        <div style={{ fontSize: 12.5, marginTop: 6, fontFamily: monoFont }}>Mark a box as actioned from the Action Queue to see it here. Note: this log is local to this browser and does not write back to the Sheet's Sch Date / P/U Date / Cnfrmd columns.</div>
-      </div>
-    );
-  }
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {log.map(entry => (
-        <div key={entry.id} style={{
-          display: 'flex', alignItems: 'center', gap: 16, padding: '12px 16px',
-          background: BRAND.panel, border: '1px solid ' + BRAND.line, borderRadius: 6, fontFamily: font, fontSize: 13,
-        }}>
-          <div style={{ fontFamily: monoFont, color: BRAND.green, fontSize: 12, minWidth: 130 }}>
-            {new Date(entry.timestamp).toLocaleString()}
-          </div>
-          <div style={{ flex: 1 }}>
-            Box <strong>#{entry.boxId}</strong> — {entry.description} (hauler {entry.haulCode}) actioned at {entry.maxPct !== null ? entry.maxPct + '%' : 'no reading'} via {entry.method}
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
