@@ -4,8 +4,6 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>WasteNet Box Monitor Scan</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
@@ -143,7 +141,7 @@ function StatusPill({ meta, statusKey }) {
       display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px',
       borderRadius: 3, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em',
       color: m.color, background: m.bg, border: '1px solid ' + m.ring, whiteSpace: 'nowrap',
-      fontFamily: "'JetBrains Mono', monospace",
+      fontFamily: "Arial, Helvetica, sans-serif",
     }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: m.color, boxShadow: '0 0 6px ' + m.color }} />
       {m.label}
@@ -157,7 +155,7 @@ function Gauge({ pct, size = 36 }) {
       <div style={{
         width: size, height: size * 1.5, borderRadius: 4, border: '1.5px dashed #C7CCBE',
         background: '#F1F3EC', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 9, color: BRAND.muted, flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", textAlign: 'center',
+        fontSize: 9, color: BRAND.muted, flexShrink: 0, fontFamily: "Arial, Helvetica, sans-serif", textAlign: 'center',
       }}>N/A</div>
     );
   }
@@ -392,9 +390,9 @@ function WasteNetDashboard() {
     setTimeout(() => setToast(null), 2600);
   };
 
-  const font = "'Inter', -apple-system, sans-serif";
-  const monoFont = "'JetBrains Mono', 'SF Mono', monospace";
-  const displayFont = "'Oswald', sans-serif";
+  const font = "Arial, Helvetica, sans-serif";
+  const monoFont = "Arial, Helvetica, sans-serif";
+  const displayFont = "Arial, Helvetica, sans-serif";
 
   return (
     <div style={{
