@@ -40,7 +40,8 @@ const BRAND = {
   green: '#5CAA16',
   greenDark: '#315A0C',
   greenLight: '#89C156',
-  ink: '#1A1D1A',
+  ink: '#3A3F44',
+  dark: '#1A1D1A',
   paper: '#FAFBF8',
   panel: '#FFFFFF',
   line: '#E2E6DE',
@@ -548,7 +549,7 @@ function WasteNetDashboard() {
       {toast && (
         <div style={{
           position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
-          background: BRAND.ink, border: '1px solid ' + BRAND.greenLight, color: '#FAFBF8',
+          background: BRAND.dark, border: '1px solid ' + BRAND.greenLight, color: '#FAFBF8',
           padding: '10px 18px', borderRadius: 6, fontSize: 13, fontFamily: font,
           boxShadow: '0 8px 24px rgba(0,0,0,0.25)', zIndex: 100, maxWidth: '80vw',
         }}>{toast}</div>
@@ -576,7 +577,7 @@ function QueueView({ boxes, onSelect, monoFont, font }) {
         }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontFamily: monoFont, fontSize: 12, color: BRAND.green, fontWeight: 600 }}>#{b.boxId}</span>
+              <span style={{ fontFamily: monoFont, fontSize: 15, color: BRAND.green, fontWeight: 700 }}>#{b.boxId}</span>
               <span style={{ fontWeight: 600, fontSize: 14.5, fontFamily: font }}>{b.description}</span>
             </div>
             <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
@@ -597,7 +598,7 @@ function DetailPanel({ box, onClose, monoFont, font, displayFont }) {
       background: BRAND.panel, borderLeft: '1px solid ' + BRAND.line, boxShadow: '-12px 0 32px rgba(0,0,0,0.15)',
       zIndex: 90, display: 'flex', flexDirection: 'column', fontFamily: font,
     }}>
-      <div style={{ padding: '18px 20px', borderBottom: '1px solid ' + BRAND.line, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: BRAND.ink }}>
+      <div style={{ padding: '18px 20px', borderBottom: '1px solid ' + BRAND.line, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: BRAND.dark }}>
         <div>
           <div style={{ fontFamily: monoFont, fontSize: 12, color: '#9CA597' }}>BOX #{box.boxId}</div>
           <div style={{ fontWeight: 700, fontSize: 16, marginTop: 2, color: '#FAFBF8' }}>{box.description}</div>
