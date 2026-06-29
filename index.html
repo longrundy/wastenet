@@ -186,6 +186,7 @@ function WasteNetDashboard() {
 
   const [query, setQuery] = useState('');
   const [signalFilter, setSignalFilter] = useState('crossed'); // ALL | crossed | stale | both | clear
+  const [sortBy, setSortBy] = useState('default'); // default | boxId | description
   const [selected, setSelected] = useState(null);
   const [toast, setToast] = useState(null);
 
@@ -288,15 +289,26 @@ function WasteNetDashboard() {
     const base = signalFilter === 'ALL'
       ? filtered.filter(r => r.crossedStatus === 'crossed' || r.staleStatus === 'stale')
       : filtered;
-    return base
-      .slice()
-      .sort((a, b) => {
+    const list = base.slice();
+    if (sortBy === 'boxId') {
+      list.sort((a, b) => {
+        const numA = parseInt(a.boxId, 10);
+        const numB = parseInt(b.boxId, 10);
+        if (Number.isFinite(numA) && Number.isFinite(numB)) return numA - numB;
+        return String(a.boxId).localeCompare(String(b.boxId));
+      });
+    } else if (sortBy === 'description') {
+      list.sort((a, b) => a.description.localeCompare(b.description));
+    } else {
+      list.sort((a, b) => {
         const score = (r) => (r.crossedStatus === 'crossed' ? 2 : 0) + (r.staleStatus === 'stale' ? 1 : 0);
         const diff = score(b) - score(a);
         if (diff !== 0) return diff;
         return (b.maxPct || 0) - (a.maxPct || 0);
       });
-  }, [filtered, signalFilter]);
+    }
+    return list;
+  }, [filtered, signalFilter, sortBy]);
 
   const counts = useMemo(() => {
     const c = { crossed: 0, stale: 0, both: 0, clear: 0, total: rows.length };
@@ -361,7 +373,7 @@ function WasteNetDashboard() {
       }}>
         {[
           { key: 'crossed', label: 'Needs Action', value: counts.crossed + counts.both },
-          { key: 'stale', label: 'Stale Cycle', value: counts.stale + counts.both },
+          { key: 'stale', label: 'Stale Cycles', value: counts.stale + counts.both },
           { key: 'clear', label: 'No Action Needed', value: counts.clear },
         ].map((s, i) => {
           const isActive = signalFilter === s.key;
@@ -383,10 +395,10 @@ function WasteNetDashboard() {
             >
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 6,
-                fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: monoFont, marginBottom: 4,
+                fontSize: 15, textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: monoFont, marginBottom: 4,
                 color: isActive ? '#FFFFFF' : BRAND.muted,
               }}>
-                {isActive && <span style={{ fontSize: 12 }}>✓</span>}
+                {isActive && <span style={{ fontSize: 14 }}>✓</span>}
                 {s.label}
               </div>
               <div style={{
@@ -414,6 +426,18 @@ function WasteNetDashboard() {
             background: BRAND.paper, color: BRAND.ink, fontSize: 13, fontFamily: font,
           }}
         />
+        <select
+          value={sortBy}
+          onChange={e => setSortBy(e.target.value)}
+          style={{
+            padding: '8px 12px', borderRadius: 5, border: '1px solid ' + BRAND.line,
+            background: BRAND.paper, color: BRAND.ink, fontSize: 13, fontFamily: font, cursor: 'pointer',
+          }}
+        >
+          <option value="default">Sort: Priority</option>
+          <option value="boxId">Sort: Box Number</option>
+          <option value="description">Sort: Description</option>
+        </select>
       </div>
       </div>
 
@@ -467,11 +491,11 @@ function QueueView({ boxes, onSelect, monoFont, font }) {
         <div key={b._key} className="row-hover" onClick={() => onSelect(b)} style={{
           display: 'flex', alignItems: 'center', gap: 16, padding: '14px 16px', cursor: 'pointer',
           background: BRAND.panel, border: '1px solid ' + BRAND.line, borderRadius: 7,
-          borderLeft: '3px solid ' + (b.crossedStatus === 'crossed' ? BRAND.red : BRAND.amber),
+          borderLeft: '3px solid ' + BRAND.green,
         }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontFamily: monoFont, fontSize: 12, color: BRAND.muted }}>#{b.boxId}</span>
+              <span style={{ fontFamily: monoFont, fontSize: 12, color: BRAND.green, fontWeight: 600 }}>#{b.boxId}</span>
               <span style={{ fontWeight: 600, fontSize: 14.5, fontFamily: font }}>{b.description}</span>
             </div>
             <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
