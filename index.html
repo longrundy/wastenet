@@ -591,22 +591,42 @@ function WasteNetDashboard() {
             fontFamily: displayFont, fontWeight: 700, fontSize: 16, letterSpacing: '0.04em',
             textTransform: 'uppercase', lineHeight: 1.1, color: BRAND.green,
           }}>Box Monitor Dashboard</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <span style={{ fontSize: 11, color: BRAND.muted, fontFamily: monoFont, letterSpacing: '0.03em' }}>
-              {fetchState === 'ok' && sheetName ? '"' + formatTabLabel(sheetName) + '"' : fetchState === 'loading' ? 'Connecting to live sheet…' : 'Live data unavailable'}
-            </span>
-            {availableTabs.length > 0 && (
-              <select
-                value={viewingTab || ''}
-                onChange={e => handleSelectTab(e.target.value)}
-                style={{
-                  padding: '3px 6px', borderRadius: 5, border: '1px solid ' + BRAND.line,
-                  background: BRAND.panel, color: BRAND.ink, fontSize: 11, fontFamily: monoFont, cursor: 'pointer',
-                }}
-              >
-                <option value="">Live (latest scan)</option>
-                {availableTabs.map(t => <option key={t} value={t}>{formatTabLabel(t)}</option>)}
-              </select>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 4 }}>
+            {availableTabs.length > 0 ? (
+              <div style={{ position: 'relative', display: 'inline-block' }}>
+                <select
+                  value={viewingTab || ''}
+                  onChange={e => handleSelectTab(e.target.value)}
+                  style={{
+                    appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
+                    padding: '10px 44px 10px 44px', borderRadius: 10,
+                    border: '2px solid ' + BRAND.green, background: 'rgba(92,170,22,0.06)',
+                    color: BRAND.green, fontSize: 26, fontWeight: 800, fontFamily: displayFont,
+                    cursor: 'pointer', textAlign: 'center', letterSpacing: '0.01em',
+                  }}
+                >
+                  <option value="">Live (latest scan)</option>
+                  {availableTabs.map(t => <option key={t} value={t}>{formatTabLabel(t)}</option>)}
+                </select>
+                {/* Calendar icon - purely decorative, reinforces that
+                    this is a date-picking control even though it's a
+                    dropdown rather than a true calendar pop-up (see
+                    explicit design decision: a real calendar would let
+                    someone pick a date with no scan data at all, which
+                    a list-of-real-tabs dropdown can never do). */}
+                <span style={{
+                  position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
+                  fontSize: 20, pointerEvents: 'none',
+                }}>📅</span>
+                <span style={{
+                  position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
+                  fontSize: 12, color: BRAND.green, pointerEvents: 'none',
+                }}>▾</span>
+              </div>
+            ) : (
+              <span style={{ fontSize: 22, fontWeight: 700, color: BRAND.green, fontFamily: displayFont }}>
+                {fetchState === 'ok' && sheetName ? formatTabLabel(sheetName) : fetchState === 'loading' ? 'Connecting to live sheet…' : 'Live data unavailable'}
+              </span>
             )}
           </div>
         </div>
