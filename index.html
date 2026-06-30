@@ -1155,30 +1155,6 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, monoFont,
           </div>
         </div>
 
-        <div style={{
-          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px',
-          padding: '10px 0', borderBottom: '1px solid ' + BRAND.line, marginBottom: 4,
-        }}>
-          {[
-            ['Hauler Code', box.haulCode],
-            ['Service Method', box.serviceMethod],
-            ['Text Blaze Shortcut', box.shortcut || '—'],
-            ['Box Monitor Cell', box.cell || '—'],
-            ['Trigger 1', box.trigger1 !== null ? box.trigger1 + '%' : '—'],
-            ['Trigger 2', box.trigger2 !== null ? box.trigger2 + '%' : '—'],
-            ['Trigger Used', box.triggerUsedLabel],
-            ['Hours Since Last Cycle', box.staleHours !== null ? box.staleHours.toFixed(1) + ' h' : '—'],
-            ['Service Needed?', box.srvcNeed || '—'],
-            ['Crossed Trigger (Raw)', box.crossedTrigrRaw || '—'],
-            ['Recent Date Pull Request', formatSimpleDate(box.datePullReqd) || '—'],
-          ].map(([k, v]) => (
-            <div key={k} style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 10.5, color: BRAND.muted, lineHeight: 1.2 }}>{k}</div>
-              <div style={{ fontSize: 13, fontFamily: monoFont, fontWeight: 600, marginTop: 1 }}>{String(v)}</div>
-            </div>
-          ))}
-        </div>
-
         {/* Email recipients, pulled from Master Box List (columns G/H)
             via a separate lookup, not the per-day scan data - per
             explicit design decision, only shown for boxes that
@@ -1326,6 +1302,30 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, monoFont,
             </div>
           );
         })()}
+
+        <div style={{
+          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px',
+          padding: '14px 0 0', borderTop: '1px solid ' + BRAND.line, marginTop: 16,
+        }}>
+          {[
+            ['Hauler Code', box.haulCode],
+            ['Service Method', box.serviceMethod],
+            ['Text Blaze Shortcut', box.shortcut || '—'],
+            ['Box Monitor Cell', box.cell || '—'],
+            ['Trigger 1', box.trigger1 !== null ? box.trigger1 + '%' : '—'],
+            ['Trigger 2', box.trigger2 !== null ? box.trigger2 + '%' : '—'],
+            ['Trigger Used', box.triggerUsedLabel],
+            ['Hours Since Last Cycle', box.staleHours !== null ? box.staleHours.toFixed(1) + ' h' : '—'],
+            ['Service Needed?', box.srvcNeed || '—'],
+            ['Crossed Trigger (Raw)', box.crossedTrigrRaw || '—'],
+            ['Recent Date Pull Request', formatSimpleDate(box.datePullReqd) || '—'],
+          ].map(([k, v]) => (
+            <div key={k} style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 10.5, color: BRAND.muted, lineHeight: 1.2 }}>{k}</div>
+              <div style={{ fontSize: 13, fontFamily: monoFont, fontWeight: 600, marginTop: 1 }}>{String(v)}</div>
+            </div>
+          ))}
+        </div>
       </div>
       </div>
     </div>
