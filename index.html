@@ -687,9 +687,16 @@ function QueueView({ boxes, onSelect, monoFont, font }) {
               </span>
               <span style={{ fontWeight: 400, fontSize: 14.5, fontFamily: font }}>{b.description}</span>
             </div>
-            <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
               {b.crossedStatus === 'crossed' && b.staleStatus !== 'stale' && <StatusPill meta={FILL_STATUS_META} statusKey="crossed" />}
               {b.staleStatus === 'stale' && <StatusPill meta={STALE_STATUS_META} statusKey="stale" />}
+              {b.staleStatus === 'stale' && b.staleHours !== null && (
+                <span style={{
+                  fontSize: 10.5, fontWeight: 700, fontFamily: monoFont, color: BRAND.amber,
+                  background: 'rgba(201,122,26,0.08)', border: '1px solid rgba(201,122,26,0.3)',
+                  borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
+                }}>{Math.round(b.staleHours).toLocaleString()}h</span>
+              )}
             </div>
           </div>
         </div>
