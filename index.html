@@ -249,6 +249,7 @@ function WasteNetDashboard() {
   const [availableTabs, setAvailableTabs] = useState([]);
   const [tabsLoadError, setTabsLoadError] = useState(null);
   const [masterContacts, setMasterContacts] = useState({});
+  const [emailTemplates, setEmailTemplates] = useState({});
 
   const [query, setQuery] = useState('');
   const [signalFilter, setSignalFilter] = useState('crossed'); // ALL | crossed | stale | both | clear
@@ -389,6 +390,21 @@ function WasteNetDashboard() {
     }
   }, [jsonpLoad]);
 
+  // Fetches the generic (non-per-box) email category templates -
+  // Emptied, Missed, Notice, Premature, Problem, Repair, Usage - from
+  // the separate "Email Templates" tab, keyed by Pill Label. Same
+  // "fetch once on load, fail silently" pattern as loadMasterContacts
+  // above, for the same reasons.
+  const loadEmailTemplates = useCallback(async () => {
+    try {
+      const json = await jsonpLoad(SHEET_URL + '?action=email_templates');
+      if (!json.ok) throw new Error(json.error || 'Unknown error loading email templates');
+      setEmailTemplates(json.templates || {});
+    } catch (err) {
+      // Silent - see comment above.
+    }
+  }, [jsonpLoad]);
+
   const handleSelectTab = useCallback((name) => {
     if (name === '') {
       // Empty option = back to live
@@ -404,7 +420,8 @@ function WasteNetDashboard() {
     loadTab();
     loadTabList();
     loadMasterContacts();
-  }, [loadTab, loadTabList, loadMasterContacts]);
+    loadEmailTemplates();
+  }, [loadTab, loadTabList, loadMasterContacts, loadEmailTemplates]);
 
   useEffect(() => {
     // Only auto-refresh while viewing live/latest data - if the user has
@@ -645,6 +662,7 @@ function WasteNetDashboard() {
           onClose={() => setSelected(null)}
           onSave={saveBoxFields}
           contacts={masterContacts[selected.boxId]}
+          emailTemplates={emailTemplates}
           monoFont={monoFont}
           font={font}
           displayFont={displayFont}
@@ -766,10 +784,24 @@ function fillEmailTemplate(subjectTemplate, bodyTemplate, puDateInputValue) {
   return { subject, body };
 }
 
-function DetailPanel({ box, onClose, onSave, contacts, monoFont, font, displayFont }) {
+function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, monoFont, font, displayFont }) {
   const [schDateInput, setSchDateInput] = React.useState(() => toDateInputValue(box.schDate));
   const [puDateInput, setPuDateInput] = React.useState(() => toDateInputValue(box.puDate));
   const [confirmedInput, setConfirmedInput] = React.useState(box.confirmed);
+
+  // Which email category pill is active. 'Service' uses the per-box
+  // template from Master Box List (contacts.subjectTemplate/
+  // bodyTemplate); any other label looks up the matching entry in
+  // emailTemplates instead (the separate, generic Email Templates tab).
+  // Defaults to Service since that's the original, most-used category.
+  const [emailCategory, setEmailCategory] = React.useState('Service');
+
+  // Lets the user swap which Master Box List recipient group lands in
+  // the email's To field vs Cc field - per explicit design decision,
+  // since the groups are set up generically and a given email may need
+  // either one to actually be the primary recipient depending on
+  // context, rather than always assuming "To: Recipients" = To.
+  const [swapToCc, setSwapToCc] = React.useState(false);
 
   // Two fully independent save tracks, since these represent two
   // different real-world moments per explicit design decision:
@@ -1035,82 +1067,155 @@ function DetailPanel({ box, onClose, onSave, contacts, monoFont, font, displayFo
           </div>
         </div>
 
-        {[
-          ['Hauler Code', box.haulCode],
-          ['Service Method', box.serviceMethod],
-          ['Text Blaze Shortcut', box.shortcut || '—'],
-          ['Box Monitor Cell', box.cell || '—'],
-          ['Trigger 1', box.trigger1 !== null ? box.trigger1 + '%' : '—'],
-          ['Trigger 2', box.trigger2 !== null ? box.trigger2 + '%' : '—'],
-          ['Trigger Used', box.triggerUsedLabel],
-          ['Hours Since Last Cycle', box.staleHours !== null ? box.staleHours.toFixed(1) + ' h' : '—'],
-          ['Service Needed?', box.srvcNeed || '—'],
-          ['Crossed Trigger (Raw, Pre-Suppression)', box.crossedTrigrRaw || '—'],
-          ['Recent Date Pull Request', formatSimpleDate(box.datePullReqd) || '—'],
-        ].map(([k, v]) => (
-          <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid ' + BRAND.line, fontSize: 13, gap: 12 }}>
-            <span style={{ color: BRAND.muted, flexShrink: 0 }}>{k}</span>
-            <span style={{ fontFamily: monoFont, textAlign: 'right' }}>{String(v)}</span>
-          </div>
-        ))}
+        <div style={{
+          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px',
+          padding: '10px 0', borderBottom: '1px solid ' + BRAND.line, marginBottom: 4,
+        }}>
+          {[
+            ['Hauler Code', box.haulCode],
+            ['Service Method', box.serviceMethod],
+            ['Text Blaze Shortcut', box.shortcut || '—'],
+            ['Box Monitor Cell', box.cell || '—'],
+            ['Trigger 1', box.trigger1 !== null ? box.trigger1 + '%' : '—'],
+            ['Trigger 2', box.trigger2 !== null ? box.trigger2 + '%' : '—'],
+            ['Trigger Used', box.triggerUsedLabel],
+            ['Hours Since Last Cycle', box.staleHours !== null ? box.staleHours.toFixed(1) + ' h' : '—'],
+            ['Service Needed?', box.srvcNeed || '—'],
+            ['Crossed Trigger (Raw)', box.crossedTrigrRaw || '—'],
+            ['Recent Date Pull Request', formatSimpleDate(box.datePullReqd) || '—'],
+          ].map(([k, v]) => (
+            <div key={k} style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 10.5, color: BRAND.muted, lineHeight: 1.2 }}>{k}</div>
+              <div style={{ fontSize: 13, fontFamily: monoFont, fontWeight: 600, marginTop: 1 }}>{String(v)}</div>
+            </div>
+          ))}
+        </div>
 
         {/* Email recipients, pulled from Master Box List (columns G/H)
             via a separate lookup, not the per-day scan data - per
             explicit design decision, only shown for boxes that
             actually have this data rather than displaying an empty
-            dash for every box. Stacked label-above-value (rather than
-            the right-aligned single-line layout used above) since
-            address lists can run long and need real wrapping room. */}
-        {contacts && (contacts.toRecipients || contacts.ccRecipients || contacts.subjectTemplate || contacts.bodyTemplate) && (
-          <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid ' + BRAND.line }}>
-            <div style={{
-              fontSize: 12, fontWeight: 700, color: BRAND.muted, textTransform: 'uppercase',
-              letterSpacing: '0.03em', marginBottom: 10, fontFamily: monoFont,
-            }}>Email Recipients</div>
-            {contacts.toRecipients && (
-              <div style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3 }}>To</div>
-                <div style={{ fontSize: 13, fontFamily: monoFont, wordBreak: 'break-word' }}>{contacts.toRecipients}</div>
-              </div>
-            )}
-            {contacts.ccRecipients && (
-              <div>
-                <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3 }}>Cc</div>
-                <div style={{ fontSize: 13, fontFamily: monoFont, wordBreak: 'break-word' }}>{contacts.ccRecipients}</div>
-              </div>
-            )}
+            dash for every box. */}
+        {contacts && (contacts.toRecipients || contacts.ccRecipients || contacts.subjectTemplate || contacts.bodyTemplate) && (() => {
+          // Applies the To/Cc swap toggle - per explicit design
+          // decision, the user can flip which Master Box List group
+          // (the "To: Recipients" group vs the "Cc: Recipients" group)
+          // actually lands in the email's To field vs Cc field, rather
+          // than always treating the sheet's own column labeling as
+          // fixed.
+          const effectiveTo = swapToCc ? contacts.ccRecipients : contacts.toRecipients;
+          const effectiveCc = swapToCc ? contacts.toRecipients : contacts.ccRecipients;
 
-            {/* Compose button - only shown once there's actually a
-                subject or body template to fill in, separate from the
-                recipients-only case above (a box might have to/cc
-                addresses on file but no service template yet, or vice
-                versa). Builds a standard mailto: link with the
-                Pick-Up Date already inserted per fillEmailTemplate's
-                rules - opens in whatever email client/app is already
-                the default on this device (Outlook, Gmail, etc.),
-                fully pre-filled and ready to review and send, since a
-                web page itself cannot send email directly. */}
-            {(contacts.subjectTemplate || contacts.bodyTemplate) && (() => {
-              const filled = fillEmailTemplate(contacts.subjectTemplate, contacts.bodyTemplate, puDateInput);
-              const mailtoParams = [];
-              if (contacts.ccRecipients) mailtoParams.push('cc=' + encodeURIComponent(contacts.ccRecipients));
-              if (filled.subject) mailtoParams.push('subject=' + encodeURIComponent(filled.subject));
-              if (filled.body) mailtoParams.push('body=' + encodeURIComponent(filled.body));
-              const mailtoHref = 'mailto:' + encodeURIComponent(contacts.toRecipients || '') +
-                (mailtoParams.length ? '?' + mailtoParams.join('&') : '');
-              return (
+          // The 8 category pills: Service uses the per-box template
+          // already on Master Box List; the other 7 look up their
+          // Subject/Body from the separate Email Templates tab by Pill
+          // Label. A pill only renders as usable if its template
+          // actually has content - an empty/未-set-up category still
+          // shows as a pill (so the full set is always visible and
+          // consistent) but is visually disabled and does nothing if
+          // tapped, rather than silently composing a blank email.
+          const PILL_LABELS = ['Service', 'Emptied', 'Missed', 'Notice', 'Premature', 'Problem', 'Repair', 'Usage'];
+          const getTemplateFor = (label) => {
+            if (label === 'Service') {
+              return { subjectTemplate: contacts.subjectTemplate, bodyTemplate: contacts.bodyTemplate };
+            }
+            return emailTemplates[label] || { subjectTemplate: '', bodyTemplate: '' };
+          };
+
+          const activeTemplate = getTemplateFor(emailCategory);
+          const hasActiveTemplate = !!(activeTemplate.subjectTemplate || activeTemplate.bodyTemplate);
+
+          const filled = fillEmailTemplate(activeTemplate.subjectTemplate, activeTemplate.bodyTemplate, puDateInput);
+          const mailtoParams = [];
+          if (effectiveCc) mailtoParams.push('cc=' + encodeURIComponent(effectiveCc));
+          if (filled.subject) mailtoParams.push('subject=' + encodeURIComponent(filled.subject));
+          if (filled.body) mailtoParams.push('body=' + encodeURIComponent(filled.body));
+          const mailtoHref = 'mailto:' + encodeURIComponent(effectiveTo || '') +
+            (mailtoParams.length ? '?' + mailtoParams.join('&') : '');
+
+          return (
+            <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid ' + BRAND.line }}>
+              <div style={{
+                fontSize: 12, fontWeight: 700, color: BRAND.muted, textTransform: 'uppercase',
+                letterSpacing: '0.03em', marginBottom: 10, fontFamily: monoFont,
+              }}>Email Recipients</div>
+
+              <div style={{ display: 'flex', gap: 16, marginBottom: 8 }}>
+                {effectiveTo && (
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3 }}>To</div>
+                    <div style={{ fontSize: 12.5, fontFamily: monoFont, wordBreak: 'break-word' }}>{effectiveTo}</div>
+                  </div>
+                )}
+                {effectiveCc && (
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3 }}>Cc</div>
+                    <div style={{ fontSize: 12.5, fontFamily: monoFont, wordBreak: 'break-word' }}>{effectiveCc}</div>
+                  </div>
+                )}
+              </div>
+
+              {contacts.toRecipients && contacts.ccRecipients && (
+                <button
+                  onClick={() => setSwapToCc(s => !s)}
+                  style={{
+                    fontSize: 11.5, padding: '4px 10px', borderRadius: 4, marginBottom: 14,
+                    border: '1px solid ' + BRAND.line, background: BRAND.panel, color: BRAND.muted,
+                    cursor: 'pointer', fontFamily: monoFont,
+                  }}
+                >⇄ Swap To / Cc</button>
+              )}
+
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: BRAND.ink, marginBottom: 6 }}>Email Type</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+                {PILL_LABELS.map(label => {
+                  const isActive = emailCategory === label;
+                  const templateExists = !!(getTemplateFor(label).subjectTemplate || getTemplateFor(label).bodyTemplate);
+                  return (
+                    <button
+                      key={label}
+                      onClick={() => setEmailCategory(label)}
+                      disabled={!templateExists}
+                      title={templateExists ? '' : 'No template set up for this category yet'}
+                      style={{
+                        fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 20,
+                        border: '1.5px solid ' + (isActive ? BRAND.green : BRAND.line),
+                        background: isActive ? BRAND.green : BRAND.panel,
+                        color: !templateExists ? '#C7CCC2' : (isActive ? '#FFFFFF' : BRAND.muted),
+                        cursor: templateExists ? 'pointer' : 'not-allowed', fontFamily: font,
+                        opacity: templateExists ? 1 : 0.6,
+                      }}
+                    >{label}</button>
+                  );
+                })}
+              </div>
+
+              {/* Compose button - builds a standard mailto: link with
+                  the Pick-Up Date already inserted per
+                  fillEmailTemplate's rules, using whichever category
+                  pill is currently active - opens in whatever email
+                  client/app is already the default on this device
+                  (Outlook, Gmail, etc.), fully pre-filled and ready to
+                  review and send, since a web page itself cannot send
+                  email directly. */}
+              {hasActiveTemplate ? (
                 <a
                   href={mailtoHref}
                   style={{
-                    display: 'block', marginTop: 14, padding: '10px', textAlign: 'center',
+                    display: 'block', padding: '10px', textAlign: 'center',
                     borderRadius: 6, fontSize: 14, fontWeight: 700, fontFamily: font,
                     background: BRAND.green, color: '#FFFFFF', textDecoration: 'none',
                   }}
-                >Compose Service Email</a>
-              );
-            })()}
-          </div>
-        )}
+                >Compose {emailCategory} Email</a>
+              ) : (
+                <div style={{
+                  padding: '10px', textAlign: 'center', borderRadius: 6, fontSize: 13,
+                  background: '#F1F3EC', color: BRAND.muted, fontFamily: font,
+                }}>No template available for "{emailCategory}" yet</div>
+              )}
+            </div>
+          );
+        })()}
       </div>
       </div>
     </div>
