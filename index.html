@@ -49,8 +49,8 @@ const BRAND = {
 };
 
 const FILL_STATUS_META = {
-  crossed: { label: 'TRIGGER CROSSED', color: BRAND.red, bg: 'rgba(179,64,43,0.08)', ring: 'rgba(179,64,43,0.3)' },
-  clear: { label: 'BELOW TRIGGER', color: BRAND.green, bg: 'rgba(92,170,22,0.08)', ring: 'rgba(92,170,22,0.3)' },
+  crossed: { label: 'SERVICE NEEDED', color: BRAND.red, bg: 'rgba(179,64,43,0.08)', ring: 'rgba(179,64,43,0.3)' },
+  clear: { label: 'NO SERVICE NEEDED', color: BRAND.green, bg: 'rgba(92,170,22,0.08)', ring: 'rgba(92,170,22,0.3)' },
   unknown: { label: 'NO READING', color: BRAND.muted, bg: 'rgba(107,114,104,0.08)', ring: 'rgba(107,114,104,0.25)' },
 };
 
@@ -110,15 +110,28 @@ function normalizeRow(raw, idx) {
   const t2 = parseNum(raw['Trigr2 Pct']);
   const triggerUsedRaw = String(raw['Trigr Used'] || '').toLowerCase();
   const activeTrigger = triggerUsedRaw.includes('2') ? t2 : t1;
+
+  // 'Crossed Trigr' is the RAW, pre-suppression signal (did the fill
+  // level cross the trigger line at all, before accounting for recent
+  // pull requests or an Empty marker on the chart). 'Srvc Need' is the
+  // FINAL, authoritative decision after the Tampermonkey scanner
+  // applies suppression - a box can show Crossed Trigr=YES but
+  // Srvc Need=NO if it was already requested recently or the chart
+  // shows it was actually emptied. The dashboard's "Action Needed" /
+  // "No Action Needed" buckets must reflect the final decision
+  // (Srvc Need), not the raw pre-suppression signal - using the raw
+  // signal here was a real bug: it could show a box as needing action
+  // when the authoritative answer (accounting for suppression) was
+  // actually "no." crossedRaw is kept separately for reference/display
+  // in the detail panel, but no longer drives the action-needed status.
   const crossedRaw = String(raw['Crossed Trigr'] || '').toUpperCase().trim();
-  const crossed = crossedRaw === 'YES' ? 'crossed' : crossedRaw === 'NO' ? 'clear' : 'unknown';
+  const srvcNeedRaw = String(raw['Srvc Need'] || '').toUpperCase().trim();
+  const crossed = srvcNeedRaw === 'YES' ? 'crossed' : srvcNeedRaw === 'NO' ? 'clear' : 'unknown';
 
   const notes = raw['Notes'] || '';
   const hours = parseHoursFromNotes(notes);
   const forcedStale = /YES \(forced\)/i.test(notes) || (hours !== null && hours > 24);
   const stale = forcedStale ? 'stale' : 'fresh';
-
-  const srvcNeedRaw = String(raw['Srvc Need'] || '').toUpperCase().trim();
 
   return {
     _key: raw['Box ID'] != null ? String(raw['Box ID']) + '-' + idx : 'row-' + idx,
@@ -134,6 +147,7 @@ function normalizeRow(raw, idx) {
     activeTrigger: activeTrigger,
     maxPct: maxPct,
     crossedStatus: crossed,
+    crossedTrigrRaw: crossedRaw,
     staleStatus: stale,
     staleHours: hours,
     srvcNeed: srvcNeedRaw,
@@ -628,7 +642,7 @@ function DetailPanel({ box, onClose, monoFont, font, displayFont }) {
       >
       <div style={{ padding: '18px 20px', borderBottom: '1px solid ' + BRAND.line, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: BRAND.green }}>
         <div>
-          <div style={{ fontFamily: monoFont, fontSize: 12, color: '#E8F3DF' }}>BOX #{box.boxId}</div>
+          <div style={{ fontFamily: monoFont, fontSize: 18, fontWeight: 800, color: '#CCFF66' }}>BOX #{box.boxId}</div>
           <div style={{ fontWeight: 700, fontSize: 16, marginTop: 2, color: '#FFFFFF' }}>{box.description}</div>
         </div>
         <button onClick={onClose} style={{
@@ -649,18 +663,19 @@ function DetailPanel({ box, onClose, monoFont, font, displayFont }) {
         )}
 
         {[
-          ['Hauler code', box.haulCode],
-          ['Service method', box.serviceMethod],
-          ['Text Blaze shortcut', box.shortcut || '—'],
+          ['Hauler Code', box.haulCode],
+          ['Service Method', box.serviceMethod],
+          ['Text Blaze Shortcut', box.shortcut || '—'],
           ['Box Monitor Cell', box.cell || '—'],
           ['Trigger 1', box.trigger1 !== null ? box.trigger1 + '%' : '—'],
           ['Trigger 2', box.trigger2 !== null ? box.trigger2 + '%' : '—'],
-          ['Trigger used', box.triggerUsedLabel],
-          ['Hours since last cycle', box.staleHours !== null ? box.staleHours.toFixed(1) + ' h' : '—'],
-          ['Service need (sheet)', box.srvcNeed || '—'],
-          ['Date pull requested', formatSimpleDate(box.datePullReqd) || '—'],
-          ['Scheduled date', formatSimpleDate(box.schDate) || '—'],
-          ['Pick-up date', formatSimpleDate(box.puDate) || '—'],
+          ['Trigger Used', box.triggerUsedLabel],
+          ['Hours Since Last Cycle', box.staleHours !== null ? box.staleHours.toFixed(1) + ' h' : '—'],
+          ['Service Needed?', box.srvcNeed || '—'],
+          ['Crossed Trigger (Raw, Pre-Suppression)', box.crossedTrigrRaw || '—'],
+          ['Date Pull Requested', formatSimpleDate(box.datePullReqd) || '—'],
+          ['Scheduled Date', formatSimpleDate(box.schDate) || '—'],
+          ['Pick-Up Date', formatSimpleDate(box.puDate) || '—'],
           ['Confirmed', box.confirmed ? 'Yes' : 'No'],
         ].map(([k, v]) => (
           <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid ' + BRAND.line, fontSize: 13, gap: 12 }}>
