@@ -662,7 +662,7 @@ function DetailPanel({ box, onClose, monoFont, font, displayFont }) {
       </div>
       <div style={{ padding: 20, flex: 1, overflow: 'auto' }}>
         <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-          <StatusPill meta={FILL_STATUS_META} statusKey={box.crossedStatus} />
+          <StatusPill meta={FILL_STATUS_META} statusKey={box.staleStatus === 'stale' && box.crossedStatus === 'crossed' ? 'unknown' : box.crossedStatus} />
           <StatusPill meta={STALE_STATUS_META} statusKey={box.staleStatus} />
         </div>
 
