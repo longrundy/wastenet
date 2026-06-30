@@ -250,6 +250,16 @@ function WasteNetDashboard() {
   const [tabsLoadError, setTabsLoadError] = useState(null);
   const [masterContacts, setMasterContacts] = useState({});
   const [emailTemplates, setEmailTemplates] = useState({});
+  // Whether the custom date-picker dropdown is currently open - native
+  // <select> elements can't have a different font size for their
+  // closed button vs. their open option list (browsers always render
+  // both at the same size), so per explicit design decision this is a
+  // hand-built dropdown instead: a big, bold button showing the
+  // current date, and a small, separately-styled popover list when
+  // opened, so the selected date can stay large and prominent while
+  // the list of other dates stays compact and doesn't take over the
+  // screen once there are many of them.
+  const [dateDropdownOpen, setDateDropdownOpen] = useState(false);
 
   const [query, setQuery] = useState('');
   const [signalFilter, setSignalFilter] = useState('crossed'); // ALL | crossed | stale | both | clear
@@ -297,6 +307,22 @@ function WasteNetDashboard() {
   };
 
   const pollRef = useRef(null);
+  const dateDropdownRef = useRef(null);
+
+  // Closes the custom date dropdown if the user clicks anywhere outside
+  // of it - standard expected behavior for any dropdown-style control,
+  // and without this it would only ever close by picking an option,
+  // with no way to back out of it.
+  useEffect(() => {
+    if (!dateDropdownOpen) return;
+    const handleClickOutside = (e) => {
+      if (dateDropdownRef.current && !dateDropdownRef.current.contains(e.target)) {
+        setDateDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [dateDropdownOpen]);
 
   // JSONP loader - used instead of fetch()/XHR because Apps Script Web
   // App URLs always 302-redirect internally to a googleusercontent.com
@@ -593,35 +619,50 @@ function WasteNetDashboard() {
           }}>Box Monitor Dashboard</div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 4 }}>
             {availableTabs.length > 0 ? (
-              <div style={{ position: 'relative', display: 'inline-block' }}>
-                <select
-                  value={viewingTab || ''}
-                  onChange={e => handleSelectTab(e.target.value)}
+              <div ref={dateDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
+                <button
+                  onClick={() => setDateDropdownOpen(o => !o)}
                   style={{
-                    appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
-                    padding: '10px 44px 10px 44px', borderRadius: 10,
+                    padding: '10px 20px', borderRadius: 10,
                     border: '2px solid ' + BRAND.green, background: 'rgba(92,170,22,0.06)',
                     color: BRAND.green, fontSize: 26, fontWeight: 800, fontFamily: displayFont,
                     cursor: 'pointer', textAlign: 'center', letterSpacing: '0.01em',
                   }}
                 >
-                  <option value="">Live (latest scan)</option>
-                  {availableTabs.map(t => <option key={t} value={t}>{formatTabLabel(t)}</option>)}
-                </select>
-                {/* Calendar icon - purely decorative, reinforces that
-                    this is a date-picking control even though it's a
-                    dropdown rather than a true calendar pop-up (see
-                    explicit design decision: a real calendar would let
-                    someone pick a date with no scan data at all, which
-                    a list-of-real-tabs dropdown can never do). */}
-                <span style={{
-                  position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
-                  fontSize: 20, pointerEvents: 'none',
-                }}>📅</span>
-                <span style={{
-                  position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
-                  fontSize: 12, color: BRAND.green, pointerEvents: 'none',
-                }}>▾</span>
+                  {fetchState === 'ok' && sheetName ? formatTabLabel(sheetName) : fetchState === 'loading' ? 'Loading…' : 'Unavailable'}
+                </button>
+                {dateDropdownOpen && (
+                  <div style={{
+                    position: 'absolute', top: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)',
+                    background: BRAND.panel, border: '1px solid ' + BRAND.line, borderRadius: 8,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 50,
+                    maxHeight: 280, overflowY: 'auto', minWidth: 200, padding: 4,
+                  }}>
+                    <button
+                      onClick={() => { handleSelectTab(''); setDateDropdownOpen(false); }}
+                      style={{
+                        display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px',
+                        borderRadius: 5, border: 'none', cursor: 'pointer', fontFamily: monoFont,
+                        fontSize: 12.5, fontWeight: viewingTab === null ? 700 : 400,
+                        background: viewingTab === null ? 'rgba(92,170,22,0.1)' : 'transparent',
+                        color: viewingTab === null ? BRAND.green : BRAND.ink,
+                      }}
+                    >Live (latest scan)</button>
+                    {availableTabs.map(t => (
+                      <button
+                        key={t}
+                        onClick={() => { handleSelectTab(t); setDateDropdownOpen(false); }}
+                        style={{
+                          display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px',
+                          borderRadius: 5, border: 'none', cursor: 'pointer', fontFamily: monoFont,
+                          fontSize: 12.5, fontWeight: viewingTab === t ? 700 : 400,
+                          background: viewingTab === t ? 'rgba(92,170,22,0.1)' : 'transparent',
+                          color: viewingTab === t ? BRAND.green : BRAND.ink,
+                        }}
+                      >{formatTabLabel(t)}</button>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
               <span style={{ fontSize: 22, fontWeight: 700, color: BRAND.green, fontFamily: displayFont }}>
