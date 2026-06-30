@@ -49,13 +49,13 @@ const BRAND = {
 };
 
 const FILL_STATUS_META = {
-  crossed: { label: 'SERVICE NEEDED', color: BRAND.red, bg: 'rgba(179,64,43,0.08)', ring: 'rgba(179,64,43,0.3)' },
+  crossed: { label: 'TRIGGER REACHED', color: BRAND.red, bg: 'rgba(179,64,43,0.08)', ring: 'rgba(179,64,43,0.3)' },
   clear: { label: 'NO SERVICE NEEDED', color: BRAND.green, bg: 'rgba(92,170,22,0.08)', ring: 'rgba(92,170,22,0.3)' },
   unknown: { label: 'NO READING', color: BRAND.muted, bg: 'rgba(107,114,104,0.08)', ring: 'rgba(107,114,104,0.25)' },
 };
 
 const STALE_STATUS_META = {
-  stale: { label: 'SCAN STALE', color: BRAND.amber, bg: 'rgba(201,122,26,0.08)', ring: 'rgba(201,122,26,0.3)' },
+  stale: { label: 'STALE SCAN', color: BRAND.amber, bg: 'rgba(201,122,26,0.08)', ring: 'rgba(201,122,26,0.3)' },
   fresh: { label: 'SCAN FRESH', color: BRAND.green, bg: 'rgba(92,170,22,0.06)', ring: 'rgba(92,170,22,0.2)' },
 };
 
@@ -133,11 +133,20 @@ function normalizeRow(raw, idx) {
   const forcedStale = /YES \(forced\)/i.test(notes) || (hours !== null && hours > 24);
   const stale = forcedStale ? 'stale' : 'fresh';
 
+  // Matches the Tampermonkey scanner's own isInactiveBoxDescription()
+  // rule exactly: a description starting with X, Y, or Z (case
+  // insensitive) marks a box as inactive/not scanned. Kept in sync with
+  // that source-of-truth logic so a box flagged inactive there is
+  // labeled the same way here.
+  const description = raw['Description'] || '(no description)';
+  const isInactive = /^[xyz]/i.test(description.trim());
+
   return {
     _key: raw['Box ID'] != null ? String(raw['Box ID']) + '-' + idx : 'row-' + idx,
     boxId: raw['Box ID'] != null ? String(raw['Box ID']) : '—',
     cell: raw['Cell'] || '',
-    description: raw['Description'] || '(no description)',
+    description: description,
+    isInactive: isInactive,
     haulCode: raw['Haul Code'] || '—',
     serviceMethod: raw['Srvc Mthd'] || '—',
     shortcut: raw['Txt Blz Shrtct'] || '',
@@ -608,11 +617,13 @@ function QueueView({ boxes, onSelect, monoFont, font }) {
         }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontFamily: monoFont, fontSize: 15, color: BRAND.green, fontWeight: 700 }}>Box ID {b.boxId}</span>
+              <span style={{ fontFamily: monoFont, fontSize: 15, color: BRAND.green, fontWeight: 700 }}>
+                Box ID {b.boxId}{b.isInactive && <span style={{ fontWeight: 400, color: BRAND.muted }}> (Inactive Box)</span>}
+              </span>
               <span style={{ fontWeight: 400, fontSize: 14.5, fontFamily: font }}>{b.description}</span>
             </div>
             <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-              {b.crossedStatus === 'crossed' && <StatusPill meta={FILL_STATUS_META} statusKey="crossed" />}
+              {b.crossedStatus === 'crossed' && b.staleStatus !== 'stale' && <StatusPill meta={FILL_STATUS_META} statusKey="crossed" />}
               {b.staleStatus === 'stale' && <StatusPill meta={STALE_STATUS_META} statusKey="stale" />}
             </div>
           </div>
