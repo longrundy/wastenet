@@ -801,45 +801,47 @@ function DetailPanel({ box, onClose, onSave, monoFont, font, displayFont }) {
             technology and needs to know immediately and clearly that
             the save worked. */}
         <div style={{
-          border: '2px solid ' + BRAND.green, borderRadius: 8, padding: 16, marginBottom: 20,
+          border: '2px solid ' + BRAND.green, borderRadius: 8, padding: 12, marginBottom: 14,
           background: 'rgba(92,170,22,0.05)',
         }}>
           <div style={{
-            fontSize: 13, fontWeight: 700, color: BRAND.green, textTransform: 'uppercase',
-            letterSpacing: '0.03em', marginBottom: 14, fontFamily: monoFont,
+            fontSize: 12, fontWeight: 700, color: BRAND.green, textTransform: 'uppercase',
+            letterSpacing: '0.03em', marginBottom: 8, fontFamily: monoFont,
           }}>Scheduling</div>
 
-          <label style={{ display: 'block', marginBottom: 14 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: BRAND.ink, marginBottom: 5 }}>Scheduled Date</div>
-            <input
-              type="date"
-              value={schDateInput}
-              onChange={e => setSchDateInput(e.target.value)}
-              style={{
-                width: '100%', padding: '10px 12px', fontSize: 16, borderRadius: 6,
-                border: '1.5px solid ' + BRAND.line, fontFamily: font, color: BRAND.ink, boxSizing: 'border-box',
-              }}
-            />
-          </label>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <label style={{ flex: 1, display: 'block' }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: BRAND.ink, marginBottom: 3 }}>Scheduled Date</div>
+              <input
+                type="date"
+                value={schDateInput}
+                onChange={e => setSchDateInput(e.target.value)}
+                style={{
+                  width: '100%', padding: '7px 8px', fontSize: 14, borderRadius: 5,
+                  border: '1.5px solid ' + BRAND.line, fontFamily: font, color: BRAND.ink, boxSizing: 'border-box',
+                }}
+              />
+            </label>
 
-          <label style={{ display: 'block', marginBottom: 16 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: BRAND.ink, marginBottom: 5 }}>Pick-Up Date</div>
-            <input
-              type="date"
-              value={puDateInput}
-              onChange={e => setPuDateInput(e.target.value)}
-              style={{
-                width: '100%', padding: '10px 12px', fontSize: 16, borderRadius: 6,
-                border: '1.5px solid ' + BRAND.line, fontFamily: font, color: BRAND.ink, boxSizing: 'border-box',
-              }}
-            />
-          </label>
+            <label style={{ flex: 1, display: 'block' }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: BRAND.ink, marginBottom: 3 }}>Pick-Up Date</div>
+              <input
+                type="date"
+                value={puDateInput}
+                onChange={e => setPuDateInput(e.target.value)}
+                style={{
+                  width: '100%', padding: '7px 8px', fontSize: 14, borderRadius: 5,
+                  border: '1.5px solid ' + BRAND.line, fontFamily: font, color: BRAND.ink, boxSizing: 'border-box',
+                }}
+              />
+            </label>
+          </div>
 
           <button
             onClick={handleSaveDates}
             disabled={dateSaveState === 'saving'}
             style={{
-              width: '100%', padding: '12px', fontSize: 16, fontWeight: 700, borderRadius: 6,
+              width: '100%', padding: '8px', fontSize: 14, fontWeight: 700, borderRadius: 5,
               border: 'none', cursor: dateSaveState === 'saving' ? 'default' : 'pointer',
               background: dateSaveState === 'saving' ? BRAND.muted : BRAND.green, color: '#FFFFFF',
               fontFamily: font,
@@ -850,16 +852,16 @@ function DetailPanel({ box, onClose, onSave, monoFont, font, displayFont }) {
 
           {dateSaveState === 'saved' && (
             <div style={{
-              marginTop: 12, padding: '10px 12px', background: 'rgba(92,170,22,0.12)',
-              border: '1px solid ' + BRAND.green, borderRadius: 6, color: BRAND.greenDark,
-              fontSize: 14, fontWeight: 600, textAlign: 'center',
+              marginTop: 8, padding: '6px 10px', background: 'rgba(92,170,22,0.12)',
+              border: '1px solid ' + BRAND.green, borderRadius: 5, color: BRAND.greenDark,
+              fontSize: 12.5, fontWeight: 600, textAlign: 'center',
             }}>✓ Saved successfully</div>
           )}
           {dateSaveState === 'error' && (
             <div style={{
-              marginTop: 12, padding: '10px 12px', background: 'rgba(179,64,43,0.08)',
-              border: '1px solid ' + BRAND.red, borderRadius: 6, color: BRAND.red,
-              fontSize: 13, fontWeight: 600,
+              marginTop: 8, padding: '6px 10px', background: 'rgba(179,64,43,0.08)',
+              border: '1px solid ' + BRAND.red, borderRadius: 5, color: BRAND.red,
+              fontSize: 12, fontWeight: 600,
             }}>Could not save: {dateSaveError}</div>
           )}
 
@@ -869,21 +871,21 @@ function DetailPanel({ box, onClose, onSave, monoFont, font, displayFont }) {
               toggled, since per explicit design decision this needs to
               be a single, foolproof tap for the dashboard's primary
               day-to-day user. */}
-          <div style={{ borderTop: '1px solid ' + BRAND.line, marginTop: 18, paddingTop: 16 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+          <div style={{ borderTop: '1px solid ' + BRAND.line, marginTop: 10, paddingTop: 10 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
               <input
                 type="checkbox"
                 checked={confirmedInput}
                 onChange={handleToggleConfirmed}
                 disabled={confirmedSaveState === 'saving'}
-                style={{ width: 22, height: 22, cursor: 'pointer', accentColor: BRAND.green }}
+                style={{ width: 19, height: 19, cursor: 'pointer', accentColor: BRAND.green }}
               />
-              <span style={{ fontSize: 15, fontWeight: 600, color: BRAND.ink }}>Confirmed</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: BRAND.ink }}>Confirmed</span>
               {confirmedSaveState === 'saving' && (
-                <span style={{ fontSize: 12, color: BRAND.muted, fontStyle: 'italic' }}>Saving…</span>
+                <span style={{ fontSize: 11, color: BRAND.muted, fontStyle: 'italic' }}>Saving…</span>
               )}
               {confirmedSaveState === 'saved' && (
-                <span style={{ fontSize: 12, color: BRAND.greenDark, fontWeight: 600 }}>✓ Saved</span>
+                <span style={{ fontSize: 11, color: BRAND.greenDark, fontWeight: 600 }}>✓ Saved</span>
               )}
             </label>
             {confirmedSaveState === 'error' && (
@@ -907,7 +909,7 @@ function DetailPanel({ box, onClose, onSave, monoFont, font, displayFont }) {
           ['Hours Since Last Cycle', box.staleHours !== null ? box.staleHours.toFixed(1) + ' h' : '—'],
           ['Service Needed?', box.srvcNeed || '—'],
           ['Crossed Trigger (Raw, Pre-Suppression)', box.crossedTrigrRaw || '—'],
-          ['Date Pull Requested', formatSimpleDate(box.datePullReqd) || '—'],
+          ['Recent Date Pull Request', formatSimpleDate(box.datePullReqd) || '—'],
         ].map(([k, v]) => (
           <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid ' + BRAND.line, fontSize: 13, gap: 12 }}>
             <span style={{ color: BRAND.muted, flexShrink: 0 }}>{k}</span>
