@@ -721,6 +721,51 @@ function toDateInputValue(value) {
   return yyyy + '-' + mm + '-' + dd;
 }
 
+// Converts a yyyy-MM-dd value (the live, in-progress Pick-Up Date INPUT
+// value, not necessarily what's saved yet - per explicit design
+// decision, the email should reflect whatever date is currently showing
+// on screen) into the M/D/YYYY format used elsewhere on this dashboard.
+// Parsed as separate y/m/d components rather than via `new Date(...)`
+// directly, since a bare "yyyy-MM-dd" string is otherwise interpreted
+// as UTC midnight by the Date constructor and can display as the
+// previous day in timezones behind UTC.
+function formatDateInputValue(value) {
+  if (!value) return '';
+  const parts = value.split('-');
+  if (parts.length !== 3) return '';
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  const day = parseInt(parts[2], 10);
+  if (!year || !month || !day) return '';
+  return month + '/' + day + '/' + year;
+}
+
+// Fills the Subject/Body templates from Master Box List with the
+// current Pick-Up Date. Per explicit design decision (first of
+// presumably more template fields to come): the Subject template
+// already ends in a dash, and the date is appended right after it; the
+// Body template contains the literal phrase "Firm Service Date!" and
+// the date is inserted right after that phrase. If the Pick-Up Date
+// input is empty, the templates are returned with that insertion point
+// left as-is (nothing appended) rather than inserting a blank or
+// placeholder-looking value, so an unscheduled box doesn't produce a
+// confusing half-finished email.
+function fillEmailTemplate(subjectTemplate, bodyTemplate, puDateInputValue) {
+  const dateStr = formatDateInputValue(puDateInputValue);
+
+  let subject = subjectTemplate || '';
+  if (dateStr && subject) {
+    subject = subject.replace(/-\s*$/, '- ' + dateStr);
+  }
+
+  let body = bodyTemplate || '';
+  if (dateStr && body) {
+    body = body.replace(/Firm Service Date!/, 'Firm Service Date! ' + dateStr);
+  }
+
+  return { subject, body };
+}
+
 function DetailPanel({ box, onClose, onSave, contacts, monoFont, font, displayFont }) {
   const [schDateInput, setSchDateInput] = React.useState(() => toDateInputValue(box.schDate));
   const [puDateInput, setPuDateInput] = React.useState(() => toDateInputValue(box.puDate));
@@ -1016,7 +1061,7 @@ function DetailPanel({ box, onClose, onSave, contacts, monoFont, font, displayFo
             dash for every box. Stacked label-above-value (rather than
             the right-aligned single-line layout used above) since
             address lists can run long and need real wrapping room. */}
-        {contacts && (contacts.toRecipients || contacts.ccRecipients) && (
+        {contacts && (contacts.toRecipients || contacts.ccRecipients || contacts.subjectTemplate || contacts.bodyTemplate) && (
           <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid ' + BRAND.line }}>
             <div style={{
               fontSize: 12, fontWeight: 700, color: BRAND.muted, textTransform: 'uppercase',
@@ -1034,6 +1079,36 @@ function DetailPanel({ box, onClose, onSave, contacts, monoFont, font, displayFo
                 <div style={{ fontSize: 13, fontFamily: monoFont, wordBreak: 'break-word' }}>{contacts.ccRecipients}</div>
               </div>
             )}
+
+            {/* Compose button - only shown once there's actually a
+                subject or body template to fill in, separate from the
+                recipients-only case above (a box might have to/cc
+                addresses on file but no service template yet, or vice
+                versa). Builds a standard mailto: link with the
+                Pick-Up Date already inserted per fillEmailTemplate's
+                rules - opens in whatever email client/app is already
+                the default on this device (Outlook, Gmail, etc.),
+                fully pre-filled and ready to review and send, since a
+                web page itself cannot send email directly. */}
+            {(contacts.subjectTemplate || contacts.bodyTemplate) && (() => {
+              const filled = fillEmailTemplate(contacts.subjectTemplate, contacts.bodyTemplate, puDateInput);
+              const mailtoParams = [];
+              if (contacts.ccRecipients) mailtoParams.push('cc=' + encodeURIComponent(contacts.ccRecipients));
+              if (filled.subject) mailtoParams.push('subject=' + encodeURIComponent(filled.subject));
+              if (filled.body) mailtoParams.push('body=' + encodeURIComponent(filled.body));
+              const mailtoHref = 'mailto:' + encodeURIComponent(contacts.toRecipients || '') +
+                (mailtoParams.length ? '?' + mailtoParams.join('&') : '');
+              return (
+                <a
+                  href={mailtoHref}
+                  style={{
+                    display: 'block', marginTop: 14, padding: '10px', textAlign: 'center',
+                    borderRadius: 6, fontSize: 14, fontWeight: 700, fontFamily: font,
+                    background: BRAND.green, color: '#FFFFFF', textDecoration: 'none',
+                  }}
+                >Compose Service Email</a>
+              );
+            })()}
           </div>
         )}
       </div>
