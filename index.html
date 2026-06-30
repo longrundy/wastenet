@@ -680,37 +680,76 @@ function DetailPanel({ box, onClose, onSave, monoFont, font, displayFont }) {
   const [schDateInput, setSchDateInput] = React.useState(() => toDateInputValue(box.schDate));
   const [puDateInput, setPuDateInput] = React.useState(() => toDateInputValue(box.puDate));
   const [confirmedInput, setConfirmedInput] = React.useState(box.confirmed);
-  const [saveState, setSaveState] = React.useState('idle'); // idle | saving | saved | error
-  const [saveError, setSaveError] = React.useState(null);
+
+  // Two fully independent save tracks, since these represent two
+  // different real-world moments per explicit design decision:
+  // scheduling (Scheduled Date + Pick-Up Date together, entered when
+  // service is first arranged) happens at a different time than
+  // confirming (entered later, once the hauler calls/emails back to
+  // confirm) - sharing one Save button forced re-submitting unrelated
+  // date fields just to record a confirmation, or risked silently
+  // re-saving stale dates. dateSaveState drives the manual Save button
+  // below the date fields; confirmedSaveState drives the small inline
+  // feedback next to the checkbox, which saves itself immediately on
+  // toggle with no button to click at all.
+  const [dateSaveState, setDateSaveState] = React.useState('idle'); // idle | saving | saved | error
+  const [dateSaveError, setDateSaveError] = React.useState(null);
+  const [confirmedSaveState, setConfirmedSaveState] = React.useState('idle'); // idle | saving | saved | error
+  const [confirmedSaveError, setConfirmedSaveError] = React.useState(null);
 
   // If a fresh poll/reload brings in updated values for this same box
   // (e.g. someone else already saved a change), reflect that rather
   // than silently keep showing what was on screen when the panel first
-  // opened - but only when the user hasn't started editing yet this
-  // session, so we never clobber input they're actively in the middes
-  // of typing.
+  // opened - but only when the user hasn't started editing that
+  // specific field's track yet, so we never clobber input they're
+  // actively in the middle of working with. The two tracks are checked
+  // independently since they can now be mid-edit at different times.
   React.useEffect(() => {
-    if (saveState === 'idle') {
+    if (dateSaveState === 'idle') {
       setSchDateInput(toDateInputValue(box.schDate));
       setPuDateInput(toDateInputValue(box.puDate));
+    }
+  }, [box.schDate, box.puDate, dateSaveState]);
+
+  React.useEffect(() => {
+    if (confirmedSaveState === 'idle') {
       setConfirmedInput(box.confirmed);
     }
-  }, [box.schDate, box.puDate, box.confirmed, saveState]);
+  }, [box.confirmed, confirmedSaveState]);
 
-  const handleSave = async () => {
-    setSaveState('saving');
-    setSaveError(null);
+  const handleSaveDates = async () => {
+    setDateSaveState('saving');
+    setDateSaveError(null);
     try {
-      await onSave(box.boxId, {
-        schDate: schDateInput,
-        puDate: puDateInput,
-        confirmed: confirmedInput,
-      });
-      setSaveState('saved');
-      setTimeout(() => setSaveState('idle'), 2500);
+      await onSave(box.boxId, { schDate: schDateInput, puDate: puDateInput });
+      setDateSaveState('saved');
+      setTimeout(() => setDateSaveState('idle'), 2500);
     } catch (err) {
-      setSaveState('error');
-      setSaveError(err.message || String(err));
+      setDateSaveState('error');
+      setDateSaveError(err.message || String(err));
+    }
+  };
+
+  // Confirmed has no Save button at all - checking/unchecking it saves
+  // immediately, since per explicit design decision this needs to be a
+  // single, foolproof action for the dashboard's primary day-to-day
+  // user (no separate button to find or forget). If the save fails,
+  // the checkbox visually reverts to its last-known-good state so the
+  // screen never silently shows a checked box that didn't actually
+  // make it into the Sheet.
+  const handleToggleConfirmed = async (e) => {
+    const next = e.target.checked;
+    setConfirmedInput(next);
+    setConfirmedSaveState('saving');
+    setConfirmedSaveError(null);
+    try {
+      await onSave(box.boxId, { confirmed: next });
+      setConfirmedSaveState('saved');
+      setTimeout(() => setConfirmedSaveState('idle'), 2000);
+    } catch (err) {
+      setConfirmedInput(!next);
+      setConfirmedSaveState('error');
+      setConfirmedSaveError(err.message || String(err));
     }
   };
 
@@ -768,7 +807,7 @@ function DetailPanel({ box, onClose, onSave, monoFont, font, displayFont }) {
           <div style={{
             fontSize: 13, fontWeight: 700, color: BRAND.green, textTransform: 'uppercase',
             letterSpacing: '0.03em', marginBottom: 14, fontFamily: monoFont,
-          }}>Service Tracking</div>
+          }}>Scheduling</div>
 
           <label style={{ display: 'block', marginBottom: 14 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: BRAND.ink, marginBottom: 5 }}>Scheduled Date</div>
@@ -783,7 +822,7 @@ function DetailPanel({ box, onClose, onSave, monoFont, font, displayFont }) {
             />
           </label>
 
-          <label style={{ display: 'block', marginBottom: 14 }}>
+          <label style={{ display: 'block', marginBottom: 16 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: BRAND.ink, marginBottom: 5 }}>Pick-Up Date</div>
             <input
               type="date"
@@ -796,43 +835,65 @@ function DetailPanel({ box, onClose, onSave, monoFont, font, displayFont }) {
             />
           </label>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={confirmedInput}
-              onChange={e => setConfirmedInput(e.target.checked)}
-              style={{ width: 22, height: 22, cursor: 'pointer', accentColor: BRAND.green }}
-            />
-            <span style={{ fontSize: 15, fontWeight: 600, color: BRAND.ink }}>Confirmed</span>
-          </label>
-
           <button
-            onClick={handleSave}
-            disabled={saveState === 'saving'}
+            onClick={handleSaveDates}
+            disabled={dateSaveState === 'saving'}
             style={{
               width: '100%', padding: '12px', fontSize: 16, fontWeight: 700, borderRadius: 6,
-              border: 'none', cursor: saveState === 'saving' ? 'default' : 'pointer',
-              background: saveState === 'saving' ? BRAND.muted : BRAND.green, color: '#FFFFFF',
+              border: 'none', cursor: dateSaveState === 'saving' ? 'default' : 'pointer',
+              background: dateSaveState === 'saving' ? BRAND.muted : BRAND.green, color: '#FFFFFF',
               fontFamily: font,
             }}
           >
-            {saveState === 'saving' ? 'Saving…' : 'Save'}
+            {dateSaveState === 'saving' ? 'Saving…' : 'Save Dates'}
           </button>
 
-          {saveState === 'saved' && (
+          {dateSaveState === 'saved' && (
             <div style={{
               marginTop: 12, padding: '10px 12px', background: 'rgba(92,170,22,0.12)',
               border: '1px solid ' + BRAND.green, borderRadius: 6, color: BRAND.greenDark,
               fontSize: 14, fontWeight: 600, textAlign: 'center',
             }}>✓ Saved successfully</div>
           )}
-          {saveState === 'error' && (
+          {dateSaveState === 'error' && (
             <div style={{
               marginTop: 12, padding: '10px 12px', background: 'rgba(179,64,43,0.08)',
               border: '1px solid ' + BRAND.red, borderRadius: 6, color: BRAND.red,
               fontSize: 13, fontWeight: 600,
-            }}>Could not save: {saveError}</div>
+            }}>Could not save: {dateSaveError}</div>
           )}
+
+          {/* Confirmation is its own separate action, entered later
+              once the hauler actually calls/emails back - it has no
+              Save button at all and saves itself the instant it's
+              toggled, since per explicit design decision this needs to
+              be a single, foolproof tap for the dashboard's primary
+              day-to-day user. */}
+          <div style={{ borderTop: '1px solid ' + BRAND.line, marginTop: 18, paddingTop: 16 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={confirmedInput}
+                onChange={handleToggleConfirmed}
+                disabled={confirmedSaveState === 'saving'}
+                style={{ width: 22, height: 22, cursor: 'pointer', accentColor: BRAND.green }}
+              />
+              <span style={{ fontSize: 15, fontWeight: 600, color: BRAND.ink }}>Confirmed</span>
+              {confirmedSaveState === 'saving' && (
+                <span style={{ fontSize: 12, color: BRAND.muted, fontStyle: 'italic' }}>Saving…</span>
+              )}
+              {confirmedSaveState === 'saved' && (
+                <span style={{ fontSize: 12, color: BRAND.greenDark, fontWeight: 600 }}>✓ Saved</span>
+              )}
+            </label>
+            {confirmedSaveState === 'error' && (
+              <div style={{
+                marginTop: 10, padding: '10px 12px', background: 'rgba(179,64,43,0.08)',
+                border: '1px solid ' + BRAND.red, borderRadius: 6, color: BRAND.red,
+                fontSize: 13, fontWeight: 600,
+              }}>Could not save: {confirmedSaveError}</div>
+            )}
+          </div>
         </div>
 
         {[
