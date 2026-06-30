@@ -327,6 +327,32 @@ function WasteNetDashboard() {
     }
   }, [jsonpLoad]);
 
+  // Writes Sch Date / P/U Date / Cnfrmd back to the Sheet for one box,
+  // via the same JSONP mechanism used for reads (a true POST isn't
+  // usable here for the same CORS/redirect reason - see jsonpLoad
+  // above). Writes to whichever tab is CURRENTLY DISPLAYED
+  // (sheetName), not necessarily "today" - per explicit design
+  // decision, a confirmation can legitimately arrive after the scan
+  // that originally flagged a box, so editing is allowed on any visible
+  // date, not just the live/latest one. fields is an object where each
+  // key (schDate/puDate/confirmed) is OPTIONAL - only the keys actually
+  // present get sent, matching the Apps Script's "omitted = don't
+  // touch, empty string = clear" distinction. Re-fetches the current
+  // tab afterward so the on-screen row immediately reflects the save
+  // rather than showing stale data until the next poll.
+  const saveBoxFields = useCallback(async (boxId, fields) => {
+    if (!sheetName) throw new Error('No tab is currently loaded - cannot save.');
+    const params = ['action=update_box', 'tab=' + encodeURIComponent(sheetName), 'boxId=' + encodeURIComponent(boxId)];
+    Object.keys(fields).forEach(key => {
+      params.push(key + '=' + encodeURIComponent(fields[key]));
+    });
+    const url = SHEET_URL + '?' + params.join('&');
+    const json = await jsonpLoad(url);
+    if (!json.ok) throw new Error(json.error || 'Unknown error saving to the sheet');
+    await loadTab(viewingTab || undefined);
+    return json;
+  }, [jsonpLoad, sheetName, viewingTab, loadTab]);
+
   // Fetches the dropdown's list of selectable past-scan tabs once on
   // load. A failure here is non-fatal - the dashboard still works fine
   // showing only live data, just without the history dropdown - so this
@@ -580,6 +606,7 @@ function WasteNetDashboard() {
         <DetailPanel
           box={selected}
           onClose={() => setSelected(null)}
+          onSave={saveBoxFields}
           monoFont={monoFont}
           font={font}
           displayFont={displayFont}
@@ -633,7 +660,60 @@ function QueueView({ boxes, onSelect, monoFont, font }) {
   );
 }
 
-function DetailPanel({ box, onClose, monoFont, font, displayFont }) {
+// Converts an ISO timestamp string (or empty/missing value) into the
+// yyyy-MM-dd format an HTML <input type="date"> requires. Uses UTC
+// components for the same reason formatSimpleDate does above - the
+// date a person picked shouldn't shift depending on the viewer's local
+// timezone. Returns '' for anything unparseable, which is exactly what
+// a date input needs to show as genuinely empty.
+function toDateInputValue(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return '';
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  return yyyy + '-' + mm + '-' + dd;
+}
+
+function DetailPanel({ box, onClose, onSave, monoFont, font, displayFont }) {
+  const [schDateInput, setSchDateInput] = React.useState(() => toDateInputValue(box.schDate));
+  const [puDateInput, setPuDateInput] = React.useState(() => toDateInputValue(box.puDate));
+  const [confirmedInput, setConfirmedInput] = React.useState(box.confirmed);
+  const [saveState, setSaveState] = React.useState('idle'); // idle | saving | saved | error
+  const [saveError, setSaveError] = React.useState(null);
+
+  // If a fresh poll/reload brings in updated values for this same box
+  // (e.g. someone else already saved a change), reflect that rather
+  // than silently keep showing what was on screen when the panel first
+  // opened - but only when the user hasn't started editing yet this
+  // session, so we never clobber input they're actively in the middes
+  // of typing.
+  React.useEffect(() => {
+    if (saveState === 'idle') {
+      setSchDateInput(toDateInputValue(box.schDate));
+      setPuDateInput(toDateInputValue(box.puDate));
+      setConfirmedInput(box.confirmed);
+    }
+  }, [box.schDate, box.puDate, box.confirmed, saveState]);
+
+  const handleSave = async () => {
+    setSaveState('saving');
+    setSaveError(null);
+    try {
+      await onSave(box.boxId, {
+        schDate: schDateInput,
+        puDate: puDateInput,
+        confirmed: confirmedInput,
+      });
+      setSaveState('saved');
+      setTimeout(() => setSaveState('idle'), 2500);
+    } catch (err) {
+      setSaveState('error');
+      setSaveError(err.message || String(err));
+    }
+  };
+
   return (
     <div
       onClick={onClose}
@@ -673,6 +753,88 @@ function DetailPanel({ box, onClose, monoFont, font, displayFont }) {
           }}>{box.notes}</div>
         )}
 
+        {/* Editable service tracking - the whole point of this panel
+            for the dashboard's primary day-to-day user: enter what was
+            scheduled, when pickup will happen, and whether the hauler
+            confirmed, then save it straight back to the Sheet. Large,
+            simple controls and an unmistakable saved/error message,
+            since this is built for someone who isn't comfortable with
+            technology and needs to know immediately and clearly that
+            the save worked. */}
+        <div style={{
+          border: '2px solid ' + BRAND.green, borderRadius: 8, padding: 16, marginBottom: 20,
+          background: 'rgba(92,170,22,0.05)',
+        }}>
+          <div style={{
+            fontSize: 13, fontWeight: 700, color: BRAND.green, textTransform: 'uppercase',
+            letterSpacing: '0.03em', marginBottom: 14, fontFamily: monoFont,
+          }}>Service Tracking</div>
+
+          <label style={{ display: 'block', marginBottom: 14 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: BRAND.ink, marginBottom: 5 }}>Scheduled Date</div>
+            <input
+              type="date"
+              value={schDateInput}
+              onChange={e => setSchDateInput(e.target.value)}
+              style={{
+                width: '100%', padding: '10px 12px', fontSize: 16, borderRadius: 6,
+                border: '1.5px solid ' + BRAND.line, fontFamily: font, color: BRAND.ink, boxSizing: 'border-box',
+              }}
+            />
+          </label>
+
+          <label style={{ display: 'block', marginBottom: 14 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: BRAND.ink, marginBottom: 5 }}>Pick-Up Date</div>
+            <input
+              type="date"
+              value={puDateInput}
+              onChange={e => setPuDateInput(e.target.value)}
+              style={{
+                width: '100%', padding: '10px 12px', fontSize: 16, borderRadius: 6,
+                border: '1.5px solid ' + BRAND.line, fontFamily: font, color: BRAND.ink, boxSizing: 'border-box',
+              }}
+            />
+          </label>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={confirmedInput}
+              onChange={e => setConfirmedInput(e.target.checked)}
+              style={{ width: 22, height: 22, cursor: 'pointer', accentColor: BRAND.green }}
+            />
+            <span style={{ fontSize: 15, fontWeight: 600, color: BRAND.ink }}>Confirmed</span>
+          </label>
+
+          <button
+            onClick={handleSave}
+            disabled={saveState === 'saving'}
+            style={{
+              width: '100%', padding: '12px', fontSize: 16, fontWeight: 700, borderRadius: 6,
+              border: 'none', cursor: saveState === 'saving' ? 'default' : 'pointer',
+              background: saveState === 'saving' ? BRAND.muted : BRAND.green, color: '#FFFFFF',
+              fontFamily: font,
+            }}
+          >
+            {saveState === 'saving' ? 'Saving…' : 'Save'}
+          </button>
+
+          {saveState === 'saved' && (
+            <div style={{
+              marginTop: 12, padding: '10px 12px', background: 'rgba(92,170,22,0.12)',
+              border: '1px solid ' + BRAND.green, borderRadius: 6, color: BRAND.greenDark,
+              fontSize: 14, fontWeight: 600, textAlign: 'center',
+            }}>✓ Saved successfully</div>
+          )}
+          {saveState === 'error' && (
+            <div style={{
+              marginTop: 12, padding: '10px 12px', background: 'rgba(179,64,43,0.08)',
+              border: '1px solid ' + BRAND.red, borderRadius: 6, color: BRAND.red,
+              fontSize: 13, fontWeight: 600,
+            }}>Could not save: {saveError}</div>
+          )}
+        </div>
+
         {[
           ['Hauler Code', box.haulCode],
           ['Service Method', box.serviceMethod],
@@ -685,9 +847,6 @@ function DetailPanel({ box, onClose, monoFont, font, displayFont }) {
           ['Service Needed?', box.srvcNeed || '—'],
           ['Crossed Trigger (Raw, Pre-Suppression)', box.crossedTrigrRaw || '—'],
           ['Date Pull Requested', formatSimpleDate(box.datePullReqd) || '—'],
-          ['Scheduled Date', formatSimpleDate(box.schDate) || '—'],
-          ['Pick-Up Date', formatSimpleDate(box.puDate) || '—'],
-          ['Confirmed', box.confirmed ? 'Yes' : 'No'],
         ].map(([k, v]) => (
           <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid ' + BRAND.line, fontSize: 13, gap: 12 }}>
             <span style={{ color: BRAND.muted, flexShrink: 0 }}>{k}</span>
