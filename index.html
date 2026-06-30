@@ -730,6 +730,19 @@ function DetailPanel({ box, onClose, onSave, monoFont, font, displayFont }) {
     }
   };
 
+  // Clears the date INPUTS only - does not touch the Sheet by itself.
+  // Per explicit design decision (guarding against an accidental clear
+  // on the wrong box), this is a deliberately two-step action: Clear
+  // empties the fields on screen, then the existing Save Dates button
+  // is still required to actually commit that empty state back to the
+  // Sheet - exactly the same save step every other date edit already
+  // goes through, so a stray click on Clear alone can never erase real
+  // data without a second, deliberate Save.
+  const handleClearDates = () => {
+    setSchDateInput('');
+    setPuDateInput('');
+  };
+
   // Confirmed has no Save button at all - checking/unchecking it saves
   // immediately, since per explicit design decision this needs to be a
   // single, foolproof action for the dashboard's primary day-to-day
@@ -737,8 +750,8 @@ function DetailPanel({ box, onClose, onSave, monoFont, font, displayFont }) {
   // the checkbox visually reverts to its last-known-good state so the
   // screen never silently shows a checked box that didn't actually
   // make it into the Sheet.
-  const handleToggleConfirmed = async (e) => {
-    const next = e.target.checked;
+  const handleSetConfirmed = async (next) => {
+    if (next === confirmedInput) return; // already in this state, no need to re-save
     setConfirmedInput(next);
     setConfirmedSaveState('saving');
     setConfirmedSaveError(null);
@@ -837,18 +850,32 @@ function DetailPanel({ box, onClose, onSave, monoFont, font, displayFont }) {
             </label>
           </div>
 
-          <button
-            onClick={handleSaveDates}
-            disabled={dateSaveState === 'saving'}
-            style={{
-              width: '100%', padding: '8px', fontSize: 14, fontWeight: 700, borderRadius: 5,
-              border: 'none', cursor: dateSaveState === 'saving' ? 'default' : 'pointer',
-              background: dateSaveState === 'saving' ? BRAND.muted : BRAND.green, color: '#FFFFFF',
-              fontFamily: font,
-            }}
-          >
-            {dateSaveState === 'saving' ? 'Saving…' : 'Save Dates'}
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={handleSaveDates}
+              disabled={dateSaveState === 'saving'}
+              style={{
+                flex: 2, padding: '8px', fontSize: 14, fontWeight: 700, borderRadius: 5,
+                border: 'none', cursor: dateSaveState === 'saving' ? 'default' : 'pointer',
+                background: dateSaveState === 'saving' ? BRAND.muted : BRAND.green, color: '#FFFFFF',
+                fontFamily: font,
+              }}
+            >
+              {dateSaveState === 'saving' ? 'Saving…' : 'Save Dates'}
+            </button>
+            <button
+              onClick={handleClearDates}
+              disabled={dateSaveState === 'saving'}
+              title="Clears the fields above - click Save Dates afterward to remove them from the sheet"
+              style={{
+                flex: 1, padding: '8px', fontSize: 13, fontWeight: 600, borderRadius: 5,
+                border: '1.5px solid ' + BRAND.line, cursor: dateSaveState === 'saving' ? 'default' : 'pointer',
+                background: BRAND.panel, color: BRAND.muted, fontFamily: font,
+              }}
+            >
+              Clear
+            </button>
+          </div>
 
           {dateSaveState === 'saved' && (
             <div style={{
@@ -867,27 +894,47 @@ function DetailPanel({ box, onClose, onSave, monoFont, font, displayFont }) {
 
           {/* Confirmation is its own separate action, entered later
               once the hauler actually calls/emails back - it has no
-              Save button at all and saves itself the instant it's
-              toggled, since per explicit design decision this needs to
-              be a single, foolproof tap for the dashboard's primary
-              day-to-day user. */}
+              Save button at all and saves itself the instant Yes or No
+              is tapped, since per explicit design decision this needs
+              to be a single, foolproof action for the dashboard's
+              primary day-to-day user. Yes/No buttons (rather than a
+              checkbox) per explicit design decision, so reversing a
+              false confirmation is just as clear and easy an action as
+              making one - both states are always visible and equally
+              tappable, instead of "unchecked" reading as an absence of
+              a real choice. */}
           <div style={{ borderTop: '1px solid ' + BRAND.line, marginTop: 10, paddingTop: 10 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={confirmedInput}
-                onChange={handleToggleConfirmed}
+            <div style={{ fontSize: 14, fontWeight: 600, color: BRAND.ink, marginBottom: 6 }}>Confirmed</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button
+                onClick={() => handleSetConfirmed(true)}
                 disabled={confirmedSaveState === 'saving'}
-                style={{ width: 19, height: 19, cursor: 'pointer', accentColor: BRAND.green }}
-              />
-              <span style={{ fontSize: 14, fontWeight: 600, color: BRAND.ink }}>Confirmed</span>
+                style={{
+                  flex: 1, padding: '7px', fontSize: 13, fontWeight: 700, borderRadius: 5,
+                  border: '1.5px solid ' + (confirmedInput ? BRAND.green : BRAND.line),
+                  cursor: confirmedSaveState === 'saving' ? 'default' : 'pointer',
+                  background: confirmedInput ? BRAND.green : BRAND.panel,
+                  color: confirmedInput ? '#FFFFFF' : BRAND.muted, fontFamily: font,
+                }}
+              >Yes</button>
+              <button
+                onClick={() => handleSetConfirmed(false)}
+                disabled={confirmedSaveState === 'saving'}
+                style={{
+                  flex: 1, padding: '7px', fontSize: 13, fontWeight: 700, borderRadius: 5,
+                  border: '1.5px solid ' + (!confirmedInput ? BRAND.red : BRAND.line),
+                  cursor: confirmedSaveState === 'saving' ? 'default' : 'pointer',
+                  background: !confirmedInput ? BRAND.red : BRAND.panel,
+                  color: !confirmedInput ? '#FFFFFF' : BRAND.muted, fontFamily: font,
+                }}
+              >No</button>
               {confirmedSaveState === 'saving' && (
                 <span style={{ fontSize: 11, color: BRAND.muted, fontStyle: 'italic' }}>Saving…</span>
               )}
               {confirmedSaveState === 'saved' && (
                 <span style={{ fontSize: 11, color: BRAND.greenDark, fontWeight: 600 }}>✓ Saved</span>
               )}
-            </label>
+            </div>
             {confirmedSaveState === 'error' && (
               <div style={{
                 marginTop: 10, padding: '10px 12px', background: 'rgba(179,64,43,0.08)',
