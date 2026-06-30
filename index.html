@@ -253,9 +253,48 @@ function WasteNetDashboard() {
 
   const [query, setQuery] = useState('');
   const [signalFilter, setSignalFilter] = useState('crossed'); // ALL | crossed | stale | both | clear
-  const [sortBy, setSortBy] = useState('description'); // boxId | description
+  const [sortBy, setSortBy] = useState('description'); // valid options depend on which view is active, see SORT_OPTIONS_BY_VIEW below
   const [selected, setSelected] = useState(null);
   const [toast, setToast] = useState(null);
+
+  // Each stat-button view offers its own subset of sort options - per
+  // explicit design decision: Action Needed gets Pickup Confirmation
+  // (since that's specifically about already-scheduled boxes needing a
+  // follow-up), Stale Scans gets Most/Least Hours (since recency-of-
+  // staleness is what matters there), and No Action Needed only offers
+  // the two generic options, since neither extra sort makes sense for
+  // boxes that don't need attention in the first place.
+  const SORT_OPTIONS_BY_VIEW = {
+    crossed: [
+      ['boxId', 'Sort: Box Number'],
+      ['description', 'Sort: Description'],
+      ['confirmation', 'Sort: Pickup Confirmation'],
+    ],
+    stale: [
+      ['boxId', 'Sort: Box Number'],
+      ['description', 'Sort: Description'],
+      ['hoursDesc', 'Sort: Most Hours'],
+      ['hoursAsc', 'Sort: Least Hours'],
+    ],
+    clear: [
+      ['boxId', 'Sort: Box Number'],
+      ['description', 'Sort: Description'],
+    ],
+  };
+
+  // Switches which stat-button view is active, and resets sortBy back
+  // to Box Number whenever the CURRENTLY selected sort option wouldn't
+  // even appear in the new view's dropdown - prevents the dropdown from
+  // silently showing a stale, no-longer-relevant selection (e.g.
+  // leaving "Pickup Confirmation" selected after switching away from
+  // Action Needed, where that option doesn't exist).
+  const handleSelectSignalFilter = (key) => {
+    const validOptions = (SORT_OPTIONS_BY_VIEW[key] || []).map(([val]) => val);
+    if (!validOptions.includes(sortBy)) {
+      setSortBy('boxId');
+    }
+    setSignalFilter(key);
+  };
 
   const pollRef = useRef(null);
 
@@ -459,30 +498,49 @@ function WasteNetDashboard() {
       ? filtered.filter(r => r.crossedStatus === 'crossed' || r.staleStatus === 'stale')
       : filtered;
     const list = base.slice();
-    if (signalFilter === 'stale') {
-      // Stale Scans always sorts by least-hours-stale first, regardless
-      // of the Box Number/Description dropdown - per explicit design
-      // decision, a box barely over the 24h threshold is arguably more
-      // worth checking on first (closer to being recoverable) than one
-      // that's been dark for months, so this view has its own dedicated
-      // ordering rather than reusing the generic sort control. Boxes
-      // with no parseable hours value (shouldn't normally happen for a
-      // box that's actually flagged stale, but guarded anyway) sort to
-      // the end rather than crashing or landing arbitrarily.
+
+    const sortByBoxId = (a, b) => {
+      const numA = parseInt(a.boxId, 10);
+      const numB = parseInt(b.boxId, 10);
+      if (Number.isFinite(numA) && Number.isFinite(numB)) return numA - numB;
+      return String(a.boxId).localeCompare(String(b.boxId));
+    };
+    const sortByDescription = (a, b) => a.description.localeCompare(b.description);
+
+    if (sortBy === 'confirmation') {
+      // Pickup Confirmation (Action Needed view only) - per explicit
+      // design decision: boxes with a scheduled Pick-Up Date that are
+      // NOT yet confirmed come first (these are what most urgently need
+      // a follow-up call/email), confirmed ones next, and boxes with no
+      // Pick-Up Date at all (nothing to confirm yet) sort to the very
+      // bottom rather than being mixed in - they're not part of this
+      // sort's actual concern. Box Number is the tiebreaker within each
+      // group, for a stable, predictable order rather than relying on
+      // whatever order the data happened to arrive in.
+      list.sort((a, b) => {
+        const rank = (r) => {
+          if (!r.puDate) return 2; // no pickup scheduled - bottom
+          return r.confirmed ? 1 : 0; // No=0 (top), Yes=1
+        };
+        const diff = rank(a) - rank(b);
+        if (diff !== 0) return diff;
+        return sortByBoxId(a, b);
+      });
+    } else if (sortBy === 'hoursDesc' || sortBy === 'hoursAsc') {
+      // Most Hours / Least Hours (Stale Scans view only) - replaces the
+      // old hardcoded always-ascending behavior with an actual choice,
+      // now that this view has its own dropdown options. Boxes with no
+      // parseable hours value sort to the end regardless of direction,
+      // rather than crashing or landing arbitrarily.
       list.sort((a, b) => {
         const ha = a.staleHours === null ? Infinity : a.staleHours;
         const hb = b.staleHours === null ? Infinity : b.staleHours;
-        return ha - hb;
+        return sortBy === 'hoursAsc' ? ha - hb : (hb === Infinity && ha === Infinity ? 0 : hb - ha);
       });
     } else if (sortBy === 'description') {
-      list.sort((a, b) => a.description.localeCompare(b.description));
+      list.sort(sortByDescription);
     } else {
-      list.sort((a, b) => {
-        const numA = parseInt(a.boxId, 10);
-        const numB = parseInt(b.boxId, 10);
-        if (Number.isFinite(numA) && Number.isFinite(numB)) return numA - numB;
-        return String(a.boxId).localeCompare(String(b.boxId));
-      });
+      list.sort(sortByBoxId);
     }
     return list;
   }, [filtered, signalFilter, sortBy]);
@@ -579,7 +637,7 @@ function WasteNetDashboard() {
           return (
             <button
               key={i}
-              onClick={() => setSignalFilter(s.key)}
+              onClick={() => handleSelectSignalFilter(s.key)}
               aria-pressed={isActive}
               style={{
                 flex: '0 0 auto', width: 150, padding: '8px 14px', textAlign: 'center',
@@ -634,8 +692,9 @@ function WasteNetDashboard() {
             background: BRAND.paper, color: BRAND.ink, fontSize: 13, fontFamily: font, cursor: 'pointer',
           }}
         >
-          <option value="boxId">Sort: Box Number</option>
-          <option value="description">Sort: Description</option>
+          {(SORT_OPTIONS_BY_VIEW[signalFilter] || SORT_OPTIONS_BY_VIEW.clear).map(([val, label]) => (
+            <option key={val} value={val}>{label}</option>
+          ))}
         </select>
         </div>
       </div>
@@ -714,6 +773,28 @@ function QueueView({ boxes, onSelect, monoFont, font }) {
                   background: 'rgba(201,122,26,0.08)', border: '1px solid rgba(201,122,26,0.3)',
                   borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
                 }}>{Math.round(b.staleHours).toLocaleString()}h</span>
+              )}
+              {/* Pickup Date + Confirmed pills - per explicit design
+                  decision, both appear together and ONLY once a
+                  Pick-Up Date has actually been saved for this box, so
+                  the queue list surfaces at-a-glance which
+                  already-scheduled boxes still need their confirmation
+                  followed up on, without opening each one individually. */}
+              {b.puDate && (
+                <React.Fragment>
+                  <span style={{
+                    fontSize: 10.5, fontWeight: 700, fontFamily: monoFont, color: BRAND.green,
+                    background: 'rgba(92,170,22,0.08)', border: '1px solid rgba(92,170,22,0.3)',
+                    borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
+                  }}>PICKUP {formatSimpleDate(b.puDate)}</span>
+                  <span style={{
+                    fontSize: 10.5, fontWeight: 700, fontFamily: monoFont,
+                    color: b.confirmed ? BRAND.green : BRAND.red,
+                    background: b.confirmed ? 'rgba(92,170,22,0.08)' : 'rgba(179,64,43,0.08)',
+                    border: '1px solid ' + (b.confirmed ? 'rgba(92,170,22,0.3)' : 'rgba(179,64,43,0.3)'),
+                    borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
+                  }}>CONFIRMED: {b.confirmed ? 'YES' : 'NO'}</span>
+                </React.Fragment>
               )}
             </div>
           </div>
