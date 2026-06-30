@@ -278,8 +278,8 @@ function WasteNetDashboard() {
         if (settled) return;
         settled = true;
         cleanup();
-        reject(new Error('Timed out waiting for a response (15s) - check the Apps Script URL and deployment.'));
-      }, 15000);
+        reject(new Error('Timed out waiting for a response (30s) - the sheet may be slow to respond right now. Try again in a moment.'));
+      }, 30000);
 
       script.onerror = () => {
         if (settled) return;
@@ -360,8 +360,8 @@ function WasteNetDashboard() {
 
   const filtered = useMemo(() => {
     return rows.filter(r => {
-      if (signalFilter === 'crossed' && r.crossedStatus !== 'crossed') return false;
-      if (signalFilter === 'stale' && (r.staleStatus !== 'stale' || r.crossedStatus === 'crossed')) return false;
+      if (signalFilter === 'crossed' && (r.crossedStatus !== 'crossed' || r.staleStatus === 'stale')) return false;
+      if (signalFilter === 'stale' && r.staleStatus !== 'stale') return false;
       if (signalFilter === 'both' && !(r.crossedStatus === 'crossed' && r.staleStatus === 'stale')) return false;
       if (signalFilter === 'clear' && (r.crossedStatus === 'crossed' || r.staleStatus === 'stale')) return false;
       if (query) {
@@ -472,7 +472,7 @@ function WasteNetDashboard() {
         }}>
           <strong>Couldn't reach the live sheet.</strong>
           <span style={{ fontFamily: monoFont, fontSize: 12 }}>{fetchError}</span>
-          <span>Check the Apps Script deployment.</span>
+          <span>Try reloading the page.</span>
         </div>
       )}
 
@@ -482,8 +482,8 @@ function WasteNetDashboard() {
         overflowX: 'auto', padding: '8px 24px', justifyContent: 'center',
       }}>
         {[
-          { key: 'crossed', label: 'Action Needed', value: counts.crossed + counts.both },
-          { key: 'stale', label: 'Stale Cycles', value: counts.stale },
+          { key: 'crossed', label: 'Action Needed', value: counts.crossed },
+          { key: 'stale', label: 'Stale Scans', value: counts.stale + counts.both },
           { key: 'clear', label: 'No Action Needed', value: counts.clear },
         ].map((s, i) => {
           const isActive = signalFilter === s.key;
