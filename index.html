@@ -165,6 +165,8 @@ function normalizeRow(raw, idx) {
     schDate: raw['Sch Date'] || '',
     puDate: raw['P/U Date'] || '',
     confirmed: raw['Cnfrmd'] === true || String(raw['Cnfrmd']).toUpperCase() === 'TRUE',
+    toRecipients: raw['To Recipients'] || '',
+    ccRecipients: raw['Cc Recipients'] || '',
   };
 }
 
@@ -246,6 +248,7 @@ function WasteNetDashboard() {
   const [viewingTab, setViewingTab] = useState(null);
   const [availableTabs, setAvailableTabs] = useState([]);
   const [tabsLoadError, setTabsLoadError] = useState(null);
+  const [masterContacts, setMasterContacts] = useState({});
 
   const [query, setQuery] = useState('');
   const [signalFilter, setSignalFilter] = useState('crossed'); // ALL | crossed | stale | both | clear
@@ -368,6 +371,24 @@ function WasteNetDashboard() {
     }
   }, [jsonpLoad]);
 
+  // Fetches the Box ID -> To/Cc email lookup once on load. This data
+  // lives on the Master Box List tab, not in any daily scan tab, so it
+  // has to be fetched separately and joined to the selected box by ID
+  // client-side - see getMasterContactsAsJson() in the Apps Script for
+  // why it's kept as one single fetch rather than duplicated per-day.
+  // A failure here is non-fatal, same reasoning as loadTabList - the
+  // dashboard still works fine without contact emails showing, it just
+  // won't have that one extra section in the detail panel.
+  const loadMasterContacts = useCallback(async () => {
+    try {
+      const json = await jsonpLoad(SHEET_URL + '?action=master_contacts');
+      if (!json.ok) throw new Error(json.error || 'Unknown error loading contact emails');
+      setMasterContacts(json.contacts || {});
+    } catch (err) {
+      // Silent - see comment above.
+    }
+  }, [jsonpLoad]);
+
   const handleSelectTab = useCallback((name) => {
     if (name === '') {
       // Empty option = back to live
@@ -382,7 +403,8 @@ function WasteNetDashboard() {
   useEffect(() => {
     loadTab();
     loadTabList();
-  }, [loadTab, loadTabList]);
+    loadMasterContacts();
+  }, [loadTab, loadTabList, loadMasterContacts]);
 
   useEffect(() => {
     // Only auto-refresh while viewing live/latest data - if the user has
@@ -607,6 +629,7 @@ function WasteNetDashboard() {
           box={selected}
           onClose={() => setSelected(null)}
           onSave={saveBoxFields}
+          contacts={masterContacts[selected.boxId]}
           monoFont={monoFont}
           font={font}
           displayFont={displayFont}
@@ -676,7 +699,7 @@ function toDateInputValue(value) {
   return yyyy + '-' + mm + '-' + dd;
 }
 
-function DetailPanel({ box, onClose, onSave, monoFont, font, displayFont }) {
+function DetailPanel({ box, onClose, onSave, contacts, monoFont, font, displayFont }) {
   const [schDateInput, setSchDateInput] = React.useState(() => toDateInputValue(box.schDate));
   const [puDateInput, setPuDateInput] = React.useState(() => toDateInputValue(box.puDate));
   const [confirmedInput, setConfirmedInput] = React.useState(box.confirmed);
@@ -963,6 +986,34 @@ function DetailPanel({ box, onClose, onSave, monoFont, font, displayFont }) {
             <span style={{ fontFamily: monoFont, textAlign: 'right' }}>{String(v)}</span>
           </div>
         ))}
+
+        {/* Email recipients, pulled from Master Box List (columns G/H)
+            via a separate lookup, not the per-day scan data - per
+            explicit design decision, only shown for boxes that
+            actually have this data rather than displaying an empty
+            dash for every box. Stacked label-above-value (rather than
+            the right-aligned single-line layout used above) since
+            address lists can run long and need real wrapping room. */}
+        {contacts && (contacts.toRecipients || contacts.ccRecipients) && (
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid ' + BRAND.line }}>
+            <div style={{
+              fontSize: 12, fontWeight: 700, color: BRAND.muted, textTransform: 'uppercase',
+              letterSpacing: '0.03em', marginBottom: 10, fontFamily: monoFont,
+            }}>Email Recipients</div>
+            {contacts.toRecipients && (
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3 }}>To</div>
+                <div style={{ fontSize: 13, fontFamily: monoFont, wordBreak: 'break-word' }}>{contacts.toRecipients}</div>
+              </div>
+            )}
+            {contacts.ccRecipients && (
+              <div>
+                <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3 }}>Cc</div>
+                <div style={{ fontSize: 13, fontFamily: monoFont, wordBreak: 'break-word' }}>{contacts.ccRecipients}</div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
       </div>
     </div>
