@@ -1228,6 +1228,8 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, monoFont,
               {hasActiveTemplate ? (
                 <a
                   href={mailtoHref}
+                  target="_blank"
+                  rel="noopener"
                   style={{
                     display: 'block', padding: '10px', textAlign: 'center',
                     borderRadius: 6, fontSize: 14, fontWeight: 700, fontFamily: font,
