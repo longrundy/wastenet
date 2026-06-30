@@ -442,7 +442,22 @@ function WasteNetDashboard() {
       ? filtered.filter(r => r.crossedStatus === 'crossed' || r.staleStatus === 'stale')
       : filtered;
     const list = base.slice();
-    if (sortBy === 'description') {
+    if (signalFilter === 'stale') {
+      // Stale Scans always sorts by least-hours-stale first, regardless
+      // of the Box Number/Description dropdown - per explicit design
+      // decision, a box barely over the 24h threshold is arguably more
+      // worth checking on first (closer to being recoverable) than one
+      // that's been dark for months, so this view has its own dedicated
+      // ordering rather than reusing the generic sort control. Boxes
+      // with no parseable hours value (shouldn't normally happen for a
+      // box that's actually flagged stale, but guarded anyway) sort to
+      // the end rather than crashing or landing arbitrarily.
+      list.sort((a, b) => {
+        const ha = a.staleHours === null ? Infinity : a.staleHours;
+        const hb = b.staleHours === null ? Infinity : b.staleHours;
+        return ha - hb;
+      });
+    } else if (sortBy === 'description') {
       list.sort((a, b) => a.description.localeCompare(b.description));
     } else {
       list.sort((a, b) => {
