@@ -92,6 +92,18 @@ function parseHoursFromNotes(notes) {
   return m ? parseFloat(m[1]) : null;
 }
 
+// Converts an ISO timestamp string (e.g. "2026-06-25T08:58:43.000Z", as
+// sent by the Apps Script for any Sheets date field) into a simple
+// month/day/year display (e.g. "6/25/2026") for the detail panel.
+// Falls back to the raw value unchanged if it isn't a parseable date,
+// so a blank or already-plain value is never mangled.
+function formatSimpleDate(value) {
+  if (!value) return value;
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return value;
+  return (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + '/' + d.getUTCFullYear();
+}
+
 function normalizeRow(raw, idx) {
   const maxPct = parseNum(raw['Max Pct']);
   const t1 = parseNum(raw['Trigr1 Pct']);
@@ -598,32 +610,35 @@ function QueueView({ boxes, onSelect, monoFont, font }) {
 
 function DetailPanel({ box, onClose, monoFont, font, displayFont }) {
   return (
-    <div style={{
-      position: 'fixed', top: 0, right: 0, height: '100vh', width: 'min(440px, 100vw)',
-      background: BRAND.panel, borderLeft: '1px solid ' + BRAND.line, boxShadow: '-12px 0 32px rgba(0,0,0,0.15)',
-      zIndex: 90, display: 'flex', flexDirection: 'column', fontFamily: font,
-    }}>
-      <div style={{ padding: '18px 20px', borderBottom: '1px solid ' + BRAND.line, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: BRAND.dark }}>
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        background: 'rgba(0,0,0,0.35)', zIndex: 89,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          position: 'relative', width: 'min(480px, 100%)', maxHeight: '85vh',
+          background: BRAND.panel, borderRadius: 10, boxShadow: '0 12px 48px rgba(0,0,0,0.3)',
+          zIndex: 90, display: 'flex', flexDirection: 'column', fontFamily: font, overflow: 'hidden',
+        }}
+      >
+      <div style={{ padding: '18px 20px', borderBottom: '1px solid ' + BRAND.line, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: BRAND.green }}>
         <div>
-          <div style={{ fontFamily: monoFont, fontSize: 12, color: '#9CA597' }}>BOX #{box.boxId}</div>
-          <div style={{ fontWeight: 700, fontSize: 16, marginTop: 2, color: '#FAFBF8' }}>{box.description}</div>
+          <div style={{ fontFamily: monoFont, fontSize: 12, color: '#E8F3DF' }}>BOX #{box.boxId}</div>
+          <div style={{ fontWeight: 700, fontSize: 16, marginTop: 2, color: '#FFFFFF' }}>{box.description}</div>
         </div>
         <button onClick={onClose} style={{
-          background: 'transparent', border: 'none', color: '#9CA597', fontSize: 20, cursor: 'pointer', lineHeight: 1,
+          background: 'transparent', border: 'none', color: '#E8F3DF', fontSize: 20, cursor: 'pointer', lineHeight: 1,
         }}>×</button>
       </div>
       <div style={{ padding: 20, flex: 1, overflow: 'auto' }}>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 16 }}>
-          <Gauge pct={box.maxPct} size={48} />
-          <div>
-            <div style={{ fontSize: 28, fontWeight: 700, fontFamily: displayFont, color: box.maxPct === null ? BRAND.muted : (box.maxPct >= 70 ? BRAND.red : box.maxPct >= 45 ? BRAND.amber : BRAND.green) }}>
-              {box.maxPct !== null ? box.maxPct + '%' : 'No reading'}
-            </div>
-            <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-              <StatusPill meta={FILL_STATUS_META} statusKey={box.crossedStatus} />
-              <StatusPill meta={STALE_STATUS_META} statusKey={box.staleStatus} />
-            </div>
-          </div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+          <StatusPill meta={FILL_STATUS_META} statusKey={box.crossedStatus} />
+          <StatusPill meta={STALE_STATUS_META} statusKey={box.staleStatus} />
         </div>
 
         {box.notes && (
@@ -637,15 +652,15 @@ function DetailPanel({ box, onClose, monoFont, font, displayFont }) {
           ['Hauler code', box.haulCode],
           ['Service method', box.serviceMethod],
           ['Text Blaze shortcut', box.shortcut || '—'],
-          ['Sensor phone', box.cell || '—'],
+          ['Box Monitor Cell', box.cell || '—'],
           ['Trigger 1', box.trigger1 !== null ? box.trigger1 + '%' : '—'],
           ['Trigger 2', box.trigger2 !== null ? box.trigger2 + '%' : '—'],
           ['Trigger used', box.triggerUsedLabel],
           ['Hours since last cycle', box.staleHours !== null ? box.staleHours.toFixed(1) + ' h' : '—'],
           ['Service need (sheet)', box.srvcNeed || '—'],
-          ['Date pull requested', box.datePullReqd || '—'],
-          ['Scheduled date', box.schDate || '—'],
-          ['Pick-up date', box.puDate || '—'],
+          ['Date pull requested', formatSimpleDate(box.datePullReqd) || '—'],
+          ['Scheduled date', formatSimpleDate(box.schDate) || '—'],
+          ['Pick-up date', formatSimpleDate(box.puDate) || '—'],
           ['Confirmed', box.confirmed ? 'Yes' : 'No'],
         ].map(([k, v]) => (
           <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid ' + BRAND.line, fontSize: 13, gap: 12 }}>
@@ -653,6 +668,7 @@ function DetailPanel({ box, onClose, monoFont, font, displayFont }) {
             <span style={{ fontFamily: monoFont, textAlign: 'right' }}>{String(v)}</span>
           </div>
         ))}
+      </div>
       </div>
     </div>
   );
