@@ -966,9 +966,9 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, monoFont,
   // Staff off (this group is new and empty for every box until
   // populated, so it defaults out of outgoing emails until
   // deliberately turned on for a given box).
-  const [primaryPlacement, setPrimaryPlacement] = React.useState('to'); // 'to' | 'cc' | 'off'
-  const [secondaryPlacement, setSecondaryPlacement] = React.useState('cc'); // 'to' | 'cc' | 'off'
-  const [staffPlacement, setStaffPlacement] = React.useState('off'); // 'to' | 'cc' | 'off'
+  const [primaryPlacement, setPrimaryPlacement] = React.useState('to'); // 'to' | 'cc' | 'bcc' | 'off'
+  const [secondaryPlacement, setSecondaryPlacement] = React.useState('cc'); // 'to' | 'cc' | 'bcc' | 'off'
+  const [staffPlacement, setStaffPlacement] = React.useState('off'); // 'to' | 'cc' | 'bcc' | 'off'
 
   // Two fully independent save tracks, since these represent two
   // different real-world moments per explicit design decision:
@@ -1255,6 +1255,7 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, monoFont,
           };
           const effectiveTo = groupsForPlacement('to');
           const effectiveCc = groupsForPlacement('cc');
+          const effectiveBcc = groupsForPlacement('bcc');
 
           // The 8 category pills: Service uses the per-box template
           // already on Master Box List; the other 7 look up their
@@ -1278,18 +1279,19 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, monoFont,
           const filled = fillEmailTemplate(activeTemplate.subjectTemplate, activeTemplate.bodyTemplate, puDateInput);
           const mailtoParams = [];
           if (effectiveCc) mailtoParams.push('cc=' + encodeURIComponent(effectiveCc));
+          if (effectiveBcc) mailtoParams.push('bcc=' + encodeURIComponent(effectiveBcc));
           if (filled.subject) mailtoParams.push('subject=' + encodeURIComponent(filled.subject));
           if (filled.body) mailtoParams.push('body=' + encodeURIComponent(filled.body));
           const mailtoHref = 'mailto:' + encodeURIComponent(effectiveTo || '') +
             (mailtoParams.length ? '?' + mailtoParams.join('&') : '');
 
-          // Small shared 3-way control (To / Cc / Off) for one
+          // Small shared 4-way control (To / Cc / Bcc / Off) for one
           // recipient group - used three times below, once each for
           // Primary, Secondary, and Staff, so all three stay visually
           // and behaviorally identical.
           const PlacementSelector = ({ value, onChange }) => (
             <div style={{ display: 'flex', gap: 4 }}>
-              {[['to', 'To'], ['cc', 'Cc'], ['off', 'Off']].map(([val, label]) => (
+              {[['to', 'To'], ['cc', 'Cc'], ['bcc', 'Bcc'], ['off', 'Off']].map(([val, label]) => (
                 <button
                   key={val}
                   onClick={() => onChange(val)}
