@@ -1303,7 +1303,7 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, monoFont,
               {contacts.toRecipients && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3 }}>Primary</div>
+                    <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3 }}>Haulers</div>
                     <div style={{ fontSize: 12.5, fontFamily: monoFont, wordBreak: 'break-word' }}>{contacts.toRecipients}</div>
                   </div>
                   <PlacementSelector value={primaryPlacement} onChange={setPrimaryPlacement} />
@@ -1312,7 +1312,7 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, monoFont,
               {contacts.ccRecipients && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 14 }}>
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3 }}>Secondary</div>
+                    <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3 }}>Customers</div>
                     <div style={{ fontSize: 12.5, fontFamily: monoFont, wordBreak: 'break-word' }}>{contacts.ccRecipients}</div>
                   </div>
                   <PlacementSelector value={secondaryPlacement} onChange={setSecondaryPlacement} />
@@ -1321,7 +1321,7 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, monoFont,
               {contacts.staffRecipients && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 14 }}>
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3 }}>Staff</div>
+                    <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3 }}>WasteNet Staff</div>
                     <div style={{ fontSize: 12.5, fontFamily: monoFont, wordBreak: 'break-word' }}>{contacts.staffRecipients}</div>
                   </div>
                   <PlacementSelector value={staffPlacement} onChange={setStaffPlacement} />
