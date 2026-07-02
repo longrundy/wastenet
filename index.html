@@ -1187,13 +1187,18 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
                 email contacts in the same master_contacts lookup.
                 Only rendered when the box actually has a rule filled
                 in, so boxes without one don't show an empty label.
-                NOTE: requires the matching Apps Script update that
-                adds schedulingRule to the master_contacts payload -
-                until that's in place this simply won't appear. */}
+                Per explicit design decision, styled as a bold yellow
+                rounded pill so it visibly stands out from the rest of
+                the Scheduling box - this is a per-site constraint the
+                person scheduling needs to notice BEFORE picking dates,
+                not incidental reference info. */}
             {contacts && contacts.schedulingRule && (
-              <div style={{ fontSize: 12, fontFamily: monoFont, minWidth: 0 }}>
-                <span style={{ fontWeight: 700, color: BRAND.ink }}>Scheduling Rule:</span>{' '}
-                <span style={{ color: BRAND.ink }}>{contacts.schedulingRule}</span>
+              <div style={{
+                fontSize: 12, fontFamily: monoFont, fontWeight: 700, color: '#7A5E1E',
+                background: '#FCEFB4', border: '1px solid #E3C94E', borderRadius: 12,
+                padding: '4px 12px', minWidth: 0,
+              }}>
+                Scheduling Rule: {contacts.schedulingRule}
               </div>
             )}
           </div>
