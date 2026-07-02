@@ -152,12 +152,20 @@ function normalizeRow(raw, idx) {
   // in the detail panel, but no longer drives the action-needed status.
   const crossedRaw = String(raw['Crossed Trigr'] || '').toUpperCase().trim();
   const srvcNeedRaw = String(raw['Srvc Need'] || '').toUpperCase().trim();
-  const crossed = srvcNeedRaw === 'YES' ? 'crossed' : srvcNeedRaw === 'NO' ? 'clear' : 'unknown';
+  // "YES (FORCED)" is written by the dashboard's FORCE SRVC button
+  // (list view, Stale Scans / No Action Needed pages) - a manual
+  // override saying "I've looked at this box and it needs service."
+  // It counts as YES here, and additionally overrides staleness below
+  // (per explicit design decision, option 1): a force always pulls
+  // the box into Action Needed, even if its scan is stale, since the
+  // whole point of forcing is putting it in the work queue.
+  const forcedSrvc = srvcNeedRaw.indexOf('FORCED') !== -1;
+  const crossed = srvcNeedRaw.indexOf('YES') === 0 ? 'crossed' : srvcNeedRaw.indexOf('NO') === 0 ? 'clear' : 'unknown';
 
   const notes = raw['Notes'] || '';
   const hours = parseHoursFromNotes(notes);
   const forcedStale = /YES \(forced\)/i.test(notes) || (hours !== null && hours > 24);
-  const stale = forcedStale ? 'stale' : 'fresh';
+  const stale = forcedStale && !forcedSrvc ? 'stale' : 'fresh';
 
   // Matches the Tampermonkey scanner's own isInactiveBoxDescription()
   // rule exactly: a description starting with X, Y, or Z (case
@@ -856,6 +864,8 @@ function WasteNetDashboard() {
               masterContacts={masterContacts}
               onSaveConfirmed={saveBoxFields}
               showConfirmPill={signalFilter === 'crossed'}
+              onForceService={saveBoxFields}
+              showForcePill={signalFilter === 'stale' || signalFilter === 'clear'}
               monoFont={monoFont}
               font={font}
             />
@@ -889,7 +899,7 @@ function WasteNetDashboard() {
   );
 }
 
-function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfirmPill, monoFont, font }) {
+function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfirmPill, onForceService, showForcePill, monoFont, font }) {
   // Per-row Confirmed save tracking for the CONF'D checkbox pills.
   // Keyed by boxId; an entry exists only while that row's save is in
   // flight ({ value }) or just failed ('error'). While saving, the
@@ -900,6 +910,28 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
   // value and the row shows a brief error - the screen never shows a
   // checked box that didn't actually make it into the Sheet.
   const [confirmSaves, setConfirmSaves] = React.useState({});
+
+  // Same per-row save-tracking pattern for the FORCE SRVC buttons
+  // (Stale Scans / No Action Needed views). A successful force writes
+  // "YES (FORCED)" into the box's Srvc Need cell and re-fetches the
+  // tab, at which point the box naturally disappears from THIS list
+  // and shows up under Action Needed instead - no manual list surgery
+  // needed here, the normal filter logic does it.
+  const [forceSaves, setForceSaves] = React.useState({});
+
+  const handleForceService = async (b) => {
+    if (forceSaves[b.boxId] === 'saving') return;
+    setForceSaves(prev => ({ ...prev, [b.boxId]: 'saving' }));
+    try {
+      await onForceService(b.boxId, { srvcNeed: 'YES (FORCED)' });
+      setForceSaves(prev => { const copy = { ...prev }; delete copy[b.boxId]; return copy; });
+    } catch (err) {
+      setForceSaves(prev => ({ ...prev, [b.boxId]: 'error' }));
+      setTimeout(() => {
+        setForceSaves(prev => { const copy = { ...prev }; if (copy[b.boxId] === 'error') delete copy[b.boxId]; return copy; });
+      }, 3500);
+    }
+  };
 
   const handleToggleConfirmed = async (b) => {
     const current = confirmSaves[b.boxId];
@@ -1027,6 +1059,34 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                     />
                     {isError ? 'SAVE FAILED' : "CONF'D"}
                   </label>
+                );
+              })()}
+              {/* FORCE SRVC button pill - per explicit design
+                  decision, shown on the Stale Scans and No Action
+                  Needed views only. One tap writes "YES (FORCED)"
+                  into the box's Srvc Need cell on the current tab,
+                  which (via normalizeRow's forcedSrvc handling) moves
+                  the box to the Action Needed page immediately - even
+                  a stale box, since a manual force overrides
+                  staleness (option 1). stopPropagation keeps the tap
+                  from also opening the detail panel. */}
+              {showForcePill && (() => {
+                const state = forceSaves[b.boxId];
+                const isSaving = state === 'saving';
+                const isError = state === 'error';
+                return (
+                  <button
+                    onClick={e => { e.stopPropagation(); handleForceService(b); }}
+                    disabled={isSaving}
+                    style={{
+                      fontSize: 10.5, fontWeight: 700, fontFamily: monoFont,
+                      color: isError ? '#FFFFFF' : BRAND.amber,
+                      background: isError ? BRAND.red : 'rgba(201,122,26,0.08)',
+                      border: '1px solid ' + (isError ? BRAND.red : 'rgba(201,122,26,0.45)'),
+                      borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
+                      cursor: isSaving ? 'default' : 'pointer', opacity: isSaving ? 0.6 : 1,
+                    }}
+                  >{isError ? 'SAVE FAILED' : isSaving ? 'SAVING…' : 'FORCE SRVC'}</button>
                 );
               })()}
             </div>
