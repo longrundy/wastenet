@@ -1037,18 +1037,15 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
   // column), "Secondary" ("Cc: Recipients" / Customers), and "Staff"
   // (the "WasteNet Staff" column) are just three named groups, not
   // fixed to a specific email field. Each one independently can be
-  // used as the email's To line, its Cc line, or left out of the email
-  // entirely ('off') - e.g. Primary->To + Secondary->off is a perfectly
-  // valid choice, same as the old fixed To/Cc mapping, or Secondary
-  // alone in To with Primary completely omitted. Any combination
-  // landing in the same field (e.g. all three 'to') is also valid -
-  // they simply combine into that one field. Defaults match the
-  // original, most common setup: Primary in To, Secondary in Cc, and
-  // Staff off (this group is new and empty for every box until
-  // populated, so it defaults out of outgoing emails until
-  // deliberately turned on for a given box).
-  const [primaryPlacement, setPrimaryPlacement] = React.useState('to'); // 'to' | 'cc' | 'bcc' | 'off'
-  const [secondaryPlacement, setSecondaryPlacement] = React.useState('cc'); // 'to' | 'cc' | 'bcc' | 'off'
+  // used as the email's To line, its Cc line, its Bcc line, or left
+  // out of the email entirely ('off'). Any combination landing in the
+  // same field (e.g. all three 'to') is also valid - they simply
+  // combine into that one field. Per explicit design decision
+  // (revised): ALL THREE now default to 'off', so every email starts
+  // with no recipients at all and each group must be deliberately
+  // switched on per send - no group is ever included by default.
+  const [primaryPlacement, setPrimaryPlacement] = React.useState('off'); // 'to' | 'cc' | 'bcc' | 'off'
+  const [secondaryPlacement, setSecondaryPlacement] = React.useState('off'); // 'to' | 'cc' | 'bcc' | 'off'
   const [staffPlacement, setStaffPlacement] = React.useState('off'); // 'to' | 'cc' | 'bcc' | 'off'
 
   // Two fully independent save tracks, since these represent two
@@ -1347,11 +1344,21 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
         </div>
 
         {/* Email recipients, pulled from Master Box List (columns G/H,
-            plus K for Staff) via a separate lookup, not the per-day
-            scan data - per explicit design decision, only shown for
-            boxes that actually have this data rather than displaying
-            an empty dash for every box. */}
-        {contacts && (contacts.toRecipients || contacts.ccRecipients || contacts.staffRecipients || contacts.subjectTemplate || contacts.bodyTemplate) && (() => {
+            plus I for Staff) via a separate lookup, not the per-day
+            scan data. Per explicit design decision (revised): this
+            section now appears for EVERY box, always listing all three
+            groups in a fixed order - Haulers, Customers, WasteNet
+            Staff - with a group that has no addresses simply showing
+            blank rather than being hidden. Always seeing the same
+            three rows in the same places makes a missing group's
+            blankness itself visible information ("this box has no
+            hauler emails set up yet"), instead of the section quietly
+            rearranging itself per box. */}
+        {(() => {
+          // Safe fallback for boxes with no Master Box List entry at
+          // all - every field reads as blank/empty, and the section
+          // still renders in full.
+          const c = contacts || {};
           // Combines whichever of Primary/Secondary/Staff are placed
           // into each field - any number of groups can land in the
           // same field (e.g. two or three all 'to'), in which case
@@ -1360,9 +1367,9 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
           // same field is a perfectly normal thing to do.
           const groupsForPlacement = (placement) => {
             const parts = [];
-            if (primaryPlacement === placement && contacts.toRecipients) parts.push(contacts.toRecipients);
-            if (secondaryPlacement === placement && contacts.ccRecipients) parts.push(contacts.ccRecipients);
-            if (staffPlacement === placement && contacts.staffRecipients) parts.push(contacts.staffRecipients);
+            if (primaryPlacement === placement && c.toRecipients) parts.push(c.toRecipients);
+            if (secondaryPlacement === placement && c.ccRecipients) parts.push(c.ccRecipients);
+            if (staffPlacement === placement && c.staffRecipients) parts.push(c.staffRecipients);
             return parts.join('; ');
           };
           const effectiveTo = groupsForPlacement('to');
@@ -1380,7 +1387,7 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
           const PILL_LABELS = ['Service', 'Emptied', 'Missed', 'Notice', 'Premature', 'Problem', 'Repair', 'Usage', 'Weights'];
           const getTemplateFor = (label) => {
             if (label === 'Service') {
-              return { subjectTemplate: contacts.subjectTemplate, bodyTemplate: contacts.bodyTemplate };
+              return { subjectTemplate: c.subjectTemplate || '', bodyTemplate: c.bodyTemplate || '' };
             }
             return emailTemplates[label] || { subjectTemplate: '', bodyTemplate: '' };
           };
@@ -1461,33 +1468,31 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
                 letterSpacing: '0.03em', marginBottom: 10, fontFamily: monoFont,
               }}>Email Recipients</div>
 
-              {contacts.toRecipients && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3, fontWeight: 700, textDecoration: 'underline' }}>Haulers:</div>
-                    <div style={{ fontSize: 12.5, fontFamily: monoFont, wordBreak: 'break-word' }}>{contacts.toRecipients}</div>
-                  </div>
-                  <PlacementSelector value={primaryPlacement} onChange={setPrimaryPlacement} />
+              {/* All three groups always render, in this fixed order,
+                  whether or not they have any addresses - a group with
+                  nothing in Master Box List just shows a blank line
+                  under its label. */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3, fontWeight: 700, textDecoration: 'underline' }}>Haulers:</div>
+                  <div style={{ fontSize: 12.5, fontFamily: monoFont, wordBreak: 'break-word', minHeight: 16 }}>{c.toRecipients || ''}</div>
                 </div>
-              )}
-              {contacts.ccRecipients && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 14 }}>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3, fontWeight: 700, textDecoration: 'underline' }}>Customers:</div>
-                    <div style={{ fontSize: 12.5, fontFamily: monoFont, wordBreak: 'break-word' }}>{contacts.ccRecipients}</div>
-                  </div>
-                  <PlacementSelector value={secondaryPlacement} onChange={setSecondaryPlacement} />
+                <PlacementSelector value={primaryPlacement} onChange={setPrimaryPlacement} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3, fontWeight: 700, textDecoration: 'underline' }}>Customers:</div>
+                  <div style={{ fontSize: 12.5, fontFamily: monoFont, wordBreak: 'break-word', minHeight: 16 }}>{c.ccRecipients || ''}</div>
                 </div>
-              )}
-              {contacts.staffRecipients && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 14 }}>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3, fontWeight: 700, textDecoration: 'underline' }}>WasteNet Staff:</div>
-                    <div style={{ fontSize: 12.5, fontFamily: monoFont, wordBreak: 'break-word' }}>{contacts.staffRecipients}</div>
-                  </div>
-                  <PlacementSelector value={staffPlacement} onChange={setStaffPlacement} />
+                <PlacementSelector value={secondaryPlacement} onChange={setSecondaryPlacement} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 14 }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3, fontWeight: 700, textDecoration: 'underline' }}>WasteNet Staff:</div>
+                  <div style={{ fontSize: 12.5, fontFamily: monoFont, wordBreak: 'break-word', minHeight: 16 }}>{c.staffRecipients || ''}</div>
                 </div>
-              )}
+                <PlacementSelector value={staffPlacement} onChange={setStaffPlacement} />
+              </div>
 
               <div style={{ fontSize: 12.5, fontWeight: 600, color: BRAND.ink, marginBottom: 6 }}>Email Type</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
