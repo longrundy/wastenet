@@ -96,6 +96,20 @@ function parseHoursFromNotes(notes) {
   return m ? parseFloat(m[1]) : null;
 }
 
+// Converts a raw hours figure into a days-first display (e.g. 2477
+// hours -> "103d 5h") for the LAST CYCLE pill - per explicit design
+// decision, a big raw hour count like "2,477h" is not something most
+// people can mentally convert to a length of time, where days
+// immediately are. Values under a full day just show hours ("18h")
+// rather than a pointless "0d" prefix.
+function formatDaysHours(totalHours) {
+  const rounded = Math.round(totalHours);
+  const days = Math.floor(rounded / 24);
+  const hrs = rounded % 24;
+  if (days === 0) return hrs + 'h';
+  return days.toLocaleString() + 'd ' + hrs + 'h';
+}
+
 // Converts an ISO timestamp string (e.g. "2026-06-25T08:58:43.000Z", as
 // sent by the Apps Script for any Sheets date field) into a simple
 // month/day/year display (e.g. "6/25/2026") for the detail panel.
@@ -975,13 +989,26 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
             </div>
             <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
               {b.crossedStatus === 'crossed' && b.staleStatus !== 'stale' && <StatusPill meta={FILL_STATUS_META} statusKey="crossed" />}
-              {b.staleStatus === 'stale' && <StatusPill meta={STALE_STATUS_META} statusKey="stale" />}
-              {b.staleStatus === 'stale' && b.staleHours !== null && (
-                <span style={{
-                  fontSize: 10.5, fontWeight: 700, fontFamily: monoFont, color: BRAND.amber,
-                  background: 'rgba(201,122,26,0.08)', border: '1px solid rgba(201,122,26,0.3)',
-                  borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
-                }}>{Math.round(b.staleHours).toLocaleString()}h</span>
+              {/* Combined staleness pill - per explicit design
+                  decision, the separate STALE SCAN pill + bare hours
+                  pill were overkill on a page where every row is by
+                  definition stale, so they're now ONE pill reading
+                  "LAST CYCLE: 127h" (the hours figure comes from the
+                  scanner's own "Last Cycle is X hours" note - it's
+                  how long since the box last ran a compaction cycle,
+                  which is exactly why it was flagged stale). Falls
+                  back to the plain STALE SCAN pill for the rare box
+                  flagged stale without a parseable hours figure. */}
+              {b.staleStatus === 'stale' && (
+                b.staleHours !== null ? (
+                  <span style={{
+                    fontSize: 10.5, fontWeight: 700, fontFamily: monoFont, color: BRAND.amber,
+                    background: 'rgba(201,122,26,0.08)', border: '1px solid rgba(201,122,26,0.3)',
+                    borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
+                  }}>LAST CYCLE: {formatDaysHours(b.staleHours)}</span>
+                ) : (
+                  <StatusPill meta={STALE_STATUS_META} statusKey="stale" />
+                )
               )}
               {/* Hauler Code pill - informational (neutral gray rather
                   than a status color, so it never reads as an alert),
