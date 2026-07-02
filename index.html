@@ -1051,9 +1051,9 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 5,
                       fontSize: 10.5, fontWeight: 700, fontFamily: monoFont,
-                      color: isError ? BRAND.red : (shownChecked ? BRAND.green : BRAND.red),
-                      background: shownChecked ? 'rgba(92,170,22,0.08)' : 'rgba(179,64,43,0.08)',
-                      border: '1px solid ' + (shownChecked ? 'rgba(92,170,22,0.3)' : 'rgba(179,64,43,0.3)'),
+                      color: isError ? '#FFFFFF' : '#1B4E79',
+                      background: isError ? BRAND.red : '#DCEEF9',
+                      border: '1px solid ' + (isError ? BRAND.red : '#9CC4E0'),
                       borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
                       cursor: isSaving ? 'default' : 'pointer', opacity: isSaving ? 0.6 : 1,
                     }}
@@ -1063,7 +1063,7 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                       checked={shownChecked}
                       disabled={isSaving}
                       onChange={() => handleToggleConfirmed(b)}
-                      style={{ width: 13, height: 13, accentColor: BRAND.green, cursor: isSaving ? 'default' : 'pointer', margin: 0 }}
+                      style={{ width: 13, height: 13, accentColor: '#1B4E79', cursor: isSaving ? 'default' : 'pointer', margin: 0 }}
                     />
                     {isError ? 'SAVE FAILED' : "CONF'D"}
                   </label>
@@ -1088,9 +1088,9 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                     disabled={isSaving}
                     style={{
                       fontSize: 10.5, fontWeight: 700, fontFamily: monoFont,
-                      color: isError ? '#FFFFFF' : BRAND.amber,
-                      background: isError ? BRAND.red : 'rgba(201,122,26,0.08)',
-                      border: '1px solid ' + (isError ? BRAND.red : 'rgba(201,122,26,0.45)'),
+                      color: '#FFFFFF',
+                      background: BRAND.red,
+                      border: '1px solid ' + BRAND.red,
                       borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
                       cursor: isSaving ? 'default' : 'pointer', opacity: isSaving ? 0.6 : 1,
                     }}
