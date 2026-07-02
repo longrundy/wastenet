@@ -988,11 +988,10 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                   shown only when the box actually has a hauler code
                   rather than displaying a pointless placeholder pill
                   on every row. */}
-              {/* Hauler pill - per explicit design decision, hidden on
-                  the Stale Scans view (where the hours-stale figure is
-                  the row's real information); shown on Action Needed
-                  and No Action Needed. */}
-              {activeView !== 'stale' && b.haulCode && b.haulCode !== '—' && (
+              {/* Hauler pill - per explicit design decision, now shown
+                  ONLY on the Action Needed view; removed from Stale
+                  Scans and No Action Needed. */}
+              {activeView === 'crossed' && b.haulCode && b.haulCode !== '—' && (
                 <span style={{
                   fontSize: 10.5, fontWeight: 700, fontFamily: monoFont, color: BRAND.green,
                   background: 'rgba(92,170,22,0.10)', border: '1px solid rgba(92,170,22,0.3)',
@@ -1014,8 +1013,8 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                 if (!rule) return null;
                 return (
                   <span style={{
-                    fontSize: 10.5, fontWeight: 700, fontFamily: monoFont, color: '#1A1D1A',
-                    background: '#FFF200', border: '1px solid #D6C400',
+                    fontSize: 10.5, fontWeight: 700, fontFamily: monoFont, color: '#8A6D00',
+                    background: 'rgba(230,195,0,0.14)', border: '1px solid rgba(180,150,0,0.4)',
                     borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
                   }}>SCHED RULE: {rule}</span>
                 );
@@ -1088,9 +1087,9 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                     disabled={isSaving}
                     style={{
                       fontSize: 10.5, fontWeight: 700, fontFamily: monoFont,
-                      color: '#FFFFFF',
-                      background: BRAND.red,
-                      border: '1px solid ' + BRAND.red,
+                      color: isError ? '#FFFFFF' : BRAND.red,
+                      background: isError ? BRAND.red : 'rgba(179,64,43,0.08)',
+                      border: '1px solid ' + (isError ? BRAND.red : 'rgba(179,64,43,0.3)'),
                       borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
                       cursor: isSaving ? 'default' : 'pointer', opacity: isSaving ? 0.6 : 1,
                     }}
@@ -1362,9 +1361,9 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
                 not incidental reference info. */}
             {contacts && contacts.schedulingRule && (
               <div style={{
-                fontSize: 12, fontFamily: monoFont, fontWeight: 700, color: '#1A1D1A',
-                background: '#FFF200', border: '1px solid #D6C400', borderRadius: 3,
-                padding: '3px 8px', minWidth: 0,
+                fontSize: 12, fontFamily: monoFont, fontWeight: 700, color: '#8A6D00',
+                background: 'rgba(230,195,0,0.14)', border: '1px solid rgba(180,150,0,0.4)',
+                borderRadius: 3, padding: '3px 8px', minWidth: 0,
               }}>
                 Sched Rule: {contacts.schedulingRule}
               </div>
