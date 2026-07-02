@@ -1439,16 +1439,23 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
           const mailtoHref = 'mailto:' + encodeURIComponent(effectiveTo || '') +
             (mailtoParams.length ? '?' + mailtoParams.join('&') : '');
 
-          // Small shared 4-way control (To / Cc / Bcc / Off) for one
+          // Small shared 3-way control (To / Cc / Bcc) for one
           // recipient group - used three times below, once each for
           // Primary, Secondary, and Staff, so all three stay visually
-          // and behaviorally identical.
+          // and behaviorally identical. There is no visible "Off"
+          // button anymore (removed per explicit design decision, now
+          // that every group defaults to off): 'off' is simply the
+          // state where none of the three buttons is lit. Clicking a
+          // button selects that placement; clicking the SAME button
+          // again deselects it (back to off) - without this toggle
+          // there would be no way to remove a group from an email
+          // after turning it on.
           const PlacementSelector = ({ value, onChange }) => (
             <div style={{ display: 'flex', gap: 4 }}>
-              {[['to', 'To'], ['cc', 'Cc'], ['bcc', 'Bcc'], ['off', 'Off']].map(([val, label]) => (
+              {[['to', 'To'], ['cc', 'Cc'], ['bcc', 'Bcc']].map(([val, label]) => (
                 <button
                   key={val}
-                  onClick={() => onChange(val)}
+                  onClick={() => onChange(value === val ? 'off' : val)}
                   style={{
                     fontSize: 11, fontWeight: 600, padding: '4px 9px', borderRadius: 4,
                     border: '1px solid ' + (value === val ? BRAND.green : BRAND.line),
