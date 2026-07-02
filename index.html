@@ -866,6 +866,7 @@ function WasteNetDashboard() {
               showConfirmPill={signalFilter === 'crossed'}
               onForceService={saveBoxFields}
               showForcePill={signalFilter === 'stale' || signalFilter === 'clear'}
+              activeView={signalFilter}
               monoFont={monoFont}
               font={font}
             />
@@ -899,7 +900,7 @@ function WasteNetDashboard() {
   );
 }
 
-function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfirmPill, onForceService, showForcePill, monoFont, font }) {
+function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfirmPill, onForceService, showForcePill, activeView, monoFont, font }) {
   // Per-row Confirmed save tracking for the CONF'D checkbox pills.
   // Keyed by boxId; an entry exists only while that row's save is in
   // flight ({ value }) or just failed ('error'). While saving, the
@@ -987,7 +988,11 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                   shown only when the box actually has a hauler code
                   rather than displaying a pointless placeholder pill
                   on every row. */}
-              {b.haulCode && b.haulCode !== '—' && (
+              {/* Hauler pill - per explicit design decision, hidden on
+                  the Stale Scans view (where the hours-stale figure is
+                  the row's real information); shown on Action Needed
+                  and No Action Needed. */}
+              {activeView !== 'stale' && b.haulCode && b.haulCode !== '—' && (
                 <span style={{
                   fontSize: 10.5, fontWeight: 700, fontFamily: monoFont, color: BRAND.green,
                   background: 'rgba(92,170,22,0.10)', border: '1px solid rgba(92,170,22,0.3)',
@@ -1000,8 +1005,11 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                   the queue too so the rule is visible without opening
                   each box. Same highlighter-yellow treatment as the
                   detail panel's pill, sized to match the other queue
-                  pills. Only shown for boxes that have a rule. */}
-              {(() => {
+                  pills. Only shown for boxes that have a rule, and -
+                  per explicit design decision - only on the Action
+                  Needed view, since that's the page where scheduling
+                  is actually being worked. */}
+              {activeView === 'crossed' && (() => {
                 const rule = ((masterContacts || {})[b.boxId] || {}).schedulingRule;
                 if (!rule) return null;
                 return (
