@@ -850,7 +850,15 @@ function WasteNetDashboard() {
             </div>
           )}
           {rows.length > 0 && (
-            <QueueView boxes={actionQueue} onSelect={setSelected} masterContacts={masterContacts} monoFont={monoFont} font={font} />
+            <QueueView
+              boxes={actionQueue}
+              onSelect={setSelected}
+              masterContacts={masterContacts}
+              onSaveConfirmed={saveBoxFields}
+              showConfirmPill={signalFilter === 'crossed'}
+              monoFont={monoFont}
+              font={font}
+            />
           )}
         </div>
       </div>
@@ -881,7 +889,34 @@ function WasteNetDashboard() {
   );
 }
 
-function QueueView({ boxes, onSelect, masterContacts, monoFont, font }) {
+function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfirmPill, monoFont, font }) {
+  // Per-row Confirmed save tracking for the CONF'D checkbox pills.
+  // Keyed by boxId; an entry exists only while that row's save is in
+  // flight ({ value }) or just failed ('error'). While saving, the
+  // checkbox optimistically shows the value being saved; on success
+  // the entry is cleared and the checkbox falls back to the fresh
+  // server value (onSaveConfirmed re-fetches the tab as part of
+  // saving); on failure it reverts to the last-known-good server
+  // value and the row shows a brief error - the screen never shows a
+  // checked box that didn't actually make it into the Sheet.
+  const [confirmSaves, setConfirmSaves] = React.useState({});
+
+  const handleToggleConfirmed = async (b) => {
+    const current = confirmSaves[b.boxId];
+    if (current && current !== 'error') return; // save already in flight for this row
+    const next = !b.confirmed;
+    setConfirmSaves(prev => ({ ...prev, [b.boxId]: { value: next } }));
+    try {
+      await onSaveConfirmed(b.boxId, { confirmed: next });
+      setConfirmSaves(prev => { const copy = { ...prev }; delete copy[b.boxId]; return copy; });
+    } catch (err) {
+      setConfirmSaves(prev => ({ ...prev, [b.boxId]: 'error' }));
+      setTimeout(() => {
+        setConfirmSaves(prev => { const copy = { ...prev }; if (copy[b.boxId] === 'error') delete copy[b.boxId]; return copy; });
+      }, 3500);
+    }
+  };
+
   if (boxes.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '80px 20px', color: BRAND.muted }}>
@@ -903,7 +938,7 @@ function QueueView({ boxes, onSelect, masterContacts, monoFont, font }) {
               <span style={{ fontFamily: monoFont, fontSize: 15, color: BRAND.green, fontWeight: 700 }}>
                 Box ID {b.boxId}{b.isInactive && <span style={{ fontWeight: 400, color: BRAND.muted }}> (Inactive Box)</span>}
               </span>
-              <span style={{ fontWeight: 400, fontSize: 14.5, fontFamily: font }}>{b.description}</span>
+              <span style={{ fontWeight: 700, fontSize: 14.5, fontFamily: font }}>{b.description}</span>
             </div>
             <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
               {b.crossedStatus === 'crossed' && b.staleStatus !== 'stale' && <StatusPill meta={FILL_STATUS_META} statusKey="crossed" />}
@@ -922,8 +957,8 @@ function QueueView({ boxes, onSelect, masterContacts, monoFont, font }) {
                   on every row. */}
               {b.haulCode && b.haulCode !== '—' && (
                 <span style={{
-                  fontSize: 10.5, fontWeight: 700, fontFamily: monoFont, color: BRAND.ink,
-                  background: 'rgba(82,90,96,0.07)', border: '1px solid rgba(82,90,96,0.25)',
+                  fontSize: 10.5, fontWeight: 700, fontFamily: monoFont, color: BRAND.green,
+                  background: 'rgba(92,170,22,0.10)', border: '1px solid rgba(92,170,22,0.3)',
                   borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
                 }}>HAULER {b.haulCode}</span>
               )}
@@ -945,28 +980,55 @@ function QueueView({ boxes, onSelect, masterContacts, monoFont, font }) {
                   }}>SCHED RULE: {rule}</span>
                 );
               })()}
-              {/* Pickup Date + Confirmed pills - per explicit design
-                  decision, both appear together and ONLY once a
-                  Pick-Up Date has actually been saved for this box, so
-                  the queue list surfaces at-a-glance which
-                  already-scheduled boxes still need their confirmation
-                  followed up on, without opening each one individually. */}
+              {/* Pickup Date pill - still only shown once a Pick-Up
+                  Date has actually been saved for this box. */}
               {b.puDate && (
-                <React.Fragment>
-                  <span style={{
-                    fontSize: 10.5, fontWeight: 700, fontFamily: monoFont, color: BRAND.green,
-                    background: 'rgba(92,170,22,0.08)', border: '1px solid rgba(92,170,22,0.3)',
-                    borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
-                  }}>PICKUP {formatSimpleDate(b.puDate)}</span>
-                  <span style={{
-                    fontSize: 10.5, fontWeight: 700, fontFamily: monoFont,
-                    color: b.confirmed ? BRAND.green : BRAND.red,
-                    background: b.confirmed ? 'rgba(92,170,22,0.08)' : 'rgba(179,64,43,0.08)',
-                    border: '1px solid ' + (b.confirmed ? 'rgba(92,170,22,0.3)' : 'rgba(179,64,43,0.3)'),
-                    borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
-                  }}>CONFIRMED: {b.confirmed ? 'YES' : 'NO'}</span>
-                </React.Fragment>
+                <span style={{
+                  fontSize: 10.5, fontWeight: 700, fontFamily: monoFont, color: BRAND.green,
+                  background: 'rgba(92,170,22,0.08)', border: '1px solid rgba(92,170,22,0.3)',
+                  borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
+                }}>PICKUP {formatSimpleDate(b.puDate)}</span>
               )}
+              {/* CONF'D checkbox pill - per explicit design decision,
+                  shown on EVERY row of the Action Needed view (and only
+                  that view), NOT gated on a Pick-Up Date existing,
+                  since portal-scheduled boxes (C-300/C-599) never get
+                  a date entered here at all yet still need confirming.
+                  Checking/unchecking saves to the Sheet immediately -
+                  this replaced the detail panel's old Confirmed Yes/No
+                  section entirely, so confirmations can be recorded
+                  straight from the list without opening each box.
+                  stopPropagation keeps the tap from ALSO opening the
+                  row's detail panel. */}
+              {showConfirmPill && (() => {
+                const saveState = confirmSaves[b.boxId];
+                const isSaving = saveState && saveState !== 'error';
+                const isError = saveState === 'error';
+                const shownChecked = isSaving ? saveState.value : b.confirmed;
+                return (
+                  <label
+                    onClick={e => e.stopPropagation()}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      fontSize: 10.5, fontWeight: 700, fontFamily: monoFont,
+                      color: isError ? BRAND.red : (shownChecked ? BRAND.green : BRAND.red),
+                      background: shownChecked ? 'rgba(92,170,22,0.08)' : 'rgba(179,64,43,0.08)',
+                      border: '1px solid ' + (shownChecked ? 'rgba(92,170,22,0.3)' : 'rgba(179,64,43,0.3)'),
+                      borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
+                      cursor: isSaving ? 'default' : 'pointer', opacity: isSaving ? 0.6 : 1,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={shownChecked}
+                      disabled={isSaving}
+                      onChange={() => handleToggleConfirmed(b)}
+                      style={{ width: 13, height: 13, accentColor: BRAND.green, cursor: isSaving ? 'default' : 'pointer', margin: 0 }}
+                    />
+                    {isError ? 'SAVE FAILED' : "CONF'D"}
+                  </label>
+                );
+              })()}
             </div>
           </div>
           {/* Trailing chevron - the only visual cue (besides cursor:pointer,
@@ -1047,7 +1109,6 @@ function fillEmailTemplate(subjectTemplate, bodyTemplate, puDateInputValue) {
 function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle, monoFont, font, displayFont }) {
   const [schDateInput, setSchDateInput] = React.useState(() => toDateInputValue(box.schDate));
   const [puDateInput, setPuDateInput] = React.useState(() => toDateInputValue(box.puDate));
-  const [confirmedInput, setConfirmedInput] = React.useState(box.confirmed);
 
   // Which email category pill is active. 'Service' uses the per-box
   // template from Master Box List (contacts.subjectTemplate/
@@ -1109,41 +1170,25 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
   const [secondaryPlacement, setSecondaryPlacement] = React.useState('off'); // 'to' | 'cc' | 'bcc' | 'off'
   const [staffPlacement, setStaffPlacement] = React.useState('off'); // 'to' | 'cc' | 'bcc' | 'off'
 
-  // Two fully independent save tracks, since these represent two
-  // different real-world moments per explicit design decision:
-  // scheduling (Scheduled Date + Pick-Up Date together, entered when
-  // service is first arranged) happens at a different time than
-  // confirming (entered later, once the hauler calls/emails back to
-  // confirm) - sharing one Save button forced re-submitting unrelated
-  // date fields just to record a confirmation, or risked silently
-  // re-saving stale dates. dateSaveState drives the manual Save button
-  // below the date fields; confirmedSaveState drives the small inline
-  // feedback next to the checkbox, which saves itself immediately on
-  // toggle with no button to click at all.
+  // Save track for the date fields' manual Save button. (Confirmed no
+  // longer lives on this panel at all - per explicit design decision
+  // it moved to the list view as a checkbox pill on the Action Needed
+  // view, where it can be toggled without opening each box; see
+  // QueueView.)
   const [dateSaveState, setDateSaveState] = React.useState('idle'); // idle | saving | saved | error
   const [dateSaveError, setDateSaveError] = React.useState(null);
-  const [confirmedSaveState, setConfirmedSaveState] = React.useState('idle'); // idle | saving | saved | error
-  const [confirmedSaveError, setConfirmedSaveError] = React.useState(null);
 
   // If a fresh poll/reload brings in updated values for this same box
   // (e.g. someone else already saved a change), reflect that rather
   // than silently keep showing what was on screen when the panel first
-  // opened - but only when the user hasn't started editing that
-  // specific field's track yet, so we never clobber input they're
-  // actively in the middle of working with. The two tracks are checked
-  // independently since they can now be mid-edit at different times.
+  // opened - but only when the user hasn't started editing yet, so we
+  // never clobber input they're actively in the middle of working with.
   React.useEffect(() => {
     if (dateSaveState === 'idle') {
       setSchDateInput(toDateInputValue(box.schDate));
       setPuDateInput(toDateInputValue(box.puDate));
     }
   }, [box.schDate, box.puDate, dateSaveState]);
-
-  React.useEffect(() => {
-    if (confirmedSaveState === 'idle') {
-      setConfirmedInput(box.confirmed);
-    }
-  }, [box.confirmed, confirmedSaveState]);
 
   const handleSaveDates = async () => {
     setDateSaveState('saving');
@@ -1169,29 +1214,6 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
   const handleClearDates = () => {
     setSchDateInput('');
     setPuDateInput('');
-  };
-
-  // Confirmed has no Save button at all - checking/unchecking it saves
-  // immediately, since per explicit design decision this needs to be a
-  // single, foolproof action for the dashboard's primary day-to-day
-  // user (no separate button to find or forget). If the save fails,
-  // the checkbox visually reverts to its last-known-good state so the
-  // screen never silently shows a checked box that didn't actually
-  // make it into the Sheet.
-  const handleSetConfirmed = async (next) => {
-    if (next === confirmedInput) return; // already in this state, no need to re-save
-    setConfirmedInput(next);
-    setConfirmedSaveState('saving');
-    setConfirmedSaveError(null);
-    try {
-      await onSave(box.boxId, { confirmed: next });
-      setConfirmedSaveState('saved');
-      setTimeout(() => setConfirmedSaveState('idle'), 2000);
-    } catch (err) {
-      setConfirmedInput(!next);
-      setConfirmedSaveState('error');
-      setConfirmedSaveError(err.message || String(err));
-    }
   };
 
   return (
@@ -1373,58 +1395,6 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
               fontSize: 12, fontWeight: 600,
             }}>Could not save: {dateSaveError}</div>
           )}
-
-          {/* Confirmation is its own separate action, entered later
-              once the hauler actually calls/emails back - it has no
-              Save button at all and saves itself the instant Yes or No
-              is tapped, since per explicit design decision this needs
-              to be a single, foolproof action for the dashboard's
-              primary day-to-day user. Yes/No buttons (rather than a
-              checkbox) per explicit design decision, so reversing a
-              false confirmation is just as clear and easy an action as
-              making one - both states are always visible and equally
-              tappable, instead of "unchecked" reading as an absence of
-              a real choice. */}
-          <div style={{ borderTop: '1px solid ' + BRAND.line, marginTop: 10, paddingTop: 10 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: BRAND.ink, marginBottom: 6 }}>Confirmed</div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <button
-                onClick={() => handleSetConfirmed(true)}
-                disabled={confirmedSaveState === 'saving'}
-                style={{
-                  flex: 1, padding: '7px', fontSize: 13, fontWeight: 700, borderRadius: 5,
-                  border: '1.5px solid ' + (confirmedInput ? BRAND.green : BRAND.line),
-                  cursor: confirmedSaveState === 'saving' ? 'default' : 'pointer',
-                  background: confirmedInput ? BRAND.green : BRAND.panel,
-                  color: confirmedInput ? '#FFFFFF' : BRAND.muted, fontFamily: font,
-                }}
-              >Yes</button>
-              <button
-                onClick={() => handleSetConfirmed(false)}
-                disabled={confirmedSaveState === 'saving'}
-                style={{
-                  flex: 1, padding: '7px', fontSize: 13, fontWeight: 700, borderRadius: 5,
-                  border: '1.5px solid ' + (!confirmedInput ? BRAND.red : BRAND.line),
-                  cursor: confirmedSaveState === 'saving' ? 'default' : 'pointer',
-                  background: !confirmedInput ? BRAND.red : BRAND.panel,
-                  color: !confirmedInput ? '#FFFFFF' : BRAND.muted, fontFamily: font,
-                }}
-              >No</button>
-              {confirmedSaveState === 'saving' && (
-                <span style={{ fontSize: 11, color: BRAND.muted, fontStyle: 'italic' }}>Saving…</span>
-              )}
-              {confirmedSaveState === 'saved' && (
-                <span style={{ fontSize: 11, color: BRAND.greenDark, fontWeight: 600 }}>✓ Saved</span>
-              )}
-            </div>
-            {confirmedSaveState === 'error' && (
-              <div style={{
-                marginTop: 10, padding: '10px 12px', background: 'rgba(179,64,43,0.08)',
-                border: '1px solid ' + BRAND.red, borderRadius: 6, color: BRAND.red,
-                fontSize: 13, fontWeight: 600,
-              }}>Could not save: {confirmedSaveError}</div>
-            )}
-          </div>
           </React.Fragment>
           )}
         </div>
