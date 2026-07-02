@@ -1175,9 +1175,28 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
           background: 'rgba(92,170,22,0.05)',
         }}>
           <div style={{
-            fontSize: 12, fontWeight: 700, color: BRAND.green, textTransform: 'uppercase',
-            letterSpacing: '0.03em', marginBottom: 8, fontFamily: monoFont,
-          }}>Scheduling</div>
+            display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+            gap: 10, marginBottom: 8, flexWrap: 'wrap',
+          }}>
+            <div style={{
+              fontSize: 12, fontWeight: 700, color: BRAND.green, textTransform: 'uppercase',
+              letterSpacing: '0.03em', fontFamily: monoFont,
+            }}>Scheduling</div>
+            {/* Scheduling Rule - per-box value from Master Box List
+                column J ("Scheduling Rule"), delivered alongside the
+                email contacts in the same master_contacts lookup.
+                Only rendered when the box actually has a rule filled
+                in, so boxes without one don't show an empty label.
+                NOTE: requires the matching Apps Script update that
+                adds schedulingRule to the master_contacts payload -
+                until that's in place this simply won't appear. */}
+            {contacts && contacts.schedulingRule && (
+              <div style={{ fontSize: 12, fontFamily: monoFont, minWidth: 0 }}>
+                <span style={{ fontWeight: 700, color: BRAND.ink }}>Scheduling Rule:</span>{' '}
+                <span style={{ color: BRAND.ink }}>{contacts.schedulingRule}</span>
+              </div>
+            )}
+          </div>
 
           <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
             <label style={{ flex: 1, display: 'block' }}>
