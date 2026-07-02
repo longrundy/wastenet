@@ -850,7 +850,7 @@ function WasteNetDashboard() {
             </div>
           )}
           {rows.length > 0 && (
-            <QueueView boxes={actionQueue} onSelect={setSelected} monoFont={monoFont} font={font} />
+            <QueueView boxes={actionQueue} onSelect={setSelected} masterContacts={masterContacts} monoFont={monoFont} font={font} />
           )}
         </div>
       </div>
@@ -881,7 +881,7 @@ function WasteNetDashboard() {
   );
 }
 
-function QueueView({ boxes, onSelect, monoFont, font }) {
+function QueueView({ boxes, onSelect, masterContacts, monoFont, font }) {
   if (boxes.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '80px 20px', color: BRAND.muted }}>
@@ -927,6 +927,24 @@ function QueueView({ boxes, onSelect, monoFont, font }) {
                   borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
                 }}>HAULER {b.haulCode}</span>
               )}
+              {/* Sched Rule pill - same per-box Scheduling Rule
+                  (Master Box List column J, via the masterContacts
+                  lookup) shown in the detail panel, surfaced here in
+                  the queue too so the rule is visible without opening
+                  each box. Same highlighter-yellow treatment as the
+                  detail panel's pill, sized to match the other queue
+                  pills. Only shown for boxes that have a rule. */}
+              {(() => {
+                const rule = ((masterContacts || {})[b.boxId] || {}).schedulingRule;
+                if (!rule) return null;
+                return (
+                  <span style={{
+                    fontSize: 10.5, fontWeight: 700, fontFamily: monoFont, color: '#1A1D1A',
+                    background: '#FFF200', border: '1px solid #D6C400',
+                    borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
+                  }}>SCHED RULE: {rule}</span>
+                );
+              })()}
               {/* Pickup Date + Confirmed pills - per explicit design
                   decision, both appear together and ONLY once a
                   Pick-Up Date has actually been saved for this box, so
@@ -1258,7 +1276,7 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
                 background: '#FFF200', border: '1px solid #D6C400', borderRadius: 3,
                 padding: '3px 8px', minWidth: 0,
               }}>
-                Scheduling Rule: {contacts.schedulingRule}
+                Sched Rule: {contacts.schedulingRule}
               </div>
             )}
           </div>
