@@ -305,17 +305,20 @@ function WasteNetDashboard() {
     crossed: [
       ['boxId', 'Sort: Box Number'],
       ['description', 'Sort: Description'],
+      ['haulCode', 'Sort: Hauler'],
       ['confirmation', 'Sort: Pickup Confirmation'],
     ],
     stale: [
       ['boxId', 'Sort: Box Number'],
       ['description', 'Sort: Description'],
+      ['haulCode', 'Sort: Hauler'],
       ['hoursDesc', 'Sort: Most Hours'],
       ['hoursAsc', 'Sort: Least Hours'],
     ],
     clear: [
       ['boxId', 'Sort: Box Number'],
       ['description', 'Sort: Description'],
+      ['haulCode', 'Sort: Hauler'],
     ],
   };
 
@@ -589,6 +592,29 @@ function WasteNetDashboard() {
         const ha = a.staleHours === null ? Infinity : a.staleHours;
         const hb = b.staleHours === null ? Infinity : b.staleHours;
         return sortBy === 'hoursAsc' ? ha - hb : (hb === Infinity && ha === Infinity ? 0 : hb - ha);
+      });
+    } else if (sortBy === 'haulCode') {
+      // Hauler (available in all three views) - groups boxes by their
+      // hauler code so everything going to the same hauler sits
+      // together in the list. Codes that look like numbers compare
+      // numerically (so 45 sorts before 312 rather than after it, as a
+      // plain text compare would put them); boxes with no hauler code
+      // at all sort to the very bottom rather than being mixed in.
+      // Box Number is the tiebreaker within each hauler, same stable-
+      // order reasoning as the Pickup Confirmation sort above.
+      list.sort((a, b) => {
+        const aMissing = !a.haulCode || a.haulCode === '—';
+        const bMissing = !b.haulCode || b.haulCode === '—';
+        if (aMissing && bMissing) return sortByBoxId(a, b);
+        if (aMissing) return 1;
+        if (bMissing) return -1;
+        const numA = parseInt(a.haulCode, 10);
+        const numB = parseInt(b.haulCode, 10);
+        let diff;
+        if (Number.isFinite(numA) && Number.isFinite(numB)) diff = numA - numB;
+        else diff = String(a.haulCode).localeCompare(String(b.haulCode));
+        if (diff !== 0) return diff;
+        return sortByBoxId(a, b);
       });
     } else if (sortBy === 'description') {
       list.sort(sortByDescription);
