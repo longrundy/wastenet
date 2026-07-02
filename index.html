@@ -863,6 +863,18 @@ function QueueView({ boxes, onSelect, monoFont, font }) {
                   borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
                 }}>{Math.round(b.staleHours).toLocaleString()}h</span>
               )}
+              {/* Hauler Code pill - informational (neutral gray rather
+                  than a status color, so it never reads as an alert),
+                  shown only when the box actually has a hauler code
+                  rather than displaying a pointless placeholder pill
+                  on every row. */}
+              {b.haulCode && b.haulCode !== '—' && (
+                <span style={{
+                  fontSize: 10.5, fontWeight: 700, fontFamily: monoFont, color: BRAND.ink,
+                  background: 'rgba(82,90,96,0.07)', border: '1px solid rgba(82,90,96,0.25)',
+                  borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
+                }}>HAULER {b.haulCode}</span>
+              )}
               {/* Pickup Date + Confirmed pills - per explicit design
                   decision, both appear together and ONLY once a
                   Pick-Up Date has actually been saved for this box, so
