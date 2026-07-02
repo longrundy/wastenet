@@ -144,6 +144,25 @@ function formatScanTimestamp(scanTitle) {
   return month + '-' + day + '-' + year.slice(-2) + ' (' + hour + ':' + minute + ampm + ')';
 }
 
+// Deterministic per-link token for the hauler confirmation link -
+// MUST stay identical to the confirmToken() function in the Apps
+// Script, which verifies it when a hauler clicks. This is a
+// lightweight deterrent against casually guessing other boxes' links,
+// NOT real authentication (this file's source is public on GitHub
+// Pages, so anyone determined enough could compute tokens) - a
+// limitation explicitly accepted, since the worst a forged
+// confirmation can do is set a stray checkmark, and the name
+// attribution written to Notes makes any confirmation visible and
+// attributable anyway. djb2-xor hash, hex output.
+function confirmToken(boxId, tab) {
+  const str = String(boxId) + '|' + String(tab) + '|WN2026CONFIRM';
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) {
+    h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
+  }
+  return h.toString(16);
+}
+
 function normalizeRow(raw, idx) {
   const maxPct = parseNum(raw['Max Pct']);
   const t1 = parseNum(raw['Trigr1 Pct']);
@@ -896,6 +915,7 @@ function WasteNetDashboard() {
           contacts={masterContacts[selected.boxId]}
           emailTemplates={emailTemplates}
           scanTitle={scanTitle}
+          sheetName={sheetName}
           monoFont={monoFont}
           font={font}
           displayFont={displayFont}
@@ -1200,7 +1220,7 @@ function fillEmailTemplate(subjectTemplate, bodyTemplate, puDateInputValue) {
   return { subject, body };
 }
 
-function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle, monoFont, font, displayFont }) {
+function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle, sheetName, monoFont, font, displayFont }) {
   const [schDateInput, setSchDateInput] = React.useState(() => toDateInputValue(box.schDate));
   const [puDateInput, setPuDateInput] = React.useState(() => toDateInputValue(box.puDate));
 
@@ -1579,6 +1599,35 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
             }
             finalSubject = finalSubject.replace(/\[box description\]/gi, box.description);
             finalBody = finalBody.replace(/\[box description\]/gi, box.description);
+          }
+
+          // Hauler confirmation link - Service emails only, per
+          // explicit design decision (hybrid placement): if this box's
+          // Service body template contains a literal [confirm link]
+          // placeholder, the link goes exactly there; if not, a
+          // standard confirmation paragraph is appended to the end of
+          // the body - so no per-box template editing is required for
+          // every box to get the link, while placement control stays
+          // available for any box whose template wants it. The link
+          // opens the Apps Script's confirmation page (box details +
+          // required name field + Confirm button - NOT
+          // confirm-on-click, so email security scanners pre-fetching
+          // the link can't trigger a false confirmation), carrying the
+          // CURRENT tab's name so the confirmation is recorded on the
+          // tab the request was actually sent from (plus the latest
+          // tab - see the Apps Script's handleConfirmSubmit). Portal
+          // and phone-serviced boxes are naturally unaffected: no
+          // composed Service email, no link.
+          if (emailCategory === 'Service' && sheetName && finalBody) {
+            const confirmUrl = SHEET_URL +
+              '?action=confirm_page&boxId=' + encodeURIComponent(box.boxId) +
+              '&tab=' + encodeURIComponent(sheetName) +
+              '&token=' + confirmToken(box.boxId, sheetName);
+            if (/\[confirm link\]/i.test(finalBody)) {
+              finalBody = finalBody.replace(/\[confirm link\]/gi, confirmUrl);
+            } else {
+              finalBody += '\n\nTo confirm this service is scheduled, please click the link below and enter your name - no reply email needed:\n' + confirmUrl;
+            }
           }
 
           const mailtoParams = [];
