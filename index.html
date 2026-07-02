@@ -1012,6 +1012,26 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
   // Defaults to Service since that's the original, most-used category.
   const [emailCategory, setEmailCategory] = React.useState('Service');
 
+  // Weights email month/year selections. The Weights template's body
+  // contains literal [months], [year], and [box description]
+  // placeholders (Email Templates tab, Pill Label "Weights") - months
+  // is a multi-select (any number of the 12 can be checked), year is a
+  // single choice between the current and previous year only, computed
+  // fresh from today's date so this never needs a manual update each
+  // January. Both live HERE at the top of DetailPanel (not inside the
+  // email-section render block below) because React hooks aren't
+  // allowed inside conditional render logic. Defaults: no months
+  // checked (forcing a deliberate choice each time, since the whole
+  // point is that the request is specific per email), current year.
+  const [selectedMonths, setSelectedMonths] = React.useState([]);
+  const [selectedYear, setSelectedYear] = React.useState(String(new Date().getFullYear()));
+
+  const toggleMonth = (month) => {
+    setSelectedMonths(prev =>
+      prev.includes(month) ? prev.filter(m => m !== month) : [...prev, month]
+    );
+  };
+
   // Three fully independent placement controls - per explicit design
   // decision, "Primary" (Master Box List's "To: Recipients" / Haulers
   // column), "Secondary" ("Cc: Recipients" / Customers), and "Staff"
@@ -1357,7 +1377,7 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
           // shows as a pill (so the full set is always visible and
           // consistent) but is visually disabled and does nothing if
           // tapped, rather than silently composing a blank email.
-          const PILL_LABELS = ['Service', 'Emptied', 'Missed', 'Notice', 'Premature', 'Problem', 'Repair', 'Usage'];
+          const PILL_LABELS = ['Service', 'Emptied', 'Missed', 'Notice', 'Premature', 'Problem', 'Repair', 'Usage', 'Weights'];
           const getTemplateFor = (label) => {
             if (label === 'Service') {
               return { subjectTemplate: contacts.subjectTemplate, bodyTemplate: contacts.bodyTemplate };
@@ -1369,11 +1389,46 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
           const hasActiveTemplate = !!(activeTemplate.subjectTemplate || activeTemplate.bodyTemplate);
 
           const filled = fillEmailTemplate(activeTemplate.subjectTemplate, activeTemplate.bodyTemplate, puDateInput);
+
+          // Weights placeholder fill - the Weights template's body (and
+          // subject, harmlessly, in case placeholders are ever added
+          // there too) contains literal [months], [year], and
+          // [box description] markers. [months] becomes the checked
+          // months joined with commas in calendar order (the order the
+          // MONTH_NAMES list is defined in, regardless of what order
+          // they were clicked); [year] becomes the chosen year;
+          // [box description] becomes this box's description straight
+          // from the scan data - no clicking needed for that one.
+          // Matching is case-insensitive to be forgiving of how the
+          // placeholder happens to be typed in the template. A
+          // placeholder with NOTHING selected for it is deliberately
+          // left as-is in the draft (same principle as the Service
+          // template's Pick-Up Date fill): an obvious [months] sitting
+          // in the draft email is a clear "you forgot to pick" signal,
+          // where silently deleting it could let a half-finished
+          // request go out unnoticed.
+          const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+          let finalSubject = filled.subject;
+          let finalBody = filled.body;
+          if (emailCategory === 'Weights') {
+            const monthsStr = MONTH_NAMES.filter(m => selectedMonths.includes(m)).join(', ');
+            if (monthsStr) {
+              finalSubject = finalSubject.replace(/\[months\]/gi, monthsStr);
+              finalBody = finalBody.replace(/\[months\]/gi, monthsStr);
+            }
+            if (selectedYear) {
+              finalSubject = finalSubject.replace(/\[year\]/gi, selectedYear);
+              finalBody = finalBody.replace(/\[year\]/gi, selectedYear);
+            }
+            finalSubject = finalSubject.replace(/\[box description\]/gi, box.description);
+            finalBody = finalBody.replace(/\[box description\]/gi, box.description);
+          }
+
           const mailtoParams = [];
           if (effectiveCc) mailtoParams.push('cc=' + encodeURIComponent(effectiveCc));
           if (effectiveBcc) mailtoParams.push('bcc=' + encodeURIComponent(effectiveBcc));
-          if (filled.subject) mailtoParams.push('subject=' + encodeURIComponent(filled.subject));
-          if (filled.body) mailtoParams.push('body=' + encodeURIComponent(filled.body));
+          if (finalSubject) mailtoParams.push('subject=' + encodeURIComponent(finalSubject));
+          if (finalBody) mailtoParams.push('body=' + encodeURIComponent(finalBody));
           const mailtoHref = 'mailto:' + encodeURIComponent(effectiveTo || '') +
             (mailtoParams.length ? '?' + mailtoParams.join('&') : '');
 
@@ -1457,6 +1512,70 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
                   );
                 })}
               </div>
+
+              {/* Weights month/year picker - only appears while the
+                  Weights pill is active, since these selections only
+                  mean anything to that template's [months]/[year]
+                  placeholders. Months are real checkboxes (any number
+                  can be picked); Year is a two-way choice between the
+                  current and previous year only, computed from today's
+                  date. Sits directly above the Compose button so the
+                  natural top-to-bottom flow is: pick the type, pick
+                  the months/year, compose. */}
+              {emailCategory === 'Weights' && hasActiveTemplate && (
+                <div style={{
+                  border: '1.5px solid ' + BRAND.line, borderRadius: 6, padding: 12,
+                  marginBottom: 14, background: BRAND.paper,
+                }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: BRAND.ink, marginBottom: 6 }}>
+                    Months to request
+                  </div>
+                  <div style={{
+                    display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(105px, 1fr))',
+                    gap: '4px 10px', marginBottom: 12,
+                  }}>
+                    {MONTH_NAMES.map(month => (
+                      <label key={month} style={{
+                        display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5,
+                        fontFamily: font, color: BRAND.ink, cursor: 'pointer', whiteSpace: 'nowrap',
+                      }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedMonths.includes(month)}
+                          onChange={() => toggleMonth(month)}
+                          style={{ width: 15, height: 15, accentColor: BRAND.green, cursor: 'pointer', flexShrink: 0 }}
+                        />
+                        {month}
+                      </label>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: BRAND.ink, marginBottom: 6 }}>
+                    Year
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {[String(new Date().getFullYear()), String(new Date().getFullYear() - 1)].map(yr => (
+                      <button
+                        key={yr}
+                        onClick={() => setSelectedYear(yr)}
+                        style={{
+                          flex: 1, padding: '7px', fontSize: 13, fontWeight: 700, borderRadius: 5,
+                          border: '1.5px solid ' + (selectedYear === yr ? BRAND.green : BRAND.line),
+                          background: selectedYear === yr ? BRAND.green : BRAND.panel,
+                          color: selectedYear === yr ? '#FFFFFF' : BRAND.muted,
+                          cursor: 'pointer', fontFamily: font,
+                        }}
+                      >{yr}</button>
+                    ))}
+                  </div>
+                  {selectedMonths.length === 0 && (
+                    <div style={{
+                      marginTop: 10, padding: '6px 10px', background: '#FBF6E9',
+                      border: '1px solid #E8D9A8', borderRadius: 5, color: '#7A5E1E',
+                      fontSize: 12, fontWeight: 600,
+                    }}>No months selected yet - the email's [months] spot will be left for you to fill in manually.</div>
+                  )}
+                </div>
+              )}
 
               {/* Compose button - builds a standard mailto: link with
                   the Pick-Up Date already inserted per
