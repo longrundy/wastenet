@@ -963,15 +963,15 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
       {boxes.map(b => (
         <div key={b._key} className="row-hover" onClick={() => onSelect(b)} style={{
           display: 'flex', alignItems: 'center', gap: 16, padding: '14px 16px', cursor: 'pointer',
-          background: BRAND.panel, border: '1px solid ' + BRAND.line, borderRadius: 7,
-          borderLeft: '3px solid ' + BRAND.green,
+          background: BRAND.panel, border: '1px solid ' + BRAND.greenLight, borderRadius: 7,
+          boxShadow: '0 2px 8px rgba(26,29,26,0.12)',
         }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontFamily: monoFont, fontSize: 15, color: BRAND.green, fontWeight: 700 }}>
+              <span style={{ fontFamily: monoFont, fontSize: 15, color: BRAND.ink, fontWeight: 400 }}>
                 Box ID {b.boxId}{b.isInactive && <span style={{ fontWeight: 400, color: BRAND.muted }}> (Inactive Box)</span>}
               </span>
-              <span style={{ fontWeight: 700, fontSize: 14.5, fontFamily: font }}>{b.description}</span>
+              <span style={{ fontWeight: 700, fontSize: 14.5, fontFamily: font, color: BRAND.green }}>{b.description}</span>
             </div>
             <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
               {b.crossedStatus === 'crossed' && b.staleStatus !== 'stale' && <StatusPill meta={FILL_STATUS_META} statusKey="crossed" />}
