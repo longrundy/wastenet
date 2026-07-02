@@ -1058,6 +1058,23 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
     );
   };
 
+  // Portal-scheduled haulers - per explicit design decision, boxes
+  // whose Hauler Code is C-300 (Republic Services) or C-599 (WM) are
+  // NOT scheduled by entering dates here at all: service requests for
+  // these haulers go through their own online portals. For those
+  // boxes, the Scheduling box's date fields / Save / Confirmed
+  // controls are replaced entirely with a link to the right portal.
+  // The code match is normalized (uppercased, punctuation/spaces
+  // stripped) so "C-300", "C300", and "c-300" all count as the same
+  // code rather than depending on exactly how it was typed into
+  // Master Box List.
+  const PORTAL_LINKS = {
+    'C300': { name: 'Republic Services', url: 'https://www.republicservices.com/service-support/request' },
+    'C599': { name: 'WM (Waste Management)', url: 'https://ebusiness.wmsbs.wm.com/Customer/Locations#' },
+  };
+  const normalizedHaulCode = String(box.haulCode || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const portal = PORTAL_LINKS[normalizedHaulCode] || null;
+
   // Three fully independent placement controls - per explicit design
   // decision, "Primary" (Master Box List's "To: Recipients" / Haulers
   // column), "Secondary" ("Cc: Recipients" / Customers), and "Staff"
@@ -1246,6 +1263,29 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
             )}
           </div>
 
+          {/* For C-300 / C-599 boxes the entire dates-and-confirmed
+              workflow below is replaced with a single portal link -
+              see PORTAL_LINKS above. Everything inside the
+              React.Fragment in the else-branch is the normal
+              Scheduling workflow, completely unchanged. */}
+          {portal ? (
+            <div>
+              <div style={{ fontSize: 13, color: BRAND.ink, marginBottom: 10, fontFamily: font }}>
+                Service for this box is scheduled through the {portal.name} online portal, not by entering dates here.
+              </div>
+              <a
+                href={portal.url}
+                target="_blank"
+                rel="noopener"
+                style={{
+                  display: 'block', padding: '10px', textAlign: 'center',
+                  borderRadius: 6, fontSize: 14, fontWeight: 700, fontFamily: font,
+                  background: BRAND.green, color: '#FFFFFF', textDecoration: 'none',
+                }}
+              >Open {portal.name} Portal</a>
+            </div>
+          ) : (
+          <React.Fragment>
           <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
             <label style={{ flex: 1, display: 'block' }}>
               <div style={{ fontSize: 12.5, fontWeight: 600, color: BRAND.ink, marginBottom: 3 }}>Scheduled Date</div>
@@ -1367,6 +1407,8 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
               }}>Could not save: {confirmedSaveError}</div>
             )}
           </div>
+          </React.Fragment>
+          )}
         </div>
 
         {/* Email recipients, pulled from Master Box List (columns G/H,
