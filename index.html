@@ -2180,15 +2180,18 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
             </button>
             <button
               onClick={handleClearDates}
-              disabled={dateSaveState === 'saving'}
-              title="Clears both dates and saves immediately"
+              disabled={dateSaveState === 'saving' || (!box.puDate && !box.schDate)}
+              title="Removes the saved date from this box's record immediately"
               style={{
                 flex: 1, padding: '8px', fontSize: 13, fontWeight: 600, borderRadius: 5,
-                border: '1.5px solid ' + BRAND.line, cursor: dateSaveState === 'saving' ? 'default' : 'pointer',
-                background: BRAND.panel, color: BRAND.muted, fontFamily: font,
+                border: '1.5px solid ' + BRAND.line,
+                cursor: (dateSaveState === 'saving' || (!box.puDate && !box.schDate)) ? 'default' : 'pointer',
+                background: BRAND.panel,
+                color: (!box.puDate && !box.schDate) ? '#C7CCBE' : BRAND.muted,
+                fontFamily: font,
               }}
             >
-              Clear
+              Clear Saved Date
             </button>
           </div>
 
