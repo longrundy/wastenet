@@ -309,6 +309,20 @@ function WasteNetDashboard() {
   const [fetchError, setFetchError] = useState(null);
   const [lastFetchedAt, setLastFetchedAt] = useState(null);
 
+  // Dashboard access code - checked server-side by the Apps Script
+  // against its DASHBOARD_KEY Script Property on every request, so
+  // this is real protection of the data endpoint, not just a
+  // front-door curtain (this page's source is public on GitHub, so a
+  // key baked into code here would protect nothing). Remembered per
+  // device via localStorage after the first successful entry; if the
+  // Apps Script ever rejects the stored key (e.g. the code was
+  // rotated), it's cleared and the lock screen reappears with an
+  // explanation. The hauler confirmation pages are exempt server-side,
+  // so haulers clicking email links never see any of this.
+  const [accessKey, setAccessKey] = useState(() => loadLocal('wastenet_dashboard_key', null));
+  const [keyInput, setKeyInput] = useState('');
+  const [authError, setAuthError] = useState(null);
+
   // null = viewing today's/latest live data (auto-refreshes); any other
   // value = a specific past tab the user picked from the dropdown
   // (frozen - auto-refresh won't silently pull them back to "today"
@@ -420,6 +434,18 @@ function WasteNetDashboard() {
         if (settled) return;
         settled = true;
         cleanup();
+        // Server-side access-code rejection: clear the remembered key
+        // and drop back to the lock screen with an explanation, rather
+        // than surfacing a cryptic fetch error. Covers both a mistyped
+        // code on first entry and a stored key invalidated by rotating
+        // DASHBOARD_KEY in Script Properties.
+        if (data && data.authRequired) {
+          saveLocal('wastenet_dashboard_key', null);
+          setAccessKey(null);
+          setAuthError('That access code was not accepted. Please try again.');
+          reject(new Error('Access code required.'));
+          return;
+        }
         resolve(data);
       };
 
@@ -437,10 +463,14 @@ function WasteNetDashboard() {
         reject(new Error('Could not load the script (network error or invalid URL).'));
       };
 
-      script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + callbackName;
+      // Every dashboard request carries the access code for the Apps
+      // Script's server-side check (harmlessly ignored if the script's
+      // DASHBOARD_KEY property hasn't been set yet).
+      const keyParam = accessKey ? '&key=' + encodeURIComponent(accessKey) : '';
+      script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + callbackName + keyParam;
       document.head.appendChild(script);
     });
-  }, []);
+  }, [accessKey]);
 
   // Loads either the live/latest scan (tabName omitted) or a specific
   // past tab by exact name. Used for the initial load, the 5-minute
@@ -553,20 +583,26 @@ function WasteNetDashboard() {
   }, [loadTab]);
 
   useEffect(() => {
+    // No loads until an access code has been entered - and because
+    // these callbacks are rebuilt when accessKey changes (via
+    // jsonpLoad), this effect automatically re-runs and performs the
+    // initial load the moment the lock screen is passed.
+    if (!accessKey) return;
     loadTab();
     loadTabList();
     loadMasterContacts();
     loadEmailTemplates();
-  }, [loadTab, loadTabList, loadMasterContacts, loadEmailTemplates]);
+  }, [accessKey, loadTab, loadTabList, loadMasterContacts, loadEmailTemplates]);
 
   useEffect(() => {
     // Only auto-refresh while viewing live/latest data - if the user has
     // picked a specific past tab from the dropdown, leave it alone so
     // it doesn't silently snap back to "today" out from under them.
+    if (!accessKey) return;
     if (viewingTab !== null) return;
     pollRef.current = setInterval(() => loadTab(), 5 * 60 * 1000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [viewingTab, loadTab]);
+  }, [accessKey, viewingTab, loadTab]);
 
   const filtered = useMemo(() => {
     return rows.filter(r => {
@@ -686,6 +722,70 @@ function WasteNetDashboard() {
   const font = "Arial, Helvetica, sans-serif";
   const monoFont = "Arial, Helvetica, sans-serif";
   const displayFont = "Arial, Helvetica, sans-serif";
+
+  // Lock screen - shown until an access code is entered on this
+  // device. This early return sits AFTER every hook declaration above
+  // (a React requirement), and deliberately renders nothing of the
+  // dashboard itself. The code entered here isn't validated locally
+  // (nothing local could validate it without exposing it) - it's
+  // simply remembered and sent with the first data request; a wrong
+  // code bounces straight back to this screen via jsonpLoad's
+  // authRequired handling.
+  const handleUnlock = () => {
+    const trimmed = keyInput.trim();
+    if (!trimmed) return;
+    saveLocal('wastenet_dashboard_key', trimmed);
+    setAccessKey(trimmed);
+    setAuthError(null);
+    setKeyInput('');
+  };
+
+  if (!accessKey) {
+    return (
+      <div style={{
+        fontFamily: font, background: BRAND.paper, color: BRAND.ink, height: '100vh',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+      }}>
+        <div style={{
+          width: 'min(360px, 100%)', background: BRAND.panel, border: '1px solid ' + BRAND.greenLight,
+          borderRadius: 8, padding: 24, boxShadow: '0 2px 8px rgba(26,29,26,0.12)', textAlign: 'center',
+        }}>
+          <div style={{
+            fontFamily: displayFont, fontWeight: 700, fontSize: 16, letterSpacing: '0.04em',
+            textTransform: 'uppercase', color: BRAND.green, marginBottom: 4,
+          }}>WasteNet Dashboard</div>
+          <div style={{ fontSize: 13, color: BRAND.muted, marginBottom: 16 }}>Enter the access code to continue.</div>
+          <input
+            type="password"
+            value={keyInput}
+            onChange={e => setKeyInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleUnlock(); }}
+            placeholder="Access code"
+            autoFocus
+            style={{
+              width: '100%', boxSizing: 'border-box', padding: '10px 12px', fontSize: 15,
+              border: '1.5px solid ' + BRAND.line, borderRadius: 5, fontFamily: font, color: BRAND.ink,
+            }}
+          />
+          <button
+            onClick={handleUnlock}
+            style={{
+              width: '100%', marginTop: 12, padding: '11px', fontSize: 14, fontWeight: 700,
+              borderRadius: 6, border: 'none', cursor: 'pointer',
+              background: BRAND.green, color: '#FFFFFF', fontFamily: font,
+            }}
+          >Unlock</button>
+          {authError && (
+            <div style={{
+              marginTop: 12, padding: '8px 10px', background: 'rgba(179,64,43,0.08)',
+              border: '1px solid ' + BRAND.red, borderRadius: 5, color: BRAND.red,
+              fontSize: 12.5, fontWeight: 600,
+            }}>{authError}</div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -1619,10 +1719,16 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
           // and phone-serviced boxes are naturally unaffected: no
           // composed Service email, no link.
           if (emailCategory === 'Service' && sheetName && finalBody) {
-            const confirmUrl = SHEET_URL +
-              '?action=confirm_page&boxId=' + encodeURIComponent(box.boxId) +
-              '&tab=' + encodeURIComponent(sheetName) +
-              '&token=' + confirmToken(box.boxId, sheetName);
+            // Short, branded link (dashboard.wastenetinc.com/confirm)
+            // rather than the raw Apps Script URL - per explicit
+            // design decision: the long script.google.com URL looked
+            // suspicious and unwieldy in real emails. A tiny redirect
+            // page at /confirm in this same repo translates it to the
+            // real confirmation page; b/t/k = boxId/tab/token.
+            const confirmUrl = 'https://dashboard.wastenetinc.com/confirm' +
+              '?b=' + encodeURIComponent(box.boxId) +
+              '&t=' + encodeURIComponent(sheetName) +
+              '&k=' + confirmToken(box.boxId, sheetName);
             if (/\[confirm link\]/i.test(finalBody)) {
               finalBody = finalBody.replace(/\[confirm link\]/gi, confirmUrl);
             } else {
