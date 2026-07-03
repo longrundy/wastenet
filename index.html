@@ -313,13 +313,19 @@ function WasteNetDashboard() {
   // against its DASHBOARD_KEY Script Property on every request, so
   // this is real protection of the data endpoint, not just a
   // front-door curtain (this page's source is public on GitHub, so a
-  // key baked into code here would protect nothing). Remembered per
-  // device via localStorage after the first successful entry; if the
-  // Apps Script ever rejects the stored key (e.g. the code was
-  // rotated), it's cleared and the lock screen reappears with an
-  // explanation. The hauler confirmation pages are exempt server-side,
-  // so haulers clicking email links never see any of this.
-  const [accessKey, setAccessKey] = useState(() => loadLocal('wastenet_dashboard_key', null));
+  // key baked into code here would protect nothing). Per explicit
+  // design decision (revised again): remembered in sessionStorage -
+  // the middle setting between "saved forever on this device" and
+  // "retype on every reload". A reload within the same tab does NOT
+  // re-prompt, but closing the tab or the browser wipes it, so every
+  // new session starts at the lock screen. If the Apps Script rejects
+  // the entered key (mistyped, or the code was rotated), the lock
+  // screen reappears with an explanation. The hauler confirmation
+  // pages are exempt server-side, so haulers clicking email links
+  // never see any of this.
+  const [accessKey, setAccessKey] = useState(() => {
+    try { return sessionStorage.getItem('wastenet_dashboard_key') || null; } catch (e) { return null; }
+  });
   const [keyInput, setKeyInput] = useState('');
   const [authError, setAuthError] = useState(null);
 
@@ -440,7 +446,7 @@ function WasteNetDashboard() {
         // code on first entry and a stored key invalidated by rotating
         // DASHBOARD_KEY in Script Properties.
         if (data && data.authRequired) {
-          saveLocal('wastenet_dashboard_key', null);
+          try { sessionStorage.removeItem('wastenet_dashboard_key'); } catch (e) {}
           setAccessKey(null);
           setAuthError('That access code was not accepted. Please try again.');
           reject(new Error('Access code required.'));
@@ -753,7 +759,7 @@ function WasteNetDashboard() {
   const handleUnlock = () => {
     const trimmed = keyInput.trim();
     if (!trimmed) return;
-    saveLocal('wastenet_dashboard_key', trimmed);
+    try { sessionStorage.setItem('wastenet_dashboard_key', trimmed); } catch (e) {}
     setAccessKey(trimmed);
     setAuthError(null);
     setKeyInput('');
