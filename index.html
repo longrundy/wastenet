@@ -1979,23 +1979,33 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
         {box.notes && (() => {
           // The notes banner doubles as the "confirmed" banner once a
           // hauler confirmation lands ("Confirmed by NAME on ..."
-          // appended to Notes). The loud highlighter-yellow treatment
-          // requires BOTH the note text AND the box's CURRENT
-          // Confirmed state - if the confirmation was later unchecked,
-          // the note remains visible (it's the permanent paper trail
-          // of who confirmed and when) but drops back to the ordinary
-          // soft note style, so the screen never presents an undone
-          // confirmation as an active one.
-          const isConfirmedNote = /confirmed by/i.test(box.notes) && box.confirmed;
+          // appended to Notes). Display rules, per explicit design
+          // decision: while the box IS currently confirmed, the banner
+          // shows in loud highlighter yellow with bold text. If the
+          // confirmation was later UNchecked, the "Confirmed by..."
+          // text is removed from the DISPLAY entirely - a banner
+          // asserting a confirmation that isn't currently true is
+          // worse than no banner - while the sheet's Notes column
+          // keeps the full text as the permanent paper trail. Any
+          // OTHER note content (Last Cycle, chart issues, etc.) stays
+          // visible in the ordinary soft style either way.
+          const isConfirmed = box.confirmed && /confirmed by/i.test(box.notes);
+          const displayNotes = isConfirmed
+            ? box.notes
+            : String(box.notes)
+                .replace(/\s*\|\s*Confirmed by [^|]+/gi, '')
+                .replace(/^\s*Confirmed by [^|]+?(\s*\|\s*|$)/i, '')
+                .trim();
+          if (!displayNotes) return null;
           return (
             <div style={{
-              background: isConfirmedNote ? '#FFF200' : '#FBF6E9',
-              border: '1px solid ' + (isConfirmedNote ? '#D6C400' : '#E8D9A8'),
+              background: isConfirmed ? '#FFF200' : '#FBF6E9',
+              border: '1px solid ' + (isConfirmed ? '#D6C400' : '#E8D9A8'),
               borderRadius: 6, padding: 10,
-              fontSize: 12, fontWeight: isConfirmedNote ? 700 : 400,
-              color: isConfirmedNote ? '#1A1D1A' : '#7A5E1E',
+              fontSize: 12, fontWeight: isConfirmed ? 700 : 400,
+              color: isConfirmed ? '#1A1D1A' : '#7A5E1E',
               marginBottom: 16, fontFamily: font,
-            }}>{box.notes}</div>
+            }}>{displayNotes}</div>
           );
         })()}
 
