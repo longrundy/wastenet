@@ -582,6 +582,16 @@ function WasteNetDashboard() {
     }
   }, [jsonpLoad]);
 
+  // Fetches one box's permanent request/confirmation history from the
+  // Request Ledger for the detail panel's Request History section -
+  // this is the record that survives the daily tab resets, so "when
+  // did we request this?" is answerable from the dashboard on any day.
+  const loadBoxHistory = useCallback(async (boxId) => {
+    const json = await jsonpLoad(SHEET_URL + '?action=box_history&boxId=' + encodeURIComponent(boxId));
+    if (!json.ok) throw new Error(json.error || 'Could not load request history');
+    return json.entries || [];
+  }, [jsonpLoad]);
+
   const handleSelectTab = useCallback((name) => {
     if (name === '') {
       // Empty option = back to live
@@ -1054,6 +1064,7 @@ function WasteNetDashboard() {
           emailTemplates={emailTemplates}
           scanTitle={scanTitle}
           sheetName={sheetName}
+          onLoadHistory={loadBoxHistory}
           monoFont={monoFont}
           font={font}
           displayFont={displayFont}
@@ -1805,7 +1816,44 @@ function rebuildServiceBody(parsed, selectedIndexes) {
     kept.map(function (it) { return it.text; }).join('\n');
 }
 
-function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle, sheetName, monoFont, font, displayFont }) {
+function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle, sheetName, onLoadHistory, monoFont, font, displayFont }) {
+  // Request History - fetched fresh from the ledger each time a box's
+  // panel opens (keyed on boxId, not object identity, so background
+  // refreshes don't re-fetch it). null = still loading.
+  const [history, setHistory] = React.useState(null);
+  const [historyError, setHistoryError] = React.useState(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    setHistory(null);
+    setHistoryError(null);
+    onLoadHistory(box.boxId)
+      .then(entries => { if (!cancelled) setHistory(entries); })
+      .catch(err => { if (!cancelled) { setHistoryError(err.message || String(err)); setHistory([]); } });
+    return () => { cancelled = true; };
+  }, [box.boxId, onLoadHistory]);
+
+  // Turns a ledger entry into a friendly one-line description.
+  const describeHistoryEntry = (e) => {
+    const when = (() => {
+      const d = new Date(e.ts);
+      if (isNaN(d.getTime())) return e.ts;
+      let hour = d.getHours();
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      hour = hour % 12; if (hour === 0) hour = 12;
+      const min = String(d.getMinutes()).padStart(2, '0');
+      return (d.getMonth() + 1) + '/' + d.getDate() + '/' + d.getFullYear() + ' ' + hour + ':' + min + ampm;
+    })();
+    let what;
+    if (e.event === 'REQUEST') what = 'Pickup scheduled for ' + (formatDateInputValue(e.pickupDate) || e.pickupDate);
+    else if (e.event === 'CLEARED') what = 'Dates cleared';
+    else if (e.event === 'CONFIRMED (link)') what = 'Confirmed ' + e.detail + ' (via email link)';
+    else if (e.event === 'CONFIRMED (manual)') what = 'Confirmed manually on dashboard';
+    else if (e.event === 'UNCONFIRMED (manual)') what = 'Confirmation unchecked on dashboard';
+    else if (e.event === 'FORCED SRVC') what = 'Manually forced to Action Needed';
+    else what = e.event + (e.detail ? ' — ' + e.detail : '');
+    return { when, what };
+  };
+
   const [schDateInput, setSchDateInput] = React.useState(() => toDateInputValue(box.schDate));
   const [puDateInput, setPuDateInput] = React.useState(() => toDateInputValue(box.puDate));
 
@@ -2525,6 +2573,40 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
             </div>
           );
         })()}
+
+        {/* Request History - the box's permanent request/confirmation
+            trail from the Request Ledger, independent of daily tabs,
+            so "when did we request this?" is always answerable right
+            here without hunting through past dates or opening the
+            spreadsheet. Newest first, capped at the 20 most recent
+            events. */}
+        <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid ' + BRAND.line }}>
+          <div style={{
+            fontSize: 12, fontWeight: 700, color: BRAND.muted, textTransform: 'uppercase',
+            letterSpacing: '0.03em', marginBottom: 8, fontFamily: monoFont,
+          }}>Request History</div>
+          {history === null ? (
+            <div style={{ fontSize: 12.5, color: BRAND.muted, fontStyle: 'italic' }}>Loading history…</div>
+          ) : historyError ? (
+            <div style={{ fontSize: 12.5, color: BRAND.red }}>Could not load history: {historyError}</div>
+          ) : history.length === 0 ? (
+            <div style={{ fontSize: 12.5, color: BRAND.muted }}>No request history yet for this box.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {history.map((e, i) => {
+                const { when, what } = describeHistoryEntry(e);
+                return (
+                  <div key={i} style={{
+                    fontSize: 12.5, fontFamily: monoFont, color: BRAND.ink,
+                    padding: '4px 0', borderBottom: i < history.length - 1 ? '1px solid #F1F3EC' : 'none',
+                  }}>
+                    <span style={{ color: BRAND.muted }}>{when}</span> — <span style={{ fontWeight: 600 }}>{what}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         <div className="detail-info-grid" style={{
           display: 'grid', gap: '8px 16px',
