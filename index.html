@@ -244,7 +244,7 @@ function StatusPill({ meta, statusKey }) {
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px',
-      borderRadius: 3, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em',
+      borderRadius: 3, fontSize: 10.5, fontWeight: 700, letterSpacing: 'normal',
       color: m.color, background: m.bg, border: '1px solid ' + m.ring, whiteSpace: 'nowrap',
       fontFamily: "Arial, Helvetica, sans-serif",
     }}>
@@ -351,7 +351,7 @@ function WasteNetDashboard() {
 
   const [query, setQuery] = useState('');
   const [signalFilter, setSignalFilter] = useState('crossed'); // ALL | crossed | stale | both | clear
-  const [sortBy, setSortBy] = useState('description'); // valid options depend on which view is active, see SORT_OPTIONS_BY_VIEW below
+  const [sortBy, setSortBy] = useState('haulCode'); // Action Needed (the default view) defaults to Sort: Hauler per explicit design decision - see handleSelectSignalFilter
   const [selected, setSelected] = useState(null);
   const [batchTarget, setBatchTarget] = useState(null); // { haulCode, boxes } | null
   const [toast, setToast] = useState(null);
@@ -384,16 +384,20 @@ function WasteNetDashboard() {
     ],
   };
 
-  // Switches which stat-button view is active, and resets sortBy back
+  // Switches which stat-button view is active. Per explicit design
+  // decision, selecting Action Needed always lands on Sort: Hauler
+  // (the batch-email working order); the other views reset sortBy back
   // to Box Number whenever the CURRENTLY selected sort option wouldn't
-  // even appear in the new view's dropdown - prevents the dropdown from
-  // silently showing a stale, no-longer-relevant selection (e.g.
-  // leaving "Pickup Confirmation" selected after switching away from
-  // Action Needed, where that option doesn't exist).
+  // even appear in the new view's dropdown - prevents the dropdown
+  // from silently showing a stale, no-longer-relevant selection.
   const handleSelectSignalFilter = (key) => {
-    const validOptions = (SORT_OPTIONS_BY_VIEW[key] || []).map(([val]) => val);
-    if (!validOptions.includes(sortBy)) {
-      setSortBy('boxId');
+    if (key === 'crossed') {
+      setSortBy('haulCode');
+    } else {
+      const validOptions = (SORT_OPTIONS_BY_VIEW[key] || []).map(([val]) => val);
+      if (!validOptions.includes(sortBy)) {
+        setSortBy('boxId');
+      }
     }
     setSignalFilter(key);
   };
@@ -624,9 +628,15 @@ function WasteNetDashboard() {
     // Only auto-refresh while viewing live/latest data - if the user has
     // picked a specific past tab from the dropdown, leave it alone so
     // it doesn't silently snap back to "today" out from under them.
+    // Poll interval is 1 MINUTE (down from the original 5) per
+    // explicit design decision, so an incoming hauler confirmation
+    // shows up on screen within about a minute of the click - a true
+    // instant push isn't possible with this architecture (the page
+    // can only ask the sheet, the sheet can't call the page), so a
+    // fast poll is the practical ceiling.
     if (!accessKey) return;
     if (viewingTab !== null) return;
-    pollRef.current = setInterval(() => loadTab(), 5 * 60 * 1000);
+    pollRef.current = setInterval(() => loadTab(), 60 * 1000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [accessKey, viewingTab, loadTab]);
 
@@ -1907,17 +1917,24 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
     }
   };
 
-  // Clears the date INPUTS only - does not touch the Sheet by itself.
-  // Per explicit design decision (guarding against an accidental clear
-  // on the wrong box), this is a deliberately two-step action: Clear
-  // empties the fields on screen, then the existing Save Dates button
-  // is still required to actually commit that empty state back to the
-  // Sheet - exactly the same save step every other date edit already
-  // goes through, so a stray click on Clear alone can never erase real
-  // data without a second, deliberate Save.
-  const handleClearDates = () => {
+  // Clears both date fields AND saves that cleared state straight to
+  // the Sheet in one tap - per explicit design decision (revised),
+  // replacing the old two-step clear-then-Save flow. Reuses the same
+  // save track as Save Dates, so the same ✓ Saved / error feedback
+  // appears.
+  const handleClearDates = async () => {
     setSchDateInput('');
     setPuDateInput('');
+    setDateSaveState('saving');
+    setDateSaveError(null);
+    try {
+      await onSave(box.boxId, { schDate: '', puDate: '' });
+      setDateSaveState('saved');
+      setTimeout(() => setDateSaveState('idle'), 2500);
+    } catch (err) {
+      setDateSaveState('error');
+      setDateSaveError(err.message || String(err));
+    }
   };
 
   return (
@@ -1959,12 +1976,26 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
           </div>
         </div>
 
-        {box.notes && (
-          <div style={{
-            background: '#FBF6E9', border: '1px solid #E8D9A8', borderRadius: 6, padding: 10,
-            fontSize: 12, color: '#7A5E1E', marginBottom: 16, fontFamily: font,
-          }}>{box.notes}</div>
-        )}
+        {box.notes && (() => {
+          // The notes banner doubles as the "confirmed" banner once a
+          // hauler confirmation lands ("Confirmed by NAME on ..."
+          // appended to Notes). Per explicit design decision, when a
+          // confirmation is present the banner goes full highlighter
+          // yellow with bold text so it's unmissable; ordinary notes
+          // (Last Cycle, chart issues, etc.) keep the original soft
+          // style.
+          const isConfirmedNote = /confirmed by/i.test(box.notes);
+          return (
+            <div style={{
+              background: isConfirmedNote ? '#FFF200' : '#FBF6E9',
+              border: '1px solid ' + (isConfirmedNote ? '#D6C400' : '#E8D9A8'),
+              borderRadius: 6, padding: 10,
+              fontSize: 12, fontWeight: isConfirmedNote ? 700 : 400,
+              color: isConfirmedNote ? '#1A1D1A' : '#7A5E1E',
+              marginBottom: 16, fontFamily: font,
+            }}>{box.notes}</div>
+          );
+        })()}
 
         {/* Editable service tracking - the whole point of this panel
             for the dashboard's primary day-to-day user: enter what was
@@ -2074,7 +2105,7 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
             <button
               onClick={handleClearDates}
               disabled={dateSaveState === 'saving'}
-              title="Clears the fields above - click Save Dates afterward to remove them from the sheet"
+              title="Clears both dates and saves immediately"
               style={{
                 flex: 1, padding: '8px', fontSize: 13, fontWeight: 600, borderRadius: 5,
                 border: '1.5px solid ' + BRAND.line, cursor: dateSaveState === 'saving' ? 'default' : 'pointer',
