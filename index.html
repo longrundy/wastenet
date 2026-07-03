@@ -1822,15 +1822,30 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
   // refreshes don't re-fetch it). null = still loading.
   const [history, setHistory] = React.useState(null);
   const [historyError, setHistoryError] = React.useState(null);
+
+  // Reusable fetch - called on open (below) and again right after any
+  // successful save from this panel (Save Date / Clear), so the
+  // Request History card reflects the action that was just taken
+  // without needing to close and reopen the box. Deliberately does NOT
+  // blank the list while refreshing, so an update reads as the new
+  // entry appearing rather than the whole card flickering through a
+  // loading state.
+  const fetchHistory = React.useCallback(async () => {
+    try {
+      const entries = await onLoadHistory(box.boxId);
+      setHistory(entries);
+      setHistoryError(null);
+    } catch (err) {
+      setHistoryError(err.message || String(err));
+      setHistory([]);
+    }
+  }, [box.boxId, onLoadHistory]);
+
   React.useEffect(() => {
-    let cancelled = false;
     setHistory(null);
     setHistoryError(null);
-    onLoadHistory(box.boxId)
-      .then(entries => { if (!cancelled) setHistory(entries); })
-      .catch(err => { if (!cancelled) { setHistoryError(err.message || String(err)); setHistory([]); } });
-    return () => { cancelled = true; };
-  }, [box.boxId, onLoadHistory]);
+    fetchHistory();
+  }, [fetchHistory]);
 
   // Turns a ledger entry into a friendly one-line description.
   const describeHistoryEntry = (e) => {
@@ -1966,6 +1981,7 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
       await onSave(box.boxId, { puDate: puDateInput });
       setDateSaveState('saved');
       setTimeout(() => setDateSaveState('idle'), 2500);
+      fetchHistory();
     } catch (err) {
       setDateSaveState('error');
       setDateSaveError(err.message || String(err));
@@ -1985,6 +2001,7 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
       await onSave(box.boxId, { schDate: '', puDate: '' });
       setDateSaveState('saved');
       setTimeout(() => setDateSaveState('idle'), 2500);
+      fetchHistory();
     } catch (err) {
       setDateSaveState('error');
       setDateSaveError(err.message || String(err));
