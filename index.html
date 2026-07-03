@@ -582,6 +582,25 @@ function WasteNetDashboard() {
     }
   }, [loadTab]);
 
+  // Keeps an OPEN detail panel in sync with fresh data. Every
+  // re-fetch (including the one right after a successful save)
+  // rebuilds the rows array with brand-new objects, but `selected`
+  // still pointed at the OLD object captured when the row was first
+  // clicked - so a couple of seconds after saving a Pick-Up Date, the
+  // panel's sync-from-server effect would "refresh" the inputs from
+  // that stale snapshot and visibly wipe the just-saved date back to
+  // blank (the sheet itself was correct the whole time - only the
+  // display reverted, though a Compose done after the revert would
+  // then genuinely be missing the date). Re-pointing `selected` at
+  // the matching fresh row whenever rows change fixes the whole class
+  // of problem: dates, Confirmed, and Notes shown in the panel now
+  // always track the latest fetch.
+  useEffect(() => {
+    if (!selected) return;
+    const updated = rows.find(r => r.boxId === selected.boxId);
+    if (updated && updated !== selected) setSelected(updated);
+  }, [rows, selected]);
+
   useEffect(() => {
     // No loads until an access code has been entered - and because
     // these callbacks are rebuilt when accessKey changes (via
