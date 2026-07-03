@@ -1326,17 +1326,98 @@ function formatDateInputValue(value) {
 function fillEmailTemplate(subjectTemplate, bodyTemplate, puDateInputValue) {
   const dateStr = formatDateInputValue(puDateInputValue);
 
+  // Two ways the Pick-Up Date lands in a Service template, checked in
+  // this order:
+  //  1. An explicit [pickup date] placeholder (case-insensitive,
+  //     replaced everywhere it appears) - the self-documenting option,
+  //     visible as a reminder when editing the Service Email Content
+  //     tab. Added per explicit design decision precisely so the
+  //     insertion point isn't invisible to someone editing templates.
+  //  2. If no placeholder exists, the ORIGINAL rules still apply
+  //     unchanged, so no existing template needs editing: the Subject's
+  //     trailing dash gets the date appended after it, and the Body's
+  //     "Firm Service Date!" phrase gets the date inserted in front.
+  // Either way, an empty Pick-Up Date leaves the template as-is
+  // (placeholder visibly intact), never inserting a blank.
   let subject = subjectTemplate || '';
   if (dateStr && subject) {
-    subject = subject.replace(/-\s*$/, '- ' + dateStr);
+    if (/\[pickup date\]/i.test(subject)) {
+      subject = subject.replace(/\[pickup date\]/gi, dateStr);
+    } else {
+      subject = subject.replace(/-\s*$/, '- ' + dateStr);
+    }
   }
 
   let body = bodyTemplate || '';
   if (dateStr && body) {
-    body = body.replace(/Firm Service Date!/, 'Firm Service Date! ' + dateStr);
+    if (/\[pickup date\]/i.test(body)) {
+      body = body.replace(/\[pickup date\]/gi, dateStr);
+    } else {
+      body = body.replace(/Firm Service Date!/, dateStr + ' Firm Service Date!');
+    }
   }
 
   return { subject, body };
+}
+
+// Parses a Service body template's property list for the per-property
+// checkbox picker. The anchor is the "Please empty & return the
+// following compactor(s):" line (matched loosely - case-insensitive,
+// "&" or "and", tolerant of the exact wording around it), and - per
+// explicit design decision, relying on the confirmed fact that the
+// property list is always the LAST thing in every Service body - the
+// block runs from the line after the anchor to the end of the body.
+// Within the block, structure is detected rather than worded: a line
+// ENDING IN A COLON (e.g. "Metro National Property:") is a group
+// header, not a selectable property; every other non-blank line is one
+// selectable property. Returns null when there's no anchor (not a
+// standard service-request body). propCount lets the caller skip the
+// picker UI entirely for single-property boxes, where there's nothing
+// to choose.
+function parseServiceProperties(bodyTemplate) {
+  if (!bodyTemplate) return null;
+  const lines = String(bodyTemplate).split(/\r?\n/);
+  let anchorIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/empty\s*(&|and)\s*return the following/i.test(lines[i])) { anchorIdx = i; break; }
+  }
+  if (anchorIdx === -1) return null;
+
+  const items = [];
+  for (let i = anchorIdx + 1; i < lines.length; i++) {
+    const t = lines[i].trim();
+    if (!t) continue;
+    items.push({ type: /:\s*$/.test(t) ? 'header' : 'property', text: t });
+  }
+  const propCount = items.filter(function (it) { return it.type === 'property'; }).length;
+  return { lines: lines, anchorIdx: anchorIdx, items: items, propCount: propCount };
+}
+
+// Rebuilds a Service body so its property block contains ONLY the
+// checked properties (selectedIndexes = positions within parsed.items),
+// preserving original order. A group header is kept exactly when at
+// least one property beneath it (i.e. after it, before the next
+// header) is checked - so a header can never go out dangling over an
+// empty group. Everything from the start of the body through the
+// anchor line is kept verbatim; one blank line separates it from the
+// rebuilt list.
+function rebuildServiceBody(parsed, selectedIndexes) {
+  const sel = {};
+  selectedIndexes.forEach(function (i) { sel[i] = true; });
+
+  const headerHasChecked = {};
+  let currentHeader = -1;
+  parsed.items.forEach(function (it, idx) {
+    if (it.type === 'header') currentHeader = idx;
+    else if (sel[idx] && currentHeader !== -1) headerHasChecked[currentHeader] = true;
+  });
+
+  const kept = parsed.items.filter(function (it, idx) {
+    return it.type === 'header' ? !!headerHasChecked[idx] : !!sel[idx];
+  });
+
+  return parsed.lines.slice(0, parsed.anchorIdx + 1).join('\n') + '\n\n' +
+    kept.map(function (it) { return it.text; }).join('\n');
 }
 
 function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle, sheetName, monoFont, font, displayFont }) {
@@ -1367,6 +1448,21 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
   const toggleMonth = (month) => {
     setSelectedMonths(prev =>
       prev.includes(month) ? prev.filter(m => m !== month) : [...prev, month]
+    );
+  };
+
+  // Which properties (by position within the parsed Service property
+  // list) are checked for inclusion in a composed Service email.
+  // Defaults to NONE checked per explicit design decision - selecting
+  // is a deliberate act each time. Reset whenever a DIFFERENT box is
+  // opened (keyed on boxId, not object identity, since the box prop
+  // object is replaced by every background refresh and resetting on
+  // that would wipe selections mid-edit every few minutes).
+  const [selectedProps, setSelectedProps] = React.useState([]);
+  React.useEffect(() => { setSelectedProps([]); }, [box.boxId]);
+  const togglePropItem = (idx) => {
+    setSelectedProps(prev =>
+      prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
     );
   };
 
@@ -1686,6 +1782,15 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
 
           const filled = fillEmailTemplate(activeTemplate.subjectTemplate, activeTemplate.bodyTemplate, puDateInput);
 
+          // Property picker (Service only): parsed from the RAW body
+          // template - the date fill above only ever edits within
+          // existing lines, so line/item positions match between this
+          // parse and the compose-time parse of the filled body below.
+          // Only offered when there's genuinely a choice to make (2+
+          // properties).
+          const serviceProps = emailCategory === 'Service' ? parseServiceProperties(activeTemplate.bodyTemplate) : null;
+          const showPropertyPicker = !!(serviceProps && serviceProps.propCount > 1);
+
           // Weights placeholder fill - the Weights template's body (and
           // subject, harmlessly, in case placeholders are ever added
           // there too) contains literal [months], [year], and
@@ -1718,6 +1823,19 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
             }
             finalSubject = finalSubject.replace(/\[box description\]/gi, box.description);
             finalBody = finalBody.replace(/\[box description\]/gi, box.description);
+          }
+
+          // Property selection rebuild - runs BEFORE the confirmation
+          // link is appended below, so the link always lands after the
+          // final property list. If NOTHING is checked, the body is
+          // deliberately left with its full original list (today's
+          // behavior), never an empty request - the picker's hint text
+          // makes this explicit.
+          if (emailCategory === 'Service' && showPropertyPicker && selectedProps.length > 0) {
+            const parsedFinal = parseServiceProperties(finalBody);
+            if (parsedFinal) {
+              finalBody = rebuildServiceBody(parsedFinal, selectedProps);
+            }
           }
 
           // Hauler confirmation link - Service emails only, per
@@ -1848,6 +1966,54 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
                   );
                 })}
               </div>
+
+              {/* Service property picker - only for Service emails on
+                  boxes whose body template lists 2+ properties. Group
+                  headers (lines ending in a colon on the template)
+                  show as bold labels, not checkboxes. Default is
+                  nothing checked, per explicit design decision;
+                  composing with nothing checked sends the FULL
+                  original list, stated plainly in the hint below so
+                  that fallback is never a surprise. */}
+              {showPropertyPicker && (
+                <div style={{
+                  border: '1.5px solid ' + BRAND.line, borderRadius: 6, padding: 12,
+                  marginBottom: 14, background: BRAND.paper,
+                }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: BRAND.ink, marginBottom: 6 }}>
+                    Properties to include
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    {serviceProps.items.map((it, idx) => (
+                      it.type === 'header' ? (
+                        <div key={idx} style={{
+                          fontSize: 12.5, fontWeight: 700, color: BRAND.ink, marginTop: idx === 0 ? 0 : 4,
+                        }}>{it.text}</div>
+                      ) : (
+                        <label key={idx} style={{
+                          display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12.5,
+                          fontFamily: monoFont, color: BRAND.ink, cursor: 'pointer',
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedProps.includes(idx)}
+                            onChange={() => togglePropItem(idx)}
+                            style={{ width: 15, height: 15, accentColor: BRAND.green, cursor: 'pointer', flexShrink: 0, marginTop: 1 }}
+                          />
+                          <span style={{ wordBreak: 'break-word' }}>{it.text}</span>
+                        </label>
+                      )
+                    ))}
+                  </div>
+                  {selectedProps.length === 0 && (
+                    <div style={{
+                      marginTop: 10, padding: '6px 10px', background: '#FBF6E9',
+                      border: '1px solid #E8D9A8', borderRadius: 5, color: '#7A5E1E',
+                      fontSize: 12, fontWeight: 600,
+                    }}>Nothing selected yet - the email will include the full property list.</div>
+                  )}
+                </div>
+              )}
 
               {/* Weights month/year picker - only appears while the
                   Weights pill is active, since these selections only
