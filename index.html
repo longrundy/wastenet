@@ -353,6 +353,7 @@ function WasteNetDashboard() {
   const [signalFilter, setSignalFilter] = useState('crossed'); // ALL | crossed | stale | both | clear
   const [sortBy, setSortBy] = useState('description'); // valid options depend on which view is active, see SORT_OPTIONS_BY_VIEW below
   const [selected, setSelected] = useState(null);
+  const [batchTarget, setBatchTarget] = useState(null); // { haulCode, boxes } | null
   const [toast, setToast] = useState(null);
 
   // Each stat-button view offers its own subset of sort options - per
@@ -1025,6 +1026,8 @@ function WasteNetDashboard() {
               onForceService={saveBoxFields}
               showForcePill={signalFilter === 'stale' || signalFilter === 'clear'}
               activeView={signalFilter}
+              sortBy={sortBy}
+              onOpenBatch={(haulCode, batchBoxes) => setBatchTarget({ haulCode, boxes: batchBoxes })}
               monoFont={monoFont}
               font={font}
             />
@@ -1047,6 +1050,20 @@ function WasteNetDashboard() {
         />
       )}
 
+      {batchTarget && (
+        <BatchPanel
+          haulCode={batchTarget.haulCode}
+          boxes={batchTarget.boxes}
+          onClose={() => setBatchTarget(null)}
+          onSave={saveBoxFields}
+          masterContacts={masterContacts}
+          emailTemplates={emailTemplates}
+          sheetName={sheetName}
+          monoFont={monoFont}
+          font={font}
+        />
+      )}
+
       {toast && (
         <div style={{
           position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
@@ -1059,7 +1076,305 @@ function WasteNetDashboard() {
   );
 }
 
-function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfirmPill, onForceService, showForcePill, activeView, monoFont, font }) {
+// Batch Service Email panel - opened from a hauler group's Batch Email
+// button on the Action Needed view (sorted by Hauler). One email
+// covering every included box for that hauler: one shared Pick-Up Date
+// (same hauler = same service date, per explicit design decision), one
+// combined box list, one confirm-all link the hauler can click to
+// confirm every listed box at once. The Subject/Body come from a
+// shared "Batch" row on the Email Templates tab (Pill Label exactly
+// "Batch"), with [box list] and [pickup date] placeholders - per-box
+// Service templates don't fit a multi-box email. Customers are
+// deliberately NOT offered as recipients here at all: a batch email
+// spans multiple sites, and cc'ing every site's customer contacts onto
+// one email would expose each customer's business to the others.
+function BatchPanel({ haulCode, boxes, onClose, onSave, masterContacts, emailTemplates, sheetName, monoFont, font }) {
+  const [puDateInput, setPuDateInput] = React.useState('');
+  const [haulerPlacement, setHaulerPlacement] = React.useState('to'); // hauler emails default To - emailing the hauler IS this panel's purpose
+  const [staffPlacement, setStaffPlacement] = React.useState('off');
+  const [dateSaveState, setDateSaveState] = React.useState('idle'); // idle | saving | saved | error
+  const [dateSaveProgress, setDateSaveProgress] = React.useState('');
+  const [dateSaveError, setDateSaveError] = React.useState(null);
+
+  // Union of the included boxes' Haulers addresses, de-duplicated
+  // case-insensitively - for one hauler code these SHOULD be identical
+  // across boxes, but if any box's Master Box List row has drifted,
+  // the union (rather than "first box wins") means nobody silently
+  // drops off, and the visible combined list makes any drift easy to
+  // spot right on this panel.
+  const dedupeEmails = (fieldName) => {
+    const seen = {};
+    const out = [];
+    boxes.forEach(b => {
+      const raw = ((masterContacts || {})[b.boxId] || {})[fieldName] || '';
+      raw.split(';').map(s => s.trim()).filter(s => s).forEach(addr => {
+        const key = addr.toLowerCase();
+        if (!seen[key]) { seen[key] = true; out.push(addr); }
+      });
+    });
+    return out.join('; ');
+  };
+  const haulerEmails = dedupeEmails('toRecipients');
+  const staffEmails = dedupeEmails('staffRecipients');
+
+  const batchTemplate = (emailTemplates || {})['Batch'] || { subjectTemplate: '', bodyTemplate: '' };
+  const hasTemplate = !!(batchTemplate.subjectTemplate || batchTemplate.bodyTemplate);
+
+  const dateStr = formatDateInputValue(puDateInput);
+  const boxListText = boxes.map(b => b.description).join('\n');
+
+  const fillBatch = (template) => {
+    let t = template || '';
+    if (dateStr) t = t.replace(/\[pickup date\]/gi, dateStr);
+    t = t.replace(/\[box list\]/gi, boxListText);
+    return t;
+  };
+  let finalSubject = fillBatch(batchTemplate.subjectTemplate);
+  let finalBody = fillBatch(batchTemplate.bodyTemplate);
+
+  // If the Batch body has no [box list] placeholder, the list is
+  // appended rather than silently omitted - a batch email without its
+  // box list is pointless.
+  if (finalBody && !/\[box list\]/i.test(batchTemplate.bodyTemplate || '') && boxListText) {
+    finalBody += '\n\nPlease empty & return the following compactor(s):\n\n' + boxListText;
+  }
+
+  // Confirm-all link: one link carrying EVERY included Box ID
+  // (comma-separated, sorted numerically so the same selection always
+  // produces the same token). Same hybrid placement rule as single
+  // Service emails: [confirm link] placeholder if present, standard
+  // paragraph appended otherwise.
+  if (sheetName && finalBody && boxes.length > 0) {
+    const idsCsv = boxes.map(b => b.boxId).slice().sort((a, b) => {
+      const na = parseInt(a, 10), nb = parseInt(b, 10);
+      if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+      return String(a).localeCompare(String(b));
+    }).join(',');
+    const confirmUrl = 'https://dashboard.wastenetinc.com/confirm' +
+      '?b=' + encodeURIComponent(idsCsv) +
+      '&t=' + encodeURIComponent(sheetName) +
+      '&k=' + confirmToken(idsCsv, sheetName);
+    if (/\[confirm link\]/i.test(finalBody)) {
+      finalBody = finalBody.replace(/\[confirm link\]/gi, confirmUrl);
+    } else {
+      finalBody += '\n\nTo confirm ALL of the above services are scheduled, please click the link below and enter your name - no reply email needed:\n' + confirmUrl;
+    }
+  }
+
+  const fieldsFor = (placement) => {
+    const parts = [];
+    if (haulerPlacement === placement && haulerEmails) parts.push(haulerEmails);
+    if (staffPlacement === placement && staffEmails) parts.push(staffEmails);
+    return parts.join('; ');
+  };
+  const effectiveTo = fieldsFor('to');
+  const effectiveCc = fieldsFor('cc');
+  const effectiveBcc = fieldsFor('bcc');
+  const mailtoParams = [];
+  if (effectiveCc) mailtoParams.push('cc=' + encodeURIComponent(effectiveCc));
+  if (effectiveBcc) mailtoParams.push('bcc=' + encodeURIComponent(effectiveBcc));
+  if (finalSubject) mailtoParams.push('subject=' + encodeURIComponent(finalSubject));
+  if (finalBody) mailtoParams.push('body=' + encodeURIComponent(finalBody));
+  const mailtoHref = 'mailto:' + encodeURIComponent(effectiveTo || '') +
+    (mailtoParams.length ? '?' + mailtoParams.join('&') : '');
+
+  // Writes the shared Pick-Up Date into EVERY included box's P/U Date
+  // field, one save at a time (sequential, with visible progress) -
+  // the batch counterpart of entering the date box-by-box in the
+  // detail panel. Deliberately its own button, never something Compose
+  // does implicitly, so the sheet is only written when that's exactly
+  // what was asked for.
+  const handleSaveDateToAll = async () => {
+    if (!puDateInput || dateSaveState === 'saving') return;
+    setDateSaveState('saving');
+    setDateSaveError(null);
+    const failures = [];
+    for (let i = 0; i < boxes.length; i++) {
+      setDateSaveProgress('Saving ' + (i + 1) + ' of ' + boxes.length + '…');
+      try {
+        await onSave(boxes[i].boxId, { puDate: puDateInput });
+      } catch (err) {
+        failures.push(boxes[i].boxId);
+      }
+    }
+    setDateSaveProgress('');
+    if (failures.length === 0) {
+      setDateSaveState('saved');
+      setTimeout(() => setDateSaveState('idle'), 2500);
+    } else {
+      setDateSaveState('error');
+      setDateSaveError('Could not save for Box ' + failures.join(', ') + ' - the rest saved fine.');
+    }
+  };
+
+  const PlacementSelector = ({ value, onChange }) => (
+    <div style={{ display: 'flex', gap: 4 }}>
+      {[['to', 'To'], ['cc', 'Cc'], ['bcc', 'Bcc']].map(([val, label]) => (
+        <button
+          key={val}
+          onClick={() => onChange(value === val ? 'off' : val)}
+          style={{
+            fontSize: 11, fontWeight: 600, padding: '4px 9px', borderRadius: 4,
+            border: '1px solid ' + (value === val ? BRAND.green : BRAND.line),
+            background: value === val ? BRAND.green : BRAND.panel,
+            color: value === val ? '#FFFFFF' : BRAND.muted,
+            cursor: 'pointer', fontFamily: monoFont,
+          }}
+        >{label}</button>
+      ))}
+    </div>
+  );
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        background: 'rgba(0,0,0,0.35)', zIndex: 89,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          position: 'relative', width: 'min(640px, 100%)', maxHeight: '85vh',
+          background: BRAND.panel, borderRadius: 10, boxShadow: '0 12px 48px rgba(0,0,0,0.3)',
+          zIndex: 90, display: 'flex', flexDirection: 'column', fontFamily: font, overflow: 'hidden',
+        }}
+      >
+        <div style={{ padding: '18px 20px', borderBottom: '1px solid ' + BRAND.line, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: BRAND.green }}>
+          <div>
+            <div style={{ fontFamily: monoFont, fontSize: 18, fontWeight: 800, color: '#CCFF66' }}>BATCH SERVICE EMAIL</div>
+            <div style={{ fontWeight: 700, fontSize: 16, marginTop: 2, color: '#FFFFFF' }}>Hauler {haulCode} — {boxes.length} box{boxes.length === 1 ? '' : 'es'}</div>
+          </div>
+          <button onClick={onClose} style={{
+            background: 'transparent', border: 'none', color: '#E8F3DF', fontSize: 20, cursor: 'pointer', lineHeight: 1,
+          }}>×</button>
+        </div>
+        <div style={{ padding: 20, flex: 1, overflow: 'auto' }}>
+
+          <div style={{
+            fontSize: 12, fontWeight: 700, color: BRAND.muted, textTransform: 'uppercase',
+            letterSpacing: '0.03em', marginBottom: 8, fontFamily: monoFont,
+          }}>Boxes in this email</div>
+          <div style={{
+            border: '1px solid ' + BRAND.line, borderRadius: 6, padding: '10px 12px', marginBottom: 16,
+            maxHeight: 180, overflowY: 'auto',
+          }}>
+            {boxes.map(b => (
+              <div key={b.boxId} style={{ fontSize: 12.5, fontFamily: monoFont, padding: '3px 0', borderBottom: '1px solid #F1F3EC' }}>
+                <span style={{ color: BRAND.muted }}>#{b.boxId}</span> {b.description}
+              </div>
+            ))}
+          </div>
+
+          <div style={{
+            border: '2px solid ' + BRAND.green, borderRadius: 8, padding: 12, marginBottom: 16,
+            background: 'rgba(92,170,22,0.05)',
+          }}>
+            <div style={{
+              fontSize: 12, fontWeight: 700, color: BRAND.green, textTransform: 'uppercase',
+              letterSpacing: '0.03em', marginBottom: 8, fontFamily: monoFont,
+            }}>Shared Pick-Up Date</div>
+            <input
+              type="date"
+              value={puDateInput}
+              onChange={e => setPuDateInput(e.target.value)}
+              style={{
+                width: '100%', padding: '7px 8px', fontSize: 14, borderRadius: 5,
+                border: '1.5px solid ' + BRAND.line, fontFamily: font, color: BRAND.ink, boxSizing: 'border-box',
+                marginBottom: 8,
+              }}
+            />
+            <button
+              onClick={handleSaveDateToAll}
+              disabled={!puDateInput || dateSaveState === 'saving'}
+              style={{
+                width: '100%', padding: '8px', fontSize: 13.5, fontWeight: 700, borderRadius: 5,
+                border: 'none', cursor: (!puDateInput || dateSaveState === 'saving') ? 'default' : 'pointer',
+                background: (!puDateInput || dateSaveState === 'saving') ? BRAND.muted : BRAND.green,
+                color: '#FFFFFF', fontFamily: font,
+              }}
+            >{dateSaveState === 'saving' ? (dateSaveProgress || 'Saving…') : 'Save Date to All ' + boxes.length + ' Boxes'}</button>
+            {dateSaveState === 'saved' && (
+              <div style={{
+                marginTop: 8, padding: '6px 10px', background: 'rgba(92,170,22,0.12)',
+                border: '1px solid ' + BRAND.green, borderRadius: 5, color: BRAND.greenDark,
+                fontSize: 12.5, fontWeight: 600, textAlign: 'center',
+              }}>✓ Saved to all {boxes.length} boxes</div>
+            )}
+            {dateSaveState === 'error' && (
+              <div style={{
+                marginTop: 8, padding: '6px 10px', background: 'rgba(179,64,43,0.08)',
+                border: '1px solid ' + BRAND.red, borderRadius: 5, color: BRAND.red,
+                fontSize: 12, fontWeight: 600,
+              }}>{dateSaveError}</div>
+            )}
+          </div>
+
+          <div style={{
+            fontSize: 12, fontWeight: 700, color: BRAND.muted, textTransform: 'uppercase',
+            letterSpacing: '0.03em', marginBottom: 10, fontFamily: monoFont,
+          }}>Email Recipients</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3, fontWeight: 700, textDecoration: 'underline' }}>Haulers:</div>
+              <div style={{ fontSize: 12.5, fontFamily: monoFont, wordBreak: 'break-word', minHeight: 16 }}>{haulerEmails}</div>
+            </div>
+            <PlacementSelector value={haulerPlacement} onChange={setHaulerPlacement} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 14 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3, fontWeight: 700, textDecoration: 'underline' }}>WasteNet Staff:</div>
+              <div style={{ fontSize: 12.5, fontFamily: monoFont, wordBreak: 'break-word', minHeight: 16 }}>{staffEmails}</div>
+            </div>
+            <PlacementSelector value={staffPlacement} onChange={setStaffPlacement} />
+          </div>
+
+          {hasTemplate ? (
+            <a
+              href={mailtoHref}
+              target="_blank"
+              rel="noopener"
+              style={{
+                display: 'block', padding: '10px', textAlign: 'center',
+                borderRadius: 6, fontSize: 14, fontWeight: 700, fontFamily: font,
+                background: BRAND.green, color: '#FFFFFF', textDecoration: 'none',
+              }}
+            >Compose Batch Email ({boxes.length} boxes)</a>
+          ) : (
+            <div style={{
+              padding: '10px', textAlign: 'center', borderRadius: 6, fontSize: 13,
+              background: '#F1F3EC', color: BRAND.muted, fontFamily: font,
+            }}>No "Batch" template found - add a row to the Email Templates tab with Pill Label exactly "Batch".</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfirmPill, onForceService, showForcePill, activeView, sortBy, onOpenBatch, monoFont, font }) {
+  // Batch grouping is active only on the Action Needed view while
+  // sorted by Hauler - the exact combination where "everything this
+  // hauler needs, as one email" is the task at hand. Rows get an
+  // include checkbox (ALL INCLUDED by default - the batch email's
+  // whole point is listing everything needing action, so exclusion is
+  // the exception) and each hauler group gets a header with a Batch
+  // Email button. excludedIds stores the EXCEPTIONS, so the default
+  // empty set means everything's in; it resets whenever the view/sort
+  // combination changes so a stale exclusion never silently carries
+  // into a later session with different rows.
+  const batchMode = activeView === 'crossed' && sortBy === 'haulCode' && !!onOpenBatch;
+  const [excludedIds, setExcludedIds] = React.useState({});
+  React.useEffect(() => { setExcludedIds({}); }, [activeView, sortBy]);
+  const toggleExcluded = (boxId) => {
+    setExcludedIds(prev => {
+      const copy = { ...prev };
+      if (copy[boxId]) delete copy[boxId]; else copy[boxId] = true;
+      return copy;
+    });
+  };
   // Per-row Confirmed save tracking for the CONF'D checkbox pills.
   // Keyed by boxId; an entry exists only while that row's save is in
   // flight ({ value }) or just failed ('error'). While saving, the
@@ -1119,12 +1434,65 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
   }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {boxes.map(b => (
-        <div key={b._key} className="row-hover" onClick={() => onSelect(b)} style={{
+      {boxes.map((b, boxIdx) => (
+        <React.Fragment key={b._key}>
+        {/* Hauler group header - inserted before the first row of each
+            hauler code when batch mode is active. Shows the group's
+            size and its Batch Email button, which opens the batch
+            compose panel with this group's INCLUDED boxes (everything
+            not explicitly unchecked below). Boxes with no hauler code
+            get a labeled group too, but no button - there's no hauler
+            to email. */}
+        {batchMode && (boxIdx === 0 || boxes[boxIdx - 1].haulCode !== b.haulCode) && (() => {
+          const groupBoxes = boxes.filter(x => x.haulCode === b.haulCode);
+          const includedBoxes = groupBoxes.filter(x => !excludedIds[x.boxId]);
+          const hasCode = b.haulCode && b.haulCode !== '—';
+          return (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+              padding: '10px 14px', marginTop: boxIdx === 0 ? 0 : 8,
+              background: 'rgba(92,170,22,0.07)', border: '1px solid ' + BRAND.greenLight,
+              borderRadius: 7, flexWrap: 'wrap',
+            }}>
+              <span style={{ fontFamily: monoFont, fontSize: 13.5, fontWeight: 700, color: BRAND.greenDark }}>
+                {hasCode ? 'HAULER ' + b.haulCode : 'NO HAULER CODE'}
+                <span style={{ fontWeight: 400, color: BRAND.muted }}> — {includedBoxes.length} of {groupBoxes.length} box{groupBoxes.length === 1 ? '' : 'es'} included</span>
+              </span>
+              {hasCode && (
+                <button
+                  onClick={() => onOpenBatch(b.haulCode, includedBoxes)}
+                  disabled={includedBoxes.length === 0}
+                  style={{
+                    fontSize: 12, fontWeight: 700, fontFamily: font, padding: '6px 14px',
+                    borderRadius: 5, border: 'none',
+                    background: includedBoxes.length === 0 ? BRAND.muted : BRAND.green, color: '#FFFFFF',
+                    cursor: includedBoxes.length === 0 ? 'default' : 'pointer',
+                  }}
+                >Batch Email ({includedBoxes.length})</button>
+              )}
+            </div>
+          );
+        })()}
+        <div className="row-hover" onClick={() => onSelect(b)} style={{
           display: 'flex', alignItems: 'center', gap: 16, padding: '14px 16px', cursor: 'pointer',
           background: BRAND.panel, border: '1px solid ' + BRAND.greenLight, borderRadius: 7,
           boxShadow: '0 2px 8px rgba(26,29,26,0.12)',
+          opacity: batchMode && excludedIds[b.boxId] ? 0.55 : 1,
         }}>
+          {/* Include-in-batch checkbox - batch mode only. Checked =
+              included in this hauler's batch email (the default);
+              unchecking excludes just this box. stopPropagation keeps
+              the tap from opening the detail panel. */}
+          {batchMode && (
+            <label onClick={e => e.stopPropagation()} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={!excludedIds[b.boxId]}
+                onChange={() => toggleExcluded(b.boxId)}
+                style={{ width: 17, height: 17, accentColor: BRAND.green, cursor: 'pointer' }}
+              />
+            </label>
+          )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontFamily: monoFont, fontSize: 15, color: BRAND.ink, fontWeight: 400 }}>
@@ -1279,6 +1647,7 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
             flexShrink: 0, fontSize: 20, lineHeight: 1, color: BRAND.muted, fontFamily: font,
           }}>›</span>
         </div>
+        </React.Fragment>
       ))}
     </div>
   );
