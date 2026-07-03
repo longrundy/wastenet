@@ -1979,12 +1979,14 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
         {box.notes && (() => {
           // The notes banner doubles as the "confirmed" banner once a
           // hauler confirmation lands ("Confirmed by NAME on ..."
-          // appended to Notes). Per explicit design decision, when a
-          // confirmation is present the banner goes full highlighter
-          // yellow with bold text so it's unmissable; ordinary notes
-          // (Last Cycle, chart issues, etc.) keep the original soft
-          // style.
-          const isConfirmedNote = /confirmed by/i.test(box.notes);
+          // appended to Notes). The loud highlighter-yellow treatment
+          // requires BOTH the note text AND the box's CURRENT
+          // Confirmed state - if the confirmation was later unchecked,
+          // the note remains visible (it's the permanent paper trail
+          // of who confirmed and when) but drops back to the ordinary
+          // soft note style, so the screen never presents an undone
+          // confirmation as an active one.
+          const isConfirmedNote = /confirmed by/i.test(box.notes) && box.confirmed;
           return (
             <div style={{
               background: isConfirmedNote ? '#FFF200' : '#FBF6E9',
