@@ -1854,7 +1854,6 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
     return { when, what };
   };
 
-  const [schDateInput, setSchDateInput] = React.useState(() => toDateInputValue(box.schDate));
   const [puDateInput, setPuDateInput] = React.useState(() => toDateInputValue(box.puDate));
 
   // Which email category pill is active. 'Service' uses the per-box
@@ -1947,16 +1946,24 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
   // never clobber input they're actively in the middle of working with.
   React.useEffect(() => {
     if (dateSaveState === 'idle') {
-      setSchDateInput(toDateInputValue(box.schDate));
       setPuDateInput(toDateInputValue(box.puDate));
     }
-  }, [box.schDate, box.puDate, dateSaveState]);
+  }, [box.puDate, dateSaveState]);
 
+  // Saves the Pick-Up Date only, per explicit design decision
+  // (consistency with the batch panel's single date field): the
+  // Scheduled Date input was removed from this panel entirely - the
+  // request date is captured automatically (the Apps Script stamps
+  // today into a blank Scheduled Date whenever a pickup is saved, and
+  // the Request Ledger records the exact request moment shown in the
+  // Request History section below), so there's nothing left for a
+  // person to enter. schDate is deliberately OMITTED from this save so
+  // the server-side auto-fill owns that column.
   const handleSaveDates = async () => {
     setDateSaveState('saving');
     setDateSaveError(null);
     try {
-      await onSave(box.boxId, { schDate: schDateInput, puDate: puDateInput });
+      await onSave(box.boxId, { puDate: puDateInput });
       setDateSaveState('saved');
       setTimeout(() => setDateSaveState('idle'), 2500);
     } catch (err) {
@@ -1971,7 +1978,6 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
   // save track as Save Dates, so the same ✓ Saved / error feedback
   // appears.
   const handleClearDates = async () => {
-    setSchDateInput('');
     setPuDateInput('');
     setDateSaveState('saving');
     setDateSaveError(null);
@@ -2121,21 +2127,14 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
             </div>
           ) : (
           <React.Fragment>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-            <label style={{ flex: 1, display: 'block' }}>
-              <div style={{ fontSize: 12.5, fontWeight: 600, color: BRAND.ink, marginBottom: 3 }}>Scheduled Date</div>
-              <input
-                type="date"
-                value={schDateInput}
-                onChange={e => setSchDateInput(e.target.value)}
-                style={{
-                  width: '100%', padding: '7px 8px', fontSize: 14, borderRadius: 5,
-                  border: '1.5px solid ' + BRAND.line, fontFamily: font, color: BRAND.ink, boxSizing: 'border-box',
-                }}
-              />
-            </label>
-
-            <label style={{ flex: 1, display: 'block' }}>
+          {/* Single Pick-Up Date field, per explicit design decision
+              (consistency with the batch panel): the Scheduled Date
+              input is gone - the request date is captured
+              automatically (server-side auto-fill of the sheet column
+              + the Request Ledger entry shown in Request History), so
+              only the date a person actually decides remains. */}
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ display: 'block' }}>
               <div style={{ fontSize: 12.5, fontWeight: 600, color: BRAND.ink, marginBottom: 3 }}>Pick-Up Date</div>
               <input
                 type="date"
@@ -2160,7 +2159,7 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
                 fontFamily: font,
               }}
             >
-              {dateSaveState === 'saving' ? 'Saving…' : 'Save Dates'}
+              {dateSaveState === 'saving' ? 'Saving…' : 'Save Date'}
             </button>
             <button
               onClick={handleClearDates}
@@ -2574,40 +2573,6 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
           );
         })()}
 
-        {/* Request History - the box's permanent request/confirmation
-            trail from the Request Ledger, independent of daily tabs,
-            so "when did we request this?" is always answerable right
-            here without hunting through past dates or opening the
-            spreadsheet. Newest first, capped at the 20 most recent
-            events. */}
-        <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid ' + BRAND.line }}>
-          <div style={{
-            fontSize: 12, fontWeight: 700, color: BRAND.muted, textTransform: 'uppercase',
-            letterSpacing: '0.03em', marginBottom: 8, fontFamily: monoFont,
-          }}>Request History</div>
-          {history === null ? (
-            <div style={{ fontSize: 12.5, color: BRAND.muted, fontStyle: 'italic' }}>Loading history…</div>
-          ) : historyError ? (
-            <div style={{ fontSize: 12.5, color: BRAND.red }}>Could not load history: {historyError}</div>
-          ) : history.length === 0 ? (
-            <div style={{ fontSize: 12.5, color: BRAND.muted }}>No request history yet for this box.</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              {history.map((e, i) => {
-                const { when, what } = describeHistoryEntry(e);
-                return (
-                  <div key={i} style={{
-                    fontSize: 12.5, fontFamily: monoFont, color: BRAND.ink,
-                    padding: '4px 0', borderBottom: i < history.length - 1 ? '1px solid #F1F3EC' : 'none',
-                  }}>
-                    <span style={{ color: BRAND.muted }}>{when}</span> — <span style={{ fontWeight: 600 }}>{what}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
         <div className="detail-info-grid" style={{
           display: 'grid', gap: '8px 16px',
           padding: '14px 0 0', borderTop: '1px solid ' + BRAND.line, marginTop: 16,
@@ -2627,6 +2592,44 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
               <div style={{ fontSize: 13, fontFamily: monoFont, fontWeight: 600, marginTop: 1 }}>{String(v)}</div>
             </div>
           ))}
+        </div>
+
+        {/* Request History - the box's permanent request/confirmation
+            trail from the Request Ledger, independent of daily tabs.
+            Per explicit design decision: lives at the VERY BOTTOM of
+            the panel and is styled as a dark, compact "log card" -
+            deliberately unlike every other section - so it reads as a
+            system record rather than another form to work in. Newest
+            first, capped at the 20 most recent events. */}
+        <div style={{
+          marginTop: 18, background: BRAND.dark, borderRadius: 8, padding: '12px 14px',
+        }}>
+          <div style={{
+            fontSize: 11, fontWeight: 700, color: BRAND.greenLight, textTransform: 'uppercase',
+            letterSpacing: '0.05em', marginBottom: 8, fontFamily: monoFont,
+          }}>Request History</div>
+          {history === null ? (
+            <div style={{ fontSize: 11.5, color: '#9AA39A', fontStyle: 'italic' }}>Loading history…</div>
+          ) : historyError ? (
+            <div style={{ fontSize: 11.5, color: '#E8A093' }}>Could not load history: {historyError}</div>
+          ) : history.length === 0 ? (
+            <div style={{ fontSize: 11.5, color: '#9AA39A' }}>No request history yet for this box.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {history.map((e, i) => {
+                const { when, what } = describeHistoryEntry(e);
+                return (
+                  <div key={i} style={{
+                    fontSize: 11.5, fontFamily: monoFont, lineHeight: 1.45,
+                  }}>
+                    <span style={{ color: BRAND.greenLight }}>{when}</span>
+                    <span style={{ color: '#9AA39A' }}> — </span>
+                    <span style={{ color: '#E8ECE6' }}>{what}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
       </div>
