@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WasteNet - Opening confirmation page…</title>
+<!--
+  This tiny page exists ONLY to make the confirmation links in
+  WasteNet's Service emails short and branded. The email carries
+    https://dashboard.wastenetinc.com/confirm?b=BOXID&t=TABNAME&k=TOKEN
+  and this page immediately forwards the visitor to the real Apps
+  Script confirmation page (the one with the box details, name field,
+  and Confirm button). Nothing is confirmed by loading this page - it
+  just translates the short link into the long one. If the Apps Script
+  is ever redeployed to a NEW URL, update SHEET_URL below to match
+  (same value as the SHEET_URL constant in the dashboard's index.html).
+-->
+<script>
+  var SHEET_URL = 'https://script.google.com/macros/s/AKfycbwc3siwl0OTP2O5WzNZCDn4cj3MDVRfcVxJW0TZtoPnAKLwhYSwmW_m1h7ib6Yf_Dvk9w/exec';
+  var params = new URLSearchParams(window.location.search);
+  var dest = SHEET_URL +
+    '?action=confirm_page' +
+    '&boxId=' + encodeURIComponent(params.get('b') || '') +
+    '&tab=' + encodeURIComponent(params.get('t') || '') +
+    '&token=' + encodeURIComponent(params.get('k') || '');
+  window.location.replace(dest);
+</script>
+</head>
+<body style="font-family: Arial, Helvetica, sans-serif; color: #525A60; background: #FAFBF8; text-align: center; padding-top: 60px;">
+  Opening the WasteNet confirmation page&hellip;
+  <noscript><p>Please enable JavaScript, or reply to the original email to confirm. Thank you!</p></noscript>
+</body>
+</html>
