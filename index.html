@@ -1900,8 +1900,8 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
                   rather than silently averaged away. */}
               {schedRules.length > 0 && (
                 <div style={{
-                  fontSize: 12, fontFamily: monoFont, fontWeight: 700, color: '#8A6D00',
-                  background: 'rgba(230,195,0,0.14)', border: '1px solid rgba(180,150,0,0.4)',
+                  fontSize: 12, fontFamily: monoFont, fontWeight: 700, color: BRAND.greenDark,
+                  background: 'rgba(92,170,22,0.08)', border: '1px solid ' + BRAND.greenDark,
                   borderRadius: 3, padding: '3px 8px', minWidth: 0,
                 }}>
                   {schedRules.length === 1 ? 'Sched Rule: ' + schedRules[0] : 'Mixed Rules: ' + schedRules.join(' / ')}
@@ -2774,9 +2774,18 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
               <span style={{ fontWeight: 700, color: BRAND.ink }}>As of:</span> {formatScanTimestamp(scanTitle)}
             </span>
           )}
+          {/* Status pills - per explicit design decision, only pills
+              carrying real signal render: TRIGR HIT / NO SERVICE
+              NEEDED, and STALE SCAN. The old SCAN FRESH and NO READING
+              pills were removed entirely - "fresh" and "no reading"
+              are the absence of a signal, and an absence doesn't need
+              a badge. */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <StatusPill meta={FILL_STATUS_META} statusKey={box.staleStatus === 'stale' && box.crossedStatus === 'crossed' ? 'unknown' : box.crossedStatus} />
-            <StatusPill meta={STALE_STATUS_META} statusKey={box.staleStatus} />
+            {(() => {
+              const fillKey = box.staleStatus === 'stale' && box.crossedStatus === 'crossed' ? 'unknown' : box.crossedStatus;
+              return fillKey !== 'unknown' ? <StatusPill meta={FILL_STATUS_META} statusKey={fillKey} /> : null;
+            })()}
+            {box.staleStatus === 'stale' && <StatusPill meta={STALE_STATUS_META} statusKey="stale" />}
           </div>
         </div>
 
@@ -2859,8 +2868,8 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                 not incidental reference info. */}
             {contacts && contacts.schedulingRule && (
               <div style={{
-                fontSize: 12, fontFamily: monoFont, fontWeight: 700, color: '#8A6D00',
-                background: 'rgba(230,195,0,0.14)', border: '1px solid rgba(180,150,0,0.4)',
+                fontSize: 12, fontFamily: monoFont, fontWeight: 700, color: BRAND.greenDark,
+                background: 'rgba(92,170,22,0.08)', border: '1px solid ' + BRAND.greenDark,
                 borderRadius: 3, padding: '3px 8px', minWidth: 0,
               }}>
                 Sched Rule: {contacts.schedulingRule}
@@ -3288,9 +3297,15 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                       disabled={!templateExists}
                       title={templateExists ? '' : 'No template set up for this category yet'}
                       style={{
-                        fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 20,
-                        border: '1.5px solid ' + (isActive ? BRAND.green : BRAND.line),
-                        background: isActive ? BRAND.green : BRAND.panel,
+                        // Rounded-corner rectangle (not the old oval) to
+                        // match every other button, per explicit design
+                        // decision. Unselected: white with the standard
+                        // drop shadow, gray text as before. Selected:
+                        // solid green with white text, unchanged.
+                        fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 5,
+                        border: '1px solid ' + (isActive ? BRAND.green : '#E2E6DE'),
+                        background: isActive ? BRAND.green : '#FFFFFF',
+                        boxShadow: isActive ? 'none' : '0 1px 3px rgba(0,0,0,0.15)',
                         color: !templateExists ? '#C7CCC2' : (isActive ? '#FFFFFF' : BRAND.muted),
                         cursor: templateExists ? 'pointer' : 'not-allowed', fontFamily: font,
                         opacity: templateExists ? 1 : 0.6,
