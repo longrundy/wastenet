@@ -331,7 +331,14 @@ function escapeEmailHtml(value) {
 // underneath as insurance for anything that mangles the button.
 // confirmUrl is optional - emails without one (Weights, Problem, etc.)
 // just get the nicely formatted HTML body with no button.
-function buildEmailHtml(plainBody, confirmUrl, buttonLabel) {
+// boldPhrases is an optional array of exact strings (e.g. the pickup
+// date and the box description) to render in bold everywhere they
+// appear in the body - the two things a recipient actually needs to
+// read, made to jump out. Matching is literal (split/join, no regex),
+// on the ESCAPED text so phrases containing characters like & still
+// match. Applied AFTER the button insertion so a phrase can never
+// accidentally rewrite part of the button's URL markup.
+function buildEmailHtml(plainBody, confirmUrl, buttonLabel, boldPhrases) {
   let html = escapeEmailHtml(plainBody).replace(/\r?\n/g, '<br>');
   if (confirmUrl) {
     const escapedUrl = escapeEmailHtml(confirmUrl);
@@ -349,6 +356,17 @@ function buildEmailHtml(plainBody, confirmUrl, buttonLabel) {
     // template's [confirm link] spot or in the appended standard
     // paragraph) - swap that occurrence for the button block.
     html = html.replace(escapedUrl, button);
+  }
+  if (boldPhrases && boldPhrases.length > 0) {
+    // Longest first, so when one phrase contains another the longer
+    // match wins whole rather than being chopped up by the shorter.
+    const phrases = boldPhrases
+      .map(p => escapeEmailHtml(p))
+      .filter(p => p)
+      .sort((a, b) => b.length - a.length);
+    phrases.forEach(p => {
+      html = html.split(p).join('<strong>' + p + '</strong>');
+    });
   }
   return '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#333333;line-height:1.5;">' +
     html + '</div>';
@@ -1590,7 +1608,8 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
 
   // HTML version of the email - the confirm link renders as a proper
   // green button in real mail clients (see buildEmailHtml).
-  const htmlBody = finalBody ? buildEmailHtml(finalBody, confirmUrl, 'Confirm All Services Scheduled') : '';
+  const htmlBody = finalBody ? buildEmailHtml(finalBody, confirmUrl, 'Confirm All Services Scheduled',
+    [dateStr].concat(boxes.map(b => b.description))) : '';
 
   const fieldsFor = (placement) => {
     const parts = [];
@@ -2850,7 +2869,7 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
             if (/\[confirm link\]/i.test(finalBody)) {
               finalBody = finalBody.replace(/\[confirm link\]/gi, confirmUrl);
             } else {
-              finalBody += '\n\nTo confirm this service is scheduled, please click below and enter your name - no reply email needed:\n' + confirmUrl;
+              finalBody += '\n\nPlease confirm this service is scheduled by clicking on the button below. No reply email is necessary.\n' + confirmUrl;
             }
           }
 
@@ -2858,7 +2877,8 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
           // proper green button in real mail clients (see
           // buildEmailHtml). Non-Service emails have no confirmUrl and
           // simply get the nicely formatted HTML body.
-          const htmlBody = finalBody ? buildEmailHtml(finalBody, confirmUrl, 'Confirm Service Scheduled') : '';
+          const htmlBody = finalBody ? buildEmailHtml(finalBody, confirmUrl, 'Confirm Service Scheduled',
+            [formatDateInputValue(puDateInput), box.description]) : '';
 
           // Server-side send (SendGrid via the Apps Script's
           // send_email action) - a copy always Bcc'd to office@ per
