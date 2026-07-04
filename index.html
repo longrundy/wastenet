@@ -1613,7 +1613,7 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
           explicit design decision (replacing the earlier solid-red
           version). Shared component = identical in the detail panel
           AND the batch panel. */}
-      {!effectiveTo && (
+      {!effectiveTo && noRecipientHint && (
         <div style={{
           marginTop: 8, padding: '8px 14px', background: '#FFFFFF',
           border: '1px solid #E2E6DE', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
@@ -1831,13 +1831,14 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
   };
 
   const PlacementSelector = ({ value, onChange }) => (
-    <div style={{ display: 'flex', gap: 4 }}>
+    <div style={{ display: 'flex', gap: 4, width: 118, flexShrink: 0 }}>
       {[['to', 'To'], ['cc', 'Cc'], ['bcc', 'Bcc']].map(([val, label]) => (
         <button
           key={val}
           onClick={() => onChange(value === val ? 'off' : val)}
           style={{
-            fontSize: 11, fontWeight: 600, padding: '4px 9px', borderRadius: 4,
+            flex: 1, textAlign: 'center',
+            fontSize: 11, fontWeight: 600, padding: '4px 0', borderRadius: 4,
             border: '1px solid ' + (value === val ? BRAND.green : '#E2E6DE'),
             background: value === val ? BRAND.green : '#FFFFFF',
             boxShadow: value === val ? 'none' : '0 1px 3px rgba(0,0,0,0.15)',
@@ -1880,18 +1881,20 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
         <div className="modal-body" style={{ flex: 1, overflow: 'auto' }}>
 
           <div style={{
-            fontSize: 12, fontWeight: 700, color: BRAND.muted, textTransform: 'uppercase',
-            letterSpacing: '0.03em', marginBottom: 8, fontFamily: monoFont,
-          }}>Boxes in this email</div>
-          <div style={{
-            border: '1px solid ' + BRAND.line, borderRadius: 6, padding: '10px 12px', marginBottom: 16,
-            maxHeight: 180, overflowY: 'auto',
+            border: '1px solid #E2E6DE', borderRadius: 8, padding: 12, marginBottom: 14,
+            background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
           }}>
-            {boxes.map(b => (
-              <div key={b.boxId} style={{ fontSize: 12.5, fontFamily: monoFont, padding: '3px 0', borderBottom: '1px solid #F1F3EC' }}>
-                <span style={{ color: BRAND.muted }}>#{b.boxId}</span> {b.description}
-              </div>
-            ))}
+            <div style={{
+              fontSize: 12, fontWeight: 700, color: BRAND.muted, textTransform: 'uppercase',
+              letterSpacing: '0.03em', marginBottom: 8, fontFamily: monoFont,
+            }}>Boxes in this email</div>
+            <div style={{ maxHeight: 180, overflowY: 'auto' }}>
+              {boxes.map(b => (
+                <div key={b.boxId} style={{ fontSize: 12.5, fontFamily: monoFont, padding: '3px 0' }}>
+                  <span style={{ color: BRAND.muted }}>#{b.boxId}</span> {b.description}
+                </div>
+              ))}
+            </div>
           </div>
 
           <div style={{
@@ -1958,7 +1961,7 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
                 background: (!puDateInput || dateSaveState === 'saving') ? BRAND.muted : BRAND.green,
                 color: '#FFFFFF', fontFamily: font,
               }}
-            >{dateSaveState === 'saving' ? (dateSaveProgress || 'Saving…') : 'Save Date to All ' + boxes.length + ' Boxes'}</button>
+            >{dateSaveState === 'saving' ? (dateSaveProgress || 'Saving…') : (boxes.length === 1 ? 'Save Date to This Box' : 'Save Date to All ' + boxes.length + ' Boxes')}</button>
             {dateSaveState === 'saved' && (
               <div style={{
                 marginTop: 8, padding: '6px 10px', background: 'rgba(92,170,22,0.12)',
@@ -1975,6 +1978,10 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
             )}
           </div>
 
+          <div style={{
+            marginBottom: 14, background: '#FFFFFF', border: '1px solid #E2E6DE',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.15)', borderRadius: 8, padding: 12,
+          }}>
           <div style={{
             fontSize: 12, fontWeight: 700, color: BRAND.muted, textTransform: 'uppercase',
             letterSpacing: '0.03em', marginBottom: 10, fontFamily: monoFont,
@@ -2031,10 +2038,25 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
             </div>
             <PlacementSelector value={staffPlacement} onChange={setStaffPlacement} />
           </div>
+          {/* Missing-To warning - same 118px badge as the detail
+              panel, right-aligned so its edges line up exactly with
+              the To/Cc/Bcc column above it. */}
+          {!effectiveTo && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -6 }}>
+              <div style={{
+                width: 118, boxSizing: 'border-box', textAlign: 'center',
+                padding: '4px 4px', background: '#FFFFFF',
+                border: '1px solid #E2E6DE', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                borderRadius: 5, color: BRAND.red,
+                fontSize: 10, fontWeight: 700, fontFamily: monoFont, lineHeight: 1.35,
+              }}>Must add To: recipient</div>
+            </div>
+          )}
+          </div>
 
           {hasTemplate ? (
             <EmailSendBlock
-              sendLabel={'Proof Batch Email (' + boxes.length + ' boxes)'}
+              sendLabel={'Proof Batch Email (' + boxes.length + (boxes.length === 1 ? ' box)' : ' boxes)')}
               effectiveTo={effectiveTo}
               effectiveCc={effectiveCc}
               outgoingBcc={outgoingBcc}
@@ -2042,7 +2064,7 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
               body={finalBody}
               htmlBody={htmlBody}
               canSend={canSend}
-              noRecipientHint="To: recipient must be added"
+              noRecipientHint=""
               sendState={sendState}
               sendError={sendError}
               onArm={() => setSendState('preview')}
@@ -3233,13 +3255,14 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
           // there would be no way to remove a group from an email
           // after turning it on.
           const PlacementSelector = ({ value, onChange }) => (
-            <div style={{ display: 'flex', gap: 4 }}>
+            <div style={{ display: 'flex', gap: 4, width: 118, flexShrink: 0 }}>
               {[['to', 'To'], ['cc', 'Cc'], ['bcc', 'Bcc']].map(([val, label]) => (
                 <button
                   key={val}
                   onClick={() => onChange(value === val ? 'off' : val)}
                   style={{
-                    fontSize: 11, fontWeight: 600, padding: '4px 9px', borderRadius: 4,
+                    flex: 1, textAlign: 'center',
+                    fontSize: 11, fontWeight: 600, padding: '4px 0', borderRadius: 4,
                     border: '1px solid ' + (value === val ? BRAND.green : '#E2E6DE'),
                     background: value === val ? BRAND.green : '#FFFFFF',
                     boxShadow: value === val ? 'none' : '0 1px 3px rgba(0,0,0,0.15)',
@@ -3320,11 +3343,12 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
               {!effectiveTo && (
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -6, marginBottom: 12 }}>
                   <div style={{
-                    padding: '4px 10px', background: '#FFFFFF',
+                    width: 118, boxSizing: 'border-box', textAlign: 'center',
+                    padding: '4px 4px', background: '#FFFFFF',
                     border: '1px solid #E2E6DE', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
                     borderRadius: 5, color: BRAND.red,
-                    fontSize: 11, fontWeight: 700, fontFamily: monoFont, whiteSpace: 'nowrap',
-                  }}>To: recipient must be added</div>
+                    fontSize: 10, fontWeight: 700, fontFamily: monoFont, lineHeight: 1.35,
+                  }}>Must add To: recipient</div>
                 </div>
               )}
 
