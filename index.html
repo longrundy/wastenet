@@ -39,6 +39,13 @@
     }
     .modal-body { padding: 14px; }
   }
+  /* WasteNet Staff checkboxes: two tidy columns on any normal screen,
+     collapsing to one column only on very narrow phones where two
+     columns of email addresses would wrap into unreadable shards. */
+  .staff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
+  @media (max-width: 480px) {
+    .staff-grid { grid-template-columns: 1fr; }
+  }
   .detail-info-grid { grid-template-columns: 1fr 1fr; }
   @media (min-width: 640px) {
     .detail-info-grid { grid-template-columns: 1fr 1fr 1fr; }
@@ -1287,17 +1294,22 @@ function WasteNetDashboard() {
 // the Batch Service Email panel, so the two flows stay visually and
 // behaviorally identical. Sending is server-side (SendGrid via the
 // Apps Script) and therefore IMMEDIATE and IRREVERSIBLE once
-// confirmed, so this is deliberately never one-click: the Send button
-// first opens a full on-screen preview of exactly what will go out
-// (From/To/Cc/Bcc/Subject/complete Body), and only the Confirm & Send
-// button inside that preview actually sends. That preserves the
-// review-before-send step the old mailto: draft window used to
-// provide, without ever launching an email client.
+// confirmed, so this is deliberately never one-click: the "Proof ...
+// Email Draft" button opens a dedicated FULL-SCREEN PROOF SHEET - its
+// own overlay layer above the panel, showing nothing but the email
+// itself (From/To/Cc/Bcc/Subject and the complete body, laid out like
+// a document) with a Send Email button and a Back button - and only
+// Send Email on that sheet actually sends. A proof sheet was chosen
+// over a real popup window per explicit design decision: an actual
+// window.open gets eaten intermittently by popup blockers (ChromeOS
+// and mobile especially) and can't share the panel's access-code
+// session or JSONP send machinery, while an in-app overlay looks and
+// reads the same and always opens.
 //
 // States (owned by the PARENT, so a background data refresh never
-// resets an in-progress preview): 'idle' -> 'preview' -> 'sending' ->
-// 'sent' | 'error' (error returns to the preview with the reason shown
-// and Confirm & Send re-enabled for a retry).
+// resets an in-progress proof): 'idle' -> 'preview' -> 'sending' ->
+// 'sent' | 'error' (error keeps the proof sheet open with the reason
+// shown and Send Email re-enabled for a retry).
 function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subject, body, canSend, noRecipientHint, sendState, sendError, onArm, onCancel, onConfirm, onReset, monoFont, font }) {
   const previewRow = (label, value) => (
     value ? (
@@ -1336,51 +1348,82 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
   if (sendState === 'preview' || sendState === 'sending' || sendState === 'error') {
     const sending = sendState === 'sending';
     return (
-      <div style={{
-        border: '2px solid ' + BRAND.green, borderRadius: 8, padding: 12,
-        background: 'rgba(92,170,22,0.04)',
-      }}>
-        <div style={{
-          fontSize: 12, fontWeight: 700, color: BRAND.green, textTransform: 'uppercase',
-          letterSpacing: '0.03em', marginBottom: 8, fontFamily: monoFont,
-        }}>Review Before Sending</div>
-        {previewRow('From:', 'WasteNet <office@wastenetinc.com>')}
-        {previewRow('To:', effectiveTo)}
-        {previewRow('Cc:', effectiveCc)}
-        {previewRow('Bcc:', outgoingBcc)}
-        {previewRow('Subject:', subject)}
-        <div style={{
-          marginTop: 8, border: '1px solid ' + BRAND.line, borderRadius: 5,
-          background: BRAND.panel, padding: '8px 10px', maxHeight: 220, overflowY: 'auto',
-          fontSize: 12, fontFamily: monoFont, color: BRAND.ink,
-          whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-        }}>{body}</div>
-        {sendState === 'error' && (
+      <div
+        onClick={() => { if (!sending) onCancel(); }}
+        className="modal-overlay"
+        style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', zIndex: 95,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        <div
+          onClick={e => e.stopPropagation()}
+          className="modal-panel"
+          style={{
+            position: 'relative', background: BRAND.panel,
+            boxShadow: '0 12px 48px rgba(0,0,0,0.35)', zIndex: 96,
+            display: 'flex', flexDirection: 'column', fontFamily: font, overflow: 'hidden',
+          }}
+        >
           <div style={{
-            marginTop: 8, padding: '6px 10px', background: 'rgba(179,64,43,0.08)',
-            border: '1px solid ' + BRAND.red, borderRadius: 5, color: BRAND.red,
-            fontSize: 12, fontWeight: 600,
-          }}>Could not send: {sendError}</div>
-        )}
-        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-          <button
-            onClick={onConfirm}
-            disabled={sending}
-            style={{
-              flex: 2, padding: '9px', fontSize: 13.5, fontWeight: 700, borderRadius: 5,
-              border: 'none', cursor: sending ? 'default' : 'pointer',
-              background: sending ? BRAND.muted : BRAND.green, color: '#FFFFFF', fontFamily: font,
-            }}
-          >{sending ? 'Sending…' : 'Confirm & Send'}</button>
-          <button
-            onClick={onCancel}
-            disabled={sending}
-            style={{
-              flex: 1, padding: '9px', fontSize: 13, fontWeight: 600, borderRadius: 5,
-              border: '1.5px solid ' + BRAND.line, cursor: sending ? 'default' : 'pointer',
-              background: BRAND.panel, color: BRAND.muted, fontFamily: font,
-            }}
-          >Cancel</button>
+            padding: '14px 20px', borderBottom: '1px solid ' + BRAND.line, background: BRAND.green,
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          }}>
+            <div style={{ fontFamily: monoFont, fontSize: 16, fontWeight: 800, color: '#CCFF66' }}>EMAIL PROOF</div>
+            <button
+              onClick={() => { if (!sending) onCancel(); }}
+              style={{ background: 'transparent', border: 'none', color: '#E8F3DF', fontSize: 20, cursor: 'pointer', lineHeight: 1 }}
+            >×</button>
+          </div>
+          <div className="modal-body" style={{ flex: 1, overflow: 'auto' }}>
+            <div style={{
+              border: '1px solid ' + BRAND.line, borderRadius: 6, padding: '10px 12px',
+              background: BRAND.paper, marginBottom: 12,
+            }}>
+              {previewRow('From:', 'WasteNet <office@wastenetinc.com>')}
+              {previewRow('To:', effectiveTo)}
+              {previewRow('Cc:', effectiveCc)}
+              {previewRow('Bcc:', outgoingBcc)}
+              {previewRow('Subject:', subject)}
+            </div>
+            {/* The body gets the whole rest of the sheet, uncapped -
+                the sheet itself scrolls, so a long email reads like a
+                document instead of peering through a small box. */}
+            <div style={{
+              fontSize: 13, fontFamily: monoFont, color: BRAND.ink, lineHeight: 1.55,
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+            }}>{body}</div>
+          </div>
+          <div style={{ padding: '12px 20px', borderTop: '1px solid ' + BRAND.line, background: BRAND.paper }}>
+            {sendState === 'error' && (
+              <div style={{
+                marginBottom: 8, padding: '6px 10px', background: 'rgba(179,64,43,0.08)',
+                border: '1px solid ' + BRAND.red, borderRadius: 5, color: BRAND.red,
+                fontSize: 12, fontWeight: 600,
+              }}>Could not send: {sendError}</div>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={onConfirm}
+                disabled={sending}
+                style={{
+                  flex: 2, padding: '11px', fontSize: 14, fontWeight: 700, borderRadius: 5,
+                  border: 'none', cursor: sending ? 'default' : 'pointer',
+                  background: sending ? BRAND.muted : BRAND.green, color: '#FFFFFF', fontFamily: font,
+                }}
+              >{sending ? 'Sending…' : 'Send Email'}</button>
+              <button
+                onClick={onCancel}
+                disabled={sending}
+                style={{
+                  flex: 1, padding: '11px', fontSize: 13, fontWeight: 600, borderRadius: 5,
+                  border: '1.5px solid ' + BRAND.line, cursor: sending ? 'default' : 'pointer',
+                  background: BRAND.panel, color: BRAND.muted, fontFamily: font,
+                }}
+              >Back</button>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -1677,7 +1720,7 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
 
           {hasTemplate ? (
             <EmailSendBlock
-              sendLabel={'Send Batch Email (' + boxes.length + ' boxes)'}
+              sendLabel={'Proof Batch Email Draft (' + boxes.length + ' boxes)'}
               effectiveTo={effectiveTo}
               effectiveCc={effectiveCc}
               outgoingBcc={outgoingBcc}
@@ -2824,7 +2867,7 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                   {staffList.length === 0 ? (
                     <div style={{ fontSize: 12.5, fontFamily: monoFont, minHeight: 16 }}></div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <div className="staff-grid">
                       {staffList.map(addr => (
                         <label key={addr} style={{
                           display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12.5,
@@ -2841,7 +2884,7 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                       ))}
                       {staffPlacement !== 'off' && selectedStaff.length === 0 && (
                         <div style={{
-                          marginTop: 2, padding: '4px 8px', background: '#FBF6E9',
+                          gridColumn: '1 / -1', marginTop: 2, padding: '4px 8px', background: '#FBF6E9',
                           border: '1px solid #E8D9A8', borderRadius: 5, color: '#7A5E1E',
                           fontSize: 11.5, fontWeight: 600,
                         }}>No staff checked yet - check who to include.</div>
@@ -3002,7 +3045,7 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                   see EmailSendBlock. */}
               {hasActiveTemplate ? (
                 <EmailSendBlock
-                  sendLabel={'Send ' + emailCategory + ' Email'}
+                  sendLabel={'Proof ' + emailCategory + ' Email Draft'}
                   effectiveTo={effectiveTo}
                   effectiveCc={effectiveCc}
                   outgoingBcc={outgoingBcc}
