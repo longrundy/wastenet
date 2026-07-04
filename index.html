@@ -122,6 +122,112 @@ function formatSimpleDate(value) {
   return (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + '/' + d.getUTCFullYear();
 }
 
+// Returns the nth occurrence of a given weekday in a month (or the
+// LAST occurrence when n is -1). weekday: 0=Sun...6=Sat. Used to
+// compute floating holidays (Memorial Day, Labor Day, Thanksgiving)
+// without hardcoding dates per year.
+function nthWeekdayOfMonth(year, monthIndex, weekday, n) {
+  if (n > 0) {
+    const first = new Date(year, monthIndex, 1);
+    const day = 1 + ((weekday - first.getDay() + 7) % 7) + (n - 1) * 7;
+    return new Date(year, monthIndex, day);
+  }
+  const lastDay = new Date(year, monthIndex + 1, 0);
+  const day = lastDay.getDate() - ((lastDay.getDay() - weekday + 7) % 7);
+  return new Date(year, monthIndex, day);
+}
+
+// Shifts a fixed-date holiday that lands on a weekend to the day a
+// business would actually observe it: Saturday -> observed Friday,
+// Sunday -> observed Monday. Standard US business practice.
+function observedHolidayDate(date) {
+  const dow = date.getDay();
+  const result = new Date(date);
+  if (dow === 6) result.setDate(result.getDate() - 1);
+  else if (dow === 0) result.setDate(result.getDate() + 1);
+  return result;
+}
+
+// The "core 6" holidays most waste haulers actually close for, per
+// explicit design decision - deliberately NOT the full federal
+// holiday list (Presidents Day, Columbus Day, etc. don't typically
+// affect pickup). Computed algorithmically so this never needs
+// updating year to year.
+function getCoreHolidaysForYear(year) {
+  return [
+    observedHolidayDate(new Date(year, 0, 1)),               // New Year's Day
+    nthWeekdayOfMonth(year, 4, 1, -1),                        // Memorial Day - last Mon of May
+    observedHolidayDate(new Date(year, 6, 4)),                // July 4th
+    nthWeekdayOfMonth(year, 8, 1, 1),                         // Labor Day - 1st Mon of Sep
+    nthWeekdayOfMonth(year, 10, 4, 4),                        // Thanksgiving - 4th Thu of Nov
+    observedHolidayDate(new Date(year, 11, 25)),              // Christmas
+  ];
+}
+
+// Builds a Set of yyyy-MM-dd holiday strings spanning the given
+// year and the next (so a business-day count that crosses a year
+// boundary, e.g. computed in late December, still catches New
+// Year's Day) for fast lookup in addBusinessDays.
+function buildHolidaySet(year) {
+  const dates = [...getCoreHolidaysForYear(year), ...getCoreHolidaysForYear(year + 1)];
+  return new Set(dates.map(toDateInputValue));
+}
+
+// Adds a number of BUSINESS days (skipping Sat/Sun and, when a
+// holidaySet is provided, the core-6 holidays too) to a given date
+// and returns the resulting Date.
+function addBusinessDays(date, days, holidaySet) {
+  const result = new Date(date);
+  let added = 0;
+  while (added < days) {
+    result.setDate(result.getDate() + 1);
+    const dow = result.getDay();
+    const isWeekend = dow === 0 || dow === 6;
+    const isHoliday = holidaySet && holidaySet.has(toDateInputValue(result));
+    if (!isWeekend && !isHoliday) added++;
+  }
+  return result;
+}
+
+// Turns a per-box Scheduling Rule ("NBD", "1-BD", "2-BD", ...) into a
+// suggested Pick-Up Date, computed from TODAY. Per explicit design
+// decision: "N-BD" means N business days ON TOP OF the next business
+// day baseline - so NBD = +1 business day, "1-BD" = +2 business days,
+// "2-BD" = +3 business days. Example: today is Monday, rule is
+// "1-BD" -> next business day is Tuesday (+1), then one more
+// business day (+1) lands on Wednesday. Business days skip weekends
+// AND the core-6 holidays (see getCoreHolidaysForYear) - still no
+// awareness of one-off site closures, same blind spot the scanner
+// has. Returns null for unrecognized rule strings so the caller can
+// simply omit the hint.
+function computeSuggestedPickupDate(rule) {
+  if (!rule) return null;
+  const normalized = String(rule).trim().toUpperCase();
+  let businessDays = null;
+  if (normalized === 'NBD') {
+    businessDays = 1;
+  } else {
+    const m = normalized.match(/^(\d+)-BD$/);
+    if (m) businessDays = parseInt(m[1], 10) + 1;
+  }
+  if (businessDays === null) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const holidaySet = buildHolidaySet(today.getFullYear());
+  return addBusinessDays(today, businessDays, holidaySet);
+}
+
+// Formats a Date as a yyyy-MM-dd string in LOCAL time, matching what
+// an <input type="date"> expects/emits - deliberately not using
+// toISOString() here since that converts to UTC first and can shift
+// the date by one day depending on the user's timezone.
+function toDateInputValue(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + d;
+}
+
 // Extracts the scan timestamp out of a report tab's scanTitle string
 // (e.g. "Scan completed: 2026-07-01 08:09") and reformats it as
 // "7-1-26 (8:09AM)" for the detail panel's "As of:" label - per
@@ -2142,6 +2248,33 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
                 }}
               />
             </label>
+            {/* Suggested Pick-Up Date hint - derived from the box's
+                Scheduling Rule pill (NBD / N-BD) and today's actual
+                date, per explicit design decision. Clickable so it
+                fills the field above rather than being read-only
+                reference text. Only rendered when the rule is present
+                and recognized. */}
+            {contacts && contacts.schedulingRule && (() => {
+              const suggested = computeSuggestedPickupDate(contacts.schedulingRule);
+              if (!suggested) return null;
+              const suggestedLabel = suggested.toLocaleDateString('en-US', {
+                weekday: 'short', month: 'short', day: 'numeric',
+              });
+              return (
+                <div style={{ fontSize: 12, color: BRAND.muted, marginTop: 5 }}>
+                  Suggested (per {contacts.schedulingRule}):{' '}
+                  <button
+                    type="button"
+                    onClick={() => setPuDateInput(toDateInputValue(suggested))}
+                    style={{
+                      background: 'none', border: 'none', padding: 0, margin: 0,
+                      color: BRAND.greenDark, fontWeight: 700, fontFamily: font,
+                      fontSize: 12, cursor: 'pointer', textDecoration: 'underline',
+                    }}
+                  >{suggestedLabel}</button>
+                </div>
+              );
+            })()}
           </div>
 
           <div style={{ display: 'flex', gap: 8 }}>
