@@ -432,6 +432,25 @@ function countRecipients(str) {
   return String(str || '').split(/[;,]/).map(s => s.trim()).filter(s => s).length;
 }
 
+// Haulers whose service requests go through an ONLINE PORTAL rather
+// than email - C-300 (Republic Services) and C-599 (WM), per explicit
+// design decision. For their boxes/batches the Service email pill is
+// not offered at all; every other email type (Notice, Problem, etc.)
+// remains available.
+const PORTAL_SERVICED_HAULERS = ['C-300', 'C-599'];
+function isPortalServicedHauler(haulCode) {
+  return PORTAL_SERVICED_HAULERS.indexOf(String(haulCode || '').toUpperCase().trim()) !== -1;
+}
+// First non-Service category that actually has a template - used as
+// the default selection where Service isn't offered.
+function firstNonServiceCategory(emailTemplates) {
+  const order = ['Notice', 'Emptied', 'Missed', 'Premature', 'Problem', 'Repair', 'Usage', 'Weights'];
+  return order.find(l => {
+    const t = (emailTemplates || {})[l] || {};
+    return !!(t.subjectTemplate || t.bodyTemplate);
+  }) || 'Notice';
+}
+
 // The MOVE button's three destinations: [view key, sheet value, label].
 // The sheet value is what update_box writes into the View Override
 // column; normalizeRow maps it back onto crossedStatus/staleStatus.
@@ -1665,11 +1684,16 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
   const [dateSaveError, setDateSaveError] = React.useState(null);
   const [sendState, setSendState] = React.useState('idle'); // idle | preview | sending | sent | error - see EmailSendBlock
   const [sendError, setSendError] = React.useState(null);
-  // Email category - same nine pills as the detail panel, so a batch
-  // can carry ANY email type (Notice, Problem, etc.), not just the
-  // service request. Switching categories resets any in-progress
-  // proof, same guard as the detail panel.
-  const [emailCategory, setEmailCategory] = React.useState('Service');
+  // Email category - same pills as the detail panel, so a batch can
+  // carry ANY email type (Notice, Problem, etc.), not just the service
+  // request. Portal-serviced haulers (C-300 / C-599) don't get the
+  // Service pill at all, and default to the first non-Service category
+  // instead. Switching categories resets any in-progress proof, same
+  // guard as the detail panel.
+  const portalServiced = isPortalServicedHauler(haulCode);
+  const [emailCategory, setEmailCategory] = React.useState(() =>
+    portalServiced ? firstNonServiceCategory(emailTemplates) : 'Service'
+  );
   React.useEffect(() => { setSendState('idle'); setSendError(null); }, [emailCategory]);
   // Per-person WasteNet Staff selection - same behavior as the detail
   // panel's: each address is its own checkbox, NONE checked by default
@@ -1752,7 +1776,12 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
   // does. In batch context, [box description] expands to the full
   // multi-line box list, so templates phrased for a single box scale
   // to batches without editing.
-  const BATCH_PILL_LABELS = ['Service', 'Emptied', 'Missed', 'Notice', 'Premature', 'Problem', 'Repair', 'Usage', 'Weights'];
+  // Pill order per explicit design decision: Service first, Notice
+  // second - and when Service isn't offered (portal haulers), Notice
+  // leads.
+  const BATCH_PILL_LABELS = (portalServiced
+    ? ['Notice', 'Emptied', 'Missed', 'Premature', 'Problem', 'Repair', 'Usage', 'Weights']
+    : ['Service', 'Notice', 'Emptied', 'Missed', 'Premature', 'Problem', 'Repair', 'Usage', 'Weights']);
   const getBatchTemplateFor = (label) => {
     if (label === 'Service') return (emailTemplates || {})['Batch'] || { subjectTemplate: '', bodyTemplate: '' };
     return (emailTemplates || {})[label] || { subjectTemplate: '', bodyTemplate: '' };
@@ -2159,6 +2188,11 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
               (No dropdown here - the batch panel keeps its dedicated
               Proof button below.) */}
           <div style={{ fontSize: 12.5, fontWeight: 600, color: BRAND.ink, marginTop: 12, marginBottom: 6 }}>Email Type</div>
+          {portalServiced && (
+            <div style={{ fontSize: 11.5, color: BRAND.muted, fontStyle: 'italic', marginBottom: 6 }}>
+              Service requests for Hauler {haulCode} are handled through the hauler's online portal - no Service email is offered.
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {BATCH_PILL_LABELS.map(label => {
               const isActive = emailCategory === label;
@@ -2789,6 +2823,17 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
   // Defaults to Service since that's the original, most-used category.
   const [emailCategory, setEmailCategory] = React.useState('Service');
 
+  // Portal-serviced boxes (C-300 / C-599) never get a Service email -
+  // if one is opened while Service is selected (the default), the
+  // selection shifts to the first non-Service category that has a
+  // template, so the panel never sits on a pill that isn't offered.
+  const portalServiced = isPortalServicedHauler(box.haulCode);
+  React.useEffect(() => {
+    if (portalServiced && emailCategory === 'Service') {
+      setEmailCategory(firstNonServiceCategory(emailTemplates));
+    }
+  }, [box.boxId, portalServiced]);
+
   // Send flow state - idle | preview | sending | sent | error (see
   // EmailSendBlock). Lives HERE at the top of DetailPanel (not inside
   // the email-section render block below) because React hooks aren't
@@ -3270,7 +3315,12 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
           // shows as a pill (so the full set is always visible and
           // consistent) but is visually disabled and does nothing if
           // tapped, rather than silently composing a blank email.
-          const PILL_LABELS = ['Service', 'Emptied', 'Missed', 'Notice', 'Premature', 'Problem', 'Repair', 'Usage', 'Weights'];
+          // Pill order per explicit design decision: Service first,
+          // Notice second - and when Service isn't offered (portal
+          // haulers), Notice leads.
+          const PILL_LABELS = (portalServiced
+            ? ['Notice', 'Emptied', 'Missed', 'Premature', 'Problem', 'Repair', 'Usage', 'Weights']
+            : ['Service', 'Notice', 'Emptied', 'Missed', 'Premature', 'Problem', 'Repair', 'Usage', 'Weights']);
           const getTemplateFor = (label) => {
             if (label === 'Service') {
               return { subjectTemplate: c.subjectTemplate || '', bodyTemplate: c.bodyTemplate || '' };
@@ -3529,6 +3579,11 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
               )}
 
               <div style={{ fontSize: 12.5, fontWeight: 600, color: BRAND.ink, marginBottom: 6 }}>Email Type</div>
+              {portalServiced && (
+                <div style={{ fontSize: 11.5, color: BRAND.muted, fontStyle: 'italic', marginBottom: 6 }}>
+                  Service requests for Hauler {box.haulCode} are handled through the hauler's online portal - no Service email is offered.
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
                 {PILL_LABELS.map(label => {
                   const isActive = emailCategory === label;
