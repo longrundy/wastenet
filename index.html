@@ -311,6 +311,49 @@ function withOfficeBcc(bccStr) {
   return out.join('; ');
 }
 
+// Minimal HTML-escaper for building the HTML version of outgoing
+// emails - everything user/template-derived is escaped before any
+// markup is added around it.
+function escapeEmailHtml(value) {
+  return String(value === null || value === undefined ? '' : value)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// Builds the HTML version of an outgoing email from the plain-text
+// body. Every email goes out with BOTH versions (SendGrid multipart):
+// the plain text is the universal fallback and keeps the raw confirm
+// URL, while the HTML version - what virtually every real mail client
+// shows - renders the confirm link as a proper green button. The
+// button is built the email-safe way (a table cell with bgcolor and a
+// padded anchor, all styles inline) so it renders correctly even in
+// Outlook's Word-based renderer, with a small "copy this link" line
+// underneath as insurance for anything that mangles the button.
+// confirmUrl is optional - emails without one (Weights, Problem, etc.)
+// just get the nicely formatted HTML body with no button.
+function buildEmailHtml(plainBody, confirmUrl, buttonLabel) {
+  let html = escapeEmailHtml(plainBody).replace(/\r?\n/g, '<br>');
+  if (confirmUrl) {
+    const escapedUrl = escapeEmailHtml(confirmUrl);
+    const button =
+      '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0 8px;">' +
+      '<tr><td align="center" bgcolor="#5CAA16" style="border-radius:6px;">' +
+      '<a href="' + escapedUrl + '" target="_blank" ' +
+      'style="display:inline-block;padding:13px 30px;font-family:Arial,Helvetica,sans-serif;' +
+      'font-size:15px;font-weight:bold;color:#FFFFFF;text-decoration:none;">' +
+      escapeEmailHtml(buttonLabel || 'Confirm') + '</a>' +
+      '</td></tr></table>' +
+      '<span style="font-size:12px;color:#777777;">If the button does not work, copy and paste this link into your browser:<br>' +
+      '<a href="' + escapedUrl + '" style="color:#5CAA16;word-break:break-all;">' + escapedUrl + '</a></span>';
+    // The plain body contains the URL exactly once (either at the
+    // template's [confirm link] spot or in the appended standard
+    // paragraph) - swap that occurrence for the button block.
+    html = html.replace(escapedUrl, button);
+  }
+  return '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#333333;line-height:1.5;">' +
+    html + '</div>';
+}
+
 // Counts the addresses in a ';'/','-separated recipient string - used
 // only for friendly "Sent to N recipients" wording, so it deliberately
 // mirrors the Apps Script's split-and-trim parsing rather than doing
@@ -699,7 +742,7 @@ function WasteNetDashboard() {
   // error rather than sending truncated. replyTo is deliberately NOT
   // sent - the Apps Script's own default (lgrundy@wastenetinc.com)
   // stays the single source of truth for where replies route.
-  const sendEmail = useCallback(async ({ to, cc, bcc, subject, body }) => {
+  const sendEmail = useCallback(async ({ to, cc, bcc, subject, body, html }) => {
     const params = [
       'action=send_email',
       'to=' + encodeURIComponent(to || ''),
@@ -708,6 +751,7 @@ function WasteNetDashboard() {
     ];
     if (cc) params.push('cc=' + encodeURIComponent(cc));
     if (bcc) params.push('bcc=' + encodeURIComponent(bcc));
+    if (html) params.push('html=' + encodeURIComponent(html));
     const json = await jsonpLoad(SHEET_URL + '?' + params.join('&'));
     if (!json.ok) throw new Error(json.error || 'Unknown error sending the email');
     return json;
@@ -1310,7 +1354,7 @@ function WasteNetDashboard() {
 // resets an in-progress proof): 'idle' -> 'preview' -> 'sending' ->
 // 'sent' | 'error' (error keeps the proof sheet open with the reason
 // shown and Send Email re-enabled for a retry).
-function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subject, body, canSend, noRecipientHint, sendState, sendError, onArm, onCancel, onConfirm, onReset, monoFont, font }) {
+function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subject, body, htmlBody, canSend, noRecipientHint, sendState, sendError, onArm, onCancel, onConfirm, onReset, monoFont, font }) {
   const previewRow = (label, value) => (
     value ? (
       <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
@@ -1389,11 +1433,24 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
             </div>
             {/* The body gets the whole rest of the sheet, uncapped -
                 the sheet itself scrolls, so a long email reads like a
-                document instead of peering through a small box. */}
-            <div style={{
-              fontSize: 13, fontFamily: monoFont, color: BRAND.ink, lineHeight: 1.55,
-              whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-            }}>{body}</div>
+                document instead of peering through a small box. When
+                an HTML version exists (it always does for dashboard
+                sends), the proof renders THAT - green confirm button
+                and all - so what's proofed here is pixel-for-pixel
+                what the recipient's mail client will show. Safe to
+                inject: buildEmailHtml escapes every template-derived
+                character before adding its own markup. */}
+            {htmlBody ? (
+              <div
+                style={{ wordBreak: 'break-word' }}
+                dangerouslySetInnerHTML={{ __html: htmlBody }}
+              />
+            ) : (
+              <div style={{
+                fontSize: 13, fontFamily: monoFont, color: BRAND.ink, lineHeight: 1.55,
+                whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+              }}>{body}</div>
+            )}
           </div>
           <div style={{ padding: '12px 20px', borderTop: '1px solid ' + BRAND.line, background: BRAND.paper }}>
             {sendState === 'error' && (
@@ -1510,22 +1567,30 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
   // produces the same token). Same hybrid placement rule as single
   // Service emails: [confirm link] placeholder if present, standard
   // paragraph appended otherwise.
+  let confirmUrl = null;
   if (sheetName && finalBody && boxes.length > 0) {
     const idsCsv = boxes.map(b => b.boxId).slice().sort((a, b) => {
       const na = parseInt(a, 10), nb = parseInt(b, 10);
       if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
       return String(a).localeCompare(String(b));
     }).join(',');
-    const confirmUrl = 'https://dashboard.wastenetinc.com/confirm' +
+    confirmUrl = 'https://dashboard.wastenetinc.com/confirm' +
       '?b=' + encodeURIComponent(idsCsv) +
       '&t=' + encodeURIComponent(sheetName) +
       '&k=' + confirmToken(idsCsv, sheetName);
+    // Wording deliberately says "click below" rather than naming a
+    // link or a button, because it precedes BOTH: the raw URL in the
+    // plain-text fallback and the green button in the HTML version.
     if (/\[confirm link\]/i.test(finalBody)) {
       finalBody = finalBody.replace(/\[confirm link\]/gi, confirmUrl);
     } else {
-      finalBody += '\n\nTo confirm ALL of the above services are scheduled, please click the link below and enter your name - no reply email needed:\n' + confirmUrl;
+      finalBody += '\n\nTo confirm ALL of the above services are scheduled, please click below and enter your name - no reply email needed:\n' + confirmUrl;
     }
   }
+
+  // HTML version of the email - the confirm link renders as a proper
+  // green button in real mail clients (see buildEmailHtml).
+  const htmlBody = finalBody ? buildEmailHtml(finalBody, confirmUrl, 'Confirm All Services Scheduled') : '';
 
   const fieldsFor = (placement) => {
     const parts = [];
@@ -1555,6 +1620,7 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
         bcc: outgoingBcc,
         subject: finalSubject,
         body: finalBody,
+        html: htmlBody,
       });
       setSendState('sent');
     } catch (err) {
@@ -1726,6 +1792,7 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
               outgoingBcc={outgoingBcc}
               subject={finalSubject}
               body={finalBody}
+              htmlBody={htmlBody}
               canSend={canSend}
               noRecipientHint="No To recipient yet - set the Haulers (or Staff) group to To before sending."
               sendState={sendState}
@@ -2764,6 +2831,7 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
           // tab - see the Apps Script's handleConfirmSubmit). Portal
           // and phone-serviced boxes are naturally unaffected: no
           // composed Service email, no link.
+          let confirmUrl = null;
           if (emailCategory === 'Service' && sheetName && finalBody) {
             // Short, branded link (dashboard.wastenetinc.com/confirm)
             // rather than the raw Apps Script URL - per explicit
@@ -2771,16 +2839,26 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
             // suspicious and unwieldy in real emails. A tiny redirect
             // page at /confirm in this same repo translates it to the
             // real confirmation page; b/t/k = boxId/tab/token.
-            const confirmUrl = 'https://dashboard.wastenetinc.com/confirm' +
+            confirmUrl = 'https://dashboard.wastenetinc.com/confirm' +
               '?b=' + encodeURIComponent(box.boxId) +
               '&t=' + encodeURIComponent(sheetName) +
               '&k=' + confirmToken(box.boxId, sheetName);
+            // Wording deliberately says "click below" rather than
+            // naming a link or a button, because it precedes BOTH: the
+            // raw URL in the plain-text fallback and the green button
+            // in the HTML version.
             if (/\[confirm link\]/i.test(finalBody)) {
               finalBody = finalBody.replace(/\[confirm link\]/gi, confirmUrl);
             } else {
-              finalBody += '\n\nTo confirm this service is scheduled, please click the link below and enter your name - no reply email needed:\n' + confirmUrl;
+              finalBody += '\n\nTo confirm this service is scheduled, please click below and enter your name - no reply email needed:\n' + confirmUrl;
             }
           }
+
+          // HTML version of the email - the confirm link renders as a
+          // proper green button in real mail clients (see
+          // buildEmailHtml). Non-Service emails have no confirmUrl and
+          // simply get the nicely formatted HTML body.
+          const htmlBody = finalBody ? buildEmailHtml(finalBody, confirmUrl, 'Confirm Service Scheduled') : '';
 
           // Server-side send (SendGrid via the Apps Script's
           // send_email action) - a copy always Bcc'd to office@ per
@@ -2799,6 +2877,7 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                 bcc: outgoingBcc,
                 subject: finalSubject,
                 body: finalBody,
+                html: htmlBody,
               });
               setSendState('sent');
             } catch (err) {
@@ -3051,6 +3130,7 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                   outgoingBcc={outgoingBcc}
                   subject={finalSubject}
                   body={finalBody}
+                  htmlBody={htmlBody}
                   canSend={canSend}
                   noRecipientHint="No To recipient yet - set at least one group (Haulers, Customers, or Staff) to To before sending."
                   sendState={sendState}
