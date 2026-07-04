@@ -1584,6 +1584,17 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
   const [dateSaveError, setDateSaveError] = React.useState(null);
   const [sendState, setSendState] = React.useState('idle'); // idle | preview | sending | sent | error - see EmailSendBlock
   const [sendError, setSendError] = React.useState(null);
+  // Per-person WasteNet Staff selection - same behavior as the detail
+  // panel's: each address is its own checkbox, NONE checked by default
+  // (selecting is a deliberate act), and only checked people ride
+  // along in whatever placement the Staff selector is set to. State is
+  // naturally fresh on every open since this panel mounts per batch.
+  const [selectedStaff, setSelectedStaff] = React.useState([]);
+  const toggleStaff = (addr) => {
+    setSelectedStaff(prev =>
+      prev.includes(addr) ? prev.filter(a => a !== addr) : [...prev, addr]
+    );
+  };
 
   // Union of the included boxes' Haulers addresses, de-duplicated
   // case-insensitively - for one hauler code these SHOULD be identical
@@ -1601,10 +1612,13 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
         if (!seen[key]) { seen[key] = true; out.push(addr); }
       });
     });
-    return out.join('; ');
+    return out;
   };
-  const haulerEmails = dedupeEmails('toRecipients');
-  const staffEmails = dedupeEmails('staffRecipients');
+  const haulerEmails = dedupeEmails('toRecipients').join('; ');
+  // Staff stays a LIST (not a joined string) - each entry renders as
+  // its own checkbox below, and only the checked ones are included.
+  const staffList = dedupeEmails('staffRecipients');
+  const checkedStaffStr = staffList.filter(a => selectedStaff.includes(a)).join('; ');
 
   const batchTemplate = (emailTemplates || {})['Batch'] || { subjectTemplate: '', bodyTemplate: '' };
   const hasTemplate = !!(batchTemplate.subjectTemplate || batchTemplate.bodyTemplate);
@@ -1662,7 +1676,7 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
   const fieldsFor = (placement) => {
     const parts = [];
     if (haulerPlacement === placement && haulerEmails) parts.push(haulerEmails);
-    if (staffPlacement === placement && staffEmails) parts.push(staffEmails);
+    if (staffPlacement === placement && checkedStaffStr) parts.push(checkedStaffStr);
     return parts.join('; ');
   };
   const effectiveTo = fieldsFor('to');
@@ -1846,7 +1860,33 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 14 }}>
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3, fontWeight: 700, textDecoration: 'underline' }}>WasteNet Staff:</div>
-              <div style={{ fontSize: 12.5, fontFamily: monoFont, wordBreak: 'break-word', minHeight: 16 }}>{staffEmails}</div>
+              {staffList.length === 0 ? (
+                <div style={{ fontSize: 12.5, fontFamily: monoFont, minHeight: 16 }}></div>
+              ) : (
+                <div className="staff-grid">
+                  {staffList.map(addr => (
+                    <label key={addr} style={{
+                      display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12.5,
+                      fontFamily: monoFont, color: BRAND.ink, cursor: 'pointer',
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedStaff.includes(addr)}
+                        onChange={() => toggleStaff(addr)}
+                        style={{ width: 15, height: 15, accentColor: BRAND.green, cursor: 'pointer', flexShrink: 0, marginTop: 1 }}
+                      />
+                      <span style={{ wordBreak: 'break-word' }}>{addr}</span>
+                    </label>
+                  ))}
+                  {staffPlacement !== 'off' && selectedStaff.length === 0 && (
+                    <div style={{
+                      gridColumn: '1 / -1', marginTop: 2, padding: '4px 8px', background: '#FBF6E9',
+                      border: '1px solid #E8D9A8', borderRadius: 5, color: '#7A5E1E',
+                      fontSize: 11.5, fontWeight: 600,
+                    }}>No staff checked yet - check who to include.</div>
+                  )}
+                </div>
+              )}
             </div>
             <PlacementSelector value={staffPlacement} onChange={setStaffPlacement} />
           </div>
