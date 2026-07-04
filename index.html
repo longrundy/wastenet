@@ -392,12 +392,28 @@ function buildEmailHtml(plainBody, confirmUrl, buttonLabel, boldPhrases, confirm
   if (boldPhrases && boldPhrases.length > 0) {
     // Longest first, so when one phrase contains another the longer
     // match wins whole rather than being chopped up by the shorter.
+    // Matching is deliberately TOLERANT rather than character-exact,
+    // because the description line inside a Service body template is
+    // hand-typed and can differ invisibly from the scan's description
+    // (confirmed live on Box 663): runs of whitespace match any
+    // whitespace (including non-breaking spaces), any dash variant
+    // (hyphen, en dash, em dash) matches any other, and case is
+    // ignored. The MATCHED text is what gets wrapped, so the email
+    // keeps the template's own spelling - only the boldness is added.
+    const escapeForRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const phrases = boldPhrases
       .map(p => escapeEmailHtml(p))
       .filter(p => p)
       .sort((a, b) => b.length - a.length);
     phrases.forEach(p => {
-      html = html.split(p).join('<strong>' + p + '</strong>');
+      const pattern = escapeForRegex(p)
+        .replace(/[-\u2010-\u2015]/g, '[-\\u2010-\\u2015]')
+        .replace(/(\s|\u00A0)+/g, '[\\s\\u00A0]+');
+      try {
+        html = html.replace(new RegExp(pattern, 'gi'), function (m) {
+          return '<strong>' + m + '</strong>';
+        });
+      } catch (e) { /* a phrase that somehow breaks regex just goes unbolded */ }
     });
   }
   return '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#333333;line-height:1.5;">' +
