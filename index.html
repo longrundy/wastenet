@@ -1694,6 +1694,10 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
   const [emailCategory, setEmailCategory] = React.useState(() =>
     portalServiced ? firstNonServiceCategory(emailTemplates) : 'Service'
   );
+  // Freeform draft for the 'Blank' email type - typed subject + body,
+  // no template. Naturally fresh each time the panel opens.
+  const [customSubject, setCustomSubject] = React.useState('');
+  const [customBody, setCustomBody] = React.useState('');
   React.useEffect(() => { setSendState('idle'); setSendError(null); }, [emailCategory]);
   // Per-person WasteNet Staff selection - same behavior as the detail
   // panel's: each address is its own checkbox, NONE checked by default
@@ -1780,14 +1784,18 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
   // second - and when Service isn't offered (portal haulers), Notice
   // leads.
   const BATCH_PILL_LABELS = (portalServiced
-    ? ['Notice', 'Emptied', 'Missed', 'Premature', 'Problem', 'Repair', 'Usage', 'Weights']
-    : ['Service', 'Notice', 'Emptied', 'Missed', 'Premature', 'Problem', 'Repair', 'Usage', 'Weights']);
+    ? ['Notice', 'Emptied', 'Missed', 'Premature', 'Problem', 'Repair', 'Usage', 'Weights', 'Blank']
+    : ['Service', 'Notice', 'Emptied', 'Missed', 'Premature', 'Problem', 'Repair', 'Usage', 'Weights', 'Blank']);
   const getBatchTemplateFor = (label) => {
     if (label === 'Service') return (emailTemplates || {})['Batch'] || { subjectTemplate: '', bodyTemplate: '' };
     return (emailTemplates || {})[label] || { subjectTemplate: '', bodyTemplate: '' };
   };
   const batchTemplate = getBatchTemplateFor(emailCategory);
-  const hasTemplate = !!(batchTemplate.subjectTemplate || batchTemplate.bodyTemplate);
+  // 'Blank' never has (or needs) a template - composed entirely from
+  // the typed fields below.
+  const hasTemplate = emailCategory === 'Blank'
+    ? true
+    : !!(batchTemplate.subjectTemplate || batchTemplate.bodyTemplate);
 
   const dateStr = formatDateInputValue(puDateInput);
   const boxListText = boxes.map(b => b.description).join('\n');
@@ -1811,6 +1819,15 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
     finalBody += (emailCategory === 'Service'
       ? '\n\nPlease empty & return the following compactor(s):\n\n'
       : '\n\nThe following compactor(s) are covered by this email:\n\n') + boxListText;
+  }
+
+  // 'Blank' is exactly what it says: the typed subject and body, with
+  // NOTHING auto-appended - not even the box list. If the boxes should
+  // be named, type them (or use any other category, which appends the
+  // list automatically).
+  if (emailCategory === 'Blank') {
+    finalSubject = customSubject;
+    finalBody = customBody;
   }
 
   // Confirm-all link: one link carrying EVERY included Box ID
@@ -2197,7 +2214,7 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
             {BATCH_PILL_LABELS.map(label => {
               const isActive = emailCategory === label;
               const tpl = getBatchTemplateFor(label);
-              const templateExists = !!(tpl.subjectTemplate || tpl.bodyTemplate);
+              const templateExists = label === 'Blank' ? true : !!(tpl.subjectTemplate || tpl.bodyTemplate);
               return (
                 <button
                   key={label}
@@ -2217,6 +2234,44 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
               );
             })}
           </div>
+
+          {/* Blank draft fields - freeform subject and body typed
+              right here; the existing Proof Batch Email button below
+              picks them up like any other category's content. */}
+          {emailCategory === 'Blank' && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: BRAND.ink, marginBottom: 4 }}>Subject</div>
+              <input
+                value={customSubject}
+                onChange={e => setCustomSubject(e.target.value)}
+                placeholder="Type the subject line…"
+                style={{
+                  width: '100%', boxSizing: 'border-box', padding: '8px 12px',
+                  borderRadius: 5, border: '1px solid #E2E6DE',
+                  background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                  color: BRAND.ink, fontSize: 13, fontFamily: font, marginBottom: 10,
+                }}
+              />
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: BRAND.ink, marginBottom: 4 }}>Body</div>
+              <textarea
+                value={customBody}
+                onChange={e => setCustomBody(e.target.value)}
+                placeholder="Type the email body…"
+                style={{
+                  width: '100%', boxSizing: 'border-box', padding: '8px 12px',
+                  borderRadius: 5, border: '1px solid #E2E6DE',
+                  background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                  color: BRAND.ink, fontSize: 13, fontFamily: font,
+                  minHeight: 140, resize: 'vertical', lineHeight: 1.5,
+                }}
+              />
+              {(!customSubject || !customBody) && effectiveTo && (
+                <div style={{ fontSize: 11.5, color: BRAND.muted, fontStyle: 'italic', marginTop: 6 }}>
+                  A subject and body are both needed before proofing.
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Proof machinery lives INSIDE the Email Recipients card,
               directly under the staff checkboxes, per explicit design
@@ -2834,6 +2889,15 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
     }
   }, [box.boxId, portalServiced]);
 
+  // Freeform draft for the 'Blank' email type - no sheet, no template,
+  // just a subject line and body typed on the spot. Reset when a
+  // different box is opened; deliberately KEPT when switching pills
+  // back and forth so a half-written draft survives a peek at another
+  // category.
+  const [customSubject, setCustomSubject] = React.useState('');
+  const [customBody, setCustomBody] = React.useState('');
+  React.useEffect(() => { setCustomSubject(''); setCustomBody(''); }, [box.boxId]);
+
   // Send flow state - idle | preview | sending | sent | error (see
   // EmailSendBlock). Lives HERE at the top of DetailPanel (not inside
   // the email-section render block below) because React hooks aren't
@@ -3319,8 +3383,8 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
           // Notice second - and when Service isn't offered (portal
           // haulers), Notice leads.
           const PILL_LABELS = (portalServiced
-            ? ['Notice', 'Emptied', 'Missed', 'Premature', 'Problem', 'Repair', 'Usage', 'Weights']
-            : ['Service', 'Notice', 'Emptied', 'Missed', 'Premature', 'Problem', 'Repair', 'Usage', 'Weights']);
+            ? ['Notice', 'Emptied', 'Missed', 'Premature', 'Problem', 'Repair', 'Usage', 'Weights', 'Blank']
+            : ['Service', 'Notice', 'Emptied', 'Missed', 'Premature', 'Problem', 'Repair', 'Usage', 'Weights', 'Blank']);
           const getTemplateFor = (label) => {
             if (label === 'Service') {
               return { subjectTemplate: c.subjectTemplate || '', bodyTemplate: c.bodyTemplate || '' };
@@ -3329,7 +3393,11 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
           };
 
           const activeTemplate = getTemplateFor(emailCategory);
-          const hasActiveTemplate = !!(activeTemplate.subjectTemplate || activeTemplate.bodyTemplate);
+          // 'Blank' never has (or needs) a template - it's always
+          // available, composed entirely from the typed fields below.
+          const hasActiveTemplate = emailCategory === 'Blank'
+            ? true
+            : !!(activeTemplate.subjectTemplate || activeTemplate.bodyTemplate);
 
           const filled = fillEmailTemplate(activeTemplate.subjectTemplate, activeTemplate.bodyTemplate, puDateInput);
 
@@ -3362,6 +3430,10 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
           const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
           let finalSubject = filled.subject;
           let finalBody = filled.body;
+          if (emailCategory === 'Blank') {
+            finalSubject = customSubject;
+            finalBody = customBody;
+          }
           if (emailCategory === 'Weights') {
             const monthsStr = MONTH_NAMES.filter(m => selectedMonths.includes(m)).join(', ');
             if (monthsStr) {
@@ -3587,14 +3659,18 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
                 {PILL_LABELS.map(label => {
                   const isActive = emailCategory === label;
-                  const templateExists = !!(getTemplateFor(label).subjectTemplate || getTemplateFor(label).bodyTemplate);
+                  const isBlank = label === 'Blank';
+                  const templateExists = isBlank ? true : !!(getTemplateFor(label).subjectTemplate || getTemplateFor(label).bodyTemplate);
                   const menuOpen = emailMenuFor === label;
                   return (
                     <div key={label} style={{ position: 'relative' }}>
                       <button
                         onClick={() => {
                           setEmailCategory(label);
-                          setEmailMenuFor(menuOpen ? null : label);
+                          // Blank has no Proof dropdown - its draft
+                          // fields (with their own Proof button)
+                          // appear below instead.
+                          setEmailMenuFor(isBlank ? null : (menuOpen ? null : label));
                         }}
                         disabled={!templateExists}
                         title={templateExists ? '' : 'No template set up for this category yet'}
@@ -3614,7 +3690,7 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                           cursor: templateExists ? 'pointer' : 'not-allowed', fontFamily: font,
                           opacity: templateExists ? 1 : 0.6,
                         }}
-                      >{label}{isActive ? ' ▾' : ''}</button>
+                      >{label}{isActive && !isBlank ? ' ▾' : ''}</button>
                       {menuOpen && (
                         <React.Fragment>
                           {/* Invisible full-screen backdrop - a click
@@ -3760,6 +3836,57 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                       border: '1px solid #E8D9A8', borderRadius: 5, color: '#7A5E1E',
                       fontSize: 12, fontWeight: 600,
                     }}>No months selected yet - the email's [months] spot will be left for you to fill in manually.</div>
+                  )}
+                </div>
+              )}
+
+              {/* Blank draft fields - freeform subject and body typed
+                  right here, per explicit design decision, with their
+                  own Proof Email button (Blank has no pill dropdown).
+                  The proof sheet and send flow beyond this point are
+                  identical to every other category. */}
+              {emailCategory === 'Blank' && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: BRAND.ink, marginBottom: 4 }}>Subject</div>
+                  <input
+                    value={customSubject}
+                    onChange={e => setCustomSubject(e.target.value)}
+                    placeholder="Type the subject line…"
+                    style={{
+                      width: '100%', boxSizing: 'border-box', padding: '8px 12px',
+                      borderRadius: 5, border: '1px solid #E2E6DE',
+                      background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                      color: BRAND.ink, fontSize: 13, fontFamily: font, marginBottom: 10,
+                    }}
+                  />
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: BRAND.ink, marginBottom: 4 }}>Body</div>
+                  <textarea
+                    value={customBody}
+                    onChange={e => setCustomBody(e.target.value)}
+                    placeholder="Type the email body…"
+                    style={{
+                      width: '100%', boxSizing: 'border-box', padding: '8px 12px',
+                      borderRadius: 5, border: '1px solid #E2E6DE',
+                      background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                      color: BRAND.ink, fontSize: 13, fontFamily: font,
+                      minHeight: 140, resize: 'vertical', lineHeight: 1.5, marginBottom: 10,
+                    }}
+                  />
+                  <button
+                    onClick={() => canSend && setSendState('preview')}
+                    disabled={!canSend}
+                    style={{
+                      display: 'block', width: '100%', padding: '10px', textAlign: 'center',
+                      borderRadius: 6, fontSize: 14, fontWeight: 700, fontFamily: font,
+                      border: '1px solid #E2E6DE', cursor: canSend ? 'pointer' : 'not-allowed',
+                      background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                      color: canSend ? '#7CB84E' : '#C7CCC2',
+                    }}
+                  >Proof Email</button>
+                  {(!customSubject || !customBody) && effectiveTo && (
+                    <div style={{ fontSize: 11.5, color: BRAND.muted, fontStyle: 'italic', marginTop: 6 }}>
+                      A subject and body are both needed before proofing.
+                    </div>
                   )}
                 </div>
               )}
