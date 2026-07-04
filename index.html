@@ -1162,25 +1162,22 @@ function WasteNetDashboard() {
     <div style={{
       fontFamily: font, background: BRAND.paper, color: BRAND.ink, height: '100vh',
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      padding: '10px 16px 16px', boxSizing: 'border-box',
     }}>
-      {/* Frozen top section: title bar, stat/filter buttons, and search - stays
-          visible while the box list below scrolls. */}
-      {/* The 12px BOTTOM padding here is what keeps a paper-colored
-          gap under the top card at all times - without it, scrolling
-          content slid flush against the card's bottom edge. The list
-          area below compensates with a smaller top padding so the
-          at-rest spacing stays the same. */}
-      <div style={{ flexShrink: 0, position: 'sticky', top: 0, zIndex: 10, background: BRAND.paper, padding: '10px 16px 12px' }}>
-      {/* Everything above the box list - logo, title, date dropdown,
-          the three view buttons, and the search/sort row - lives in
-          ONE white card with the standard drop shadow, per explicit
-          design decision: the page is two cards, this one and the box
-          list below it. */}
+      {/* ONE page card, per explicit design decision (replacing the
+          earlier two-card split, whose scroll behavior read oddly):
+          the header/stats/search section is the card's fixed top, and
+          the box list scrolls INSIDE the card beneath it, sliding
+          under the generous white breathing room below the search
+          row rather than under a card edge. */}
       <div style={{
-        maxWidth: 760, margin: '0 auto', background: '#FFFFFF',
-        border: '1px solid #E2E6DE', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
-        borderRadius: 12, overflow: 'visible',
+        maxWidth: 760, width: '100%', margin: '0 auto', flex: 1, minHeight: 0,
+        display: 'flex', flexDirection: 'column',
+        background: '#FFFFFF', border: '1px solid #E2E6DE',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.15)', borderRadius: 12, overflow: 'hidden',
       }}>
+      {/* Fixed (non-scrolling) top of the card. */}
+      <div style={{ flexShrink: 0 }}>
       {/* Header */}
       <header style={{
         padding: '12px 24px 4px',
@@ -1346,7 +1343,7 @@ function WasteNetDashboard() {
 
       {/* Filters */}
       <div style={{
-        display: 'flex', gap: 10, padding: '4px 24px 12px',
+        display: 'flex', gap: 10, padding: '4px 24px 24px',
         flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
       }}>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', width: '100%', maxWidth: 720 }}>
@@ -1383,18 +1380,11 @@ function WasteNetDashboard() {
         </div>
       </div>
       </div>
-      </div>
 
       {/* Main content - this is the part that scrolls; everything above
           (title bar, stat/filter buttons, search) stays pinned in view. */}
-      <div style={{ flex: 1, padding: '2px 16px 20px', overflowY: 'auto' }}>
-        {/* Second of the page's two cards - the entire box list lives
-            inside it. */}
-        <div style={{
-          maxWidth: 760, margin: '0 auto', background: '#FFFFFF',
-          border: '1px solid #E2E6DE', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
-          borderRadius: 12, padding: 14,
-        }}>
+      <div style={{ flex: 1, padding: '2px 14px 16px', overflowY: 'auto' }}>
+        <div style={{ margin: '0 auto' }}>
           {fetchState === 'loading' && rows.length === 0 && (
             <div style={{ textAlign: 'center', padding: '80px 20px', color: BRAND.muted, fontFamily: font }}>
               Loading live data from the sheet…
@@ -1458,6 +1448,7 @@ function WasteNetDashboard() {
           boxShadow: '0 8px 24px rgba(0,0,0,0.25)', zIndex: 100, maxWidth: '80vw',
         }}>{toast}</div>
       )}
+      </div>
     </div>
   );
 }
