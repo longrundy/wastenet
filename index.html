@@ -371,22 +371,23 @@ function buildEmailHtml(plainBody, confirmUrl, buttonLabel, boldPhrases, confirm
       'font-size:15px;font-weight:bold;color:#FFFFFF;text-decoration:none;">' +
       escapeEmailHtml(buttonLabel || 'Confirm') + '</a>' +
       '</td></tr></table>';
-    const fallback =
-      '<span style="font-size:12px;color:#777777;">If the button does not work, copy and paste this link into your browser:<br>' +
-      '<a href="' + escapedUrl + '" target="_blank" rel="noopener" style="color:#5CAA16;word-break:break-all;">' + escapedUrl + '</a></span>';
+    // NOTE: no copy-this-link fallback note under the button - removed
+    // per explicit request. The plain-text version still carries the
+    // raw URL (it has no button, so the link IS its mechanism), and
+    // the button anchor itself is a real link a recipient can
+    // right-click-copy if they ever need the address.
 
     const escapedPlainSentence = confirmSentencePlain ? escapeEmailHtml(confirmSentencePlain) : '';
     const combined = escapedPlainSentence ? escapedUrl + '<br>' + escapedPlainSentence : '';
     if (combined && html.indexOf(combined) !== -1) {
       const block = button +
-        escapeEmailHtml(confirmSentenceHtml || confirmSentencePlain) +
-        '<br><br>' + fallback;
+        escapeEmailHtml(confirmSentenceHtml || confirmSentencePlain);
       html = html.replace(combined, block);
     } else {
       // The plain body contains the URL exactly once (either at the
       // template's [confirm link] spot or in the appended standard
-      // paragraph) - swap that occurrence for the button block.
-      html = html.replace(escapedUrl, button + fallback);
+      // paragraph) - swap that occurrence for the button.
+      html = html.replace(escapedUrl, button);
     }
   }
   if (boldPhrases && boldPhrases.length > 0) {
@@ -428,6 +429,19 @@ function countRecipients(str) {
   return String(str || '').split(/[;,]/).map(s => s.trim()).filter(s => s).length;
 }
 
+// The MOVE button's three destinations: [view key, sheet value, label].
+// The sheet value is what update_box writes into the View Override
+// column; normalizeRow maps it back onto crossedStatus/staleStatus.
+const MOVE_TARGETS = [
+  ['crossed', 'ACTION NEEDED', 'Action Needed'],
+  ['clear', 'NO ACTION NEEDED', 'No Action Needed'],
+  ['stale', 'STALE SCANS', 'Stale Scans'],
+];
+function viewOverrideLabel(value) {
+  const hit = MOVE_TARGETS.find(t => t[1] === String(value || '').toUpperCase());
+  return hit ? hit[2] : String(value || '');
+}
+
 function normalizeRow(raw, idx) {
   const maxPct = parseNum(raw['Max Pct']);
   const t1 = parseNum(raw['Trigr1 Pct']);
@@ -465,6 +479,19 @@ function normalizeRow(raw, idx) {
   const forcedStale = /YES \(forced\)/i.test(notes) || (hours !== null && hours > 24);
   const stale = forcedStale && !forcedSrvc ? 'stale' : 'fresh';
 
+  // Manual MOVE override - the 'View Override' column (S), written by
+  // the dashboard's MOVE button via update_box. When present, it
+  // TRUMPS every computed classification above (including FORCE SRVC),
+  // pinning the box to the chosen page for THIS tab only - daily tabs
+  // are created fresh by each scan, so the scanner's own judgment
+  // naturally takes over again the next morning.
+  const viewOverride = String(raw['View Override'] || '').toUpperCase().trim();
+  let crossedStatus = crossed;
+  let staleStatus = stale;
+  if (viewOverride === 'ACTION NEEDED') { crossedStatus = 'crossed'; staleStatus = 'fresh'; }
+  else if (viewOverride === 'NO ACTION NEEDED') { crossedStatus = 'clear'; staleStatus = 'fresh'; }
+  else if (viewOverride === 'STALE SCANS') { crossedStatus = 'clear'; staleStatus = 'stale'; }
+
   // Matches the Tampermonkey scanner's own isInactiveBoxDescription()
   // rule exactly: a description starting with X, Y, or Z (case
   // insensitive) marks a box as inactive/not scanned. Kept in sync with
@@ -487,9 +514,10 @@ function normalizeRow(raw, idx) {
     triggerUsedLabel: raw['Trigr Used'] || '—',
     activeTrigger: activeTrigger,
     maxPct: maxPct,
-    crossedStatus: crossed,
+    crossedStatus: crossedStatus,
     crossedTrigrRaw: crossedRaw,
-    staleStatus: stale,
+    staleStatus: staleStatus,
+    viewOverride: viewOverride,
     staleHours: hours,
     srvcNeed: srvcNeedRaw,
     notes: notes,
@@ -658,6 +686,11 @@ function WasteNetDashboard() {
   const handleSelectSignalFilter = (key) => {
     if (key === 'crossed') {
       setSortBy('haulCode');
+    } else if (key === 'stale') {
+      // Stale Scans defaults to Least Hours per explicit design
+      // decision - the least-stale boxes are the ones most likely to
+      // just need a nudge, so they lead the list.
+      setSortBy('hoursAsc');
     } else {
       const validOptions = (SORT_OPTIONS_BY_VIEW[key] || []).map(([val]) => val);
       if (!validOptions.includes(sortBy)) {
@@ -1332,6 +1365,7 @@ function WasteNetDashboard() {
               masterContacts={masterContacts}
               onSaveConfirmed={saveBoxFields}
               showConfirmPill={signalFilter === 'crossed'}
+              onMoveBox={saveBoxFields}
               onForceService={saveBoxFields}
               showForcePill={signalFilter === 'stale' || signalFilter === 'clear'}
               activeView={signalFilter}
@@ -2016,7 +2050,7 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
   );
 }
 
-function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfirmPill, onForceService, showForcePill, activeView, sortBy, onOpenBatch, monoFont, font }) {
+function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfirmPill, onMoveBox, onForceService, showForcePill, activeView, sortBy, onOpenBatch, monoFont, font }) {
   // Batch grouping is active only on the Action Needed view while
   // sorted by Hauler - the exact combination where "everything this
   // hauler needs, as one email" is the task at hand. Rows get an
@@ -2055,6 +2089,28 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
   // and shows up under Action Needed instead - no manual list surgery
   // needed here, the normal filter logic does it.
   const [forceSaves, setForceSaves] = React.useState({});
+
+  // MOVE button state: which row's move menu is open (one at a time),
+  // and per-row save tracking, same pattern as confirmSaves/forceSaves.
+  // A successful move writes the View Override column and re-fetches
+  // the tab, at which point the box naturally disappears from THIS
+  // page and shows up on the chosen one - no manual list surgery.
+  const [moveMenuBoxId, setMoveMenuBoxId] = React.useState(null);
+  const [moveSaves, setMoveSaves] = React.useState({});
+  const handleMoveBox = async (b, overrideValue) => {
+    if (moveSaves[b.boxId] === 'saving') return;
+    setMoveMenuBoxId(null);
+    setMoveSaves(prev => ({ ...prev, [b.boxId]: 'saving' }));
+    try {
+      await onMoveBox(b.boxId, { viewOverride: overrideValue });
+      setMoveSaves(prev => { const copy = { ...prev }; delete copy[b.boxId]; return copy; });
+    } catch (err) {
+      setMoveSaves(prev => ({ ...prev, [b.boxId]: 'error' }));
+      setTimeout(() => {
+        setMoveSaves(prev => { const copy = { ...prev }; if (copy[b.boxId] === 'error') delete copy[b.boxId]; return copy; });
+      }, 3500);
+    }
+  };
 
   const handleForceService = async (b) => {
     if (forceSaves[b.boxId] === 'saving') return;
@@ -2156,11 +2212,75 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
             </label>
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontFamily: monoFont, fontSize: 15, color: BRAND.ink, fontWeight: 400 }}>
-                Box ID {b.boxId}{b.isInactive && <span style={{ fontWeight: 400, color: BRAND.muted }}> (Inactive Box)</span>}
-              </span>
-              <span style={{ fontWeight: 700, fontSize: 14.5, fontFamily: font, color: BRAND.green }}>{b.description}</span>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
+                <span style={{ fontFamily: monoFont, fontSize: 15, color: BRAND.ink, fontWeight: 400 }}>
+                  Box ID {b.boxId}{b.isInactive && <span style={{ fontWeight: 400, color: BRAND.muted }}> (Inactive Box)</span>}
+                </span>
+                <span style={{ fontWeight: 700, fontSize: 14.5, fontFamily: font, color: BRAND.green }}>{b.description}</span>
+              </div>
+              {/* MOVE button - white with a soft drop shadow and soft
+                  green label, top-right of every card on all three
+                  pages, per explicit design decision. Opens a small
+                  dropdown of the three pages (current one disabled);
+                  choosing one writes the View Override column via
+                  update_box and the box hops pages on the refresh.
+                  stopPropagation on the wrapper keeps every click in
+                  here from also opening the detail panel. */}
+              <div onClick={e => e.stopPropagation()} style={{ position: 'relative', flexShrink: 0 }}>
+                <button
+                  onClick={() => setMoveMenuBoxId(moveMenuBoxId === b.boxId ? null : b.boxId)}
+                  disabled={moveSaves[b.boxId] === 'saving'}
+                  style={{
+                    background: '#FFFFFF',
+                    color: moveSaves[b.boxId] === 'error' ? BRAND.red : '#7CB84E',
+                    border: '1px solid #E2E6DE', borderRadius: 5, padding: '4px 12px',
+                    fontSize: 10.5, fontWeight: 700, fontFamily: monoFont, letterSpacing: '0.03em',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                    cursor: moveSaves[b.boxId] === 'saving' ? 'default' : 'pointer',
+                    opacity: moveSaves[b.boxId] === 'saving' ? 0.6 : 1,
+                    whiteSpace: 'nowrap',
+                  }}
+                >{moveSaves[b.boxId] === 'saving' ? 'MOVING…' : moveSaves[b.boxId] === 'error' ? 'MOVE FAILED' : 'MOVE'}</button>
+                {moveMenuBoxId === b.boxId && (
+                  <React.Fragment>
+                    {/* Invisible full-screen backdrop - a click
+                        anywhere outside the menu closes it. */}
+                    <div
+                      onClick={() => setMoveMenuBoxId(null)}
+                      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 60 }}
+                    />
+                    <div style={{
+                      position: 'absolute', right: 0, top: 'calc(100% + 4px)', zIndex: 61,
+                      background: '#FFFFFF', border: '1px solid ' + BRAND.line, borderRadius: 6,
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.18)', minWidth: 190, overflow: 'hidden',
+                    }}>
+                      <div style={{
+                        padding: '6px 12px', fontSize: 10, fontWeight: 700, color: BRAND.muted,
+                        textTransform: 'uppercase', letterSpacing: '0.04em',
+                        borderBottom: '1px solid ' + BRAND.line, fontFamily: monoFont,
+                      }}>Move to…</div>
+                      {MOVE_TARGETS.map(([viewKey, overrideValue, label]) => {
+                        const isCurrent = viewKey === activeView;
+                        return (
+                          <button
+                            key={viewKey}
+                            disabled={isCurrent}
+                            onClick={() => handleMoveBox(b, overrideValue)}
+                            style={{
+                              display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px',
+                              fontSize: 12.5, fontWeight: 600, fontFamily: font, border: 'none',
+                              background: 'transparent',
+                              color: isCurrent ? BRAND.muted : BRAND.ink,
+                              cursor: isCurrent ? 'default' : 'pointer',
+                            }}
+                          >{label}{isCurrent ? ' (current page)' : ''}</button>
+                        );
+                      })}
+                    </div>
+                  </React.Fragment>
+                )}
+              </div>
             </div>
             <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
               {b.crossedStatus === 'crossed' && b.staleStatus !== 'stale' && <StatusPill meta={FILL_STATUS_META} statusKey="crossed" />}
@@ -2230,6 +2350,12 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                     onClick={e => e.stopPropagation()}
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 5,
+                      // marginLeft auto pushes this pill to the FAR
+                      // RIGHT of the pill row (flexbox), so CONF'D
+                      // checkboxes line up vertically down the whole
+                      // list for fast one-column check-off - per
+                      // explicit design decision.
+                      marginLeft: 'auto',
                       fontSize: 10.5, fontWeight: 700, fontFamily: monoFont,
                       color: isError ? '#FFFFFF' : '#1B4E79',
                       background: isError ? BRAND.red : '#DCEEF9',
@@ -2699,6 +2825,20 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
             <StatusPill meta={STALE_STATUS_META} statusKey={box.staleStatus} />
           </div>
         </div>
+
+        {/* Manual-move note - shown only when this box's page placement
+            came from the MOVE button rather than the scanner's own
+            classification, so nobody wonders why a box is sitting on a
+            page its numbers don't seem to justify. */}
+        {box.viewOverride && (
+          <div style={{
+            marginBottom: 14, padding: '7px 12px', background: 'rgba(230,195,0,0.10)',
+            border: '1px solid rgba(180,150,0,0.35)', borderRadius: 5,
+            fontSize: 12, fontWeight: 600, color: '#8A6D00',
+          }}>
+            This box is on the {viewOverrideLabel(box.viewOverride)} page because it was manually moved there. The scanner's own classification applies again on the next scan.
+          </div>
+        )}
 
         {box.notes && (() => {
           // The notes banner doubles as the "confirmed" banner once a
