@@ -1994,7 +1994,7 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
               body={finalBody}
               htmlBody={htmlBody}
               canSend={canSend}
-              noRecipientHint="No To recipient yet - set Haulers, Customers, or Staff to To before sending."
+              noRecipientHint="There must be a recipient selected for the To: line to generate a proof email."
               sendState={sendState}
               sendError={sendError}
               onArm={() => setSendState('preview')}
@@ -3340,7 +3340,7 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                   body={finalBody}
                   htmlBody={htmlBody}
                   canSend={canSend}
-                  noRecipientHint="No To recipient yet - set at least one group (Haulers, Customers, or Staff) to To before sending."
+                  noRecipientHint="There must be a recipient selected for the To: line to generate a proof email."
                   sendState={sendState}
                   sendError={sendError}
                   onArm={() => setSendState('preview')}
