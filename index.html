@@ -97,7 +97,10 @@ const BRAND = {
 };
 
 const FILL_STATUS_META = {
-  crossed: { label: 'TRIGR HIT', color: BRAND.red, bg: 'rgba(179,64,43,0.08)', ring: 'rgba(179,64,43,0.3)' },
+  // TRIGR HIT restyled to the white-with-drop-shadow pill look (the
+  // MOVE button's style, adopted per explicit design decision) - text
+  // stays red; only the pill surface changed.
+  crossed: { label: 'TRIGR HIT', color: BRAND.red, bg: '#FFFFFF', ring: '#E2E6DE', shadow: true },
   clear: { label: 'NO SERVICE NEEDED', color: BRAND.green, bg: 'rgba(92,170,22,0.08)', ring: 'rgba(92,170,22,0.3)' },
   unknown: { label: 'NO READING', color: BRAND.muted, bg: 'rgba(107,114,104,0.08)', ring: 'rgba(107,114,104,0.25)' },
 };
@@ -464,13 +467,12 @@ function normalizeRow(raw, idx) {
   // in the detail panel, but no longer drives the action-needed status.
   const crossedRaw = String(raw['Crossed Trigr'] || '').toUpperCase().trim();
   const srvcNeedRaw = String(raw['Srvc Need'] || '').toUpperCase().trim();
-  // "YES (FORCED)" is written by the dashboard's FORCE SRVC button
-  // (list view, Stale Scans / No Action Needed pages) - a manual
-  // override saying "I've looked at this box and it needs service."
-  // It counts as YES here, and additionally overrides staleness below
-  // (per explicit design decision, option 1): a force always pulls
-  // the box into Action Needed, even if its scan is stale, since the
-  // whole point of forcing is putting it in the work queue.
+  // "YES (FORCED)" was written by the old FORCE SRVC button, which
+  // was REMOVED once the MOVE button replaced it (per explicit design
+  // decision) - but values already written to past tabs still exist,
+  // so this handling stays: a forced value counts as YES and
+  // overrides staleness, same as it always did. New manual page
+  // placement goes through the View Override column instead.
   const forcedSrvc = srvcNeedRaw.indexOf('FORCED') !== -1;
   const crossed = srvcNeedRaw.indexOf('YES') === 0 ? 'crossed' : srvcNeedRaw.indexOf('NO') === 0 ? 'clear' : 'unknown';
 
@@ -539,6 +541,7 @@ function StatusPill({ meta, statusKey }) {
       display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px',
       borderRadius: 3, fontSize: 10.5, fontWeight: 700, letterSpacing: 'normal',
       color: m.color, background: m.bg, border: '1px solid ' + m.ring, whiteSpace: 'nowrap',
+      boxShadow: m.shadow ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
       fontFamily: "Arial, Helvetica, sans-serif",
     }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: m.color, boxShadow: '0 0 6px ' + m.color }} />
@@ -1366,8 +1369,6 @@ function WasteNetDashboard() {
               onSaveConfirmed={saveBoxFields}
               showConfirmPill={signalFilter === 'crossed'}
               onMoveBox={saveBoxFields}
-              onForceService={saveBoxFields}
-              showForcePill={signalFilter === 'stale' || signalFilter === 'clear'}
               activeView={signalFilter}
               sortBy={sortBy}
               onOpenBatch={(haulCode, batchBoxes) => setBatchTarget({ haulCode, boxes: batchBoxes })}
@@ -2050,7 +2051,7 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
   );
 }
 
-function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfirmPill, onMoveBox, onForceService, showForcePill, activeView, sortBy, onOpenBatch, monoFont, font }) {
+function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfirmPill, onMoveBox, activeView, sortBy, onOpenBatch, monoFont, font }) {
   // Batch grouping is active only on the Action Needed view while
   // sorted by Hauler - the exact combination where "everything this
   // hauler needs, as one email" is the task at hand. Rows get an
@@ -2082,16 +2083,8 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
   // checked box that didn't actually make it into the Sheet.
   const [confirmSaves, setConfirmSaves] = React.useState({});
 
-  // Same per-row save-tracking pattern for the FORCE SRVC buttons
-  // (Stale Scans / No Action Needed views). A successful force writes
-  // "YES (FORCED)" into the box's Srvc Need cell and re-fetches the
-  // tab, at which point the box naturally disappears from THIS list
-  // and shows up under Action Needed instead - no manual list surgery
-  // needed here, the normal filter logic does it.
-  const [forceSaves, setForceSaves] = React.useState({});
-
   // MOVE button state: which row's move menu is open (one at a time),
-  // and per-row save tracking, same pattern as confirmSaves/forceSaves.
+  // and per-row save tracking, same pattern as confirmSaves.
   // A successful move writes the View Override column and re-fetches
   // the tab, at which point the box naturally disappears from THIS
   // page and shows up on the chosen one - no manual list surgery.
@@ -2108,20 +2101,6 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
       setMoveSaves(prev => ({ ...prev, [b.boxId]: 'error' }));
       setTimeout(() => {
         setMoveSaves(prev => { const copy = { ...prev }; if (copy[b.boxId] === 'error') delete copy[b.boxId]; return copy; });
-      }, 3500);
-    }
-  };
-
-  const handleForceService = async (b) => {
-    if (forceSaves[b.boxId] === 'saving') return;
-    setForceSaves(prev => ({ ...prev, [b.boxId]: 'saving' }));
-    try {
-      await onForceService(b.boxId, { srvcNeed: 'YES (FORCED)' });
-      setForceSaves(prev => { const copy = { ...prev }; delete copy[b.boxId]; return copy; });
-    } catch (err) {
-      setForceSaves(prev => ({ ...prev, [b.boxId]: 'error' }));
-      setTimeout(() => {
-        setForceSaves(prev => { const copy = { ...prev }; if (copy[b.boxId] === 'error') delete copy[b.boxId]; return copy; });
       }, 3500);
     }
   };
@@ -2298,7 +2277,8 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                 b.staleHours !== null ? (
                   <span style={{
                     fontSize: 10.5, fontWeight: 700, fontFamily: monoFont, color: BRAND.amber,
-                    background: 'rgba(201,122,26,0.08)', border: '1px solid rgba(201,122,26,0.3)',
+                    background: '#FFFFFF', border: '1px solid #E2E6DE',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
                     borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
                   }}>LAST CYCLE: {formatDaysHours(b.staleHours)}</span>
                 ) : (
@@ -2316,7 +2296,8 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
               {activeView === 'crossed' && b.haulCode && b.haulCode !== '—' && (
                 <span style={{
                   fontSize: 10.5, fontWeight: 700, fontFamily: monoFont, color: BRAND.green,
-                  background: 'rgba(92,170,22,0.10)', border: '1px solid rgba(92,170,22,0.3)',
+                  background: '#FFFFFF', border: '1px solid #E2E6DE',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
                   borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
                 }}>HAULER {b.haulCode}</span>
               )}
@@ -2358,8 +2339,9 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                       marginLeft: 'auto',
                       fontSize: 10.5, fontWeight: 700, fontFamily: monoFont,
                       color: isError ? '#FFFFFF' : '#1B4E79',
-                      background: isError ? BRAND.red : '#DCEEF9',
-                      border: '1px solid ' + (isError ? BRAND.red : '#9CC4E0'),
+                      background: isError ? BRAND.red : '#FFFFFF',
+                      border: '1px solid ' + (isError ? BRAND.red : '#E2E6DE'),
+                      boxShadow: isError ? 'none' : '0 1px 3px rgba(0,0,0,0.15)',
                       borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
                       cursor: isSaving ? 'default' : 'pointer', opacity: isSaving ? 0.6 : 1,
                     }}
@@ -2373,34 +2355,6 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                     />
                     {isError ? 'SAVE FAILED' : "CONF'D"}
                   </label>
-                );
-              })()}
-              {/* FORCE SRVC button pill - per explicit design
-                  decision, shown on the Stale Scans and No Action
-                  Needed views only. One tap writes "YES (FORCED)"
-                  into the box's Srvc Need cell on the current tab,
-                  which (via normalizeRow's forcedSrvc handling) moves
-                  the box to the Action Needed page immediately - even
-                  a stale box, since a manual force overrides
-                  staleness (option 1). stopPropagation keeps the tap
-                  from also opening the detail panel. */}
-              {showForcePill && (() => {
-                const state = forceSaves[b.boxId];
-                const isSaving = state === 'saving';
-                const isError = state === 'error';
-                return (
-                  <button
-                    onClick={e => { e.stopPropagation(); handleForceService(b); }}
-                    disabled={isSaving}
-                    style={{
-                      fontSize: 10.5, fontWeight: 700, fontFamily: monoFont,
-                      color: isError ? '#FFFFFF' : BRAND.red,
-                      background: isError ? BRAND.red : 'rgba(179,64,43,0.08)',
-                      border: '1px solid ' + (isError ? BRAND.red : 'rgba(179,64,43,0.3)'),
-                      borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
-                      cursor: isSaving ? 'default' : 'pointer', opacity: isSaving ? 0.6 : 1,
-                    }}
-                  >{isError ? 'SAVE FAILED' : isSaving ? 'SAVING…' : 'FORCE SRVC'}</button>
                 );
               })()}
             </div>
