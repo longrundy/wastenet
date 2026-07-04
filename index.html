@@ -28,7 +28,7 @@
      URL bar collapses on scroll. */
   .modal-overlay { padding: 20px; }
   .modal-panel { width: min(780px, 100%); max-height: 90vh; border-radius: 10px; }
-  .modal-body { padding: 20px; }
+  .modal-body { padding: 20px; background: #FAFBF8; }
   @media (max-width: 640px) {
     .modal-overlay { padding: 0; }
     .modal-panel {
@@ -3252,7 +3252,10 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
           );
 
           return (
-            <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid ' + BRAND.line }}>
+            <div style={{
+              marginTop: 14, background: '#FFFFFF', border: '1px solid #E2E6DE',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.15)', borderRadius: 8, padding: 12,
+            }}>
               <div style={{
                 fontSize: 12, fontWeight: 700, color: BRAND.muted, textTransform: 'uppercase',
                 letterSpacing: '0.03em', marginBottom: 10, fontFamily: monoFont,
@@ -3551,7 +3554,8 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
 
         <div className="detail-info-grid" style={{
           display: 'grid', gap: '8px 16px',
-          padding: '14px 0 0', borderTop: '1px solid ' + BRAND.line, marginTop: 16,
+          marginTop: 14, background: '#FFFFFF', border: '1px solid #E2E6DE',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.15)', borderRadius: 8, padding: 12,
         }}>
           {[
             ['Hauler Code', box.haulCode],
@@ -3572,24 +3576,25 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
 
         {/* Request History - the box's permanent request/confirmation
             trail from the Request Ledger, independent of daily tabs.
-            Per explicit design decision: lives at the VERY BOTTOM of
-            the panel and is styled as a dark, compact "log card" -
-            deliberately unlike every other section - so it reads as a
-            system record rather than another form to work in. Newest
-            first, capped at the 20 most recent events. */}
+            Restyled from the old dark log card to the standard white
+            card with drop shadow, per explicit design decision -
+            the detail panel is now four matching cards: Scheduling,
+            Email, Box Data, Request History. Newest first, capped at
+            the 20 most recent events. */}
         <div style={{
-          marginTop: 18, background: BRAND.dark, borderRadius: 8, padding: '12px 14px',
+          marginTop: 14, background: '#FFFFFF', border: '1px solid #E2E6DE',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.15)', borderRadius: 8, padding: '12px 14px',
         }}>
           <div style={{
-            fontSize: 11, fontWeight: 700, color: BRAND.greenLight, textTransform: 'uppercase',
+            fontSize: 11, fontWeight: 700, color: BRAND.green, textTransform: 'uppercase',
             letterSpacing: '0.05em', marginBottom: 8, fontFamily: monoFont,
           }}>Request History</div>
           {history === null ? (
-            <div style={{ fontSize: 11.5, color: '#9AA39A', fontStyle: 'italic' }}>Loading history…</div>
+            <div style={{ fontSize: 11.5, color: BRAND.muted, fontStyle: 'italic' }}>Loading history…</div>
           ) : historyError ? (
-            <div style={{ fontSize: 11.5, color: '#E8A093' }}>Could not load history: {historyError}</div>
+            <div style={{ fontSize: 11.5, color: BRAND.red }}>Could not load history: {historyError}</div>
           ) : history.length === 0 ? (
-            <div style={{ fontSize: 11.5, color: '#9AA39A' }}>No request history yet for this box.</div>
+            <div style={{ fontSize: 11.5, color: BRAND.muted }}>No request history yet for this box.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               {history.map((e, i) => {
@@ -3598,9 +3603,9 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                   <div key={i} style={{
                     fontSize: 11.5, fontFamily: monoFont, lineHeight: 1.45,
                   }}>
-                    <span style={{ color: BRAND.greenLight }}>{when}</span>
-                    <span style={{ color: '#9AA39A' }}> — </span>
-                    <span style={{ color: '#E8ECE6' }}>{what}</span>
+                    <span style={{ color: BRAND.green, fontWeight: 700 }}>{when}</span>
+                    <span style={{ color: BRAND.muted }}> — </span>
+                    <span style={{ color: BRAND.ink }}>{what}</span>
                   </div>
                 );
               })}
