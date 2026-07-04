@@ -1168,7 +1168,7 @@ function WasteNetDashboard() {
       <div style={{ flexShrink: 0, position: 'sticky', top: 0, zIndex: 10, background: BRAND.paper }}>
       {/* Header */}
       <header style={{
-        borderBottom: '1px solid ' + BRAND.line, padding: '12px 24px',
+        padding: '12px 24px',
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
         background: BRAND.paper, textAlign: 'center',
       }}>
@@ -1189,12 +1189,16 @@ function WasteNetDashboard() {
                   onClick={() => setDateDropdownOpen(o => !o)}
                   style={{
                     padding: '10px 20px', borderRadius: 10,
-                    border: '2px solid ' + BRAND.green, background: 'rgba(92,170,22,0.06)',
+                    border: '1px solid #E2E6DE', background: '#FFFFFF',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
                     color: BRAND.green, fontSize: 26, fontWeight: 800, fontFamily: displayFont,
                     cursor: 'pointer', textAlign: 'center', letterSpacing: '0.01em',
                   }}
                 >
                   {fetchState === 'ok' && sheetName ? formatTabLabel(sheetName) : fetchState === 'loading' ? 'Loading…' : 'Unavailable'}
+                  {/* Caret - the visual cue that this big date is a
+                      dropdown, not just a label. */}
+                  <span style={{ fontSize: 16, marginLeft: 8, verticalAlign: 'middle' }}>▾</span>
                 </button>
                 {dateDropdownOpen && (
                   <div style={{
@@ -1251,7 +1255,7 @@ function WasteNetDashboard() {
 
       {/* Stat strip - each one is also the signal filter control */}
       <div style={{
-        display: 'flex', gap: 8, background: BRAND.paper, borderBottom: '1px solid ' + BRAND.line,
+        display: 'flex', gap: 8, background: BRAND.paper,
         flexWrap: 'wrap', padding: '8px 24px', justifyContent: 'center',
       }}>
         {[
@@ -1266,26 +1270,30 @@ function WasteNetDashboard() {
               onClick={() => handleSelectSignalFilter(s.key)}
               aria-pressed={isActive}
               style={{
+                // White card with the standard drop shadow, per
+                // explicit design decision - the active view shows via
+                // a green border and green label text, not a solid
+                // fill.
                 flex: '1 1 130px', minWidth: 108, maxWidth: 170, padding: '8px 14px', textAlign: 'center',
                 borderRadius: 8, cursor: 'pointer', fontFamily: font,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                border: '1.5px solid ' + (isActive ? BRAND.green : BRAND.line),
-                background: isActive ? BRAND.green : BRAND.panel,
-                boxShadow: isActive ? '0 2px 8px rgba(92,170,22,0.25)' : 'none',
+                border: (isActive ? '1.5px solid ' + BRAND.green : '1px solid #E2E6DE'),
+                background: '#FFFFFF',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
                 transition: 'background 0.15s, border-color 0.15s',
               }}
               onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#F1F4EC'; }}
-              onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = BRAND.panel; }}
+              onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = '#FFFFFF'; }}
             >
               <span style={{
-                fontSize: 19, fontWeight: isActive ? 700 : 600, fontFamily: displayFont,
-                color: isActive ? '#FFFFFF' : BRAND.green, flexShrink: 0,
+                fontSize: 19, fontWeight: 700, fontFamily: displayFont,
+                color: BRAND.green, flexShrink: 0,
               }}>
                 {s.value}
               </span>
               <span style={{
                 fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.03em', fontFamily: monoFont,
-                color: isActive ? '#FFFFFF' : BRAND.muted, fontWeight: isActive ? 700 : 400,
+                color: isActive ? BRAND.green : BRAND.muted, fontWeight: isActive ? 700 : 400,
                 textAlign: 'left', lineHeight: 1.2,
               }}>
                 {s.label}
@@ -1323,8 +1331,8 @@ function WasteNetDashboard() {
 
       {/* Filters */}
       <div style={{
-        display: 'flex', gap: 10, padding: '12px 24px', borderBottom: '1px solid ' + BRAND.line,
-        background: BRAND.panel, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
+        display: 'flex', gap: 10, padding: '4px 24px 12px', background: BRAND.paper,
+        flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
       }}>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', width: '100%', maxWidth: 720 }}>
         <input
@@ -1332,16 +1340,18 @@ function WasteNetDashboard() {
           onChange={e => setQuery(e.target.value)}
           placeholder="Search site, box ID, hauler…"
           style={{
-            flex: '1 1 220px', padding: '8px 12px', borderRadius: 5, border: '1px solid ' + BRAND.line,
-            background: BRAND.paper, color: BRAND.ink, fontSize: 13, fontFamily: font,
+            flex: '1 1 220px', padding: '8px 12px', borderRadius: 5, border: '1px solid #E2E6DE',
+            background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+            color: BRAND.ink, fontSize: 13, fontFamily: font,
           }}
         />
         <select
           value={sortBy}
           onChange={e => setSortBy(e.target.value)}
           style={{
-            padding: '8px 12px', borderRadius: 5, border: '1px solid ' + BRAND.line,
-            background: BRAND.paper, color: BRAND.ink, fontSize: 13, fontFamily: font, cursor: 'pointer',
+            padding: '8px 12px', borderRadius: 5, border: '1px solid #E2E6DE',
+            background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+            color: BRAND.ink, fontSize: 13, fontFamily: font, cursor: 'pointer',
           }}
         >
           {(SORT_OPTIONS_BY_VIEW[signalFilter] || SORT_OPTIONS_BY_VIEW.clear).map(([val, label]) => (
@@ -2207,8 +2217,8 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
         })()}
         <div className="row-hover" onClick={() => onSelect(b)} style={{
           display: 'flex', alignItems: 'center', gap: 16, padding: '14px 16px', cursor: 'pointer',
-          background: BRAND.panel, border: '1px solid ' + BRAND.greenLight, borderRadius: 7,
-          boxShadow: '0 2px 8px rgba(26,29,26,0.12)',
+          background: '#FFFFFF', border: '1px solid #E2E6DE', borderRadius: 7,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
           opacity: batchMode && excludedIds[b.boxId] ? 0.55 : 1,
         }}>
           {/* Include-in-batch checkbox - batch mode only. Checked =
