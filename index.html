@@ -1577,7 +1577,8 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
 
 function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterContacts, emailTemplates, sheetName, monoFont, font }) {
   const [puDateInput, setPuDateInput] = React.useState('');
-  const [haulerPlacement, setHaulerPlacement] = React.useState('to'); // hauler emails default To - emailing the hauler IS this panel's purpose
+  const [haulerPlacement, setHaulerPlacement] = React.useState('off'); // defaults off like every group - placement is a deliberate act, per explicit design decision
+  const [customerPlacement, setCustomerPlacement] = React.useState('off');
   const [staffPlacement, setStaffPlacement] = React.useState('off');
   const [dateSaveState, setDateSaveState] = React.useState('idle'); // idle | saving | saved | error
   const [dateSaveProgress, setDateSaveProgress] = React.useState('');
@@ -1607,7 +1608,10 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
     const out = [];
     boxes.forEach(b => {
       const raw = ((masterContacts || {})[b.boxId] || {})[fieldName] || '';
-      raw.split(';').map(s => s.trim()).filter(s => s).forEach(addr => {
+      // Split on semicolons AND commas - Master Box List cells use
+      // both separators (confirmed live: a comma-separated staff cell
+      // rendered two people as one checkbox until this handled it).
+      raw.split(/[;,]/).map(s => s.trim()).filter(s => s).forEach(addr => {
         const key = addr.toLowerCase();
         if (!seen[key]) { seen[key] = true; out.push(addr); }
       });
@@ -1615,6 +1619,14 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
     return out;
   };
   const haulerEmails = dedupeEmails('toRecipients').join('; ');
+  // Customers: union of every included box's customer contacts,
+  // de-duplicated - offered as a recipient group per explicit request,
+  // REVERSING the earlier exclusion. The privacy tradeoff that
+  // motivated the exclusion still exists (one batch email spans
+  // multiple sites, so every recipient sees the full box list, and
+  // To/Cc recipients see each other's addresses) - hence the visible
+  // note rendered under this group's row below.
+  const customerEmails = dedupeEmails('ccRecipients').join('; ');
   // Staff stays a LIST (not a joined string) - each entry renders as
   // its own checkbox below, and only the checked ones are included.
   const staffList = dedupeEmails('staffRecipients');
@@ -1676,6 +1688,7 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
   const fieldsFor = (placement) => {
     const parts = [];
     if (haulerPlacement === placement && haulerEmails) parts.push(haulerEmails);
+    if (customerPlacement === placement && customerEmails) parts.push(customerEmails);
     if (staffPlacement === placement && checkedStaffStr) parts.push(checkedStaffStr);
     return parts.join('; ');
   };
@@ -1857,6 +1870,18 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
             </div>
             <PlacementSelector value={haulerPlacement} onChange={setHaulerPlacement} />
           </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3, fontWeight: 700, textDecoration: 'underline' }}>Customers:</div>
+              <div style={{ fontSize: 12.5, fontFamily: monoFont, wordBreak: 'break-word', minHeight: 16 }}>{customerEmails}</div>
+              {customerPlacement !== 'off' && customerEmails && (
+                <div style={{ fontSize: 11, color: BRAND.muted, marginTop: 3, fontStyle: 'italic' }}>
+                  Covers customers from ALL {boxes.length} sites in this batch - every recipient sees the full box list.
+                </div>
+              )}
+            </div>
+            <PlacementSelector value={customerPlacement} onChange={setCustomerPlacement} />
+          </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 14 }}>
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3, fontWeight: 700, textDecoration: 'underline' }}>WasteNet Staff:</div>
@@ -1901,7 +1926,7 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
               body={finalBody}
               htmlBody={htmlBody}
               canSend={canSend}
-              noRecipientHint="No To recipient yet - set the Haulers (or Staff) group to To before sending."
+              noRecipientHint="No To recipient yet - set Haulers, Customers, or Staff to To before sending."
               sendState={sendState}
               sendError={sendError}
               onArm={() => setSendState('preview')}
