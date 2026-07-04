@@ -1593,20 +1593,26 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
         onClick={() => canSend && onArm()}
         disabled={!canSend}
         style={{
+          // White with the standard drop shadow, soft green label -
+          // matching the MOVE button family, per explicit design
+          // decision. When proofing isn't possible yet (no To
+          // recipient), the label goes muted and the cursor says so.
           display: 'block', width: '100%', padding: '10px', textAlign: 'center',
           borderRadius: 6, fontSize: 14, fontWeight: 700, fontFamily: font,
-          border: 'none', cursor: canSend ? 'pointer' : 'not-allowed',
-          background: canSend ? BRAND.green : BRAND.muted, color: '#FFFFFF',
+          border: '1px solid #E2E6DE', cursor: canSend ? 'pointer' : 'not-allowed',
+          background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+          color: canSend ? '#7CB84E' : '#C7CCC2',
         }}
       >{sendLabel}</button>
-      {/* Solid red pill, per explicit design decision - a missing To
-          recipient blocks sending entirely, so this reads as a hard
-          stop, not a gentle note. Shared component = identical in the
-          detail panel AND the batch panel. */}
+      {/* White pill with the standard drop shadow and red text, per
+          explicit design decision (replacing the earlier solid-red
+          version). Shared component = identical in the detail panel
+          AND the batch panel. */}
       {!effectiveTo && (
         <div style={{
-          marginTop: 8, padding: '8px 14px', background: BRAND.red,
-          borderRadius: 5, color: '#FFFFFF', textAlign: 'center',
+          marginTop: 8, padding: '8px 14px', background: '#FFFFFF',
+          border: '1px solid #E2E6DE', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+          borderRadius: 5, color: BRAND.red, textAlign: 'center',
           fontSize: 12.5, fontWeight: 700,
         }}>{noRecipientHint}</div>
       )}
@@ -1827,8 +1833,9 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
           onClick={() => onChange(value === val ? 'off' : val)}
           style={{
             fontSize: 11, fontWeight: 600, padding: '4px 9px', borderRadius: 4,
-            border: '1px solid ' + (value === val ? BRAND.green : BRAND.line),
-            background: value === val ? BRAND.green : BRAND.panel,
+            border: '1px solid ' + (value === val ? BRAND.green : '#E2E6DE'),
+            background: value === val ? BRAND.green : '#FFFFFF',
+            boxShadow: value === val ? 'none' : '0 1px 3px rgba(0,0,0,0.15)',
             color: value === val ? '#FFFFFF' : BRAND.muted,
             cursor: 'pointer', fontFamily: monoFont,
           }}
@@ -1900,8 +1907,8 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
                   rather than silently averaged away. */}
               {schedRules.length > 0 && (
                 <div style={{
-                  fontSize: 12, fontFamily: monoFont, fontWeight: 700, color: BRAND.greenDark,
-                  background: 'rgba(92,170,22,0.08)', border: '1px solid ' + BRAND.greenDark,
+                  fontSize: 12, fontFamily: monoFont, fontWeight: 700, color: BRAND.green,
+                  background: 'rgba(92,170,22,0.08)', border: '1px solid ' + BRAND.green,
                   borderRadius: 3, padding: '3px 8px', minWidth: 0,
                 }}>
                   {schedRules.length === 1 ? 'Sched Rule: ' + schedRules[0] : 'Mixed Rules: ' + schedRules.join(' / ')}
@@ -2021,7 +2028,7 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
 
           {hasTemplate ? (
             <EmailSendBlock
-              sendLabel={'Proof Batch Email Draft (' + boxes.length + ' boxes)'}
+              sendLabel={'Proof Batch Email (' + boxes.length + ' boxes)'}
               effectiveTo={effectiveTo}
               effectiveCc={effectiveCc}
               outgoingBcc={outgoingBcc}
@@ -2029,7 +2036,7 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
               body={finalBody}
               htmlBody={htmlBody}
               canSend={canSend}
-              noRecipientHint="There must be a recipient selected for the To: line to generate a proof email."
+              noRecipientHint="To: recipient must be added"
               sendState={sendState}
               sendError={sendError}
               onArm={() => setSendState('preview')}
@@ -2868,8 +2875,8 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                 not incidental reference info. */}
             {contacts && contacts.schedulingRule && (
               <div style={{
-                fontSize: 12, fontFamily: monoFont, fontWeight: 700, color: BRAND.greenDark,
-                background: 'rgba(92,170,22,0.08)', border: '1px solid ' + BRAND.greenDark,
+                fontSize: 12, fontFamily: monoFont, fontWeight: 700, color: BRAND.green,
+                background: 'rgba(92,170,22,0.08)', border: '1px solid ' + BRAND.green,
                 borderRadius: 3, padding: '3px 8px', minWidth: 0,
               }}>
                 Sched Rule: {contacts.schedulingRule}
@@ -3216,8 +3223,9 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                   onClick={() => onChange(value === val ? 'off' : val)}
                   style={{
                     fontSize: 11, fontWeight: 600, padding: '4px 9px', borderRadius: 4,
-                    border: '1px solid ' + (value === val ? BRAND.green : BRAND.line),
-                    background: value === val ? BRAND.green : BRAND.panel,
+                    border: '1px solid ' + (value === val ? BRAND.green : '#E2E6DE'),
+                    background: value === val ? BRAND.green : '#FFFFFF',
+                    boxShadow: value === val ? 'none' : '0 1px 3px rgba(0,0,0,0.15)',
                     color: value === val ? '#FFFFFF' : BRAND.muted,
                     cursor: 'pointer', fontFamily: monoFont,
                   }}
@@ -3441,7 +3449,7 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                   see EmailSendBlock. */}
               {hasActiveTemplate ? (
                 <EmailSendBlock
-                  sendLabel={'Proof ' + emailCategory + ' Email Draft'}
+                  sendLabel={'Proof Email'}
                   effectiveTo={effectiveTo}
                   effectiveCc={effectiveCc}
                   outgoingBcc={outgoingBcc}
@@ -3449,7 +3457,7 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                   body={finalBody}
                   htmlBody={htmlBody}
                   canSend={canSend}
-                  noRecipientHint="There must be a recipient selected for the To: line to generate a proof email."
+                  noRecipientHint="To: recipient must be added"
                   sendState={sendState}
                   sendError={sendError}
                   onArm={() => setSendState('preview')}
