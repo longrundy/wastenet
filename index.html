@@ -74,6 +74,13 @@ const SHEET_URL = 'https://script.google.com/macros/s/AKfycbwc3siwl0OTP2O5WzNZCD
 // explicit design decision.
 const OFFICE_EMAIL = 'office@wastenetinc.com';
 
+// The Service email's confirmation sentence, in its two forms. The
+// HTML version sits BELOW the green button (hence "button above"); the
+// plain-text fallback has no button, so its wording points at the raw
+// link, which sits on the line above it.
+const SERVICE_CONFIRM_SENTENCE_HTML = 'Please confirm this service is scheduled by clicking on the button above. No reply email is necessary.';
+const SERVICE_CONFIRM_SENTENCE_PLAIN = 'Please confirm this service is scheduled using the link above. No reply email is necessary.';
+
 // WasteNet brand palette - sampled directly from the WASTENET logo (#5CAA16)
 const BRAND = {
   green: '#5CAA16',
@@ -338,24 +345,49 @@ function escapeEmailHtml(value) {
 // on the ESCAPED text so phrases containing characters like & still
 // match. Applied AFTER the button insertion so a phrase can never
 // accidentally rewrite part of the button's URL markup.
-function buildEmailHtml(plainBody, confirmUrl, buttonLabel, boldPhrases) {
+// confirmSentencePlain/confirmSentenceHtml (both optional, used
+// together): the plain body's confirm sentence sits on the line AFTER
+// the URL, and when both are provided the whole [URL + sentence]
+// region is rebuilt in the HTML version as: button, then the HTML
+// sentence ("...clicking on the button ABOVE...") below it, then a
+// blank line, then the small fallback-link note - per explicit design
+// decision on ordering and spacing. When the plain sentence isn't
+// found adjacent to the URL (e.g. a template placed [confirm link]
+// mid-paragraph), only the URL itself is swapped for the button +
+// fallback, same as before.
+function buildEmailHtml(plainBody, confirmUrl, buttonLabel, boldPhrases, confirmSentencePlain, confirmSentenceHtml) {
   let html = escapeEmailHtml(plainBody).replace(/\r?\n/g, '<br>');
   if (confirmUrl) {
     const escapedUrl = escapeEmailHtml(confirmUrl);
+    // Both anchors target a NEW tab/window (real mail clients open
+    // links in the browser anyway; this matters for the dashboard's
+    // proof sheet and any webmail that honors target) so clicking
+    // never navigates away from what the person was doing.
     const button =
       '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0 8px;">' +
       '<tr><td align="center" bgcolor="#5CAA16" style="border-radius:6px;">' +
-      '<a href="' + escapedUrl + '" target="_blank" ' +
+      '<a href="' + escapedUrl + '" target="_blank" rel="noopener" ' +
       'style="display:inline-block;padding:13px 30px;font-family:Arial,Helvetica,sans-serif;' +
       'font-size:15px;font-weight:bold;color:#FFFFFF;text-decoration:none;">' +
       escapeEmailHtml(buttonLabel || 'Confirm') + '</a>' +
-      '</td></tr></table>' +
+      '</td></tr></table>';
+    const fallback =
       '<span style="font-size:12px;color:#777777;">If the button does not work, copy and paste this link into your browser:<br>' +
-      '<a href="' + escapedUrl + '" style="color:#5CAA16;word-break:break-all;">' + escapedUrl + '</a></span>';
-    // The plain body contains the URL exactly once (either at the
-    // template's [confirm link] spot or in the appended standard
-    // paragraph) - swap that occurrence for the button block.
-    html = html.replace(escapedUrl, button);
+      '<a href="' + escapedUrl + '" target="_blank" rel="noopener" style="color:#5CAA16;word-break:break-all;">' + escapedUrl + '</a></span>';
+
+    const escapedPlainSentence = confirmSentencePlain ? escapeEmailHtml(confirmSentencePlain) : '';
+    const combined = escapedPlainSentence ? escapedUrl + '<br>' + escapedPlainSentence : '';
+    if (combined && html.indexOf(combined) !== -1) {
+      const block = button +
+        escapeEmailHtml(confirmSentenceHtml || confirmSentencePlain) +
+        '<br><br>' + fallback;
+      html = html.replace(combined, block);
+    } else {
+      // The plain body contains the URL exactly once (either at the
+      // template's [confirm link] spot or in the appended standard
+      // paragraph) - swap that occurrence for the button block.
+      html = html.replace(escapedUrl, button + fallback);
+    }
   }
   if (boldPhrases && boldPhrases.length > 0) {
     // Longest first, so when one phrase contains another the longer
@@ -2869,7 +2901,13 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
             if (/\[confirm link\]/i.test(finalBody)) {
               finalBody = finalBody.replace(/\[confirm link\]/gi, confirmUrl);
             } else {
-              finalBody += '\n\nPlease confirm this service is scheduled by clicking on the button below. No reply email is necessary.\n' + confirmUrl;
+              // Plain-text fallback order: link first, sentence after
+              // (worded "link above" since plain text has no button).
+              // The HTML version rebuilds this whole region as:
+              // button, then the "button above" sentence, then a
+              // blank line, then the fallback note - see
+              // buildEmailHtml's confirmSentence handling.
+              finalBody += '\n\n' + confirmUrl + '\n' + SERVICE_CONFIRM_SENTENCE_PLAIN;
             }
           }
 
@@ -2878,7 +2916,8 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
           // buildEmailHtml). Non-Service emails have no confirmUrl and
           // simply get the nicely formatted HTML body.
           const htmlBody = finalBody ? buildEmailHtml(finalBody, confirmUrl, 'Confirm Service Scheduled',
-            [formatDateInputValue(puDateInput), box.description]) : '';
+            [formatDateInputValue(puDateInput), box.description],
+            SERVICE_CONFIRM_SENTENCE_PLAIN, SERVICE_CONFIRM_SENTENCE_HTML) : '';
 
           // Server-side send (SendGrid via the Apps Script's
           // send_email action) - a copy always Bcc'd to office@ per
