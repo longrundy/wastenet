@@ -1674,6 +1674,12 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
   const [dateSaveError, setDateSaveError] = React.useState(null);
   const [sendState, setSendState] = React.useState('idle'); // idle | preview | sending | sent | error - see EmailSendBlock
   const [sendError, setSendError] = React.useState(null);
+  // Email category - same nine pills as the detail panel, so a batch
+  // can carry ANY email type (Notice, Problem, etc.), not just the
+  // service request. Switching categories resets any in-progress
+  // proof, same guard as the detail panel.
+  const [emailCategory, setEmailCategory] = React.useState('Service');
+  React.useEffect(() => { setSendState('idle'); setSendError(null); }, [emailCategory]);
   // Per-person WasteNet Staff selection - same behavior as the detail
   // panel's: each address is its own checkbox, NONE checked by default
   // (selecting is a deliberate act), and only checked people ride
@@ -1749,7 +1755,18 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
     return bestDate ? { date: bestDate, rule: bestRule } : null;
   })();
 
-  const batchTemplate = (emailTemplates || {})['Batch'] || { subjectTemplate: '', bodyTemplate: '' };
+  // The 'Service' pill maps to the dedicated 'Batch' template (the
+  // batch service email with box list + confirm-all link); every other
+  // pill uses the same generic Email Templates rows the detail panel
+  // does. In batch context, [box description] expands to the full
+  // multi-line box list, so templates phrased for a single box scale
+  // to batches without editing.
+  const BATCH_PILL_LABELS = ['Service', 'Emptied', 'Missed', 'Notice', 'Premature', 'Problem', 'Repair', 'Usage', 'Weights'];
+  const getBatchTemplateFor = (label) => {
+    if (label === 'Service') return (emailTemplates || {})['Batch'] || { subjectTemplate: '', bodyTemplate: '' };
+    return (emailTemplates || {})[label] || { subjectTemplate: '', bodyTemplate: '' };
+  };
+  const batchTemplate = getBatchTemplateFor(emailCategory);
   const hasTemplate = !!(batchTemplate.subjectTemplate || batchTemplate.bodyTemplate);
 
   const dateStr = formatDateInputValue(puDateInput);
@@ -1759,16 +1776,21 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
     let t = template || '';
     if (dateStr) t = t.replace(/\[pickup date\]/gi, dateStr);
     t = t.replace(/\[box list\]/gi, boxListText);
+    t = t.replace(/\[box description\]/gi, boxListText);
     return t;
   };
   let finalSubject = fillBatch(batchTemplate.subjectTemplate);
   let finalBody = fillBatch(batchTemplate.bodyTemplate);
 
-  // If the Batch body has no [box list] placeholder, the list is
-  // appended rather than silently omitted - a batch email without its
-  // box list is pointless.
-  if (finalBody && !/\[box list\]/i.test(batchTemplate.bodyTemplate || '') && boxListText) {
-    finalBody += '\n\nPlease empty & return the following compactor(s):\n\n' + boxListText;
+  // If the body has no box placeholder at all, the list is appended
+  // rather than silently omitted - an email about boxes that doesn't
+  // say WHICH boxes is pointless. Wording differs by category: the
+  // Service phrasing asks for action, everything else just states
+  // coverage.
+  if (finalBody && !/\[box list\]/i.test(batchTemplate.bodyTemplate || '') && !/\[box description\]/i.test(batchTemplate.bodyTemplate || '') && boxListText) {
+    finalBody += (emailCategory === 'Service'
+      ? '\n\nPlease empty & return the following compactor(s):\n\n'
+      : '\n\nThe following compactor(s) are covered by this email:\n\n') + boxListText;
   }
 
   // Confirm-all link: one link carrying EVERY included Box ID
@@ -1777,7 +1799,7 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
   // Service emails: [confirm link] placeholder if present, standard
   // paragraph appended otherwise.
   let confirmUrl = null;
-  if (sheetName && finalBody && boxes.length > 0) {
+  if (emailCategory === 'Service' && sheetName && finalBody && boxes.length > 0) {
     const idsCsv = boxes.map(b => b.boxId).slice().sort((a, b) => {
       const na = parseInt(a, 10), nb = parseInt(b, 10);
       if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
@@ -2140,6 +2162,37 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
             </div>
           )}
 
+          {/* Email Type pills - same nine categories as the detail
+              panel, white with the drop shadow, green text when
+              selected, faded when that category has no template.
+              (No dropdown here - the batch panel keeps its dedicated
+              Proof button below.) */}
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: BRAND.ink, marginTop: 12, marginBottom: 6 }}>Email Type</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {BATCH_PILL_LABELS.map(label => {
+              const isActive = emailCategory === label;
+              const tpl = getBatchTemplateFor(label);
+              const templateExists = !!(tpl.subjectTemplate || tpl.bodyTemplate);
+              return (
+                <button
+                  key={label}
+                  onClick={() => setEmailCategory(label)}
+                  disabled={!templateExists}
+                  title={templateExists ? '' : 'No template set up for this category yet'}
+                  style={{
+                    fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 5,
+                    border: '1px solid #E2E6DE',
+                    background: '#FFFFFF',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                    color: !templateExists ? '#C7CCC2' : (isActive ? BRAND.green : BRAND.muted),
+                    cursor: templateExists ? 'pointer' : 'not-allowed', fontFamily: font,
+                    opacity: templateExists ? 1 : 0.6,
+                  }}
+                >{label}</button>
+              );
+            })}
+          </div>
+
           {/* Proof machinery lives INSIDE the Email Recipients card,
               directly under the staff checkboxes, per explicit design
               decision - not floating on its own below the card. */}
@@ -2168,7 +2221,9 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
             <div style={{
               padding: '10px', textAlign: 'center', borderRadius: 6, fontSize: 13,
               background: '#F1F3EC', color: BRAND.muted, fontFamily: font,
-            }}>No "Batch" template found - add a row to the Email Templates tab with Pill Label exactly "Batch".</div>
+            }}>{emailCategory === 'Service'
+              ? 'No "Batch" template found - add a row to the Email Templates tab with Pill Label exactly "Batch".'
+              : 'No template available for "' + emailCategory + '" yet'}</div>
           )}
           </div>
           </div>
