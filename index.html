@@ -364,7 +364,7 @@ function buildEmailHtml(plainBody, confirmUrl, buttonLabel, boldPhrases, confirm
     // proof sheet and any webmail that honors target) so clicking
     // never navigates away from what the person was doing.
     const button =
-      '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0 8px;">' +
+      '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 8px;">' +
       '<tr><td align="center" bgcolor="#5CAA16" style="border-radius:6px;">' +
       '<a href="' + escapedUrl + '" target="_blank" rel="noopener" ' +
       'style="display:inline-block;padding:13px 30px;font-family:Arial,Helvetica,sans-serif;' +
@@ -1641,7 +1641,7 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
   // HTML version of the email - the confirm link renders as a proper
   // green button in real mail clients (see buildEmailHtml).
   const htmlBody = finalBody ? buildEmailHtml(finalBody, confirmUrl, 'Confirm All Services Scheduled',
-    [dateStr].concat(boxes.map(b => b.description))) : '';
+    [dateStr, 'FIRM SERVICE DATE!', 'Firm Service Date!'].concat(boxes.map(b => b.description))) : '';
 
   const fieldsFor = (placement) => {
     const parts = [];
@@ -2916,7 +2916,7 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
           // buildEmailHtml). Non-Service emails have no confirmUrl and
           // simply get the nicely formatted HTML body.
           const htmlBody = finalBody ? buildEmailHtml(finalBody, confirmUrl, 'Confirm Service Scheduled',
-            [formatDateInputValue(puDateInput), box.description],
+            [formatDateInputValue(puDateInput), box.description, 'FIRM SERVICE DATE!', 'Firm Service Date!'],
             SERVICE_CONFIRM_SENTENCE_PLAIN, SERVICE_CONFIRM_SENTENCE_HTML) : '';
 
           // Server-side send (SendGrid via the Apps Script's
