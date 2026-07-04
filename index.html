@@ -1559,27 +1559,6 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                   borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
                 }}>HAULER {b.haulCode}</span>
               )}
-              {/* Sched Rule pill - same per-box Scheduling Rule
-                  (Master Box List column J, via the masterContacts
-                  lookup) shown in the detail panel, surfaced here in
-                  the queue too so the rule is visible without opening
-                  each box. Same highlighter-yellow treatment as the
-                  detail panel's pill, sized to match the other queue
-                  pills. Only shown for boxes that have a rule, and -
-                  per explicit design decision - only on the Action
-                  Needed view, since that's the page where scheduling
-                  is actually being worked. */}
-              {activeView === 'crossed' && (() => {
-                const rule = ((masterContacts || {})[b.boxId] || {}).schedulingRule;
-                if (!rule) return null;
-                return (
-                  <span style={{
-                    fontSize: 10.5, fontWeight: 700, fontFamily: monoFont, color: '#8A6D00',
-                    background: 'rgba(230,195,0,0.14)', border: '1px solid rgba(180,150,0,0.4)',
-                    borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
-                  }}>SCHED RULE: {rule}</span>
-                );
-              })()}
               {/* Pickup Date pill - still only shown once a Pick-Up
                   Date has actually been saved for this box. */}
               {b.puDate && (
