@@ -1165,7 +1165,12 @@ function WasteNetDashboard() {
     }}>
       {/* Frozen top section: title bar, stat/filter buttons, and search - stays
           visible while the box list below scrolls. */}
-      <div style={{ flexShrink: 0, position: 'sticky', top: 0, zIndex: 10, background: BRAND.paper, padding: '10px 16px 0' }}>
+      {/* The 12px BOTTOM padding here is what keeps a paper-colored
+          gap under the top card at all times - without it, scrolling
+          content slid flush against the card's bottom edge. The list
+          area below compensates with a smaller top padding so the
+          at-rest spacing stays the same. */}
+      <div style={{ flexShrink: 0, position: 'sticky', top: 0, zIndex: 10, background: BRAND.paper, padding: '10px 16px 12px' }}>
       {/* Everything above the box list - logo, title, date dropdown,
           the three view buttons, and the search/sort row - lives in
           ONE white card with the standard drop shadow, per explicit
@@ -1359,9 +1364,16 @@ function WasteNetDashboard() {
           value={sortBy}
           onChange={e => setSortBy(e.target.value)}
           style={{
-            padding: '8px 26px 8px 12px', borderRadius: 5, border: '1px solid #E2E6DE',
-            background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+            padding: '8px 32px 8px 12px', borderRadius: 5, border: '1px solid #E2E6DE',
+            backgroundColor: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
             color: BRAND.ink, fontSize: 13, fontFamily: font, cursor: 'pointer',
+            // Native select arrows hug the right edge and ignore
+            // padding, so the arrow is drawn manually: appearance none
+            // kills the built-in one, and a small chevron SVG is
+            // positioned 12px in from the border.
+            appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
+            backgroundImage: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%236B7268' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>\")",
+            backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center',
           }}
         >
           {(SORT_OPTIONS_BY_VIEW[signalFilter] || SORT_OPTIONS_BY_VIEW.clear).map(([val, label]) => (
@@ -1375,7 +1387,7 @@ function WasteNetDashboard() {
 
       {/* Main content - this is the part that scrolls; everything above
           (title bar, stat/filter buttons, search) stays pinned in view. */}
-      <div style={{ flex: 1, padding: '14px 16px 20px', overflowY: 'auto' }}>
+      <div style={{ flex: 1, padding: '2px 16px 20px', overflowY: 'auto' }}>
         {/* Second of the page's two cards - the entire box list lives
             inside it. */}
         <div style={{
