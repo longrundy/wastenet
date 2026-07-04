@@ -1564,11 +1564,15 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
           background: canSend ? BRAND.green : BRAND.muted, color: '#FFFFFF',
         }}
       >{sendLabel}</button>
+      {/* Solid red pill, per explicit design decision - a missing To
+          recipient blocks sending entirely, so this reads as a hard
+          stop, not a gentle note. Shared component = identical in the
+          detail panel AND the batch panel. */}
       {!effectiveTo && (
         <div style={{
-          marginTop: 8, padding: '6px 10px', background: '#FBF6E9',
-          border: '1px solid #E8D9A8', borderRadius: 5, color: '#7A5E1E',
-          fontSize: 12, fontWeight: 600,
+          marginTop: 8, padding: '8px 14px', background: BRAND.red,
+          borderRadius: 20, color: '#FFFFFF', textAlign: 'center',
+          fontSize: 12.5, fontWeight: 700,
         }}>{noRecipientHint}</div>
       )}
     </div>
@@ -1631,6 +1635,34 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
   // its own checkbox below, and only the checked ones are included.
   const staffList = dedupeEmails('staffRecipients');
   const checkedStaffStr = staffList.filter(a => selectedStaff.includes(a)).join('; ');
+
+  // Scheduling rules across the included boxes (Master Box List col J,
+  // via the same master_contacts lookup the detail panel uses),
+  // de-duplicated case-insensitively. Same-hauler boxes USUALLY share
+  // one rule, but nothing guarantees it - both cases are handled below.
+  const schedRules = (() => {
+    const seen = {};
+    const out = [];
+    boxes.forEach(b => {
+      const r = String(((masterContacts || {})[b.boxId] || {}).schedulingRule || '').trim();
+      if (r && !seen[r.toUpperCase()]) { seen[r.toUpperCase()] = true; out.push(r); }
+    });
+    return out;
+  })();
+  // Suggested shared date: computed per rule (same NBD / N-BD +
+  // weekend/holiday math as the detail panel), keeping the LATEST
+  // resulting date when rules are mixed - one shared date has to
+  // satisfy every box in the batch, and only the strictest rule's
+  // date does that.
+  const schedSuggestion = (() => {
+    let bestDate = null;
+    let bestRule = null;
+    schedRules.forEach(r => {
+      const d = computeSuggestedPickupDate(r);
+      if (d && (!bestDate || d.getTime() > bestDate.getTime())) { bestDate = d; bestRule = r; }
+    });
+    return bestDate ? { date: bestDate, rule: bestRule } : null;
+  })();
 
   const batchTemplate = (emailTemplates || {})['Batch'] || { subjectTemplate: '', bodyTemplate: '' };
   const hasTemplate = !!(batchTemplate.subjectTemplate || batchTemplate.bodyTemplate);
@@ -1820,9 +1852,27 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
             background: 'rgba(92,170,22,0.05)',
           }}>
             <div style={{
-              fontSize: 12, fontWeight: 700, color: BRAND.green, textTransform: 'uppercase',
-              letterSpacing: '0.03em', marginBottom: 8, fontFamily: monoFont,
-            }}>Shared Pick-Up Date</div>
+              display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+              gap: 10, marginBottom: 8, flexWrap: 'wrap',
+            }}>
+              <div style={{
+                fontSize: 12, fontWeight: 700, color: BRAND.green, textTransform: 'uppercase',
+                letterSpacing: '0.03em', fontFamily: monoFont,
+              }}>Shared Pick-Up Date</div>
+              {/* Same yellow Sched Rule pill as the detail panel. One
+                  shared rule shows plainly; mixed rules across the
+                  batch are all listed so the mismatch is visible
+                  rather than silently averaged away. */}
+              {schedRules.length > 0 && (
+                <div style={{
+                  fontSize: 12, fontFamily: monoFont, fontWeight: 700, color: '#8A6D00',
+                  background: 'rgba(230,195,0,0.14)', border: '1px solid rgba(180,150,0,0.4)',
+                  borderRadius: 3, padding: '3px 8px', minWidth: 0,
+                }}>
+                  {schedRules.length === 1 ? 'Sched Rule: ' + schedRules[0] : 'Mixed Rules: ' + schedRules.join(' / ')}
+                </div>
+              )}
+            </div>
             <input
               type="date"
               value={puDateInput}
@@ -1833,6 +1883,24 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
                 marginBottom: 8,
               }}
             />
+            {/* Suggested shared date - clickable to fill the field,
+                exactly like the detail panel's hint. When the batch
+                mixes rules, the strictest one wins (latest date) and
+                the label says so. */}
+            {schedSuggestion && (
+              <div style={{ fontSize: 12, color: BRAND.muted, marginTop: -2, marginBottom: 8 }}>
+                Suggested (per {schedRules.length > 1 ? 'strictest rule, ' + schedSuggestion.rule : schedSuggestion.rule}):{' '}
+                <button
+                  type="button"
+                  onClick={() => setPuDateInput(toDateInputValue(schedSuggestion.date))}
+                  style={{
+                    background: 'none', border: 'none', padding: 0, margin: 0,
+                    color: BRAND.greenDark, fontWeight: 700, fontFamily: font,
+                    fontSize: 12, cursor: 'pointer', textDecoration: 'underline',
+                  }}
+                >{schedSuggestion.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</button>
+              </div>
+            )}
             <button
               onClick={handleSaveDateToAll}
               disabled={!puDateInput || dateSaveState === 'saving'}
