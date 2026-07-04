@@ -17,6 +17,28 @@
     outline: 2px solid #5CAA16; outline-offset: 1px;
   }
   .row-hover:hover { background: #F1F4EC !important; }
+  /* Modal sizing lives HERE (classes, not inline styles) because it
+     needs media queries. Desktop/tablet: a centered card, widened to
+     780px (was 640px) for more email-composing room, 90vh tall.
+     Phones (<=640px, same breakpoint as .detail-info-grid): the modal
+     becomes a true full-screen sheet - full width, full height, no
+     rounded corners, no outer gutter - so every pixel of a small
+     screen is working space. 100dvh (with 100vh fallback for older
+     browsers) tracks the REAL visible height on mobile browsers whose
+     URL bar collapses on scroll. */
+  .modal-overlay { padding: 20px; }
+  .modal-panel { width: min(780px, 100%); max-height: 90vh; border-radius: 10px; }
+  .modal-body { padding: 20px; }
+  @media (max-width: 640px) {
+    .modal-overlay { padding: 0; }
+    .modal-panel {
+      width: 100%;
+      height: 100vh; height: 100dvh;
+      max-height: 100vh; max-height: 100dvh;
+      border-radius: 0;
+    }
+    .modal-body { padding: 14px; }
+  }
   .detail-info-grid { grid-template-columns: 1fr 1fr; }
   @media (min-width: 640px) {
     .detail-info-grid { grid-template-columns: 1fr 1fr 1fr; }
@@ -1548,17 +1570,19 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
   return (
     <div
       onClick={onClose}
+      className="modal-overlay"
       style={{
         position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
         background: 'rgba(0,0,0,0.35)', zIndex: 89,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}
     >
       <div
         onClick={e => e.stopPropagation()}
+        className="modal-panel"
         style={{
-          position: 'relative', width: 'min(640px, 100%)', maxHeight: '85vh',
-          background: BRAND.panel, borderRadius: 10, boxShadow: '0 12px 48px rgba(0,0,0,0.3)',
+          position: 'relative',
+          background: BRAND.panel, boxShadow: '0 12px 48px rgba(0,0,0,0.3)',
           zIndex: 90, display: 'flex', flexDirection: 'column', fontFamily: font, overflow: 'hidden',
         }}
       >
@@ -1571,7 +1595,7 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
             background: 'transparent', border: 'none', color: '#E8F3DF', fontSize: 20, cursor: 'pointer', lineHeight: 1,
           }}>×</button>
         </div>
-        <div style={{ padding: 20, flex: 1, overflow: 'auto' }}>
+        <div className="modal-body" style={{ flex: 1, overflow: 'auto' }}>
 
           <div style={{
             fontSize: 12, fontWeight: 700, color: BRAND.muted, textTransform: 'uppercase',
@@ -2177,6 +2201,24 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
   const [sendError, setSendError] = React.useState(null);
   React.useEffect(() => { setSendState('idle'); setSendError(null); }, [box.boxId, emailCategory]);
 
+  // Which individual WasteNet Staff addresses are checked for
+  // inclusion. Unlike Haulers/Customers (whole-group only), the Staff
+  // group is a per-person multi-select: each address from the Master
+  // Box List's Staff column renders as its own checkbox, and only the
+  // CHECKED people ride along in whatever placement (To/Cc/Bcc) the
+  // Staff selector is set to. Defaults to NONE checked per the same
+  // design rule as the property picker - selecting is a deliberate
+  // act each time. Reset when a DIFFERENT box is opened (keyed on
+  // boxId, not object identity, so background refreshes never wipe
+  // selections mid-edit).
+  const [selectedStaff, setSelectedStaff] = React.useState([]);
+  React.useEffect(() => { setSelectedStaff([]); }, [box.boxId]);
+  const toggleStaff = (addr) => {
+    setSelectedStaff(prev =>
+      prev.includes(addr) ? prev.filter(a => a !== addr) : [...prev, addr]
+    );
+  };
+
   // Weights email month/year selections. The Weights template's body
   // contains literal [months], [year], and [box description]
   // placeholders (Email Templates tab, Pill Label "Weights") - months
@@ -2310,17 +2352,19 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
   return (
     <div
       onClick={onClose}
+      className="modal-overlay"
       style={{
         position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
         background: 'rgba(0,0,0,0.35)', zIndex: 89,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}
     >
       <div
         onClick={e => e.stopPropagation()}
+        className="modal-panel"
         style={{
-          position: 'relative', width: 'min(640px, 100%)', maxHeight: '85vh',
-          background: BRAND.panel, borderRadius: 10, boxShadow: '0 12px 48px rgba(0,0,0,0.3)',
+          position: 'relative',
+          background: BRAND.panel, boxShadow: '0 12px 48px rgba(0,0,0,0.3)',
           zIndex: 90, display: 'flex', flexDirection: 'column', fontFamily: font, overflow: 'hidden',
         }}
       >
@@ -2333,7 +2377,7 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
           background: 'transparent', border: 'none', color: '#E8F3DF', fontSize: 20, cursor: 'pointer', lineHeight: 1,
         }}>×</button>
       </div>
-      <div style={{ padding: 20, flex: 1, overflow: 'auto' }}>
+      <div className="modal-body" style={{ flex: 1, overflow: 'auto' }}>
         <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
           {formatScanTimestamp(scanTitle) && (
             <span style={{ fontSize: 12, color: BRAND.muted, fontFamily: monoFont }}>
@@ -2561,11 +2605,22 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
           // they're joined together rather than one overwriting the
           // other, since sending to multiple groups at once via the
           // same field is a perfectly normal thing to do.
+          // Staff is the one per-person group: split the raw column
+          // value into individual entries (semicolon/comma separated,
+          // exactly how the Apps Script parses recipients later) and
+          // keep only the checked ones. Non-email stray values (e.g.
+          // a note that wandered into the column) still show up as
+          // checkboxes rather than being hidden - visible bad data is
+          // fixable data - they just should not be checked.
+          const staffList = String(c.staffRecipients || '').split(/[;,]/)
+            .map(s => s.trim()).filter(s => s);
+          const checkedStaffStr = staffList.filter(a => selectedStaff.includes(a)).join('; ');
+
           const groupsForPlacement = (placement) => {
             const parts = [];
             if (primaryPlacement === placement && c.toRecipients) parts.push(c.toRecipients);
             if (secondaryPlacement === placement && c.ccRecipients) parts.push(c.ccRecipients);
-            if (staffPlacement === placement && c.staffRecipients) parts.push(c.staffRecipients);
+            if (staffPlacement === placement && checkedStaffStr) parts.push(checkedStaffStr);
             return parts.join('; ');
           };
           const effectiveTo = groupsForPlacement('to');
@@ -2766,7 +2821,33 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 14 }}>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3, fontWeight: 700, textDecoration: 'underline' }}>WasteNet Staff:</div>
-                  <div style={{ fontSize: 12.5, fontFamily: monoFont, wordBreak: 'break-word', minHeight: 16 }}>{c.staffRecipients || ''}</div>
+                  {staffList.length === 0 ? (
+                    <div style={{ fontSize: 12.5, fontFamily: monoFont, minHeight: 16 }}></div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {staffList.map(addr => (
+                        <label key={addr} style={{
+                          display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12.5,
+                          fontFamily: monoFont, color: BRAND.ink, cursor: 'pointer',
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedStaff.includes(addr)}
+                            onChange={() => toggleStaff(addr)}
+                            style={{ width: 15, height: 15, accentColor: BRAND.green, cursor: 'pointer', flexShrink: 0, marginTop: 1 }}
+                          />
+                          <span style={{ wordBreak: 'break-word' }}>{addr}</span>
+                        </label>
+                      ))}
+                      {staffPlacement !== 'off' && selectedStaff.length === 0 && (
+                        <div style={{
+                          marginTop: 2, padding: '4px 8px', background: '#FBF6E9',
+                          border: '1px solid #E8D9A8', borderRadius: 5, color: '#7A5E1E',
+                          fontSize: 11.5, fontWeight: 600,
+                        }}>No staff checked yet - check who to include.</div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <PlacementSelector value={staffPlacement} onChange={setStaffPlacement} />
               </div>
