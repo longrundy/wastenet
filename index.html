@@ -1165,10 +1165,20 @@ function WasteNetDashboard() {
     }}>
       {/* Frozen top section: title bar, stat/filter buttons, and search - stays
           visible while the box list below scrolls. */}
-      <div style={{ flexShrink: 0, position: 'sticky', top: 0, zIndex: 10, background: BRAND.paper }}>
+      <div style={{ flexShrink: 0, position: 'sticky', top: 0, zIndex: 10, background: BRAND.paper, padding: '10px 16px 0' }}>
+      {/* Everything above the box list - logo, title, date dropdown,
+          the three view buttons, and the search/sort row - lives in
+          ONE white card with the standard drop shadow, per explicit
+          design decision: the page is two cards, this one and the box
+          list below it. */}
+      <div style={{
+        maxWidth: 760, margin: '0 auto', background: '#FFFFFF',
+        border: '1px solid #E2E6DE', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+        borderRadius: 12, overflow: 'visible',
+      }}>
       {/* Header */}
       <header style={{
-        padding: '12px 24px',
+        padding: '12px 24px 4px',
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
         background: BRAND.paper, textAlign: 'center',
       }}>
@@ -1361,11 +1371,18 @@ function WasteNetDashboard() {
         </div>
       </div>
       </div>
+      </div>
 
       {/* Main content - this is the part that scrolls; everything above
           (title bar, stat/filter buttons, search) stays pinned in view. */}
-      <div style={{ flex: 1, padding: '20px 24px', overflowY: 'auto' }}>
-        <div style={{ maxWidth: 720, margin: '0 auto' }}>
+      <div style={{ flex: 1, padding: '14px 16px 20px', overflowY: 'auto' }}>
+        {/* Second of the page's two cards - the entire box list lives
+            inside it. */}
+        <div style={{
+          maxWidth: 760, margin: '0 auto', background: '#FFFFFF',
+          border: '1px solid #E2E6DE', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+          borderRadius: 12, padding: 14,
+        }}>
           {fetchState === 'loading' && rows.length === 0 && (
             <div style={{ textAlign: 'center', padding: '80px 20px', color: BRAND.muted, fontFamily: font }}>
               Loading live data from the sheet…
@@ -1840,6 +1857,34 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
     }
   };
 
+  // Batch counterpart of the detail panel's Clear Saved Date - writes
+  // an empty P/U Date to every included box (empty explicitly clears,
+  // per update_box's contract), one at a time with visible progress,
+  // reusing the same state machinery as saving.
+  const handleClearDateFromAll = async () => {
+    if (dateSaveState === 'saving') return;
+    setDateSaveState('saving');
+    setDateSaveError(null);
+    const failures = [];
+    for (let i = 0; i < boxes.length; i++) {
+      setDateSaveProgress('Clearing ' + (i + 1) + ' of ' + boxes.length + '…');
+      try {
+        await onSave(boxes[i].boxId, { puDate: '' });
+      } catch (err) {
+        failures.push(boxes[i].boxId);
+      }
+    }
+    setDateSaveProgress('');
+    if (failures.length === 0) {
+      setDateSaveState('saved');
+      setTimeout(() => setDateSaveState('idle'), 2500);
+    } else {
+      setDateSaveState('error');
+      setDateSaveError('Could not clear for Box ' + failures.join(', ') + ' - the rest cleared fine.');
+    }
+  };
+  const anyDateSaved = boxes.some(b => !!b.puDate);
+
   const PlacementSelector = ({ value, onChange }) => (
     <div style={{ display: 'flex', gap: 4, width: 118, flexShrink: 0 }}>
       {[['to', 'To'], ['cc', 'Cc'], ['bcc', 'Bcc']].map(([val, label]) => (
@@ -1962,16 +2007,36 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
                 >{schedSuggestion.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</button>
               </div>
             )}
-            <button
-              onClick={handleSaveDateToAll}
-              disabled={!puDateInput || dateSaveState === 'saving'}
-              style={{
-                width: '100%', padding: '8px', fontSize: 13.5, fontWeight: 700, borderRadius: 5,
-                border: 'none', cursor: (!puDateInput || dateSaveState === 'saving') ? 'default' : 'pointer',
-                background: (!puDateInput || dateSaveState === 'saving') ? BRAND.muted : BRAND.green,
-                color: '#FFFFFF', fontFamily: font,
-              }}
-            >{dateSaveState === 'saving' ? (dateSaveProgress || 'Saving…') : (boxes.length === 1 ? 'Save Date to This Box' : 'Save Date to All ' + boxes.length + ' Boxes')}</button>
+            {/* Save + Clear pair, styled exactly like the detail
+                panel's Scheduling buttons: solid green Save (2/3
+                width), outlined Clear (1/3), Clear disabled until at
+                least one included box actually has a saved date. */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={handleSaveDateToAll}
+                disabled={!puDateInput || dateSaveState === 'saving'}
+                style={{
+                  flex: 2, padding: '8px', fontSize: 14, fontWeight: 700, borderRadius: 5,
+                  border: 'none', cursor: (!puDateInput || dateSaveState === 'saving') ? 'default' : 'pointer',
+                  background: dateSaveState === 'saving' ? BRAND.muted : BRAND.green,
+                  opacity: (!puDateInput && dateSaveState !== 'saving') ? 0.55 : 1,
+                  color: '#FFFFFF', fontFamily: font,
+                }}
+              >{dateSaveState === 'saving' ? (dateSaveProgress || 'Saving…') : (boxes.length === 1 ? 'Save Date to This Box' : 'Save Date to All ' + boxes.length + ' Boxes')}</button>
+              <button
+                onClick={handleClearDateFromAll}
+                disabled={dateSaveState === 'saving' || !anyDateSaved}
+                title="Removes the saved date from every included box's record immediately"
+                style={{
+                  flex: 1, padding: '8px', fontSize: 13, fontWeight: 600, borderRadius: 5,
+                  border: '1.5px solid ' + BRAND.line,
+                  cursor: (dateSaveState === 'saving' || !anyDateSaved) ? 'default' : 'pointer',
+                  background: BRAND.panel,
+                  color: !anyDateSaved ? '#C7CCBE' : BRAND.muted,
+                  fontFamily: font,
+                }}
+              >Clear Saved Date</button>
+            </div>
             {dateSaveState === 'saved' && (
               <div style={{
                 marginTop: 8, padding: '6px 10px', background: 'rgba(92,170,22,0.12)',
@@ -2062,8 +2127,11 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
               }}>Must add To: recipient</div>
             </div>
           )}
-          </div>
 
+          {/* Proof machinery lives INSIDE the Email Recipients card,
+              directly under the staff checkboxes, per explicit design
+              decision - not floating on its own below the card. */}
+          <div style={{ marginTop: 10 }}>
           {hasTemplate ? (
             <EmailSendBlock
               sendLabel={'Proof Batch Email (' + boxes.length + (boxes.length === 1 ? ' box)' : ' boxes)')}
@@ -2090,6 +2158,8 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
               background: '#F1F3EC', color: BRAND.muted, fontFamily: font,
             }}>No "Batch" template found - add a row to the Email Templates tab with Pill Label exactly "Batch".</div>
           )}
+          </div>
+          </div>
         </div>
       </div>
     </div>
@@ -2174,48 +2244,11 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
       </div>
     );
   }
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {boxes.map((b, boxIdx) => (
-        <React.Fragment key={b._key}>
-        {/* Hauler group header - inserted before the first row of each
-            hauler code when batch mode is active. Shows the group's
-            size and its Batch Email button, which opens the batch
-            compose panel with this group's INCLUDED boxes (everything
-            not explicitly unchecked below). Boxes with no hauler code
-            get a labeled group too, but no button - there's no hauler
-            to email. */}
-        {batchMode && (boxIdx === 0 || boxes[boxIdx - 1].haulCode !== b.haulCode) && (() => {
-          const groupBoxes = boxes.filter(x => x.haulCode === b.haulCode);
-          const includedBoxes = groupBoxes.filter(x => !excludedIds[x.boxId]);
-          const hasCode = b.haulCode && b.haulCode !== '—';
-          return (
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-              padding: '10px 14px', marginTop: boxIdx === 0 ? 0 : 8,
-              background: 'rgba(92,170,22,0.07)', border: '1px solid ' + BRAND.greenLight,
-              borderRadius: 7, flexWrap: 'wrap',
-            }}>
-              <span style={{ fontFamily: monoFont, fontSize: 13.5, fontWeight: 700, color: BRAND.greenDark }}>
-                {hasCode ? 'HAULER ' + b.haulCode : 'NO HAULER CODE'}
-                <span style={{ fontWeight: 400, color: BRAND.muted }}> — {includedBoxes.length} of {groupBoxes.length} box{groupBoxes.length === 1 ? '' : 'es'} included</span>
-              </span>
-              {hasCode && (
-                <button
-                  onClick={() => onOpenBatch(b.haulCode, includedBoxes)}
-                  disabled={includedBoxes.length === 0}
-                  style={{
-                    fontSize: 12, fontWeight: 700, fontFamily: font, padding: '6px 14px',
-                    borderRadius: 5, border: 'none',
-                    background: includedBoxes.length === 0 ? BRAND.muted : BRAND.green, color: '#FFFFFF',
-                    cursor: includedBoxes.length === 0 ? 'default' : 'pointer',
-                  }}
-                >Batch Email ({includedBoxes.length})</button>
-              )}
-            </div>
-          );
-        })()}
-        <div className="row-hover" onClick={() => onSelect(b)} style={{
+  // One box row - extracted into a helper so batch mode can wrap each
+  // hauler group's rows inside a folder-style "sheet" under its tab,
+  // while the non-batch views keep rendering rows as a flat list.
+  const renderRow = (b) => (
+        <div key={b._key} className="row-hover" onClick={() => onSelect(b)} style={{
           display: 'flex', alignItems: 'center', gap: 16, padding: '14px 16px', cursor: 'pointer',
           background: '#FFFFFF', border: '1px solid #E2E6DE', borderRadius: 7,
           boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
@@ -2413,8 +2446,71 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
             flexShrink: 0, fontSize: 20, lineHeight: 1, color: BRAND.muted, fontFamily: font,
           }}>›</span>
         </div>
-        </React.Fragment>
-      ))}
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: batchMode ? 16 : 10 }}>
+      {batchMode ? (() => {
+        // Group consecutive rows by hauler code (the list is already
+        // hauler-sorted in batch mode, so consecutive grouping is
+        // complete grouping).
+        const groups = [];
+        boxes.forEach(b => {
+          const last = groups[groups.length - 1];
+          if (!last || last.haulCode !== b.haulCode) groups.push({ haulCode: b.haulCode, items: [b] });
+          else last.items.push(b);
+        });
+        return groups.map(g => {
+          const groupBoxes = g.items;
+          const includedBoxes = groupBoxes.filter(x => !excludedIds[x.boxId]);
+          const hasCode = g.haulCode && g.haulCode !== '—';
+          return (
+            <div key={'group-' + (g.haulCode || 'none') + '-' + g.items[0]._key}>
+              {/* Folder TAB - per explicit design decision, the hauler
+                  header now reads as a physical tab clipped onto the
+                  sheet of boxes below: rounded top corners only, no
+                  bottom border, and nudged down 1px (position
+                  relative, top 1, zIndex 1) so its white body covers
+                  the sheet's top border where they meet - making tab
+                  and sheet read as one attached object. */}
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                padding: '8px 14px', maxWidth: '100%', boxSizing: 'border-box',
+                background: '#FFFFFF', border: '1px solid #E2E6DE', borderBottom: 'none',
+                borderRadius: '8px 8px 0 0', position: 'relative', top: 1, zIndex: 1,
+              }}>
+                <span style={{ fontFamily: monoFont, fontSize: 13.5, fontWeight: 700, color: BRAND.greenDark }}>
+                  {hasCode ? 'HAULER ' + g.haulCode : 'NO HAULER CODE'}
+                  <span style={{ fontWeight: 400, color: BRAND.muted }}> — {includedBoxes.length} of {groupBoxes.length} box{groupBoxes.length === 1 ? '' : 'es'} included</span>
+                </span>
+                {hasCode && (
+                  <button
+                    onClick={() => onOpenBatch(g.haulCode, includedBoxes)}
+                    disabled={includedBoxes.length === 0}
+                    style={{
+                      fontSize: 12, fontWeight: 700, fontFamily: font, padding: '6px 14px',
+                      borderRadius: 5, border: 'none',
+                      background: includedBoxes.length === 0 ? BRAND.muted : BRAND.green, color: '#FFFFFF',
+                      cursor: includedBoxes.length === 0 ? 'default' : 'pointer',
+                    }}
+                  >Batch Email ({includedBoxes.length})</button>
+                )}
+              </div>
+              {/* The SHEET the tab is attached to - one card holding
+                  every box in this hauler group. Top-left corner is
+                  square (that's where the tab sits); the other three
+                  corners are rounded. */}
+              <div style={{
+                background: '#FFFFFF', border: '1px solid #E2E6DE',
+                borderRadius: '0 8px 8px 8px', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                padding: 10, display: 'flex', flexDirection: 'column', gap: 10,
+              }}>
+                {g.items.map(b => renderRow(b))}
+              </div>
+            </div>
+          );
+        });
+      })() : boxes.map(b => renderRow(b))}
     </div>
   );
 }
