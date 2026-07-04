@@ -37,6 +37,14 @@ const { useState, useMemo, useCallback, useEffect, useRef } = React;
 // ============================================================
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycbwc3siwl0OTP2O5WzNZCDn4cj3MDVRfcVxJW0TZtoPnAKLwhYSwmW_m1h7ib6Yf_Dvk9w/exec';
 
+// All dashboard emails go out server-side via the Apps Script's
+// send_email action (SendGrid API) as "WasteNet <office@wastenetinc.com>",
+// with replies routed by the server to the monitored lgrundy@ mailbox.
+// A copy of EVERY outgoing email is Bcc'd to this address so sent mail
+// is always visible to the whole team in the shared mailbox - per
+// explicit design decision.
+const OFFICE_EMAIL = 'office@wastenetinc.com';
+
 // WasteNet brand palette - sampled directly from the WASTENET logo (#5CAA16)
 const BRAND = {
   green: '#5CAA16',
@@ -256,6 +264,30 @@ function confirmToken(boxId, tab) {
     h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
   }
   return h.toString(16);
+}
+
+// Appends office@wastenetinc.com to whatever Bcc addresses the user
+// placed, de-duplicated case-insensitively, so the shared-mailbox copy
+// always goes out exactly once even if someone already put office@ (or
+// a differently-cased spelling of it) in a Bcc'd recipient group.
+function withOfficeBcc(bccStr) {
+  const seen = {};
+  const out = [];
+  (String(bccStr || '') + ';' + OFFICE_EMAIL).split(/[;,]/)
+    .map(s => s.trim()).filter(s => s)
+    .forEach(addr => {
+      const key = addr.toLowerCase();
+      if (!seen[key]) { seen[key] = true; out.push(addr); }
+    });
+  return out.join('; ');
+}
+
+// Counts the addresses in a ';'/','-separated recipient string - used
+// only for friendly "Sent to N recipients" wording, so it deliberately
+// mirrors the Apps Script's split-and-trim parsing rather than doing
+// any real validation.
+function countRecipients(str) {
+  return String(str || '').split(/[;,]/).map(s => s.trim()).filter(s => s).length;
 }
 
 function normalizeRow(raw, idx) {
@@ -628,6 +660,29 @@ function WasteNetDashboard() {
     await loadTab(viewingTab || undefined);
     return json;
   }, [jsonpLoad, sheetName, viewingTab, loadTab]);
+
+  // Sends an email server-side through the Apps Script's send_email
+  // action (SendGrid, From: WasteNet <office@wastenetinc.com>) - the
+  // same GET-with-query-params JSONP pattern as saveBoxFields, for the
+  // same CORS/redirect reason. The subject and body ride in the URL,
+  // which comfortably fits normal Service/Batch emails; anything
+  // pathological (a multi-page body) would fail loudly with a network
+  // error rather than sending truncated. replyTo is deliberately NOT
+  // sent - the Apps Script's own default (lgrundy@wastenetinc.com)
+  // stays the single source of truth for where replies route.
+  const sendEmail = useCallback(async ({ to, cc, bcc, subject, body }) => {
+    const params = [
+      'action=send_email',
+      'to=' + encodeURIComponent(to || ''),
+      'subject=' + encodeURIComponent(subject || ''),
+      'body=' + encodeURIComponent(body || ''),
+    ];
+    if (cc) params.push('cc=' + encodeURIComponent(cc));
+    if (bcc) params.push('bcc=' + encodeURIComponent(bcc));
+    const json = await jsonpLoad(SHEET_URL + '?' + params.join('&'));
+    if (!json.ok) throw new Error(json.error || 'Unknown error sending the email');
+    return json;
+  }, [jsonpLoad]);
 
   // Fetches the dropdown's list of selectable past-scan tabs once on
   // load. A failure here is non-fatal - the dashboard still works fine
@@ -1155,6 +1210,7 @@ function WasteNetDashboard() {
           box={selected}
           onClose={() => setSelected(null)}
           onSave={saveBoxFields}
+          onSendEmail={sendEmail}
           contacts={masterContacts[selected.boxId]}
           emailTemplates={emailTemplates}
           scanTitle={scanTitle}
@@ -1172,6 +1228,7 @@ function WasteNetDashboard() {
           boxes={batchTarget.boxes}
           onClose={() => setBatchTarget(null)}
           onSave={saveBoxFields}
+          onSendEmail={sendEmail}
           masterContacts={masterContacts}
           emailTemplates={emailTemplates}
           sheetName={sheetName}
@@ -1204,13 +1261,141 @@ function WasteNetDashboard() {
 // deliberately NOT offered as recipients here at all: a batch email
 // spans multiple sites, and cc'ing every site's customer contacts onto
 // one email would expose each customer's business to the others.
-function BatchPanel({ haulCode, boxes, onClose, onSave, masterContacts, emailTemplates, sheetName, monoFont, font }) {
+// Shared send-email control used by BOTH the per-box detail panel and
+// the Batch Service Email panel, so the two flows stay visually and
+// behaviorally identical. Sending is server-side (SendGrid via the
+// Apps Script) and therefore IMMEDIATE and IRREVERSIBLE once
+// confirmed, so this is deliberately never one-click: the Send button
+// first opens a full on-screen preview of exactly what will go out
+// (From/To/Cc/Bcc/Subject/complete Body), and only the Confirm & Send
+// button inside that preview actually sends. That preserves the
+// review-before-send step the old mailto: draft window used to
+// provide, without ever launching an email client.
+//
+// States (owned by the PARENT, so a background data refresh never
+// resets an in-progress preview): 'idle' -> 'preview' -> 'sending' ->
+// 'sent' | 'error' (error returns to the preview with the reason shown
+// and Confirm & Send re-enabled for a retry).
+function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subject, body, canSend, noRecipientHint, sendState, sendError, onArm, onCancel, onConfirm, onReset, monoFont, font }) {
+  const previewRow = (label, value) => (
+    value ? (
+      <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+        <div style={{ fontSize: 11.5, fontWeight: 700, color: BRAND.muted, width: 52, flexShrink: 0, textAlign: 'right' }}>{label}</div>
+        <div style={{ fontSize: 11.5, fontFamily: monoFont, color: BRAND.ink, wordBreak: 'break-word', minWidth: 0 }}>{value}</div>
+      </div>
+    ) : null
+  );
+
+  if (sendState === 'sent') {
+    return (
+      <div>
+        <div style={{
+          padding: '12px 14px', background: 'rgba(92,170,22,0.12)',
+          border: '1.5px solid ' + BRAND.green, borderRadius: 6, color: BRAND.greenDark,
+          fontSize: 13, fontWeight: 600, textAlign: 'center', fontFamily: font,
+        }}>
+          ✓ Email sent to {countRecipients(effectiveTo)} recipient{countRecipients(effectiveTo) === 1 ? '' : 's'}
+          <div style={{ fontSize: 11.5, fontWeight: 500, color: BRAND.greenDark, marginTop: 3 }}>
+            Sent from office@wastenetinc.com — a copy was Bcc'd to the office@ mailbox.
+          </div>
+        </div>
+        <button
+          onClick={onReset}
+          style={{
+            display: 'block', width: '100%', marginTop: 8, padding: '8px', fontSize: 12.5,
+            fontWeight: 600, borderRadius: 5, border: '1.5px solid ' + BRAND.line,
+            background: BRAND.panel, color: BRAND.muted, cursor: 'pointer', fontFamily: font,
+          }}
+        >Compose Another Email</button>
+      </div>
+    );
+  }
+
+  if (sendState === 'preview' || sendState === 'sending' || sendState === 'error') {
+    const sending = sendState === 'sending';
+    return (
+      <div style={{
+        border: '2px solid ' + BRAND.green, borderRadius: 8, padding: 12,
+        background: 'rgba(92,170,22,0.04)',
+      }}>
+        <div style={{
+          fontSize: 12, fontWeight: 700, color: BRAND.green, textTransform: 'uppercase',
+          letterSpacing: '0.03em', marginBottom: 8, fontFamily: monoFont,
+        }}>Review Before Sending</div>
+        {previewRow('From:', 'WasteNet <office@wastenetinc.com>')}
+        {previewRow('To:', effectiveTo)}
+        {previewRow('Cc:', effectiveCc)}
+        {previewRow('Bcc:', outgoingBcc)}
+        {previewRow('Subject:', subject)}
+        <div style={{
+          marginTop: 8, border: '1px solid ' + BRAND.line, borderRadius: 5,
+          background: BRAND.panel, padding: '8px 10px', maxHeight: 220, overflowY: 'auto',
+          fontSize: 12, fontFamily: monoFont, color: BRAND.ink,
+          whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+        }}>{body}</div>
+        {sendState === 'error' && (
+          <div style={{
+            marginTop: 8, padding: '6px 10px', background: 'rgba(179,64,43,0.08)',
+            border: '1px solid ' + BRAND.red, borderRadius: 5, color: BRAND.red,
+            fontSize: 12, fontWeight: 600,
+          }}>Could not send: {sendError}</div>
+        )}
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <button
+            onClick={onConfirm}
+            disabled={sending}
+            style={{
+              flex: 2, padding: '9px', fontSize: 13.5, fontWeight: 700, borderRadius: 5,
+              border: 'none', cursor: sending ? 'default' : 'pointer',
+              background: sending ? BRAND.muted : BRAND.green, color: '#FFFFFF', fontFamily: font,
+            }}
+          >{sending ? 'Sending…' : 'Confirm & Send'}</button>
+          <button
+            onClick={onCancel}
+            disabled={sending}
+            style={{
+              flex: 1, padding: '9px', fontSize: 13, fontWeight: 600, borderRadius: 5,
+              border: '1.5px solid ' + BRAND.line, cursor: sending ? 'default' : 'pointer',
+              background: BRAND.panel, color: BRAND.muted, fontFamily: font,
+            }}
+          >Cancel</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        onClick={() => canSend && onArm()}
+        disabled={!canSend}
+        style={{
+          display: 'block', width: '100%', padding: '10px', textAlign: 'center',
+          borderRadius: 6, fontSize: 14, fontWeight: 700, fontFamily: font,
+          border: 'none', cursor: canSend ? 'pointer' : 'not-allowed',
+          background: canSend ? BRAND.green : BRAND.muted, color: '#FFFFFF',
+        }}
+      >{sendLabel}</button>
+      {!effectiveTo && (
+        <div style={{
+          marginTop: 8, padding: '6px 10px', background: '#FBF6E9',
+          border: '1px solid #E8D9A8', borderRadius: 5, color: '#7A5E1E',
+          fontSize: 12, fontWeight: 600,
+        }}>{noRecipientHint}</div>
+      )}
+    </div>
+  );
+}
+
+function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterContacts, emailTemplates, sheetName, monoFont, font }) {
   const [puDateInput, setPuDateInput] = React.useState('');
   const [haulerPlacement, setHaulerPlacement] = React.useState('to'); // hauler emails default To - emailing the hauler IS this panel's purpose
   const [staffPlacement, setStaffPlacement] = React.useState('off');
   const [dateSaveState, setDateSaveState] = React.useState('idle'); // idle | saving | saved | error
   const [dateSaveProgress, setDateSaveProgress] = React.useState('');
   const [dateSaveError, setDateSaveError] = React.useState(null);
+  const [sendState, setSendState] = React.useState('idle'); // idle | preview | sending | sent | error - see EmailSendBlock
+  const [sendError, setSendError] = React.useState(null);
 
   // Union of the included boxes' Haulers addresses, de-duplicated
   // case-insensitively - for one hauler code these SHOULD be identical
@@ -1286,13 +1471,32 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, masterContacts, emailTem
   const effectiveTo = fieldsFor('to');
   const effectiveCc = fieldsFor('cc');
   const effectiveBcc = fieldsFor('bcc');
-  const mailtoParams = [];
-  if (effectiveCc) mailtoParams.push('cc=' + encodeURIComponent(effectiveCc));
-  if (effectiveBcc) mailtoParams.push('bcc=' + encodeURIComponent(effectiveBcc));
-  if (finalSubject) mailtoParams.push('subject=' + encodeURIComponent(finalSubject));
-  if (finalBody) mailtoParams.push('body=' + encodeURIComponent(finalBody));
-  const mailtoHref = 'mailto:' + encodeURIComponent(effectiveTo || '') +
-    (mailtoParams.length ? '?' + mailtoParams.join('&') : '');
+
+  // Server-side send (SendGrid via the Apps Script's send_email
+  // action) - a copy always Bcc'd to office@ per explicit design
+  // decision, and a To recipient is required (SendGrid rejects an
+  // email with only Cc/Bcc, and a batch email with no hauler in To is
+  // a mistake anyway).
+  const outgoingBcc = withOfficeBcc(effectiveBcc);
+  const canSend = !!(effectiveTo && finalSubject && finalBody);
+  const handleConfirmSend = async () => {
+    if (sendState === 'sending') return;
+    setSendState('sending');
+    setSendError(null);
+    try {
+      await onSendEmail({
+        to: effectiveTo,
+        cc: effectiveCc,
+        bcc: outgoingBcc,
+        subject: finalSubject,
+        body: finalBody,
+      });
+      setSendState('sent');
+    } catch (err) {
+      setSendState('error');
+      setSendError(err.message || String(err));
+    }
+  };
 
   // Writes the shared Pick-Up Date into EVERY included box's P/U Date
   // field, one save at a time (sequential, with visible progress) -
@@ -1448,16 +1652,24 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, masterContacts, emailTem
           </div>
 
           {hasTemplate ? (
-            <a
-              href={mailtoHref}
-              target="_blank"
-              rel="noopener"
-              style={{
-                display: 'block', padding: '10px', textAlign: 'center',
-                borderRadius: 6, fontSize: 14, fontWeight: 700, fontFamily: font,
-                background: BRAND.green, color: '#FFFFFF', textDecoration: 'none',
-              }}
-            >Compose Batch Email ({boxes.length} boxes)</a>
+            <EmailSendBlock
+              sendLabel={'Send Batch Email (' + boxes.length + ' boxes)'}
+              effectiveTo={effectiveTo}
+              effectiveCc={effectiveCc}
+              outgoingBcc={outgoingBcc}
+              subject={finalSubject}
+              body={finalBody}
+              canSend={canSend}
+              noRecipientHint="No To recipient yet - set the Haulers (or Staff) group to To before sending."
+              sendState={sendState}
+              sendError={sendError}
+              onArm={() => setSendState('preview')}
+              onCancel={() => { setSendState('idle'); setSendError(null); }}
+              onConfirm={handleConfirmSend}
+              onReset={() => { setSendState('idle'); setSendError(null); }}
+              monoFont={monoFont}
+              font={font}
+            />
           ) : (
             <div style={{
               padding: '10px', textAlign: 'center', borderRadius: 6, fontSize: 13,
@@ -1890,7 +2102,7 @@ function rebuildServiceBody(parsed, selectedIndexes) {
     kept.map(function (it) { return it.text; }).join('\n');
 }
 
-function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle, sheetName, onLoadHistory, monoFont, font, displayFont }) {
+function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplates, scanTitle, sheetName, onLoadHistory, monoFont, font, displayFont }) {
   // Request History - fetched fresh from the ledger each time a box's
   // panel opens (keyed on boxId, not object identity, so background
   // refreshes don't re-fetch it). null = still loading.
@@ -1951,6 +2163,19 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
   // emailTemplates instead (the separate, generic Email Templates tab).
   // Defaults to Service since that's the original, most-used category.
   const [emailCategory, setEmailCategory] = React.useState('Service');
+
+  // Send flow state - idle | preview | sending | sent | error (see
+  // EmailSendBlock). Lives HERE at the top of DetailPanel (not inside
+  // the email-section render block below) because React hooks aren't
+  // allowed inside conditional render logic - same reasoning as the
+  // Weights selections below. Reset whenever a DIFFERENT box is opened
+  // or the email category pill changes, so an armed preview for one
+  // email can never be confirmed after the content underneath it has
+  // been swapped out. Keyed on boxId, not object identity, so the
+  // 5-minute background refresh never wipes an in-progress preview.
+  const [sendState, setSendState] = React.useState('idle');
+  const [sendError, setSendError] = React.useState(null);
+  React.useEffect(() => { setSendState('idle'); setSendError(null); }, [box.boxId, emailCategory]);
 
   // Weights email month/year selections. The Weights template's body
   // contains literal [months], [year], and [box description]
@@ -2459,13 +2684,30 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
             }
           }
 
-          const mailtoParams = [];
-          if (effectiveCc) mailtoParams.push('cc=' + encodeURIComponent(effectiveCc));
-          if (effectiveBcc) mailtoParams.push('bcc=' + encodeURIComponent(effectiveBcc));
-          if (finalSubject) mailtoParams.push('subject=' + encodeURIComponent(finalSubject));
-          if (finalBody) mailtoParams.push('body=' + encodeURIComponent(finalBody));
-          const mailtoHref = 'mailto:' + encodeURIComponent(effectiveTo || '') +
-            (mailtoParams.length ? '?' + mailtoParams.join('&') : '');
+          // Server-side send (SendGrid via the Apps Script's
+          // send_email action) - a copy always Bcc'd to office@ per
+          // explicit design decision, and a To recipient is required
+          // (SendGrid rejects an email with only Cc/Bcc recipients).
+          const outgoingBcc = withOfficeBcc(effectiveBcc);
+          const canSend = !!(effectiveTo && finalSubject && finalBody);
+          const handleConfirmSend = async () => {
+            if (sendState === 'sending') return;
+            setSendState('sending');
+            setSendError(null);
+            try {
+              await onSendEmail({
+                to: effectiveTo,
+                cc: effectiveCc,
+                bcc: outgoingBcc,
+                subject: finalSubject,
+                body: finalBody,
+              });
+              setSendState('sent');
+            } catch (err) {
+              setSendState('error');
+              setSendError(err.message || String(err));
+            }
+          };
 
           // Small shared 3-way control (To / Cc / Bcc) for one
           // recipient group - used three times below, once each for
@@ -2665,25 +2907,37 @@ function DetailPanel({ box, onClose, onSave, contacts, emailTemplates, scanTitle
                 </div>
               )}
 
-              {/* Compose button - builds a standard mailto: link with
+              {/* Send button - sends the composed email directly
+                  through the Apps Script's send_email action (SendGrid
+                  API, From: WasteNet <office@wastenetinc.com>, replies
+                  routed by the server to the monitored mailbox, a copy
+                  always Bcc'd to office@ for team visibility), with
                   the Pick-Up Date already inserted per
                   fillEmailTemplate's rules, using whichever category
-                  pill is currently active - opens in whatever email
-                  client/app is already the default on this device
-                  (Outlook, Gmail, etc.), fully pre-filled and ready to
-                  review and send, since a web page itself cannot send
-                  email directly. */}
+                  pill is currently active. No email client is ever
+                  launched. Never one-click: the first click opens a
+                  full preview of exactly what will go out, and only
+                  Confirm & Send inside that preview actually sends -
+                  see EmailSendBlock. */}
               {hasActiveTemplate ? (
-                <a
-                  href={mailtoHref}
-                  target="_blank"
-                  rel="noopener"
-                  style={{
-                    display: 'block', padding: '10px', textAlign: 'center',
-                    borderRadius: 6, fontSize: 14, fontWeight: 700, fontFamily: font,
-                    background: BRAND.green, color: '#FFFFFF', textDecoration: 'none',
-                  }}
-                >Compose {emailCategory} Email</a>
+                <EmailSendBlock
+                  sendLabel={'Send ' + emailCategory + ' Email'}
+                  effectiveTo={effectiveTo}
+                  effectiveCc={effectiveCc}
+                  outgoingBcc={outgoingBcc}
+                  subject={finalSubject}
+                  body={finalBody}
+                  canSend={canSend}
+                  noRecipientHint="No To recipient yet - set at least one group (Haulers, Customers, or Staff) to To before sending."
+                  sendState={sendState}
+                  sendError={sendError}
+                  onArm={() => setSendState('preview')}
+                  onCancel={() => { setSendState('idle'); setSendError(null); }}
+                  onConfirm={handleConfirmSend}
+                  onReset={() => { setSendState('idle'); setSendError(null); }}
+                  monoFont={monoFont}
+                  font={font}
+                />
               ) : (
                 <div style={{
                   padding: '10px', textAlign: 'center', borderRadius: 6, fontSize: 13,
