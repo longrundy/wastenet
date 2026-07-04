@@ -1455,7 +1455,7 @@ function WasteNetDashboard() {
 // resets an in-progress proof): 'idle' -> 'preview' -> 'sending' ->
 // 'sent' | 'error' (error keeps the proof sheet open with the reason
 // shown and Send Email re-enabled for a retry).
-function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subject, body, htmlBody, canSend, noRecipientHint, sendState, sendError, onArm, onCancel, onConfirm, onReset, monoFont, font }) {
+function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subject, body, htmlBody, canSend, noRecipientHint, hideIdleButton, sendState, sendError, onArm, onCancel, onConfirm, onReset, monoFont, font }) {
   const previewRow = (label, value) => (
     value ? (
       <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
@@ -1587,6 +1587,11 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
     );
   }
 
+  // Idle state. The DETAIL panel arms proofing externally (the
+  // Proof Email dropdown under the email-type pills) and shows its
+  // missing-To warning up in the recipients section, so it renders
+  // nothing here at all; the BATCH panel keeps this button and badge.
+  if (hideIdleButton) return null;
   return (
     <div>
       <button
@@ -1890,8 +1895,8 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
           </div>
 
           <div style={{
-            border: '2px solid ' + BRAND.green, borderRadius: 8, padding: 12, marginBottom: 16,
-            background: 'rgba(92,170,22,0.05)',
+            border: '1px solid #E2E6DE', borderRadius: 8, padding: 12, marginBottom: 16,
+            background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
           }}>
             <div style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
@@ -1908,7 +1913,8 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
               {schedRules.length > 0 && (
                 <div style={{
                   fontSize: 12, fontFamily: monoFont, fontWeight: 700, color: BRAND.green,
-                  background: 'rgba(92,170,22,0.08)', border: '1px solid ' + BRAND.green,
+                  background: '#FFFFFF', border: '1px solid #E2E6DE',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
                   borderRadius: 3, padding: '3px 8px', minWidth: 0,
                 }}>
                   {schedRules.length === 1 ? 'Sched Rule: ' + schedRules[0] : 'Mixed Rules: ' + schedRules.join(' / ')}
@@ -2610,6 +2616,16 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
   // selections mid-edit).
   const [selectedStaff, setSelectedStaff] = React.useState([]);
   React.useEffect(() => { setSelectedStaff([]); }, [box.boxId]);
+
+  // Which email-type pill's dropdown is open. The standalone Proof
+  // Email button was removed per explicit design decision - proofing
+  // now lives in a small dropdown under whichever category pill was
+  // clicked. Reset keyed on box.boxId ONLY (not emailCategory),
+  // because clicking a pill both selects the category AND opens its
+  // menu - a category-keyed reset would slam the menu shut the same
+  // instant it opened.
+  const [emailMenuFor, setEmailMenuFor] = React.useState(null);
+  React.useEffect(() => { setEmailMenuFor(null); }, [box.boxId]);
   const toggleStaff = (addr) => {
     setSelectedStaff(prev =>
       prev.includes(addr) ? prev.filter(a => a !== addr) : [...prev, addr]
@@ -2852,8 +2868,8 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
             technology and needs to know immediately and clearly that
             the save worked. */}
         <div style={{
-          border: '2px solid ' + BRAND.green, borderRadius: 8, padding: 12, marginBottom: 14,
-          background: 'rgba(92,170,22,0.05)',
+          border: '1px solid #E2E6DE', borderRadius: 8, padding: 12, marginBottom: 14,
+          background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
         }}>
           <div style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
@@ -2876,7 +2892,8 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
             {contacts && contacts.schedulingRule && (
               <div style={{
                 fontSize: 12, fontFamily: monoFont, fontWeight: 700, color: BRAND.green,
-                background: 'rgba(92,170,22,0.08)', border: '1px solid ' + BRAND.green,
+                background: '#FFFFFF', border: '1px solid #E2E6DE',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
                 borderRadius: 3, padding: '3px 8px', minWidth: 0,
               }}>
                 Sched Rule: {contacts.schedulingRule}
@@ -3293,32 +3310,86 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                 <PlacementSelector value={staffPlacement} onChange={setStaffPlacement} />
               </div>
 
+              {/* Missing-To warning - lives right-aligned under the
+                  three placement selector columns, per explicit design
+                  decision: it sits where the fix is (tap a To above),
+                  and disappears the moment any group lands in To. */}
+              {!effectiveTo && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -6, marginBottom: 12 }}>
+                  <div style={{
+                    padding: '4px 10px', background: '#FFFFFF',
+                    border: '1px solid #E2E6DE', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                    borderRadius: 5, color: BRAND.red,
+                    fontSize: 11, fontWeight: 700, fontFamily: monoFont, whiteSpace: 'nowrap',
+                  }}>To: recipient must be added</div>
+                </div>
+              )}
+
               <div style={{ fontSize: 12.5, fontWeight: 600, color: BRAND.ink, marginBottom: 6 }}>Email Type</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
                 {PILL_LABELS.map(label => {
                   const isActive = emailCategory === label;
                   const templateExists = !!(getTemplateFor(label).subjectTemplate || getTemplateFor(label).bodyTemplate);
+                  const menuOpen = emailMenuFor === label;
                   return (
-                    <button
-                      key={label}
-                      onClick={() => setEmailCategory(label)}
-                      disabled={!templateExists}
-                      title={templateExists ? '' : 'No template set up for this category yet'}
-                      style={{
-                        // Rounded-corner rectangle (not the old oval) to
-                        // match every other button, per explicit design
-                        // decision. Unselected: white with the standard
-                        // drop shadow, gray text as before. Selected:
-                        // solid green with white text, unchanged.
-                        fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 5,
-                        border: '1px solid ' + (isActive ? BRAND.green : '#E2E6DE'),
-                        background: isActive ? BRAND.green : '#FFFFFF',
-                        boxShadow: isActive ? 'none' : '0 1px 3px rgba(0,0,0,0.15)',
-                        color: !templateExists ? '#C7CCC2' : (isActive ? '#FFFFFF' : BRAND.muted),
-                        cursor: templateExists ? 'pointer' : 'not-allowed', fontFamily: font,
-                        opacity: templateExists ? 1 : 0.6,
-                      }}
-                    >{label}</button>
+                    <div key={label} style={{ position: 'relative' }}>
+                      <button
+                        onClick={() => {
+                          setEmailCategory(label);
+                          setEmailMenuFor(menuOpen ? null : label);
+                        }}
+                        disabled={!templateExists}
+                        title={templateExists ? '' : 'No template set up for this category yet'}
+                        style={{
+                          // All pills white with the standard drop
+                          // shadow, per explicit design decision. State
+                          // shows in the TEXT: green when selected,
+                          // gray when not, faded when no template. The
+                          // caret on the active pill signals the Proof
+                          // Email dropdown that replaced the old
+                          // standalone button.
+                          fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 5,
+                          border: '1px solid #E2E6DE',
+                          background: '#FFFFFF',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                          color: !templateExists ? '#C7CCC2' : (isActive ? BRAND.green : BRAND.muted),
+                          cursor: templateExists ? 'pointer' : 'not-allowed', fontFamily: font,
+                          opacity: templateExists ? 1 : 0.6,
+                        }}
+                      >{label}{isActive ? ' ▾' : ''}</button>
+                      {menuOpen && (
+                        <React.Fragment>
+                          {/* Invisible full-screen backdrop - a click
+                              anywhere outside closes the menu. */}
+                          <div
+                            onClick={() => setEmailMenuFor(null)}
+                            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 60 }}
+                          />
+                          <div style={{
+                            position: 'absolute', left: 0, top: 'calc(100% + 4px)', zIndex: 61,
+                            background: '#FFFFFF', border: '1px solid ' + BRAND.line, borderRadius: 6,
+                            boxShadow: '0 4px 16px rgba(0,0,0,0.18)', minWidth: 150, overflow: 'hidden',
+                          }}>
+                            <button
+                              disabled={!canSend}
+                              onClick={() => {
+                                if (!canSend) return;
+                                setEmailMenuFor(null);
+                                setSendState('preview');
+                              }}
+                              title={canSend ? '' : 'To: recipient must be added'}
+                              style={{
+                                display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px',
+                                fontSize: 12.5, fontWeight: 600, fontFamily: font, border: 'none',
+                                background: 'transparent',
+                                color: canSend ? BRAND.ink : '#C7CCC2',
+                                cursor: canSend ? 'pointer' : 'not-allowed',
+                              }}
+                            >Proof Email</button>
+                          </div>
+                        </React.Fragment>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -3435,21 +3506,22 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                 </div>
               )}
 
-              {/* Send button - sends the composed email directly
-                  through the Apps Script's send_email action (SendGrid
-                  API, From: WasteNet <office@wastenetinc.com>, replies
-                  routed by the server to the monitored mailbox, a copy
-                  always Bcc'd to office@ for team visibility), with
-                  the Pick-Up Date already inserted per
-                  fillEmailTemplate's rules, using whichever category
-                  pill is currently active. No email client is ever
-                  launched. Never one-click: the first click opens a
-                  full preview of exactly what will go out, and only
-                  Confirm & Send inside that preview actually sends -
-                  see EmailSendBlock. */}
+              {/* Proof/send machinery - sends the composed email
+                  directly through the Apps Script's send_email action
+                  (SendGrid API, From: WasteNet <office@wastenetinc.com>,
+                  replies routed by the server to the monitored
+                  mailbox, a copy always Bcc'd to office@), with the
+                  Pick-Up Date inserted per fillEmailTemplate's rules.
+                  The idle button is HIDDEN here (hideIdleButton) -
+                  proofing is armed from the Proof Email dropdown
+                  under the email-type pills above - so this renders
+                  only the full-screen proof sheet and the post-send
+                  success card. Never one-click: only Send Email inside
+                  the proof actually sends - see EmailSendBlock. */}
               {hasActiveTemplate ? (
                 <EmailSendBlock
                   sendLabel={'Proof Email'}
+                  hideIdleButton={true}
                   effectiveTo={effectiveTo}
                   effectiveCc={effectiveCc}
                   outgoingBcc={outgoingBcc}
