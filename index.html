@@ -666,7 +666,7 @@ function WasteNetDashboard() {
 
   const [query, setQuery] = useState('');
   const [signalFilter, setSignalFilter] = useState('crossed'); // ALL | crossed | stale | both | clear
-  const [sortBy, setSortBy] = useState('haulCode'); // Action Needed (the default view) defaults to Sort: Hauler per explicit design decision - see handleSelectSignalFilter
+  const [sortBy, setSortBy] = useState('description'); // Action Needed (the default view) defaults to Sort: Description per explicit design decision (changed from Hauler) - see handleSelectSignalFilter
   const [selected, setSelected] = useState(null);
   const [batchTarget, setBatchTarget] = useState(null); // { haulCode, boxes } | null
   const [toast, setToast] = useState(null);
@@ -700,14 +700,17 @@ function WasteNetDashboard() {
   };
 
   // Switches which stat-button view is active. Per explicit design
-  // decision, selecting Action Needed always lands on Sort: Hauler
-  // (the batch-email working order); the other views reset sortBy back
-  // to Box Number whenever the CURRENTLY selected sort option wouldn't
-  // even appear in the new view's dropdown - prevents the dropdown
-  // from silently showing a stale, no-longer-relevant selection.
+  // decision (changed from the earlier lands-on-Hauler behavior),
+  // selecting Action Needed always lands on Sort: Description; Sort:
+  // Hauler remains available in the dropdown, and choosing it still
+  // brings back the hauler group headers + Batch Email mode exactly
+  // as before. The other views reset sortBy back to Box Number
+  // whenever the CURRENTLY selected sort option wouldn't even appear
+  // in the new view's dropdown - prevents the dropdown from silently
+  // showing a stale, no-longer-relevant selection.
   const handleSelectSignalFilter = (key) => {
     if (key === 'crossed') {
-      setSortBy('haulCode');
+      setSortBy('description');
     } else if (key === 'stale') {
       // Stale Scans defaults to Least Hours per explicit design
       // decision - the least-stale boxes are the ones most likely to
@@ -2515,17 +2518,13 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                   shown only when the box actually has a hauler code
                   rather than displaying a pointless placeholder pill
                   on every row. */}
-              {/* Hauler pill - per explicit design decision, now shown
-                  ONLY on the Action Needed view; removed from Stale
-                  Scans and No Action Needed. */}
-              {activeView === 'crossed' && b.haulCode && b.haulCode !== '—' && (
-                <span style={{
-                  fontSize: 10.5, fontWeight: 700, fontFamily: monoFont, color: BRAND.green,
-                  background: '#FFFFFF', border: '1px solid #E2E6DE',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
-                  borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
-                }}>HAULER {b.haulCode}</span>
-              )}
+              {/* Hauler pill - REMOVED entirely per explicit design
+                  decision (was previously shown on the Action Needed
+                  view only). The Haul Code data still rides on every
+                  row, so Sort: Hauler, the hauler group headers, and
+                  Batch Email mode all keep working unchanged - in
+                  hauler-sort mode the group header above each block is
+                  where the hauler is identified. */}
               {/* Pickup Date pill - still only shown once a Pick-Up
                   Date has actually been saved for this box. */}
               {b.puDate && (
