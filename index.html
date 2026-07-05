@@ -665,7 +665,7 @@ function WasteNetDashboard() {
   const [dateDropdownOpen, setDateDropdownOpen] = useState(false);
 
   const [query, setQuery] = useState('');
-  const [signalFilter, setSignalFilter] = useState('crossed'); // ALL | crossed | stale | both | clear
+  const [signalFilter, setSignalFilter] = useState('crossed'); // ALL | crossed | stale | both | clear | all ('all' = the Total Boxes view: every box, no status filtering)
   const [sortBy, setSortBy] = useState('description'); // Action Needed (the default view) defaults to Sort: Description per explicit design decision (changed from Hauler) - see handleSelectSignalFilter
   const [selected, setSelected] = useState(null);
   const [batchTarget, setBatchTarget] = useState(null); // { haulCode, boxes } | null
@@ -697,6 +697,14 @@ function WasteNetDashboard() {
       ['description', 'Sort: Description'],
       ['haulCode', 'Sort: Hauler'],
     ],
+    // Total Boxes view - same generic options as No Action Needed;
+    // neither Pickup Confirmation nor the hours sorts make sense
+    // across a list that mixes every status.
+    all: [
+      ['boxId', 'Sort: Box Number'],
+      ['description', 'Sort: Description'],
+      ['haulCode', 'Sort: Hauler'],
+    ],
   };
 
   // Switches which stat-button view is active. Per explicit design
@@ -710,6 +718,11 @@ function WasteNetDashboard() {
   // showing a stale, no-longer-relevant selection.
   const handleSelectSignalFilter = (key) => {
     if (key === 'crossed') {
+      setSortBy('description');
+    } else if (key === 'all') {
+      // Total Boxes defaults to Sort: Description per explicit design
+      // decision - alphabetical-by-site is the natural way to browse
+      // the entire fleet.
       setSortBy('description');
     } else if (key === 'stale') {
       // Stale Scans defaults to Least Hours per explicit design
@@ -1296,6 +1309,15 @@ function WasteNetDashboard() {
           { key: 'crossed', label: 'Action Needed', value: counts.crossed },
           { key: 'clear', label: 'No Action Needed', value: counts.clear },
           { key: 'stale', label: 'Stale Scans', value: counts.stale + counts.both },
+          // Fourth button - the old "= total" sum-check annotation,
+          // promoted to a real clickable view per explicit design
+          // decision: same white-card-with-drop-shadow treatment as
+          // the other three, and clicking it lists EVERY box in the
+          // scan (no status filtering), defaulting to Sort:
+          // Description. The '=' stays in the displayed value so the
+          // strip still reads as the equation - Action Needed + No
+          // Action Needed + Stale Scans = Total Boxes.
+          { key: 'all', label: 'Total Boxes', value: '= ' + counts.total },
         ].map((s, i) => {
           const isActive = signalFilter === s.key;
           return (
@@ -1335,32 +1357,10 @@ function WasteNetDashboard() {
             </button>
           );
         })}
-        {/* Sum check - deliberately NOT a button, and styled quietly
-            (no border, no background, muted color) so it reads as an
-            annotation rather than a fourth clickable filter. Sits to
-            the RIGHT of the three buttons so the whole strip reads as
-            an equation - Action Needed + No Action Needed + Stale
-            Scans = total - making it instantly visible whether the
-            three counts account for every box in the scan (they
-            should always sum to the full box count; if this number
-            ever disagrees with the known fleet size, boxes were
-            missed). Wraps below the buttons on narrow screens, which
-            is fine - it stays adjacent either way. */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-          padding: '8px 10px', flexShrink: 0,
-        }}>
-          <span style={{
-            fontSize: 19, fontWeight: 700, fontFamily: displayFont, color: BRAND.muted,
-          }}>=</span>
-          <span style={{
-            fontSize: 19, fontWeight: 700, fontFamily: displayFont, color: BRAND.muted,
-          }}>{counts.total}</span>
-          <span style={{
-            fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.03em', fontFamily: monoFont,
-            color: BRAND.muted, lineHeight: 1.2,
-          }}>Total Boxes</span>
-        </div>
+        {/* The old "= N TOTAL BOXES" quiet annotation that used to sit
+            here was promoted into the fourth button above ('all'), so
+            the standalone element is gone - the equation reading is
+            preserved by the '=' inside that button's value. */}
       </div>
 
       {/* Filters */}
