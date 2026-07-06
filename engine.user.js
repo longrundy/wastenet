@@ -1,11 +1,32 @@
 // ==UserScript==
 // @name         WasteNet Box Monitor Scan
 // @namespace    wastenet
-// @version      4.6
+// @version      4.7
 // @match        http://h1.ces-web.com/*
 // @match        https://h1.ces-web.com/*
 // @grant        none
 // ==/UserScript==
+//
+// v4.7 CHANGE: SET-SCHEDULE FORCING. Boxes with a WasteNet-managed
+// Set Schedule (Master Box List column K, e.g. "Every Friday") now
+// force serviceNeeded=YES on the day their pull must be ORDERED, not
+// the day it happens: the next scheduled pull day is worked backwards
+// through the box's Scheduling Rule (column J - NBD/1-BD/2-BD, same
+// business-day + core-6-holiday math as the dashboard's suggested
+// date), so a Friday pull under a 2-BD rule surfaces on Action Needed
+// starting Tuesday. The force stays on every day from the order day
+// through the pull day (a missed Tuesday still flags Wednesday), and
+// clears through the existing requested-within-SUPPRESS_DAYS
+// suppression once the order is placed. The chart's Empty marker does
+// NOT suppress it - a set-schedule pull is ordered on schedule, not
+// on fill. Exclusions: "Never Schedule" boxes (hauler self-manages -
+// WasteNet must NOT order) and any Set Schedule mentioning "by
+// Hauler" (hybrids like Box 1030 - the hauler-owned days are theirs;
+// those boxes stay purely reading-driven here). Boxes with a Set
+// Schedule but NO Scheduling Rule default to ordering one business
+// day ahead (NBD-equivalent). Requires the matching Code.gs update:
+// ?action=days_cycles now delivers each box's Scheduling Rule as 'r'
+// alongside the existing 's' Set Schedule text.
 //
 // v4.6 CHANGE: every result now carries lastCycleHours - the "Last
 // Cycle: N hours/days" reading from the box page - for ALL boxes, not
@@ -550,15 +571,155 @@
         parts.push('REQUESTED ' + mm + '/' + dd);
       }
       // v4.5: Set Schedule marker from Master Box List column K,
-      // delivered in the days_cycles map as 's'. Two words only -
-      // the full text lives on the dashboard's detail panel.
+      // delivered in the days_cycles map as 's'. v4.7: when the box
+      // is inside its order window, the marker carries the pull it's
+      // due for, so the sheet/dashboard show WHY it was forced.
       if (trig && trig.s) {
-        parts.push(/^never\s+schedule/i.test(String(trig.s).trim()) ? 'NEVER SCHED' : 'SET SCHED');
+        if (/^never\s+schedule/i.test(String(trig.s).trim())) {
+          parts.push('NEVER SCHED');
+        } else {
+          const due = computeSetScheduleDue(boxId, state);
+          parts.push(due
+            ? 'SET SCHED - ORDER BY ' + formatShortDay(due.orderDate) + ' FOR ' + formatShortDay(due.pullDate) + ' PULL'
+            : 'SET SCHED');
+        }
       }
       return parts.join(' | ');
     } catch (e) {
       return '';
     }
+  }
+
+  // ---- v4.7: set-schedule order-day math ----
+  // Mirrors the dashboard's business-day machinery (same core-6
+  // holidays, same observed-date shifts) so the day this scanner
+  // forces a box is exactly the day the dashboard's suggested date
+  // for it lands on the scheduled pull.
+  function ymdKey(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function nthWeekdayOfMonth(year, monthIndex, weekday, n) {
+    if (n > 0) {
+      const first = new Date(year, monthIndex, 1);
+      const day = 1 + ((weekday - first.getDay() + 7) % 7) + (n - 1) * 7;
+      return new Date(year, monthIndex, day);
+    }
+    const lastDay = new Date(year, monthIndex + 1, 0);
+    const day = lastDay.getDate() - ((lastDay.getDay() - weekday + 7) % 7);
+    return new Date(year, monthIndex, day);
+  }
+  function observedHolidayDate(date) {
+    const dow = date.getDay();
+    const result = new Date(date);
+    if (dow === 6) result.setDate(result.getDate() - 1);
+    else if (dow === 0) result.setDate(result.getDate() + 1);
+    return result;
+  }
+  function getCoreHolidaysForYear(year) {
+    return [
+      observedHolidayDate(new Date(year, 0, 1)),   // New Year's Day
+      nthWeekdayOfMonth(year, 4, 1, -1),           // Memorial Day - last Mon of May
+      observedHolidayDate(new Date(year, 6, 4)),   // July 4th
+      nthWeekdayOfMonth(year, 8, 1, 1),            // Labor Day - 1st Mon of Sep
+      nthWeekdayOfMonth(year, 10, 4, 4),           // Thanksgiving - 4th Thu of Nov
+      observedHolidayDate(new Date(year, 11, 25)), // Christmas
+    ];
+  }
+  function buildHolidaySet(year) {
+    const dates = [...getCoreHolidaysForYear(year), ...getCoreHolidaysForYear(year + 1)];
+    return new Set(dates.map(ymdKey));
+  }
+  function addBusinessDaysHol(date, days, holidaySet) {
+    const result = new Date(date);
+    let added = 0;
+    while (added < days) {
+      result.setDate(result.getDate() + 1);
+      const dow = result.getDay();
+      const isWeekend = dow === 0 || dow === 6;
+      const isHoliday = holidaySet && holidaySet.has(ymdKey(result));
+      if (!isWeekend && !isHoliday) added++;
+    }
+    return result;
+  }
+
+  // Extracts JS day-of-week indices (0=Sun..6=Sat) from a Set
+  // Schedule string like "Every Monday and Friday". Returns null -
+  // meaning DO NOT force - for "Never Schedule..." (hauler
+  // self-manages) and for anything mentioning "by Hauler" (hybrids:
+  // the hauler-owned days are theirs, so those boxes stay purely
+  // reading-driven per explicit design decision, 2026-07-06).
+  function parseSetScheduleDays(text) {
+    const t = String(text || '').trim();
+    if (!t) return null;
+    if (/never\s+schedule/i.test(t)) return null;
+    if (/by\s+hauler/i.test(t)) return null;
+    const names = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const days = [];
+    names.forEach(function (name, idx) {
+      if (new RegExp('\\b' + name + 's?\\b', 'i').test(t)) days.push(idx);
+    });
+    return days.length > 0 ? days : null;
+  }
+
+  // "NBD" -> 1, "N-BD" -> N+1 - identical semantics to the
+  // dashboard's computeSuggestedPickupDate. null for anything else.
+  function parseRuleBusinessDays(rule) {
+    const normalized = String(rule || '').trim().toUpperCase();
+    if (!normalized) return null;
+    if (normalized === 'NBD') return 1;
+    const m = normalized.match(/^(\d+)-BD$/);
+    return m ? parseInt(m[1], 10) + 1 : null;
+  }
+
+  // Decides whether TODAY falls inside a box's order window: for the
+  // next scheduled pull day, the order day is the LATEST business day
+  // from which the rule's math still lands on (or before) the pull
+  // day. Due = orderDay <= today <= pullDay. Returns null when not
+  // due (or the box has no forceable schedule); otherwise
+  // { pullDate, orderDate, ruleLabel } for notes/advisory text.
+  function computeSetScheduleDue(boxId, state) {
+    try {
+      const map = state && state.daysCyclesMap;
+      const trig = map ? map[String(boxId)] : null;
+      if (!trig || !trig.s) return null;
+      const schedDays = parseSetScheduleDays(trig.s);
+      if (!schedDays) return null;
+      // No rule on file -> order one business day ahead
+      // (NBD-equivalent), the safe default per explicit decision.
+      const bd = parseRuleBusinessDays(trig.r) !== null ? parseRuleBusinessDays(trig.r) : 1;
+      const ruleLabel = trig.r ? String(trig.r).trim() : 'NBD default';
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const holidaySet = buildHolidaySet(today.getFullYear());
+      // Scan the next 14 days for scheduled pull days, nearest first.
+      for (let offset = 0; offset < 14; offset++) {
+        const pullDate = new Date(today);
+        pullDate.setDate(pullDate.getDate() + offset);
+        if (schedDays.indexOf(pullDate.getDay()) === -1) continue;
+        // Latest business day whose rule-computed service date still
+        // makes the pull day - step back from the pull date until the
+        // forward math fits.
+        const orderDate = new Date(pullDate);
+        for (let back = 0; back < 30; back++) {
+          orderDate.setDate(orderDate.getDate() - 1);
+          const dow = orderDate.getDay();
+          if (dow === 0 || dow === 6 || holidaySet.has(ymdKey(orderDate))) continue;
+          if (addBusinessDaysHol(orderDate, bd, holidaySet).getTime() <= pullDate.getTime()) break;
+        }
+        if (today.getTime() >= orderDate.getTime() && today.getTime() <= pullDate.getTime()) {
+          return { pullDate: pullDate, orderDate: orderDate, ruleLabel: ruleLabel };
+        }
+        // Nearest pull not due yet -> nothing sooner can be either.
+        if (today.getTime() < orderDate.getTime()) return null;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+  function formatShortDay(d) {
+    const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return names[d.getDay()] + ' ' + String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0');
   }
 
   // Fetches the per-box Days/Cycle Trigger values from the Google
@@ -1660,6 +1821,27 @@
       }
     }
 
+    // v4.7: set-schedule forcing - runs AFTER the reading-based
+    // decision and OVERRIDES it to YES whenever today is inside the
+    // box's order window (order day through pull day). Independent of
+    // the chart entirely (an unreadable chart or an Empty marker
+    // doesn't matter - the pull is ordered on schedule, not on fill).
+    // The ONE thing that clears it is an order actually placed:
+    // Date Pull Requested within SUPPRESS_DAYS, checked directly here
+    // since the reading-based branch above only checks it when the
+    // trigger crossed.
+    let schedForcedNote = '';
+    const schedDue = computeSetScheduleDue(boxId, state);
+    if (schedDue && !isDateWithinDays(datePullRequestedRaw, SUPPRESS_DAYS)) {
+      serviceNeeded = true;
+      recentlyRequested = false;
+      schedForcedNote = 'YES (set schedule): ' + formatShortDay(schedDue.pullDate)
+        + ' pull per Set Schedule - order by ' + formatShortDay(schedDue.orderDate)
+        + ' (' + schedDue.ruleLabel + ').';
+      log('Box ' + boxId + ': SET SCHEDULE due - pull ' + formatShortDay(schedDue.pullDate)
+        + ', order by ' + formatShortDay(schedDue.orderDate) + ' - forcing YES.');
+    }
+
     state.pendingResult = {
       boxId: boxEntry ? boxEntry.boxId : boxId,
       cell: boxEntry ? boxEntry.cell : '',
@@ -1674,8 +1856,9 @@
       serviceNeeded,
       advisory,
       lastCycleHours: lastCycleHours === null ? null : Math.round(lastCycleHours * 10) / 10,
-      notes: (errorMsg
-        ? 'NO (chart unreadable): ' + errorMsg
+      notes: (schedForcedNote ? schedForcedNote + ' ' : '')
+        + (errorMsg
+        ? (schedForcedNote ? 'Chart unreadable: ' : 'NO (chart unreadable): ') + errorMsg
         : (recentlyRequested ? 'Suppressed: ' + suppressionReason + '.' : ''))
         + (lastCycleHours !== null && lastCycleHours > 24 && thresholdInfo.closedDaysCounted > 0
           ? ((errorMsg || recentlyRequested) ? ' ' : '')
