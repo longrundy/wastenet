@@ -543,6 +543,17 @@ function normalizeRow(raw, idx) {
     srvcNeed: srvcNeedRaw,
     notes: notes,
     datePullReqd: raw["Date Pull Req'd"] || '',
+    // Advisory (scanner v4.4+): "Days: 97 of 75 | Cycles: 471 of 400 |
+    // REQUESTED 07/01 | SET SCHED" - parsed by the detail panel's Box
+    // Data grid into Last Pick Up / Pick Up Avg / Curr Cycles / Cycles
+    // Trigr. Kept raw here; parsing lives next to its display.
+    advisory: raw['Advisory'] || '',
+    // Last Cycle Hrs (scanner v4.6+): hours since the box last ran a
+    // compaction cycle, captured for every box. Tabs from BEFORE v4.6
+    // don't have the column - the detail panel falls back to parsing
+    // the hours figure out of Notes (which only exists for forced/stale
+    // boxes) and shows a dash otherwise.
+    lastCycleHrs: parseNum(raw['Last Cycle Hrs']),
     schDate: raw['Sch Date'] || '',
     puDate: raw['P/U Date'] || '',
     confirmed: raw['Cnfrmd'] === true || String(raw['Cnfrmd']).toUpperCase() === 'TRUE',
@@ -3995,21 +4006,56 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
           marginTop: 14, background: '#FFFFFF', border: '1px solid #E2E6DE',
           boxShadow: '0 1px 3px rgba(0,0,0,0.15)', borderRadius: 8, padding: 12,
         }}>
-          {[
-            ['Hauler Code', box.haulCode],
-            ['Service Method', box.serviceMethod],
-            ['Box Monitor Cell', box.cell || '—'],
-            ['Trigger 1', box.trigger1 !== null ? box.trigger1 + '%' : '—'],
-            ['Trigger 2', box.trigger2 !== null ? box.trigger2 + '%' : '—'],
-            ['Trigger Used', box.triggerUsedLabel],
-            ['Service Needed?', box.srvcNeed || '—'],
-            ['Recent Date Pull Request', formatSimpleDate(box.datePullReqd) || '—'],
-          ].map(([k, v]) => (
-            <div key={k} style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 10.5, color: BRAND.muted, lineHeight: 1.2 }}>{k}</div>
-              <div style={{ fontSize: 13, fontFamily: monoFont, fontWeight: 600, marginTop: 1 }}>{String(v)}</div>
-            </div>
-          ))}
+          {/* Box Data grid - rebuilt per explicit design decision to
+              the 12-field layout Lon mocked up (2026-07-05). Sources:
+              - Hauler Code / Service Method / Cell / Prev Pull Request
+                / Serviced Needed: existing row fields.
+              - Last Cycle: the Last Cycle Hrs column (scanner v4.6+,
+                captured for every box); FALLBACK for pre-v4.6 tabs:
+                the hours figure parsed from Notes, which only exists
+                on forced/stale boxes - otherwise a dash.
+              - Fill Trigr: the day-appropriate trigger the scanner
+                actually compared against (activeTrigger), labeled with
+                which one the day-of-week rule picked - this replaces
+                the old separate Trigger 1 / Trigger 2 / Trigger Used
+                rows with the single answer that matters.
+              - Fill Trigr Hit: the raw pre-suppression Crossed Trigr
+                signal (a box can HIT the trigger yet be Srvc Need=NO
+                after suppression - showing both is the point).
+              - Curr Cycles / Cycles Trigr / Last Pick Up / Pick Up
+                Avg: parsed from the Advisory string ("Days: 11 of 12 |
+                Cycles: 256 of 287"). Boxes with N/A triggers simply
+                show a dash for the trigger halves. */}
+          {(() => {
+            const adv = String(box.advisory || '');
+            const daysM = adv.match(/Days:\s*(\d+)(?:\s*of\s*(\d+))?/i);
+            const cycM = adv.match(/Cycles:\s*([\d,]+)(?:\s*of\s*([\d,]+))?/i);
+            const lastCycle = box.lastCycleHrs !== null && box.lastCycleHrs !== undefined
+              ? box.lastCycleHrs + ' hours'
+              : (box.staleHours !== null ? box.staleHours + ' hours' : '—');
+            const fillTrigr = box.activeTrigger !== null
+              ? box.activeTrigger + '% (' + (box.triggerUsedLabel || '?') + ')'
+              : '—';
+            return [
+              ['Hauler Code', box.haulCode],
+              ['Service Method', box.serviceMethod],
+              ['Box Monitor Cell', box.cell || '—'],
+              ['Last Cycle', lastCycle],
+              ['Fill Trigr', fillTrigr],
+              ['Fill Trigr Hit', box.crossedTrigrRaw || '—'],
+              ['Curr Cycles', cycM ? cycM[1] : '—'],
+              ['Cycles Trigr', cycM && cycM[2] ? cycM[2] : '—'],
+              ['Last Pick Up', daysM ? daysM[1] + ' days' : '—'],
+              ['Pick Up Avg', daysM && daysM[2] ? daysM[2] + ' days' : '—'],
+              ['Prev Pull Request', formatSimpleDate(box.datePullReqd) || '—'],
+              ['Serviced Needed', box.srvcNeed || '—'],
+            ].map(([k, v]) => (
+              <div key={k} style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 10.5, color: BRAND.muted, lineHeight: 1.2 }}>{k}</div>
+                <div style={{ fontSize: 13, fontFamily: monoFont, fontWeight: 600, marginTop: 1 }}>{String(v)}</div>
+              </div>
+            ));
+          })()}
         </div>
 
         {/* Request History - the box's permanent request/confirmation
