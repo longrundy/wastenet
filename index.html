@@ -1641,16 +1641,49 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
             display: 'flex', flexDirection: 'column', fontFamily: font, overflow: 'hidden',
           }}
         >
+          {/* Send Email + Back live IN the header bar, per explicit
+              design decision (2026-07-06, replacing the old footer
+              row) - the actions are visible the moment the proof
+              opens instead of below a long scroll. The × close was
+              retired at the same time: Back does the identical thing
+              and two ways out of the same door read as clutter. */}
           <div style={{
-            padding: '14px 20px', borderBottom: '1px solid ' + BRAND.line, background: BRAND.green,
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '10px 14px 10px 20px', borderBottom: '1px solid ' + BRAND.line, background: BRAND.green,
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap',
           }}>
             <div style={{ fontFamily: monoFont, fontSize: 16, fontWeight: 800, color: '#CCFF66' }}>EMAIL PROOF</div>
-            <button
-              onClick={() => { if (!sending) onCancel(); }}
-              style={{ background: 'transparent', border: 'none', color: '#E8F3DF', fontSize: 20, cursor: 'pointer', lineHeight: 1 }}
-            >×</button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button
+                onClick={onConfirm}
+                disabled={sending}
+                style={{
+                  padding: '8px 18px', fontSize: 13.5, fontWeight: 700, borderRadius: 5,
+                  border: 'none', cursor: sending ? 'default' : 'pointer',
+                  background: '#FFFFFF', color: sending ? BRAND.muted : BRAND.greenDark,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.25)', fontFamily: font, whiteSpace: 'nowrap',
+                }}
+              >{sending ? 'Sending…' : 'Send Email'}</button>
+              <button
+                onClick={() => { if (!sending) onCancel(); }}
+                disabled={sending}
+                style={{
+                  padding: '8px 14px', fontSize: 13, fontWeight: 700, borderRadius: 5,
+                  border: '1.5px solid rgba(255,255,255,0.6)', cursor: sending ? 'default' : 'pointer',
+                  background: 'transparent', color: '#E8F3DF', fontFamily: font, whiteSpace: 'nowrap',
+                }}
+              >Back</button>
+            </div>
           </div>
+          {/* Send-failure notice - was in the retired footer; now
+              pinned directly under the header so it sits right next
+              to the Send Email button that triggered it. */}
+          {sendState === 'error' && (
+            <div style={{
+              margin: '10px 20px 0', padding: '6px 10px', background: 'rgba(179,64,43,0.08)',
+              border: '1px solid ' + BRAND.red, borderRadius: 5, color: BRAND.red,
+              fontSize: 12, fontWeight: 600,
+            }}>Could not send: {sendError}</div>
+          )}
           <div className="modal-body" style={{ flex: 1, overflow: 'auto' }}>
             {/* Optional caller-supplied controls rendered at the top
                 of the proof sheet - the Quick Service proof puts its
@@ -1687,35 +1720,6 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
                 whiteSpace: 'pre-wrap', wordBreak: 'break-word',
               }}>{body}</div>
             )}
-          </div>
-          <div style={{ padding: '12px 20px', borderTop: '1px solid ' + BRAND.line, background: BRAND.paper }}>
-            {sendState === 'error' && (
-              <div style={{
-                marginBottom: 8, padding: '6px 10px', background: 'rgba(179,64,43,0.08)',
-                border: '1px solid ' + BRAND.red, borderRadius: 5, color: BRAND.red,
-                fontSize: 12, fontWeight: 600,
-              }}>Could not send: {sendError}</div>
-            )}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={onConfirm}
-                disabled={sending}
-                style={{
-                  flex: 2, padding: '11px', fontSize: 14, fontWeight: 700, borderRadius: 5,
-                  border: 'none', cursor: sending ? 'default' : 'pointer',
-                  background: sending ? BRAND.muted : BRAND.green, color: '#FFFFFF', fontFamily: font,
-                }}
-              >{sending ? 'Sending…' : 'Send Email'}</button>
-              <button
-                onClick={onCancel}
-                disabled={sending}
-                style={{
-                  flex: 1, padding: '11px', fontSize: 13, fontWeight: 600, borderRadius: 5,
-                  border: '1.5px solid ' + BRAND.line, cursor: sending ? 'default' : 'pointer',
-                  background: BRAND.panel, color: BRAND.muted, fontFamily: font,
-                }}
-              >Back</button>
-            </div>
           </div>
         </div>
       </div>
