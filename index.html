@@ -1809,6 +1809,19 @@ function QuickServiceProof({ box, contacts, sheetName, onSendEmail, onSave, onCl
     if (dateSaveState === 'saved' || dateSaveState === 'error') setDateSaveState('idle');
   }, [puDateInput]);
 
+  // Send is BLOCKED until the date on screen has been saved to the
+  // box, per explicit request (2026-07-06): a service email whose
+  // date was never recorded on the sheet leaves no Request History
+  // entry and no advisory trail. "Saved" means either the Save
+  // button was used this session, or the box already had this exact
+  // date saved when the proof opened. Editing the date after a save
+  // re-blocks Send (the invalidation effect above flips saved ->
+  // idle) until the new date is saved too.
+  const dateIsSaved = dateSaveState === 'saved' ||
+    (!!box.puDate && toDateInputValue(box.puDate) === puDateInput);
+  const [sendBlocked, setSendBlocked] = React.useState(false);
+  React.useEffect(() => { if (dateIsSaved) setSendBlocked(false); }, [dateIsSaved]);
+
   const effectiveTo = String(c.toRecipients || '').trim();
   const effectiveCc = String(c.ccRecipients || '').trim();
   const outgoingBcc = withOfficeBcc('');
@@ -1841,6 +1854,12 @@ function QuickServiceProof({ box, contacts, sheetName, onSendEmail, onSave, onCl
 
   const handleConfirmSend = async () => {
     if (sendState === 'sending') return;
+    // Hard gate: no save, no send. The warning renders at the top of
+    // the proof sheet (see the status banner in dateEditor below).
+    if (!dateIsSaved) {
+      setSendBlocked(true);
+      return;
+    }
     setSendState('sending');
     setSendError(null);
     try {
@@ -1868,6 +1887,29 @@ function QuickServiceProof({ box, contacts, sheetName, onSendEmail, onSave, onCl
       border: '1px solid #E2E6DE', borderRadius: 6, padding: '10px 12px',
       background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.15)', marginBottom: 12,
     }}>
+      {/* Status banner - the FIRST thing on the proof sheet, per
+          explicit request: green when the date on screen is saved to
+          the box (send is unlocked), red when a send was just
+          attempted without saving, amber otherwise. */}
+      {dateIsSaved ? (
+        <div style={{
+          marginBottom: 10, padding: '7px 10px', background: 'rgba(92,170,22,0.12)',
+          border: '1.5px solid ' + BRAND.green, borderRadius: 5, color: BRAND.greenDark,
+          fontSize: 12.5, fontWeight: 700, textAlign: 'center',
+        }}>✓ Date saved to Box {box.boxId} — ready to send</div>
+      ) : sendBlocked ? (
+        <div style={{
+          marginBottom: 10, padding: '7px 10px', background: 'rgba(179,64,43,0.08)',
+          border: '1.5px solid ' + BRAND.red, borderRadius: 5, color: BRAND.red,
+          fontSize: 12.5, fontWeight: 700, textAlign: 'center',
+        }}>Not sent — save the date to the box first (Save Date to Box below)</div>
+      ) : (
+        <div style={{
+          marginBottom: 10, padding: '7px 10px', background: '#FBF6E9',
+          border: '1.5px solid #E8D9A8', borderRadius: 5, color: '#7A5E1E',
+          fontSize: 12.5, fontWeight: 700, textAlign: 'center',
+        }}>Date not saved yet — Send is locked until you Save Date to Box</div>
+      )}
       <div style={{
         fontSize: 11.5, fontWeight: 700, color: BRAND.green, textTransform: 'uppercase',
         letterSpacing: '0.03em', fontFamily: monoFont, marginBottom: 6,
@@ -1927,8 +1969,11 @@ function QuickServiceProof({ box, contacts, sheetName, onSendEmail, onSave, onCl
         {dateSaveState === 'error' && (
           <span style={{ fontSize: 12, fontWeight: 600, color: BRAND.red }}>Could not save: {dateSaveError}</span>
         )}
-        {dateSaveState === 'idle' && (
-          <span style={{ fontSize: 11.5, color: BRAND.muted }}>Sending alone doesn't save the date — this button does.</span>
+        {dateSaveState === 'idle' && !dateIsSaved && (
+          <span style={{ fontSize: 11.5, color: BRAND.muted }}>Saving unlocks the Send Email button below.</span>
+        )}
+        {dateSaveState === 'idle' && dateIsSaved && (
+          <span style={{ fontSize: 12, fontWeight: 700, color: BRAND.greenDark }}>✓ This date is already saved to the box</span>
         )}
       </div>
     </div>
