@@ -83,56 +83,47 @@ const SERVICE_CONFIRM_SENTENCE_PLAIN = 'Please confirm this service is scheduled
 
 // Company email signature - appended to EVERY outgoing dashboard email
 // (all categories, Blank included), in both the plain-text and HTML
-// versions, per explicit request (2026-07-06). Edit the fields here to
-// change what every email signs off with; empty fields are simply
-// skipped, never rendered blank. logoUrl must be a PUBLIC absolute URL
-// (mail clients fetch it when the recipient opens the email) - upload
+// versions. Per explicit request (2026-07-06): the signature is the
+// LOGO and the LEGAL DISCLAIMER below it - nothing else (no name/
+// phone/website block). logoUrl must be a PUBLIC absolute URL (mail
+// clients fetch it when the recipient opens the email) - upload
 // logo.png to the GitHub repo root and it serves from the address
-// below. Set logoUrl to '' to send signatures with no logo.
+// below. Set logoUrl to '' to send with the disclaimer only.
 const EMAIL_SIGNATURE = {
-  logoUrl: 'https://dashboard.wastenetinc.com/logo.png',
-  companyName: 'WasteNet Inc.',
-  tagline: 'Compactor Monitoring & Service Coordination',
-  phone: '',
-  email: 'office@wastenetinc.com',
-  website: 'dashboard.wastenetinc.com',
+  logoUrl: 'https://dashboard.wastenetinc.com/wnlogo.gif',
+  legalName: 'Wasteflo, Inc. d.b.a. Wastenet',
+  disclaimer: 'This email and any files transmitted with it are confidential and intended solely for the use of the individual or entity to whom they are addressed. If you have received this email in error, please notify the system manager. This message contains confidential information and is intended only for the individual named. If you are not the named addressee, you should not disseminate, distribute, or copy this email. Please notify the sender immediately by email if you have received this email by mistake and delete this email from your system. If you are not the intended recipient, you are notified that disclosing, copying, distributing, or taking any action in reliance on the contents of this information is strictly prohibited.',
 };
 
-// Plain-text form of the signature - two dashes on their own line is
-// the universal email signature delimiter, so clients that understand
-// it (quoting, reply-trimming) treat everything below as signature.
+// Plain-text form - two dashes on their own line is the universal
+// email signature delimiter, so clients that understand it (quoting,
+// reply-trimming) treat everything below as signature.
 function emailSignaturePlain() {
   const s = EMAIL_SIGNATURE;
-  const contact = [s.phone, s.email].filter(v => v).join(' | ');
-  const lines = [s.companyName, s.tagline, contact, s.website].filter(v => v);
+  const lines = [s.legalName, s.disclaimer].filter(v => v);
   if (lines.length === 0) return '';
   return '\n\n--\n' + lines.join('\n');
 }
 
-// HTML form - logo on the left, company block on the right, above a
-// thin brand-green rule. Table layout (not flex) because Outlook's
-// Word renderer ignores most CSS; everything inline-styled for the
-// same reason. All config values pass through escapeEmailHtml, same
-// injection rule as the body itself.
+// HTML form - the logo, then the legal name (bold) and disclaimer
+// (small gray italic) beneath it, matching the reference signature.
+// Everything inline-styled for Outlook's Word renderer; all config
+// values pass through escapeEmailHtml, same injection rule as the
+// body itself.
 function emailSignatureHtml() {
   const s = EMAIL_SIGNATURE;
-  const contact = [s.phone, s.email].filter(v => v).join(' &nbsp;|&nbsp; ');
-  const infoRows = [];
-  if (s.companyName) infoRows.push('<div style="font-weight:bold;font-size:14px;color:#333333;">' + escapeEmailHtml(s.companyName) + '</div>');
-  if (s.tagline) infoRows.push('<div style="font-size:12px;color:#6B7264;">' + escapeEmailHtml(s.tagline) + '</div>');
-  if (contact) infoRows.push('<div style="font-size:12px;color:#333333;margin-top:3px;">' + (s.phone ? escapeEmailHtml(s.phone) + ' &nbsp;|&nbsp; ' : '') + (s.email ? '<a href="mailto:' + escapeEmailHtml(s.email) + '" style="color:#5CAA16;text-decoration:none;">' + escapeEmailHtml(s.email) + '</a>' : '') + '</div>');
-  if (s.website) infoRows.push('<div style="font-size:12px;margin-top:1px;"><a href="https://' + escapeEmailHtml(s.website) + '" target="_blank" rel="noopener" style="color:#5CAA16;text-decoration:none;">' + escapeEmailHtml(s.website) + '</a></div>');
-  if (infoRows.length === 0 && !s.logoUrl) return '';
-  const logoCell = s.logoUrl
-    ? '<td style="vertical-align:middle;padding-right:14px;"><img src="' + escapeEmailHtml(s.logoUrl) + '" alt="' + escapeEmailHtml(s.companyName || 'Logo') + '" width="52" style="display:block;width:52px;height:auto;border:0;"></td>'
-    : '';
-  return '<table role="presentation" cellpadding="0" cellspacing="0" border="0" ' +
-    'style="margin-top:18px;border-top:2px solid #5CAA16;padding-top:0;width:auto;">' +
-    '<tr><td style="padding-top:10px;">' +
-    '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>' +
-    logoCell +
-    '<td style="vertical-align:middle;">' + infoRows.join('') + '</td>' +
-    '</tr></table></td></tr></table>';
+  if (!s.logoUrl && !s.legalName && !s.disclaimer) return '';
+  let out = '<div style="margin-top:22px;">';
+  if (s.logoUrl) {
+    out += '<img src="' + escapeEmailHtml(s.logoUrl) + '" alt="' + escapeEmailHtml(s.legalName || 'Wastenet') + '" width="130" style="display:block;width:130px;height:auto;border:0;margin:0 0 8px;">';
+  }
+  if (s.legalName) {
+    out += '<div style="font-size:11px;font-weight:bold;color:#333333;">' + escapeEmailHtml(s.legalName) + '</div>';
+  }
+  if (s.disclaimer) {
+    out += '<div style="font-size:10.5px;font-style:italic;color:#6B7264;line-height:1.45;margin-top:1px;">' + escapeEmailHtml(s.disclaimer) + '</div>';
+  }
+  return out + '</div>';
 }
 
 // WasteNet brand palette - sampled directly from the WASTENET logo (#5CAA16)
@@ -1786,7 +1777,7 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
 // does NOT write the Pick-Up Date to the sheet (composing never
 // writes implicitly, same rule as everywhere else) - saving the date
 // still happens in the detail panel.
-function QuickServiceProof({ box, contacts, sheetName, onSendEmail, onClose, monoFont, font }) {
+function QuickServiceProof({ box, contacts, sheetName, onSendEmail, onSave, onClose, monoFont, font }) {
   const c = contacts || {};
   const schedSuggestedDate = c.schedulingRule ? computeSuggestedPickupDate(c.schedulingRule) : null;
   const schedSuggestedValue = schedSuggestedDate ? toDateInputValue(schedSuggestedDate) : '';
@@ -1794,6 +1785,29 @@ function QuickServiceProof({ box, contacts, sheetName, onSendEmail, onClose, mon
   // Opens ALREADY in preview - that is this component's whole point.
   const [sendState, setSendState] = React.useState('preview');
   const [sendError, setSendError] = React.useState(null);
+  // Save Date to Box - right on the proof sheet, per explicit request
+  // (2026-07-06, replacing the earlier detail-panel-only rule for
+  // THIS flow). Still its own deliberate button - sending an email
+  // never writes the sheet implicitly.
+  const [dateSaveState, setDateSaveState] = React.useState('idle'); // idle | saving | saved | error
+  const [dateSaveError, setDateSaveError] = React.useState(null);
+  const handleSaveDate = async () => {
+    if (!puDateInput || dateSaveState === 'saving') return;
+    setDateSaveState('saving');
+    setDateSaveError(null);
+    try {
+      await onSave(box.boxId, { puDate: puDateInput });
+      setDateSaveState('saved');
+    } catch (err) {
+      setDateSaveState('error');
+      setDateSaveError(err.message || String(err));
+    }
+  };
+  // Any edit to the date invalidates a shown "Saved" - the sheet now
+  // holds something different from the screen.
+  React.useEffect(() => {
+    if (dateSaveState === 'saved' || dateSaveState === 'error') setDateSaveState('idle');
+  }, [puDateInput]);
 
   const effectiveTo = String(c.toRecipients || '').trim();
   const effectiveCc = String(c.ccRecipients || '').trim();
@@ -1802,6 +1816,9 @@ function QuickServiceProof({ box, contacts, sheetName, onSendEmail, onClose, mon
   const filled = fillEmailTemplate(c.subjectTemplate || '', c.bodyTemplate || '', puDateInput);
   const finalSubject = filled.subject;
   let finalBody = filled.body;
+  // Bullet the compactor list - before the confirm link is appended,
+  // so the link line can never pick up a bullet.
+  finalBody = addBulletsToServiceList(finalBody);
 
   let confirmUrl = null;
   if (sheetName && finalBody) {
@@ -1891,8 +1908,28 @@ function QuickServiceProof({ box, contacts, sheetName, onSendEmail, onClose, mon
           </div>
         )
       )}
-      <div style={{ fontSize: 11.5, color: BRAND.muted, marginTop: 6 }}>
-        Note: sending does not save this date to the box — use the box's detail panel to save it.
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
+        <button
+          onClick={handleSaveDate}
+          disabled={!puDateInput || dateSaveState === 'saving'}
+          title="Writes this date to the box's P/U Date field on the sheet"
+          style={{
+            padding: '7px 16px', fontSize: 13, fontWeight: 700, borderRadius: 5,
+            border: 'none', fontFamily: font, color: '#FFFFFF',
+            background: dateSaveState === 'saving' ? BRAND.muted : BRAND.green,
+            cursor: (!puDateInput || dateSaveState === 'saving') ? 'default' : 'pointer',
+            opacity: (!puDateInput && dateSaveState !== 'saving') ? 0.55 : 1,
+          }}
+        >{dateSaveState === 'saving' ? 'Saving…' : 'Save Date to Box'}</button>
+        {dateSaveState === 'saved' && (
+          <span style={{ fontSize: 12, fontWeight: 700, color: BRAND.greenDark }}>✓ Saved to Box {box.boxId}</span>
+        )}
+        {dateSaveState === 'error' && (
+          <span style={{ fontSize: 12, fontWeight: 600, color: BRAND.red }}>Could not save: {dateSaveError}</span>
+        )}
+        {dateSaveState === 'idle' && (
+          <span style={{ fontSize: 11.5, color: BRAND.muted }}>Sending alone doesn't save the date — this button does.</span>
+        )}
       </div>
     </div>
   );
@@ -2283,6 +2320,7 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
           contacts={(masterContacts || {})[quickProofBox.boxId]}
           sheetName={sheetName}
           onSendEmail={onSendEmail}
+          onSave={onMoveBox}
           onClose={() => setQuickProofBox(null)}
           monoFont={monoFont}
           font={font}
@@ -2432,6 +2470,31 @@ function rebuildServiceBody(parsed, selectedIndexes) {
 
   return parsed.lines.slice(0, parsed.anchorIdx + 1).join('\n') + '\n\n' +
     kept.map(function (it) { return it.text; }).join('\n');
+}
+
+// Adds a bullet in front of every property line in a Service body's
+// compactor list, per explicit request (2026-07-06) - headers (lines
+// ending in a colon) stay plain, and lines that already start with a
+// bullet or dash are left alone so a template author's own bullets
+// are never doubled. Runs on the FINAL body (after any property-
+// picker rebuild) and BEFORE the confirm link is appended, so exactly
+// the lines that will send get bulleted and nothing else. Bodies
+// without the anchor line pass through untouched; a literal
+// [confirm link] placeholder line is skipped too.
+function addBulletsToServiceList(body) {
+  const parsed = parseServiceProperties(body);
+  if (!parsed) return body;
+  const out = parsed.lines.slice(0, parsed.anchorIdx + 1);
+  for (let i = parsed.anchorIdx + 1; i < parsed.lines.length; i++) {
+    const raw = parsed.lines[i];
+    const t = raw.trim();
+    if (t && !/:\s*$/.test(t) && !/^[\u2022\-\*]/.test(t) && !/\[confirm link\]/i.test(t) && !/^https?:/i.test(t)) {
+      out.push('\u2022 ' + t);
+    } else {
+      out.push(raw);
+    }
+  }
+  return out.join('\n');
 }
 
 function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplates, scanTitle, sheetName, onLoadHistory, monoFont, font, displayFont }) {
@@ -3143,6 +3206,15 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
           // tab - see the Apps Script's handleConfirmSubmit). Portal
           // and phone-serviced boxes are naturally unaffected: no
           // composed Service email, no link.
+          // Bullet the compactor list on Service emails, per explicit
+          // request (2026-07-06) - after the property-picker rebuild
+          // (so only the lines actually sending get bullets) and
+          // before the confirm link is appended (so the link line can
+          // never pick one up).
+          if (emailCategory === 'Service' && finalBody) {
+            finalBody = addBulletsToServiceList(finalBody);
+          }
+
           let confirmUrl = null;
           if (emailCategory === 'Service' && sheetName && finalBody) {
             // Short, branded link (dashboard.wastenetinc.com/confirm)
