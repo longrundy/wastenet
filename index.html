@@ -563,6 +563,54 @@ function normalizeRow(raw, idx) {
   };
 }
 
+/* Long-format date field, per explicit design decision (2026-07-05):
+   the Pick-Up Date should READ as "Monday, July 6, 2026", but a native
+   <input type="date"> always displays the browser's locked MM/DD/YYYY
+   format - it cannot be restyled. So this renders a styled display box
+   showing the long format, with a REAL date input stretched invisibly
+   (opacity 0) over the top of it: every click lands on the actual
+   input (opening the native calendar via showPicker where supported),
+   typing and arrow keys still work, and onChange updates the visible
+   label live. The value passed in/out stays the same yyyy-mm-dd string
+   as before, so save/compare logic upstream is untouched. The label
+   date is constructed from the string's own parts (never new
+   Date('yyyy-mm-dd'), which parses as UTC and can show the WRONG
+   WEEKDAY in US timezones - the exact off-by-one-day trap this
+   long format exists to avoid). */
+function FriendlyDateInput({ value, onChange, font }) {
+  let label = null;
+  if (value) {
+    const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) {
+      const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      label = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    }
+  }
+  return (
+    <div style={{ position: 'relative' }}>
+      <div style={{
+        width: '100%', padding: '9px 10px', fontSize: 14, borderRadius: 5,
+        border: '1.5px solid ' + BRAND.line, fontFamily: font, boxSizing: 'border-box',
+        color: label ? BRAND.ink : BRAND.muted, fontWeight: label ? 600 : 400,
+        background: '#FFFFFF', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <span>{label || 'Select a date\u2026'}</span>
+        <span aria-hidden="true" style={{ fontSize: 15, lineHeight: 1 }}>{'\uD83D\uDCC5'}</span>
+      </div>
+      <input
+        type="date"
+        value={value}
+        onChange={onChange}
+        onClick={(e) => { try { e.target.showPicker(); } catch (err) { /* older browsers: focus still works */ } }}
+        style={{
+          position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+          opacity: 0, cursor: 'pointer', border: 'none', padding: 0, margin: 0,
+        }}
+      />
+    </div>
+  );
+}
+
 function StatusPill({ meta, statusKey }) {
   const m = meta[statusKey];
   if (!m) return null;
@@ -2075,16 +2123,17 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
                 </div>
               )}
             </div>
-            <input
-              type="date"
-              value={puDateInput}
-              onChange={e => setPuDateInput(e.target.value)}
-              style={{
-                width: '100%', padding: '7px 8px', fontSize: 14, borderRadius: 5,
-                border: '1.5px solid ' + BRAND.line, fontFamily: font, color: BRAND.ink, boxSizing: 'border-box',
-                marginBottom: 8,
-              }}
-            />
+            {/* Long-format display ("Monday, July 6, 2026") per
+                explicit design decision - see FriendlyDateInput. The
+                marginBottom the old input carried moves to a wrapper
+                so spacing is unchanged. */}
+            <div style={{ marginBottom: 8 }}>
+              <FriendlyDateInput
+                value={puDateInput}
+                onChange={e => setPuDateInput(e.target.value)}
+                font={font}
+              />
+            </div>
             {/* Suggestion note - same adaptive behavior as the detail
                 panel (2026-07-05): when the field holds the
                 (strictest-rule) suggestion it says so plainly; when
@@ -3343,14 +3392,12 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
           <div style={{ marginBottom: 10 }}>
             <label style={{ display: 'block' }}>
               <div style={{ fontSize: 12.5, fontWeight: 600, color: BRAND.ink, marginBottom: 3 }}>Pick-Up Date</div>
-              <input
-                type="date"
+              {/* Long-format display ("Monday, July 6, 2026") per
+                  explicit design decision - see FriendlyDateInput. */}
+              <FriendlyDateInput
                 value={puDateInput}
                 onChange={e => setPuDateInput(e.target.value)}
-                style={{
-                  width: '100%', padding: '7px 8px', fontSize: 14, borderRadius: 5,
-                  border: '1.5px solid ' + BRAND.line, fontFamily: font, color: BRAND.ink, boxSizing: 'border-box',
-                }}
+                font={font}
               />
             </label>
             {/* Suggestion note, per explicit design decision
