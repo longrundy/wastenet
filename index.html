@@ -78,7 +78,7 @@ const OFFICE_EMAIL = 'office@wastenetinc.com';
 // HTML version sits BELOW the green button (hence "button above"); the
 // plain-text fallback has no button, so its wording points at the raw
 // link, which sits on the line above it.
-const SERVICE_CONFIRM_SENTENCE_HTML = 'Please confirm this service is scheduled by clicking on the button above. No reply email is necessary.';
+const SERVICE_CONFIRM_SENTENCE_HTML = 'Please confirm this service is scheduled by clicking on the button below. No reply email is necessary.';
 const SERVICE_CONFIRM_SENTENCE_PLAIN = 'Please confirm this service is scheduled using the link above. No reply email is necessary.';
 
 // Company email signature - appended to EVERY outgoing dashboard email
@@ -115,7 +115,7 @@ function emailSignatureHtml() {
   if (!s.logoUrl && !s.legalName && !s.disclaimer) return '';
   let out = '<div style="margin-top:22px;">';
   if (s.logoUrl) {
-    out += '<img src="' + escapeEmailHtml(s.logoUrl) + '" alt="' + escapeEmailHtml(s.legalName || 'Wastenet') + '" width="130" style="display:block;width:130px;height:auto;border:0;margin:0 0 8px;">';
+    out += '<img src="' + escapeEmailHtml(s.logoUrl) + '" alt="' + escapeEmailHtml(s.legalName || 'Wastenet') + '" width="130" style="display:block;width:130px;height:auto;border:0;margin:0 0 16px;">';
   }
   if (s.legalName) {
     out += '<div style="font-size:11px;font-weight:bold;color:#333333;">' + escapeEmailHtml(s.legalName) + '</div>';
@@ -412,7 +412,7 @@ function buildEmailHtml(plainBody, confirmUrl, buttonLabel, boldPhrases, confirm
     // proof sheet and any webmail that honors target) so clicking
     // never navigates away from what the person was doing.
     const button =
-      '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 8px;">' +
+      '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 0;">' +
       '<tr><td align="center" bgcolor="#5CAA16" style="border-radius:6px;">' +
       '<a href="' + escapedUrl + '" target="_blank" rel="noopener" ' +
       'style="display:inline-block;padding:13px 30px;font-family:Arial,Helvetica,sans-serif;' +
@@ -428,8 +428,12 @@ function buildEmailHtml(plainBody, confirmUrl, buttonLabel, boldPhrases, confirm
     const escapedPlainSentence = confirmSentencePlain ? escapeEmailHtml(confirmSentencePlain) : '';
     const combined = escapedPlainSentence ? escapedUrl + '<br>' + escapedPlainSentence : '';
     if (combined && html.indexOf(combined) !== -1) {
-      const block = button +
-        escapeEmailHtml(confirmSentenceHtml || confirmSentencePlain);
+      // Sentence ABOVE the button, per explicit design decision
+      // (2026-07-06, reversing the earlier button-then-sentence
+      // order) - the instruction reads first, then the thing it
+      // points at ("the button below").
+      const block = escapeEmailHtml(confirmSentenceHtml || confirmSentencePlain) +
+        '<br>' + button;
       html = html.replace(combined, block);
     } else {
       // The plain body contains the URL exactly once (either at the
@@ -1585,7 +1589,7 @@ function WasteNetDashboard() {
 // resets an in-progress proof): 'idle' -> 'preview' -> 'sending' ->
 // 'sent' | 'error' (error keeps the proof sheet open with the reason
 // shown and Send Email re-enabled for a retry).
-function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subject, body, htmlBody, canSend, noRecipientHint, hideIdleButton, sendState, sendError, onArm, onCancel, onConfirm, onReset, headerExtra, monoFont, font }) {
+function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subject, body, htmlBody, canSend, noRecipientHint, hideIdleButton, sendState, sendError, onArm, onCancel, onConfirm, onReset, headerExtra, sendLocked, monoFont, font }) {
   const previewRow = (label, value) => (
     value ? (
       <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
@@ -1653,10 +1657,22 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
           }}>
             <div style={{ fontFamily: monoFont, fontSize: 16, fontWeight: 800, color: '#CCFF66' }}>EMAIL PROOF</div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {/* Locked (quick-proof, date not yet saved): dressed
+                  exactly like Back, so the header shows two quiet
+                  outline buttons and nothing looks ready to fire.
+                  Unlocked: the solid white button - the visual
+                  promotion IS the "you may send now" signal, paired
+                  with the red save-first message down in the date
+                  card. Clicks while locked still route to onConfirm,
+                  which no-ops behind the save gate. */}
               <button
                 onClick={onConfirm}
                 disabled={sending}
-                style={{
+                style={sendLocked ? {
+                  padding: '8px 18px', fontSize: 13.5, fontWeight: 700, borderRadius: 5,
+                  border: '1.5px solid rgba(255,255,255,0.6)', cursor: 'pointer',
+                  background: 'transparent', color: '#E8F3DF', fontFamily: font, whiteSpace: 'nowrap',
+                } : {
                   padding: '8px 18px', fontSize: 13.5, fontWeight: 700, borderRadius: 5,
                   border: 'none', cursor: sending ? 'default' : 'pointer',
                   background: '#FFFFFF', color: sending ? BRAND.muted : BRAND.greenDark,
@@ -1691,13 +1707,16 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
                 nothing and the proof renders exactly as before. */}
             {headerExtra || null}
             <div style={{
-              border: '1px solid ' + BRAND.line, borderRadius: 6, padding: '10px 12px',
-              background: BRAND.paper, marginBottom: 12,
+              border: '1px solid #E2E6DE', borderRadius: 6, padding: '10px 12px',
+              background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.15)', marginBottom: 12,
             }}>
               {previewRow('From:', 'WasteNet <office@wastenetinc.com>')}
               {previewRow('To:', effectiveTo)}
               {previewRow('Cc:', effectiveCc)}
-              {previewRow('Bcc:', outgoingBcc)}
+              {/* Bcc row deliberately NOT shown, per explicit design
+                  decision (2026-07-06) - the office@ blind copy still
+                  goes out on every send, it just doesn't need a line
+                  on the proof. */}
               {previewRow('Subject:', subject)}
             </div>
             {/* The body gets the whole rest of the sheet, uncapped -
@@ -1823,8 +1842,6 @@ function QuickServiceProof({ box, contacts, sheetName, onSendEmail, onSave, onCl
   // idle) until the new date is saved too.
   const dateIsSaved = dateSaveState === 'saved' ||
     (!!box.puDate && toDateInputValue(box.puDate) === puDateInput);
-  const [sendBlocked, setSendBlocked] = React.useState(false);
-  React.useEffect(() => { if (dateIsSaved) setSendBlocked(false); }, [dateIsSaved]);
 
   // Service recipients now live on the Service Email Content tab
   // (column D = To, column E = Cc), per explicit design decision
@@ -1865,12 +1882,10 @@ function QuickServiceProof({ box, contacts, sheetName, onSendEmail, onSave, onCl
 
   const handleConfirmSend = async () => {
     if (sendState === 'sending') return;
-    // Hard gate: no save, no send. The warning renders at the top of
-    // the proof sheet (see the status banner in dateEditor below).
-    if (!dateIsSaved) {
-      setSendBlocked(true);
-      return;
-    }
+    // Hard gate: no save, no send. The Send button renders in its
+    // locked (outline) style and the red save-first message sits
+    // beside the Save button until the date is saved.
+    if (!dateIsSaved) return;
     setSendState('sending');
     setSendError(null);
     try {
@@ -1973,9 +1988,7 @@ function QuickServiceProof({ box, contacts, sheetName, onSendEmail, onSave, onCl
           <span style={{ fontSize: 12, fontWeight: 700, color: BRAND.greenDark }}>✓ This date is already saved to the box</span>
         ) : (
           <span style={{ fontSize: 12.5, fontWeight: 700, color: BRAND.red }}>
-            {sendBlocked
-              ? 'Not sent — you must Save Date to Box before the email can send.'
-              : 'Date not saved yet — Send is locked until you Save Date to Box.'}
+            You must Save Date to Box to unlock the Send Email button above.
           </span>
         )}
       </div>
@@ -2043,6 +2056,7 @@ function QuickServiceProof({ box, contacts, sheetName, onSendEmail, onSave, onCl
       onConfirm={handleConfirmSend}
       onReset={onClose}
       headerExtra={dateEditor}
+      sendLocked={!dateIsSaved}
       monoFont={monoFont}
       font={font}
     />
