@@ -186,8 +186,18 @@ async function main() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
   // Re-inject the engine on EVERY document - this is the Tampermonkey
-  // replacement. The engine's own resume logic does the rest.
-  await context.addInitScript(engineSource);
+  // replacement. CRITICAL DIFFERENCE FOUND LIVE: addInitScript runs at
+  // document-START (before <body> exists), while Tampermonkey runs the
+  // script at document-idle. Un-wrapped, the engine survives the first
+  // page (its own graph-wait retry loop happens to delay it) but DIES
+  // on every mid-scan reload - it goes straight to building its panel
+  // against a null body. This wrapper defers the engine to
+  // DOMContentLoaded, replicating Tampermonkey's timing exactly.
+  // (Built with string concatenation, NOT a template literal - the
+  // engine source itself contains backticks.)
+  const wrapped = '(function(){var runEngine=function(){\n' + engineSource +
+    '\n};if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",runEngine);}else{runEngine();}})();';
+  await context.addInitScript(wrapped);
   const page = await context.newPage();
   page.on('console', (m) => {
     const t = m.text();
