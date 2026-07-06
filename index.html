@@ -1895,96 +1895,88 @@ function QuickServiceProof({ box, contacts, sheetName, onSendEmail, onSave, onCl
   // so plainly; anything else brings back a clickable "Suggested:".
   const dateEditor = (
     <div style={{
-      border: '1px solid #E2E6DE', borderRadius: 6, padding: '10px 12px',
+      border: '1px solid #E2E6DE', borderRadius: 6, padding: '8px 12px 9px',
       background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.15)', marginBottom: 12,
     }}>
-      {/* Status banner - the FIRST thing on the proof sheet, per
-          explicit request: green when the date on screen is saved to
-          the box (send is unlocked), red when a send was just
-          attempted without saving, amber otherwise. */}
-      {dateIsSaved ? (
-        <div style={{
-          marginBottom: 10, padding: '7px 10px', background: 'rgba(92,170,22,0.12)',
-          border: '1.5px solid ' + BRAND.green, borderRadius: 5, color: BRAND.greenDark,
-          fontSize: 12.5, fontWeight: 700, textAlign: 'center',
-        }}>✓ Date saved to Box {box.boxId} — ready to send</div>
-      ) : sendBlocked ? (
-        <div style={{
-          marginBottom: 10, padding: '7px 10px', background: 'rgba(179,64,43,0.08)',
-          border: '1.5px solid ' + BRAND.red, borderRadius: 5, color: BRAND.red,
-          fontSize: 12.5, fontWeight: 700, textAlign: 'center',
-        }}>Not sent — save the date to the box first (Save Date to Box below)</div>
-      ) : (
-        <div style={{
-          marginBottom: 10, padding: '7px 10px', background: '#FBF6E9',
-          border: '1.5px solid #E8D9A8', borderRadius: 5, color: '#7A5E1E',
-          fontSize: 12.5, fontWeight: 700, textAlign: 'center',
-        }}>Date not saved yet — Send is locked until you Save Date to Box</div>
-      )}
+      {/* Consolidated single card, per explicit design decision
+          (2026-07-06): the header line carries the label, the
+          suggestion state, and the Sched Rule pill together; the
+          button row carries the save action and its status/lock
+          message inline. Two content rows total (plus the date
+          field), replacing the old label + note + button + notice
+          stack that made this card dominate the sheet. */}
       <div style={{
-        fontSize: 11.5, fontWeight: 700, color: BRAND.green, textTransform: 'uppercase',
-        letterSpacing: '0.03em', fontFamily: monoFont, marginBottom: 6,
+        marginBottom: 6,
         display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, flexWrap: 'wrap',
       }}>
-        <span>Pick-Up Date — edits update the email below</span>
-        {c.schedulingRule && (
-          <span style={{
-            fontSize: 11, fontFamily: monoFont, fontWeight: 700, color: BRAND.green,
-            background: '#FFFFFF', border: '1px solid #E2E6DE',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
-            borderRadius: 3, padding: '2px 6px',
-          }}>Sched Rule: {c.schedulingRule}</span>
-        )}
+        <span style={{
+          fontSize: 11.5, fontWeight: 700, color: BRAND.green, textTransform: 'uppercase',
+          letterSpacing: '0.03em', fontFamily: monoFont,
+        }}>Pick-Up Date — edits update the email below</span>
+        <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+          {/* Suggestion state lives up here now: quiet confirmation
+              when the field holds the rule's own date, a clickable
+              "Sug:" link to snap back when it doesn't. */}
+          {schedSuggestedValue && (
+            puDateInput === schedSuggestedValue ? (
+              <span style={{ fontSize: 11.5, color: BRAND.muted, fontWeight: 400, textTransform: 'none', letterSpacing: 'normal' }}>suggested date shown</span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setPuDateInput(schedSuggestedValue)}
+                title="Set back to the suggested date per this box's rule"
+                style={{
+                  background: 'none', border: 'none', padding: 0, margin: 0,
+                  color: BRAND.greenDark, fontWeight: 700, fontFamily: font,
+                  fontSize: 11.5, cursor: 'pointer', textDecoration: 'underline',
+                }}
+              >Sug: {schedSuggestedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</button>
+            )
+          )}
+          {c.schedulingRule && (
+            <span style={{
+              fontSize: 11, fontFamily: monoFont, fontWeight: 700, color: BRAND.green,
+              background: '#FFFFFF', border: '1px solid #E2E6DE',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+              borderRadius: 3, padding: '2px 6px',
+            }}>Sched Rule: {c.schedulingRule}</span>
+          )}
+        </span>
       </div>
       <FriendlyDateInput
         value={puDateInput}
         onChange={e => setPuDateInput(e.target.value)}
         font={font}
       />
-      {schedSuggestedValue && (
-        puDateInput === schedSuggestedValue ? (
-          <div style={{ fontSize: 12, color: BRAND.muted, marginTop: 6 }}>
-            This is the <b>suggested date</b> per {c.schedulingRule} — send as-is, or change it above.
-          </div>
-        ) : (
-          <div style={{ fontSize: 12, color: BRAND.muted, marginTop: 6 }}>
-            Suggested (per {c.schedulingRule}):{' '}
-            <button
-              type="button"
-              onClick={() => setPuDateInput(schedSuggestedValue)}
-              style={{
-                background: 'none', border: 'none', padding: 0, margin: 0,
-                color: BRAND.greenDark, fontWeight: 700, fontFamily: font,
-                fontSize: 12, cursor: 'pointer', textDecoration: 'underline',
-              }}
-            >{schedSuggestedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</button>
-          </div>
-        )
-      )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 7, flexWrap: 'wrap' }}>
         <button
           onClick={handleSaveDate}
           disabled={!puDateInput || dateSaveState === 'saving'}
           title="Writes this date to the box's P/U Date field on the sheet"
           style={{
             padding: '7px 16px', fontSize: 13, fontWeight: 700, borderRadius: 5,
-            border: 'none', fontFamily: font, color: '#FFFFFF',
+            border: 'none', fontFamily: font, color: '#FFFFFF', flexShrink: 0,
             background: dateSaveState === 'saving' ? BRAND.muted : BRAND.green,
             cursor: (!puDateInput || dateSaveState === 'saving') ? 'default' : 'pointer',
             opacity: (!puDateInput && dateSaveState !== 'saving') ? 0.55 : 1,
           }}
         >{dateSaveState === 'saving' ? 'Saving…' : 'Save Date to Box'}</button>
-        {dateSaveState === 'saved' && (
-          <span style={{ fontSize: 12, fontWeight: 700, color: BRAND.greenDark }}>✓ Saved to Box {box.boxId}</span>
-        )}
-        {dateSaveState === 'error' && (
+        {/* Everything to the right of the button is ONE inline status
+            slot: red lock message while unsaved (firming up after a
+            blocked Send attempt), green confirmation once saved, save
+            error if the write failed. */}
+        {dateSaveState === 'error' ? (
           <span style={{ fontSize: 12, fontWeight: 600, color: BRAND.red }}>Could not save: {dateSaveError}</span>
-        )}
-        {dateSaveState === 'idle' && !dateIsSaved && (
-          <span style={{ fontSize: 11.5, color: BRAND.muted }}>Saving unlocks the Send Email button below.</span>
-        )}
-        {dateSaveState === 'idle' && dateIsSaved && (
+        ) : dateSaveState === 'saved' ? (
+          <span style={{ fontSize: 12, fontWeight: 700, color: BRAND.greenDark }}>✓ Saved to Box {box.boxId}</span>
+        ) : dateIsSaved ? (
           <span style={{ fontSize: 12, fontWeight: 700, color: BRAND.greenDark }}>✓ This date is already saved to the box</span>
+        ) : (
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: BRAND.red }}>
+            {sendBlocked
+              ? 'Not sent — you must Save Date to Box before the email can send.'
+              : 'Date not saved yet — Send is locked until you Save Date to Box.'}
+          </span>
         )}
       </div>
     </div>
