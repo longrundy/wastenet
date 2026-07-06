@@ -1822,8 +1822,15 @@ function QuickServiceProof({ box, contacts, sheetName, onSendEmail, onSave, onCl
   const [sendBlocked, setSendBlocked] = React.useState(false);
   React.useEffect(() => { if (dateIsSaved) setSendBlocked(false); }, [dateIsSaved]);
 
-  const effectiveTo = String(c.toRecipients || '').trim();
-  const effectiveCc = String(c.ccRecipients || '').trim();
+  // Service recipients now live on the Service Email Content tab
+  // (column D = To, column E = Cc), per explicit design decision
+  // (2026-07-06) - the SERVICE email is the only type that uses them.
+  // Migration fallback: a box whose D/E cells are still blank uses its
+  // Master Box List G/H recipients instead, so half-populated states
+  // can never produce a recipient-less send; once D/E is filled for a
+  // box, D/E is the only source its Service email uses.
+  const effectiveTo = String(c.serviceToRecipients || '').trim() || String(c.toRecipients || '').trim();
+  const effectiveCc = String(c.serviceCcRecipients || '').trim() || String(c.ccRecipients || '').trim();
   const outgoingBcc = withOfficeBcc('');
 
   const filled = fillEmailTemplate(c.subjectTemplate || '', c.bodyTemplate || '', puDateInput);
@@ -2268,7 +2275,7 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                 if (isPortalServicedHauler(b.haulCode)) return null;
                 if (/^never\s+schedule/i.test(String(c.setSchedule || '').trim())) return null;
                 if (!c.subjectTemplate && !c.bodyTemplate) return null;
-                const hasTo = !!String(c.toRecipients || '').trim();
+                const hasTo = !!(String(c.serviceToRecipients || '').trim() || String(c.toRecipients || '').trim());
                 return (
                   <button
                     onClick={e => { e.stopPropagation(); if (hasTo) setQuickProofBox(b); }}
@@ -3133,10 +3140,27 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
             .map(s => s.trim()).filter(s => s);
           const checkedStaffStr = staffList.filter(a => selectedStaff.includes(a)).join('; ');
 
+          // The SERVICE email (and ONLY the Service email) draws its
+          // Haulers/Customers groups from the Service Email Content
+          // tab's columns D/E, per explicit design decision
+          // (2026-07-06); every other category keeps using Master Box
+          // List G/H. Fallback: while a box's D/E is still blank, its
+          // Service email uses G/H too, so migration can proceed box
+          // by box without any recipient-less sends. The recipient
+          // display below shows whichever source is actually in use
+          // for the selected category - what you see is what sends.
+          const serviceMode = emailCategory === 'Service';
+          const haulerGroupValue = serviceMode
+            ? (String(c.serviceToRecipients || '').trim() || String(c.toRecipients || ''))
+            : String(c.toRecipients || '');
+          const customerGroupValue = serviceMode
+            ? (String(c.serviceCcRecipients || '').trim() || String(c.ccRecipients || ''))
+            : String(c.ccRecipients || '');
+
           const groupsForPlacement = (placement) => {
             const parts = [];
-            if (primaryPlacement === placement && c.toRecipients) parts.push(c.toRecipients);
-            if (secondaryPlacement === placement && c.ccRecipients) parts.push(c.ccRecipients);
+            if (primaryPlacement === placement && haulerGroupValue) parts.push(haulerGroupValue);
+            if (secondaryPlacement === placement && customerGroupValue) parts.push(customerGroupValue);
             if (staffPlacement === placement && checkedStaffStr) parts.push(checkedStaffStr);
             return parts.join('; ');
           };
@@ -3375,14 +3399,14 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3, fontWeight: 700, textDecoration: 'underline' }}>Haulers:</div>
-                  <div style={{ fontSize: 12.5, fontFamily: monoFont, wordBreak: 'break-word', minHeight: 16 }}>{c.toRecipients || ''}</div>
+                  <div style={{ fontSize: 12.5, fontFamily: monoFont, wordBreak: 'break-word', minHeight: 16 }}>{haulerGroupValue}</div>
                 </div>
                 <PlacementSelector value={primaryPlacement} onChange={setPrimaryPlacement} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontSize: 12.5, color: BRAND.muted, marginBottom: 3, fontWeight: 700, textDecoration: 'underline' }}>Customers:</div>
-                  <div style={{ fontSize: 12.5, fontFamily: monoFont, wordBreak: 'break-word', minHeight: 16 }}>{c.ccRecipients || ''}</div>
+                  <div style={{ fontSize: 12.5, fontFamily: monoFont, wordBreak: 'break-word', minHeight: 16 }}>{customerGroupValue}</div>
                 </div>
                 <PlacementSelector value={secondaryPlacement} onChange={setSecondaryPlacement} />
               </div>
