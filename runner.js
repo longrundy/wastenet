@@ -126,32 +126,53 @@ async function screenshot(page, name) {
   } catch (e) { /* page may be mid-navigation - fine */ }
 }
 
-/** Structural login, same detection rules as the userscript's auto-login.
- *  IMPORTANT: detection is by PASSWORD FIELD PRESENCE, not URL - the
- *  portal sometimes renders the login form inline AT Monitor.aspx
- *  (confirmed live: headless goto to Monitor.aspx returned that URL
- *  with an empty title and a login form), and other times redirects
- *  to login.aspx. Field detection covers both. */
+/** Structural login, now matching the userscript's isLoginPage() rule
+ *  EXACTLY: it is only a login form when a password field is present
+ *  AND the box grid is ABSENT. (Confirmed live: the real Monitor page
+ *  contains a stray password-type input somewhere, so password-field
+ *  presence alone false-positived on a logged-in Monitor page and the
+ *  runner tried to type the username into the disabled Date Pull
+ *  Requested box.) Filling is done directly in the DOM - same as the
+ *  userscript - so disabled stray fields can never block it. */
 async function loginIfNeeded(page) {
   await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(1500); // let any client-side redirect settle
-  const hasPwd = await page.locator('input[type="password"]').count();
-  if (!hasPwd) return false;
+  const status = await page.evaluate(() => {
+    const gridPresent = [...document.querySelectorAll('input[type="button"]')]
+      .some((b) => /Select\$/.test(b.getAttribute('onclick') || ''));
+    const pwdPresent = !!document.querySelector('input[type="password"]');
+    return { gridPresent, pwdPresent };
+  });
+  if (status.gridPresent || !status.pwdPresent) return false; // logged in / not a login form
   const user = process.env.CES_USER, pass = process.env.CES_PASS;
   if (!user || !pass) throw new Error('CES_USER / CES_PASS not set in .env');
   log('Login form detected (at ' + page.url() + ') - logging in as ' + user + '...');
-  const pwd = page.locator('input[type="password"]').first();
-  await page.locator('input[type="text"]').first().fill(user);
-  await pwd.fill(pass);
-  const remember = page.locator('input[type="checkbox"]').first();
-  if (await remember.count() && !(await remember.isChecked())) await remember.check();
-  const loginBtn = page.locator('input[value*="Log In" i], input[type="submit"]').first();
-  await loginBtn.click();
+  await page.evaluate(({ u, p }) => {
+    const pwd = document.querySelector('input[type="password"]');
+    const texts = [...document.querySelectorAll('input[type="text"]')];
+    let userInput = null;
+    for (const t of texts) {
+      if (t.compareDocumentPosition(pwd) & Node.DOCUMENT_POSITION_FOLLOWING) userInput = t;
+    }
+    if (!userInput) throw new Error('Could not locate the User Name field.');
+    userInput.value = u;
+    pwd.value = p;
+    const cb = document.querySelector('input[type="checkbox"]');
+    if (cb && !cb.checked) cb.click();
+    const btn = [...document.querySelectorAll('input[type="submit"], input[type="button"], button')]
+      .find((b) => /log\s*in/i.test(b.value || b.textContent || ''));
+    if (!btn) throw new Error('Could not locate the Log In button.');
+    btn.click();
+  }, { u: user, p: pass });
   await page.waitForLoadState('domcontentloaded');
-  // If we're still staring at a password field after the submit, the
-  // credentials were rejected - fail loudly rather than looping.
   await page.waitForTimeout(2500);
-  if (await page.locator('input[type="password"]').count()) {
+  const after = await page.evaluate(() => {
+    const gridPresent = [...document.querySelectorAll('input[type="button"]')]
+      .some((b) => /Select\$/.test(b.getAttribute('onclick') || ''));
+    const pwdPresent = !!document.querySelector('input[type="password"]');
+    return { gridPresent, pwdPresent };
+  });
+  if (!after.gridPresent && after.pwdPresent) {
     throw new Error('Login was rejected - still on the login form after submitting. Check CES_USER/CES_PASS in .env.');
   }
   log('Logged in - now at ' + page.url());
