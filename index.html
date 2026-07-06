@@ -2310,7 +2310,7 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                       borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
                       cursor: hasTo ? 'pointer' : 'not-allowed',
                     }}
-                  >✉ SRVC EMAIL</button>
+                  >{'\u2709\uFE0E'} SRVC EMAIL</button>
                 );
               })()}
               {/* Pickup Date pill - still only shown once a Pick-Up
@@ -2638,19 +2638,17 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
   // template from Master Box List (contacts.subjectTemplate/
   // bodyTemplate); any other label looks up the matching entry in
   // emailTemplates instead (the separate, generic Email Templates tab).
-  // Defaults to Service since that's the original, most-used category.
+  // Defaults to the first non-Service category with a template, since
+  // Service no longer appears in this panel at all (2026-07-06) - the
+  // list page's SRVC EMAIL pill owns that flow now, for every box.
   const [emailCategory, setEmailCategory] = React.useState('Service');
 
-  // Portal-serviced boxes (C-300 / C-599) never get a Service email -
-  // if one is opened while Service is selected (the default), the
-  // selection shifts to the first non-Service category that has a
-  // template, so the panel never sits on a pill that isn't offered.
   const portalServiced = isPortalServicedHauler(box.haulCode);
   React.useEffect(() => {
-    if (portalServiced && emailCategory === 'Service') {
+    if (emailCategory === 'Service') {
       setEmailCategory(firstNonServiceCategory(emailTemplates));
     }
-  }, [box.boxId, portalServiced]);
+  }, [box.boxId]);
 
   // Freeform draft for the 'Blank' email type - no sheet, no template,
   // just a subject line and body typed on the spot. Reset when a
@@ -3200,9 +3198,14 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
           // Pill order per explicit design decision: Service first,
           // Notice second - and when Service isn't offered (portal
           // haulers), Notice leads.
-          const PILL_LABELS = (portalServiced
-            ? ['Notice', 'Emptied', 'Missed', 'Premature', 'Problem', 'Repair', 'Usage', 'Weights', 'Blank']
-            : ['Service', 'Notice', 'Emptied', 'Missed', 'Premature', 'Problem', 'Repair', 'Usage', 'Weights', 'Blank']);
+          // Service is NOT offered here anymore, per explicit design
+          // decision (2026-07-06): the Action Needed list's SRVC
+          // EMAIL pill (straight-to-proof, save-gated) is now the one
+          // way to send a Service email, so the detail panel carries
+          // only the other categories. The Service composition
+          // machinery below (serviceMode recipients, property picker,
+          // confirm link) stays intact for that flow's shared pieces.
+          const PILL_LABELS = ['Notice', 'Emptied', 'Missed', 'Premature', 'Problem', 'Repair', 'Usage', 'Weights', 'Blank'];
           const getTemplateFor = (label) => {
             if (label === 'Service') {
               return { subjectTemplate: c.subjectTemplate || '', bodyTemplate: c.bodyTemplate || '' };
