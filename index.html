@@ -81,6 +81,60 @@ const OFFICE_EMAIL = 'office@wastenetinc.com';
 const SERVICE_CONFIRM_SENTENCE_HTML = 'Please confirm this service is scheduled by clicking on the button above. No reply email is necessary.';
 const SERVICE_CONFIRM_SENTENCE_PLAIN = 'Please confirm this service is scheduled using the link above. No reply email is necessary.';
 
+// Company email signature - appended to EVERY outgoing dashboard email
+// (all categories, Blank included), in both the plain-text and HTML
+// versions, per explicit request (2026-07-06). Edit the fields here to
+// change what every email signs off with; empty fields are simply
+// skipped, never rendered blank. logoUrl must be a PUBLIC absolute URL
+// (mail clients fetch it when the recipient opens the email) - upload
+// logo.png to the GitHub repo root and it serves from the address
+// below. Set logoUrl to '' to send signatures with no logo.
+const EMAIL_SIGNATURE = {
+  logoUrl: 'https://dashboard.wastenetinc.com/logo.png',
+  companyName: 'WasteNet Inc.',
+  tagline: 'Compactor Monitoring & Service Coordination',
+  phone: '',
+  email: 'office@wastenetinc.com',
+  website: 'dashboard.wastenetinc.com',
+};
+
+// Plain-text form of the signature - two dashes on their own line is
+// the universal email signature delimiter, so clients that understand
+// it (quoting, reply-trimming) treat everything below as signature.
+function emailSignaturePlain() {
+  const s = EMAIL_SIGNATURE;
+  const contact = [s.phone, s.email].filter(v => v).join(' | ');
+  const lines = [s.companyName, s.tagline, contact, s.website].filter(v => v);
+  if (lines.length === 0) return '';
+  return '\n\n--\n' + lines.join('\n');
+}
+
+// HTML form - logo on the left, company block on the right, above a
+// thin brand-green rule. Table layout (not flex) because Outlook's
+// Word renderer ignores most CSS; everything inline-styled for the
+// same reason. All config values pass through escapeEmailHtml, same
+// injection rule as the body itself.
+function emailSignatureHtml() {
+  const s = EMAIL_SIGNATURE;
+  const contact = [s.phone, s.email].filter(v => v).join(' &nbsp;|&nbsp; ');
+  const infoRows = [];
+  if (s.companyName) infoRows.push('<div style="font-weight:bold;font-size:14px;color:#333333;">' + escapeEmailHtml(s.companyName) + '</div>');
+  if (s.tagline) infoRows.push('<div style="font-size:12px;color:#6B7264;">' + escapeEmailHtml(s.tagline) + '</div>');
+  if (contact) infoRows.push('<div style="font-size:12px;color:#333333;margin-top:3px;">' + (s.phone ? escapeEmailHtml(s.phone) + ' &nbsp;|&nbsp; ' : '') + (s.email ? '<a href="mailto:' + escapeEmailHtml(s.email) + '" style="color:#5CAA16;text-decoration:none;">' + escapeEmailHtml(s.email) + '</a>' : '') + '</div>');
+  if (s.website) infoRows.push('<div style="font-size:12px;margin-top:1px;"><a href="https://' + escapeEmailHtml(s.website) + '" target="_blank" rel="noopener" style="color:#5CAA16;text-decoration:none;">' + escapeEmailHtml(s.website) + '</a></div>');
+  if (infoRows.length === 0 && !s.logoUrl) return '';
+  const logoCell = s.logoUrl
+    ? '<td style="vertical-align:middle;padding-right:14px;"><img src="' + escapeEmailHtml(s.logoUrl) + '" alt="' + escapeEmailHtml(s.companyName || 'Logo') + '" width="52" style="display:block;width:52px;height:auto;border:0;"></td>'
+    : '';
+  return '<table role="presentation" cellpadding="0" cellspacing="0" border="0" ' +
+    'style="margin-top:18px;border-top:2px solid #5CAA16;padding-top:0;width:auto;">' +
+    '<tr><td style="padding-top:10px;">' +
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>' +
+    logoCell +
+    '<td style="vertical-align:middle;">' + infoRows.join('') + '</td>' +
+    '</tr></table></td></tr></table>';
+}
+
 // WasteNet brand palette - sampled directly from the WASTENET logo (#5CAA16)
 const BRAND = {
   green: '#5CAA16',
@@ -420,8 +474,10 @@ function buildEmailHtml(plainBody, confirmUrl, buttonLabel, boldPhrases, confirm
       } catch (e) { /* a phrase that somehow breaks regex just goes unbolded */ }
     });
   }
+  // Company signature - appended to every HTML email, after the bold
+  // pass so signature markup can never be rewritten by a bold phrase.
   return '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#333333;line-height:1.5;">' +
-    html + '</div>';
+    html + emailSignatureHtml() + '</div>';
 }
 
 // Counts the addresses in a ';'/','-separated recipient string - used
@@ -1479,6 +1535,8 @@ function WasteNetDashboard() {
               onMoveBox={saveBoxFields}
               activeView={signalFilter}
               sortBy={sortBy}
+              onSendEmail={sendEmail}
+              sheetName={sheetName}
               monoFont={monoFont}
               font={font}
             />
@@ -1536,7 +1594,7 @@ function WasteNetDashboard() {
 // resets an in-progress proof): 'idle' -> 'preview' -> 'sending' ->
 // 'sent' | 'error' (error keeps the proof sheet open with the reason
 // shown and Send Email re-enabled for a retry).
-function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subject, body, htmlBody, canSend, noRecipientHint, hideIdleButton, sendState, sendError, onArm, onCancel, onConfirm, onReset, monoFont, font }) {
+function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subject, body, htmlBody, canSend, noRecipientHint, hideIdleButton, sendState, sendError, onArm, onCancel, onConfirm, onReset, headerExtra, monoFont, font }) {
   const previewRow = (label, value) => (
     value ? (
       <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
@@ -1603,6 +1661,11 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
             >×</button>
           </div>
           <div className="modal-body" style={{ flex: 1, overflow: 'auto' }}>
+            {/* Optional caller-supplied controls rendered at the top
+                of the proof sheet - the Quick Service proof puts its
+                editable Pick-Up Date here; the detail panel passes
+                nothing and the proof renders exactly as before. */}
+            {headerExtra || null}
             <div style={{
               border: '1px solid ' + BRAND.line, borderRadius: 6, padding: '10px 12px',
               background: BRAND.paper, marginBottom: 12,
@@ -1706,7 +1769,202 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
   );
 }
 
-function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfirmPill, onMoveBox, activeView, sortBy, monoFont, font }) {
+// Quick Service proof - opened straight from a row's SRVC EMAIL pill
+// on the Action Needed view, per explicit request (2026-07-06):
+// tapping the pill goes DIRECTLY to the full-screen proof sheet of
+// that box's Service email, skipping the detail panel entirely. The
+// Pick-Up Date starts at the box's saved date (if any) or its
+// Scheduling Rule's suggested date, and is editable right on the
+// proof sheet - changing it live-rebuilds the subject, body, and
+// confirm link before anything sends. Composition mirrors the detail
+// panel's Service flow exactly (same fillEmailTemplate, same confirm
+// link + token, same buildEmailHtml with the same bold phrases), so
+// the two paths can never drift apart in what they send. Fixed
+// recipient defaults, per explicit design decision: Haulers -> To,
+// Customers -> Cc, no staff - anything fancier belongs in the detail
+// panel, which remains one tap away on the row itself. Sending here
+// does NOT write the Pick-Up Date to the sheet (composing never
+// writes implicitly, same rule as everywhere else) - saving the date
+// still happens in the detail panel.
+function QuickServiceProof({ box, contacts, sheetName, onSendEmail, onClose, monoFont, font }) {
+  const c = contacts || {};
+  const schedSuggestedDate = c.schedulingRule ? computeSuggestedPickupDate(c.schedulingRule) : null;
+  const schedSuggestedValue = schedSuggestedDate ? toDateInputValue(schedSuggestedDate) : '';
+  const [puDateInput, setPuDateInput] = React.useState(() => toDateInputValue(box.puDate) || schedSuggestedValue);
+  // Opens ALREADY in preview - that is this component's whole point.
+  const [sendState, setSendState] = React.useState('preview');
+  const [sendError, setSendError] = React.useState(null);
+
+  const effectiveTo = String(c.toRecipients || '').trim();
+  const effectiveCc = String(c.ccRecipients || '').trim();
+  const outgoingBcc = withOfficeBcc('');
+
+  const filled = fillEmailTemplate(c.subjectTemplate || '', c.bodyTemplate || '', puDateInput);
+  const finalSubject = filled.subject;
+  let finalBody = filled.body;
+
+  let confirmUrl = null;
+  if (sheetName && finalBody) {
+    confirmUrl = 'https://dashboard.wastenetinc.com/confirm' +
+      '?b=' + encodeURIComponent(box.boxId) +
+      '&t=' + encodeURIComponent(sheetName) +
+      '&k=' + confirmToken(box.boxId, sheetName);
+    if (/\[confirm link\]/i.test(finalBody)) {
+      finalBody = finalBody.replace(/\[confirm link\]/gi, confirmUrl);
+    } else {
+      finalBody += '\n\n' + confirmUrl + '\n' + SERVICE_CONFIRM_SENTENCE_PLAIN;
+    }
+  }
+
+  const htmlBody = finalBody ? buildEmailHtml(finalBody, confirmUrl, 'Confirm Service Scheduled',
+    [formatDateInputValue(puDateInput), box.description, 'FIRM SERVICE DATE!', 'Firm Service Date!'],
+    SERVICE_CONFIRM_SENTENCE_PLAIN, SERVICE_CONFIRM_SENTENCE_HTML) : '';
+  const bodyForSend = finalBody ? finalBody + emailSignaturePlain() : finalBody;
+  const canSend = !!(effectiveTo && finalSubject && finalBody);
+
+  const handleConfirmSend = async () => {
+    if (sendState === 'sending') return;
+    setSendState('sending');
+    setSendError(null);
+    try {
+      await onSendEmail({
+        to: effectiveTo,
+        cc: effectiveCc,
+        bcc: outgoingBcc,
+        subject: finalSubject,
+        body: bodyForSend,
+        html: htmlBody,
+      });
+      setSendState('sent');
+    } catch (err) {
+      setSendState('error');
+      setSendError(err.message || String(err));
+    }
+  };
+
+  // Editable Pick-Up Date, rendered INSIDE the proof sheet via
+  // EmailSendBlock's headerExtra slot. The suggestion note matches
+  // the detail panel's adaptive wording: holding the suggestion says
+  // so plainly; anything else brings back a clickable "Suggested:".
+  const dateEditor = (
+    <div style={{
+      border: '1px solid #E2E6DE', borderRadius: 6, padding: '10px 12px',
+      background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.15)', marginBottom: 12,
+    }}>
+      <div style={{
+        fontSize: 11.5, fontWeight: 700, color: BRAND.green, textTransform: 'uppercase',
+        letterSpacing: '0.03em', fontFamily: monoFont, marginBottom: 6,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, flexWrap: 'wrap',
+      }}>
+        <span>Pick-Up Date — edits update the email below</span>
+        {c.schedulingRule && (
+          <span style={{
+            fontSize: 11, fontFamily: monoFont, fontWeight: 700, color: BRAND.green,
+            background: '#FFFFFF', border: '1px solid #E2E6DE',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+            borderRadius: 3, padding: '2px 6px',
+          }}>Sched Rule: {c.schedulingRule}</span>
+        )}
+      </div>
+      <FriendlyDateInput
+        value={puDateInput}
+        onChange={e => setPuDateInput(e.target.value)}
+        font={font}
+      />
+      {schedSuggestedValue && (
+        puDateInput === schedSuggestedValue ? (
+          <div style={{ fontSize: 12, color: BRAND.muted, marginTop: 6 }}>
+            This is the <b>suggested date</b> per {c.schedulingRule} — send as-is, or change it above.
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: BRAND.muted, marginTop: 6 }}>
+            Suggested (per {c.schedulingRule}):{' '}
+            <button
+              type="button"
+              onClick={() => setPuDateInput(schedSuggestedValue)}
+              style={{
+                background: 'none', border: 'none', padding: 0, margin: 0,
+                color: BRAND.greenDark, fontWeight: 700, fontFamily: font,
+                fontSize: 12, cursor: 'pointer', textDecoration: 'underline',
+              }}
+            >{schedSuggestedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</button>
+          </div>
+        )
+      )}
+      <div style={{ fontSize: 11.5, color: BRAND.muted, marginTop: 6 }}>
+        Note: sending does not save this date to the box — use the box's detail panel to save it.
+      </div>
+    </div>
+  );
+
+  // Post-send success card - the shared EmailSendBlock renders its
+  // 'sent' state as an inline card (built for a parent panel), so
+  // this standalone flow wraps that moment in its own small overlay
+  // with a Done button instead.
+  if (sendState === 'sent') {
+    return (
+      <div
+        onClick={onClose}
+        className="modal-overlay"
+        style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', zIndex: 95,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        <div onClick={e => e.stopPropagation()} style={{
+          background: BRAND.panel, borderRadius: 10, boxShadow: '0 12px 48px rgba(0,0,0,0.35)',
+          padding: 20, maxWidth: 420, width: 'calc(100vw - 48px)', fontFamily: font,
+        }}>
+          <div style={{
+            padding: '12px 14px', background: 'rgba(92,170,22,0.12)',
+            border: '1.5px solid ' + BRAND.green, borderRadius: 6, color: BRAND.greenDark,
+            fontSize: 13, fontWeight: 600, textAlign: 'center',
+          }}>
+            ✓ Service email sent for Box {box.boxId}
+            <div style={{ fontSize: 11.5, fontWeight: 500, color: BRAND.greenDark, marginTop: 3 }}>
+              Sent from office@wastenetinc.com — a copy was Bcc'd to the office@ mailbox.
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              display: 'block', width: '100%', marginTop: 10, padding: '10px', fontSize: 13.5,
+              fontWeight: 700, borderRadius: 5, border: 'none',
+              background: BRAND.green, color: '#FFFFFF', cursor: 'pointer', fontFamily: font,
+            }}
+          >Done</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <EmailSendBlock
+      sendLabel=""
+      hideIdleButton={true}
+      effectiveTo={effectiveTo}
+      effectiveCc={effectiveCc}
+      outgoingBcc={outgoingBcc}
+      subject={finalSubject}
+      body={bodyForSend}
+      htmlBody={htmlBody}
+      canSend={canSend}
+      noRecipientHint=""
+      sendState={sendState}
+      sendError={sendError}
+      onArm={() => setSendState('preview')}
+      onCancel={onClose}
+      onConfirm={handleConfirmSend}
+      onReset={onClose}
+      headerExtra={dateEditor}
+      monoFont={monoFont}
+      font={font}
+    />
+  );
+}
+
+function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfirmPill, onMoveBox, activeView, sortBy, onSendEmail, sheetName, monoFont, font }) {
   // Per-row Confirmed save tracking for the CONF'D checkbox pills.
   // Keyed by boxId; an entry exists only while that row's save is in
   // flight ({ value }) or just failed ('error'). While saving, the
@@ -1717,6 +1975,10 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
   // value and the row shows a brief error - the screen never shows a
   // checked box that didn't actually make it into the Sheet.
   const [confirmSaves, setConfirmSaves] = React.useState({});
+
+  // Which box's Quick Service proof is open (SRVC EMAIL pill on the
+  // Action Needed view) - straight-to-proof, no detail panel stop.
+  const [quickProofBox, setQuickProofBox] = React.useState(null);
 
   // MOVE button state: which row's move menu is open (one at a time),
   // and per-row save tracking, same pattern as confirmSaves.
@@ -1905,6 +2167,42 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                   }}>{neverSched ? '\u26D4 NEVER SCHED' : 'SET SCHED'}</span>
                 );
               })()}
+              {/* SRVC EMAIL pill - Action Needed view only, per
+                  explicit request (2026-07-06): one tap goes STRAIGHT
+                  to the proof sheet of this box's Service email (see
+                  QuickServiceProof) with the suggested date already
+                  filled in and editable right on the proof. Not
+                  offered when the hauler is portal-serviced (no
+                  Service email exists for them at all), when the box
+                  is flagged NEVER SCHED (a one-tap order button
+                  directly beside a do-not-order warning would be a
+                  footgun), or when the box has no Service template on
+                  the Master Box List. Muted-but-visible when the box
+                  has no hauler To: address on file - visible bad data
+                  is fixable data. stopPropagation keeps the tap from
+                  also opening the detail panel. */}
+              {activeView === 'crossed' && (() => {
+                const c = (masterContacts || {})[b.boxId] || {};
+                if (isPortalServicedHauler(b.haulCode)) return null;
+                if (/^never\s+schedule/i.test(String(c.setSchedule || '').trim())) return null;
+                if (!c.subjectTemplate && !c.bodyTemplate) return null;
+                const hasTo = !!String(c.toRecipients || '').trim();
+                return (
+                  <button
+                    onClick={e => { e.stopPropagation(); if (hasTo) setQuickProofBox(b); }}
+                    disabled={!hasTo}
+                    title={hasTo ? 'Proof & send this box\u2019s Service email' : 'No hauler email on file for this box - add one to the Master Box List'}
+                    style={{
+                      fontSize: 10.5, fontWeight: 700, fontFamily: monoFont,
+                      color: hasTo ? BRAND.green : '#C7CCC2',
+                      background: '#FFFFFF', border: '1px solid #E2E6DE',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                      borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
+                      cursor: hasTo ? 'pointer' : 'not-allowed',
+                    }}
+                  >✉ SRVC EMAIL</button>
+                );
+              })()}
               {/* Pickup Date pill - still only shown once a Pick-Up
                   Date has actually been saved for this box. */}
               {b.puDate && (
@@ -1975,9 +2273,22 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {boxes.map(b => renderRow(b))}
-    </div>
+    <React.Fragment>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {boxes.map(b => renderRow(b))}
+      </div>
+      {quickProofBox && (
+        <QuickServiceProof
+          box={quickProofBox}
+          contacts={(masterContacts || {})[quickProofBox.boxId]}
+          sheetName={sheetName}
+          onSendEmail={onSendEmail}
+          onClose={() => setQuickProofBox(null)}
+          monoFont={monoFont}
+          font={font}
+        />
+      )}
+    </React.Fragment>
   );
 }
 
@@ -2874,6 +3185,10 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
           // explicit design decision, and a To recipient is required
           // (SendGrid rejects an email with only Cc/Bcc recipients).
           const outgoingBcc = withOfficeBcc(effectiveBcc);
+          // Plain-text company signature - appended AFTER the HTML
+          // version is built above (buildEmailHtml adds its own HTML
+          // signature), so neither version ends up with two.
+          const bodyForSend = finalBody ? finalBody + emailSignaturePlain() : finalBody;
           const canSend = !!(effectiveTo && finalSubject && finalBody);
           const handleConfirmSend = async () => {
             if (sendState === 'sending') return;
@@ -2885,7 +3200,7 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                 cc: effectiveCc,
                 bcc: outgoingBcc,
                 subject: finalSubject,
-                body: finalBody,
+                body: bodyForSend,
                 html: htmlBody,
               });
               setSendState('sent');
@@ -3265,7 +3580,7 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                   effectiveCc={effectiveCc}
                   outgoingBcc={outgoingBcc}
                   subject={finalSubject}
-                  body={finalBody}
+                  body={bodyForSend}
                   htmlBody={htmlBody}
                   canSend={canSend}
                   noRecipientHint="To: recipient must be added"
