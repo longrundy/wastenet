@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WasteNet Box Monitor Scan
 // @namespace    wastenet
-// @version      4.7
+// @version      4.7.1
 // @match        http://h1.ces-web.com/*
 // @match        https://h1.ces-web.com/*
 // @grant        none
@@ -580,7 +580,9 @@
         } else {
           const due = computeSetScheduleDue(boxId, state);
           parts.push(due
-            ? 'SET SCHED - ORDER BY ' + formatShortDay(due.orderDate) + ' FOR ' + formatShortDay(due.pullDate) + ' PULL'
+            ? (due.late
+              ? 'SET SCHED - ORDER OVERDUE FOR ' + formatShortDay(due.pullDate) + ' PULL'
+              : 'SET SCHED - ORDER BY ' + formatShortDay(due.orderDate) + ' FOR ' + formatShortDay(due.pullDate) + ' PULL')
             : 'SET SCHED');
         }
       }
@@ -671,12 +673,27 @@
     return m ? parseInt(m[1], 10) + 1 : null;
   }
 
-  // Decides whether TODAY falls inside a box's order window: for the
-  // next scheduled pull day, the order day is the LATEST business day
+  // Decides whether TODAY falls inside a box's order window. For each
+  // upcoming scheduled pull, the order day is the LATEST business day
   // from which the rule's math still lands on (or before) the pull
-  // day. Due = orderDay <= today <= pullDay. Returns null when not
-  // due (or the box has no forceable schedule); otherwise
-  // { pullDate, orderDate, ruleLabel } for notes/advisory text.
+  // day; that pull's WINDOW is orderDay..pullDay.
+  //
+  // v4.7.1 FIX (found live on Box 443, Mon+Fri / 2-BD): coverage is
+  // now per-WINDOW, not per-lookback. The old check ("requested
+  // within SUPPRESS_DAYS") was structurally too short - a 2-BD window
+  // spans up to 6 calendar days, so an order placed on its order day
+  // (Tue 6/30 for the Mon 7/6 pull) looked stale by pull day and the
+  // box got re-flagged with an impossible "order by <past date>"
+  // instruction. Now: the page's Date Pull Requested covers the FIRST
+  // upcoming pull whose window contains it - that pull is ordered,
+  // skip it, evaluate the next one. One request covers exactly ONE
+  // pull (a Mon+Fri box's Friday order never silences the following
+  // Monday's). A pull past its order day with NO covering request
+  // still flags - you can't order backwards in time, but a missed
+  // order is exactly what should be loudest - with late:true so the
+  // note reads ORDER OVERDUE instead of "order by <yesterday>".
+  // Returns null when nothing is due, else
+  // { pullDate, orderDate, ruleLabel, late }.
   function computeSetScheduleDue(boxId, state) {
     try {
       const map = state && state.daysCyclesMap;
@@ -691,6 +708,16 @@
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const holidaySet = buildHolidaySet(today.getFullYear());
+      // The page's Date Pull Requested - the one request date this
+      // box carries. Normalized to midnight for window comparison.
+      let reqTime = null;
+      const reqRaw = getDatePullRequested();
+      if (reqRaw instanceof Date && !isNaN(reqRaw.getTime())) {
+        const r = new Date(reqRaw);
+        r.setHours(0, 0, 0, 0);
+        reqTime = r.getTime();
+      }
+      let requestConsumed = false;
       // Scan the next 14 days for scheduled pull days, nearest first.
       for (let offset = 0; offset < 14; offset++) {
         const pullDate = new Date(today);
@@ -706,10 +733,22 @@
           if (dow === 0 || dow === 6 || holidaySet.has(ymdKey(orderDate))) continue;
           if (addBusinessDaysHol(orderDate, bd, holidaySet).getTime() <= pullDate.getTime()) break;
         }
-        if (today.getTime() >= orderDate.getTime() && today.getTime() <= pullDate.getTime()) {
-          return { pullDate: pullDate, orderDate: orderDate, ruleLabel: ruleLabel };
+        // Covered? The request date falls inside THIS pull's window
+        // and hasn't already covered an earlier pull.
+        if (!requestConsumed && reqTime !== null &&
+            reqTime >= orderDate.getTime() && reqTime <= pullDate.getTime()) {
+          requestConsumed = true;
+          continue; // this pull is ordered - evaluate the next one
         }
-        // Nearest pull not due yet -> nothing sooner can be either.
+        if (today.getTime() >= orderDate.getTime() && today.getTime() <= pullDate.getTime()) {
+          return {
+            pullDate: pullDate,
+            orderDate: orderDate,
+            ruleLabel: ruleLabel,
+            late: today.getTime() > orderDate.getTime(),
+          };
+        }
+        // Nearest uncovered pull not due yet -> nothing sooner can be.
         if (today.getTime() < orderDate.getTime()) return null;
       }
       return null;
@@ -1832,14 +1871,24 @@
     // trigger crossed.
     let schedForcedNote = '';
     const schedDue = computeSetScheduleDue(boxId, state);
-    if (schedDue && !isDateWithinDays(datePullRequestedRaw, SUPPRESS_DAYS)) {
+    if (schedDue) {
+      // Coverage is handled INSIDE computeSetScheduleDue now (v4.7.1)
+      // - a request inside this pull's own window already returned
+      // null or skipped to the next pull, so anything that reaches
+      // here is a genuinely unordered pull. No SUPPRESS_DAYS check:
+      // that 3-day lookback was too short for a 2-BD window and
+      // caused the Box 443 false re-flag.
       serviceNeeded = true;
       recentlyRequested = false;
-      schedForcedNote = 'YES (set schedule): ' + formatShortDay(schedDue.pullDate)
-        + ' pull per Set Schedule - order by ' + formatShortDay(schedDue.orderDate)
-        + ' (' + schedDue.ruleLabel + ').';
+      schedForcedNote = schedDue.late
+        ? ('YES (set schedule): ' + formatShortDay(schedDue.pullDate)
+          + ' pull per Set Schedule - ORDER OVERDUE (was due by '
+          + formatShortDay(schedDue.orderDate) + ', ' + schedDue.ruleLabel + ') and no request is on file.')
+        : ('YES (set schedule): ' + formatShortDay(schedDue.pullDate)
+          + ' pull per Set Schedule - order by ' + formatShortDay(schedDue.orderDate)
+          + ' (' + schedDue.ruleLabel + ').');
       log('Box ' + boxId + ': SET SCHEDULE due - pull ' + formatShortDay(schedDue.pullDate)
-        + ', order by ' + formatShortDay(schedDue.orderDate) + ' - forcing YES.');
+        + ', order by ' + formatShortDay(schedDue.orderDate) + (schedDue.late ? ' (OVERDUE)' : '') + ' - forcing YES.');
     }
 
     state.pendingResult = {
