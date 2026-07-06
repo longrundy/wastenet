@@ -2525,6 +2525,34 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                   Batch Email mode all keep working unchanged - in
                   hauler-sort mode the group header above each block is
                   where the hauler is identified. */}
+              {/* Set Schedule marker - compact list-row companion to
+                  the detail panel's full Set Schedule pill, driven by
+                  Master Box List column K via masterContacts. Two
+                  variants: red "NEVER SCHED" for hauler-self-managed
+                  boxes (the do-not-order warning belongs at list
+                  level, where batch/checkbox actions happen), and
+                  green "SET SCHED" for named-day boxes WasteNet is
+                  responsible for ordering. Kept to those two words
+                  deliberately - the full text ("Every Monday and
+                  Friday", the Box 1030 hybrid sentence) lives in the
+                  detail panel where there's room; a list row just
+                  needs the flag. Boxes with a blank column K get no
+                  marker at all. */}
+              {(() => {
+                const ss = String(((masterContacts || {})[b.boxId] || {}).setSchedule || '').trim();
+                if (!ss) return null;
+                const neverSched = /^never\s+schedule/i.test(ss);
+                return (
+                  <span title={ss} style={{
+                    fontSize: 10.5, fontWeight: 700, fontFamily: monoFont,
+                    color: neverSched ? '#B3402B' : BRAND.green,
+                    background: '#FFFFFF',
+                    border: neverSched ? '1px solid #B3402B' : '1px solid #E2E6DE',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                    borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
+                  }}>{neverSched ? '\u26D4 NEVER SCHED' : 'SET SCHED'}</span>
+                );
+              })()}
               {/* Pickup Date pill - still only shown once a Pick-Up
                   Date has actually been saved for this box. */}
               {b.puDate && (
@@ -3205,6 +3233,35 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                 Sched Rule: {contacts.schedulingRule}
               </div>
             )}
+            {/* Set Schedule pill - per-box value from Master Box List
+                column K ("Set Schedule"), delivered in the same
+                master_contacts lookup. Three flavors of text in use:
+                named days ("Every Monday and Friday" = WASTENET is
+                responsible for ordering pulls on those days - a
+                standing to-do, not hands-off), "Never Schedule - On
+                Set Schedule with Hauler" (the hauler self-manages;
+                WasteNet must NOT order pulls), and hybrids (Box 1030).
+                "Never Schedule" entries render in red as a hard
+                warning to whoever opened this panel intending to
+                schedule a pickup; named-day entries render in the
+                standard green pill style. Only rendered when the box
+                has an entry - blank column K = normal reading-driven
+                box, no pill. */}
+            {contacts && contacts.setSchedule && (() => {
+              const neverSched = /^never\s+schedule/i.test(contacts.setSchedule.trim());
+              return (
+                <div style={{
+                  fontSize: 12, fontFamily: monoFont, fontWeight: 700,
+                  color: neverSched ? '#B3402B' : BRAND.green,
+                  background: '#FFFFFF',
+                  border: neverSched ? '1px solid #B3402B' : '1px solid #E2E6DE',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                  borderRadius: 3, padding: '3px 8px', minWidth: 0,
+                }}>
+                  {neverSched ? '\u26D4 ' : ''}Set Schedule: {contacts.setSchedule}
+                </div>
+              );
+            })()}
           </div>
 
           {/* For C-300 / C-599 boxes the entire dates-and-confirmed
