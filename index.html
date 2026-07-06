@@ -464,7 +464,12 @@ function buildEmailHtml(plainBody, confirmUrl, buttonLabel, boldPhrases, confirm
         .replace(/(\s|\u00A0)+/g, '[\\s\\u00A0]+');
       try {
         html = html.replace(new RegExp(pattern, 'gi'), function (m) {
-          return '<strong>' + m + '</strong>';
+          // Brand green + bold, per explicit design decision
+          // (2026-07-06): the date and compactor description are the
+          // two facts a hauler acts on, so they carry the same green
+          // as the confirm button. Inline style, not a class - email
+          // clients strip <style> blocks.
+          return '<strong style="color:#5CAA16;">' + m + '</strong>';
         });
       } catch (e) { /* a phrase that somehow breaks regex just goes unbolded */ }
     });
@@ -1679,13 +1684,19 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
                   boxShadow: '0 1px 3px rgba(0,0,0,0.25)', fontFamily: font, whiteSpace: 'nowrap',
                 }}
               >{sending ? 'Sending…' : 'Send Email'}</button>
+              {/* Solid electric green (#CCFF66 - the EMAIL PROOF
+                  title's own color), per explicit design decision
+                  (2026-07-06): Back is always available, so it gets
+                  the standout treatment, while Send Email earns its
+                  white promotion only once unlocked. */}
               <button
                 onClick={() => { if (!sending) onCancel(); }}
                 disabled={sending}
                 style={{
-                  padding: '8px 14px', fontSize: 13, fontWeight: 700, borderRadius: 5,
-                  border: '1.5px solid rgba(255,255,255,0.6)', cursor: sending ? 'default' : 'pointer',
-                  background: 'transparent', color: '#E8F3DF', fontFamily: font, whiteSpace: 'nowrap',
+                  padding: '8px 16px', fontSize: 13, fontWeight: 700, borderRadius: 5,
+                  border: 'none', cursor: sending ? 'default' : 'pointer',
+                  background: '#CCFF66', color: BRAND.greenDark,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.25)', fontFamily: font, whiteSpace: 'nowrap',
                 }}
               >Back</button>
             </div>
