@@ -1836,16 +1836,62 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
     return bestDate ? { date: bestDate, rule: bestRule } : null;
   })();
 
+  // PER-BOX pick-up dates (2026-07-06): one date per included box,
+  // keyed by Box ID - because same-hauler boxes are NOT always
+  // emptied the same day. Each box's date pre-fills from ITS OWN
+  // rule's suggestion (not the strictest rule across the batch), so
+  // a 2-BD box and an NBD box open with different dates already
+  // showing. Runs once on mount, same never-overwrite contract as
+  // the old shared-date prefill.
+  const [boxDates, setBoxDates] = React.useState({});
+  const perBoxRule = (boxId) =>
+    String(((masterContacts || {})[boxId] || {}).schedulingRule || '').trim();
+  React.useEffect(() => {
+    const init = {};
+    boxes.forEach(b => {
+      const d = computeSuggestedPickupDate(perBoxRule(b.boxId));
+      if (d) init[b.boxId] = toDateInputValue(d);
+    });
+    setBoxDates(init);
+  }, []);
+  const setBoxDate = (boxId, val) =>
+    setBoxDates(prev => ({ ...prev, [boxId]: val }));
+
   // Per explicit design decision (2026-07-05, same as the detail
-  // panel): the strictest-rule suggestion PRE-FILLS the shared date
-  // field when the panel opens with the field empty - one click on
-  // Save Date covers the normal case. Runs once on mount only, so it
-  // never overwrites a date the user has since typed or cleared.
+  // panel): the strictest-rule suggestion PRE-FILLS the "set all"
+  // date field when the panel opens with the field empty - so the
+  // one-date-for-everything case stays one click (Apply to All,
+  // then Save). Runs once on mount only, so it never overwrites a
+  // date the user has since typed or cleared.
   React.useEffect(() => {
     if (!puDateInput && schedSuggestion) {
       setPuDateInput(toDateInputValue(schedSuggestion.date));
     }
   }, []);
+  const applySharedToAll = () => {
+    if (!puDateInput) return;
+    const next = {};
+    boxes.forEach(b => { next[b.boxId] = puDateInput; });
+    setBoxDates(next);
+  };
+
+  // Uniform vs mixed dates across the batch - drives how the
+  // [pickup date] placeholder is filled (see fillBatch below) and
+  // whether the email needs per-line dates at all.
+  const filledDates = boxes.map(b => boxDates[b.boxId]).filter(Boolean);
+  const uniqueDates = filledDates.filter((v, i) => filledDates.indexOf(v) === i);
+  const datesUniform = uniqueDates.length <= 1;
+  // Long form for the per-line email text: "Thursday, 7/9/2026" -
+  // parsed as y/m/d components (NOT new Date(string)) for the same
+  // timezone reason documented on formatDateInputValue.
+  const formatDateLong = (ymd) => {
+    if (!ymd) return '';
+    const p = String(ymd).split('-');
+    if (p.length !== 3) return '';
+    const d = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-US', { weekday: 'long' }) + ', ' + formatDateInputValue(ymd);
+  };
 
   // The 'Service' pill maps to the dedicated 'Batch' template (the
   // batch service email with box list + confirm-all link); every other
@@ -1870,18 +1916,41 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
     ? true
     : !!(batchTemplate.subjectTemplate || batchTemplate.bodyTemplate);
 
-  const dateStr = formatDateInputValue(puDateInput);
-  const boxListText = boxes.map(b => b.description).join('\n');
+  // [pickup date] fill, per-box-dates edition:
+  //  - all boxes share one date -> that date, exactly as before
+  //  - dates differ -> the SUBJECT gets the unique dates joined
+  //    ("7/9/2026 & 7/10/2026" - a subject can't say "see below"),
+  //    while the BODY gets "the date shown for each compactor
+  //    below", because the authoritative per-box date lives on the
+  //    box list lines (see boxListText).
+  const dateStr = datesUniform
+    ? formatDateInputValue(uniqueDates[0] || '')
+    : '';
+  const subjectDateStr = datesUniform
+    ? dateStr
+    : uniqueDates.map(formatDateInputValue).join(' & ');
+  const bodyDateStr = datesUniform
+    ? dateStr
+    : 'the date shown for each compactor below';
+  // Box list lines carry each box's own date - "— PICK UP:
+  // Thursday, 7/9/2026" - whenever ANY date is set. Uniform batches
+  // include it too (redundant with the body sentence, but a hauler
+  // forwarding just the list to a driver keeps the date). Boxes
+  // with no date set get no suffix rather than a blank.
+  const boxListText = boxes.map(b => {
+    const d = boxDates[b.boxId];
+    return b.description + (d ? ' — PICK UP: ' + formatDateLong(d) : '');
+  }).join('\n');
 
-  const fillBatch = (template) => {
+  const fillBatch = (template, dateFill) => {
     let t = template || '';
-    if (dateStr) t = t.replace(/\[pickup date\]/gi, dateStr);
+    if (dateFill) t = t.replace(/\[pickup date\]/gi, dateFill);
     t = t.replace(/\[box list\]/gi, boxListText);
     t = t.replace(/\[box description\]/gi, boxListText);
     return t;
   };
-  let finalSubject = fillBatch(batchTemplate.subjectTemplate);
-  let finalBody = fillBatch(batchTemplate.bodyTemplate);
+  let finalSubject = fillBatch(batchTemplate.subjectTemplate, subjectDateStr);
+  let finalBody = fillBatch(batchTemplate.bodyTemplate, bodyDateStr);
 
   // If the body has no box placeholder at all, the list is appended
   // rather than silently omitted - an email about boxes that doesn't
@@ -1932,7 +2001,10 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
   // HTML version of the email - the confirm link renders as a proper
   // green button in real mail clients (see buildEmailHtml).
   const htmlBody = finalBody ? buildEmailHtml(finalBody, confirmUrl, 'Confirm All Services Scheduled',
-    [dateStr, 'FIRM SERVICE DATE!', 'Firm Service Date!'].concat(boxes.map(b => b.description))) : '';
+    [dateStr, subjectDateStr, 'FIRM SERVICE DATE!', 'Firm Service Date!']
+      .concat(uniqueDates.map(formatDateLong))
+      .concat(uniqueDates.map(formatDateInputValue))
+      .concat(boxes.map(b => b.description))) : '';
 
   const fieldsFor = (placement) => {
     const parts = [];
@@ -1972,23 +2044,27 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
     }
   };
 
-  // Writes the shared Pick-Up Date into EVERY included box's P/U Date
-  // field, one save at a time (sequential, with visible progress) -
-  // the batch counterpart of entering the date box-by-box in the
-  // detail panel. Deliberately its own button, never something Compose
-  // does implicitly, so the sheet is only written when that's exactly
+  // Writes EACH box's OWN Pick-Up Date into its P/U Date field, one
+  // save at a time (sequential, with visible progress) - the batch
+  // counterpart of entering the date box-by-box in the detail panel.
+  // Boxes with no date showing are skipped (never overwritten with a
+  // blank - clearing is Clear Saved Date's job, explicitly).
+  // Deliberately its own button, never something Compose does
+  // implicitly, so the sheet is only written when that's exactly
   // what was asked for.
+  const anyDateToSave = boxes.some(b => !!boxDates[b.boxId]);
   const handleSaveDateToAll = async () => {
-    if (!puDateInput || dateSaveState === 'saving') return;
+    if (!anyDateToSave || dateSaveState === 'saving') return;
     setDateSaveState('saving');
     setDateSaveError(null);
     const failures = [];
-    for (let i = 0; i < boxes.length; i++) {
-      setDateSaveProgress('Saving ' + (i + 1) + ' of ' + boxes.length + '…');
+    const toSave = boxes.filter(b => !!boxDates[b.boxId]);
+    for (let i = 0; i < toSave.length; i++) {
+      setDateSaveProgress('Saving ' + (i + 1) + ' of ' + toSave.length + '…');
       try {
-        await onSave(boxes[i].boxId, { puDate: puDateInput });
+        await onSave(toSave[i].boxId, { puDate: boxDates[toSave[i].boxId] });
       } catch (err) {
-        failures.push(boxes[i].boxId);
+        failures.push(toSave[i].boxId);
       }
     }
     setDateSaveProgress('');
@@ -2086,13 +2162,65 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
             <div style={{
               fontSize: 12, fontWeight: 700, color: BRAND.muted, textTransform: 'uppercase',
               letterSpacing: '0.03em', marginBottom: 8, fontFamily: monoFont,
-            }}>Boxes in this email</div>
-            <div style={{ maxHeight: 180, overflowY: 'auto' }}>
-              {boxes.map(b => (
-                <div key={b.boxId} style={{ fontSize: 12.5, fontFamily: monoFont, padding: '3px 0' }}>
-                  <span style={{ color: BRAND.muted }}>#{b.boxId}</span> {b.description}
-                </div>
-              ))}
+            }}>Boxes in this email — each with its own pick-up date</div>
+            <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+              {boxes.map((b, i) => {
+                const rule = perBoxRule(b.boxId);
+                const sug = computeSuggestedPickupDate(rule);
+                const sugValue = sug ? toDateInputValue(sug) : '';
+                const current = boxDates[b.boxId] || '';
+                const showSugLink = sugValue && current !== sugValue;
+                return (
+                  <div key={b.boxId} style={{
+                    padding: '7px 0',
+                    borderTop: i === 0 ? 'none' : '1px solid #EEF1EA',
+                  }}>
+                    <div style={{ fontSize: 12.5, fontFamily: monoFont, marginBottom: 5 }}>
+                      <span style={{ color: BRAND.muted }}>#{b.boxId}</span> {b.description}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <input
+                        type="date"
+                        value={current}
+                        onChange={e => setBoxDate(b.boxId, e.target.value)}
+                        onClick={(e) => { try { e.target.showPicker(); } catch (err) { /* older browsers: focus still works */ } }}
+                        style={{
+                          padding: '5px 8px', fontSize: 12.5, borderRadius: 5,
+                          border: '1.5px solid ' + BRAND.line, fontFamily: font,
+                          color: current ? BRAND.ink : BRAND.muted,
+                          fontWeight: current ? 600 : 400,
+                          background: '#FFFFFF', cursor: 'pointer',
+                        }}
+                      />
+                      {current && (
+                        <span style={{ fontSize: 12, color: BRAND.ink, fontWeight: 600 }}>
+                          {formatDateLong(current)}
+                        </span>
+                      )}
+                      {rule && (
+                        <span style={{
+                          fontSize: 11, fontFamily: monoFont, fontWeight: 700, color: BRAND.green,
+                          background: '#FFFFFF', border: '1px solid #E2E6DE',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                          borderRadius: 3, padding: '2px 6px',
+                        }}>{rule}</span>
+                      )}
+                      {showSugLink && (
+                        <button
+                          type="button"
+                          onClick={() => setBoxDate(b.boxId, sugValue)}
+                          title={'Set to this box\u2019s own suggested date per ' + (rule || 'its rule')}
+                          style={{
+                            background: 'none', border: 'none', padding: 0, margin: 0,
+                            color: BRAND.greenDark, fontWeight: 700, fontFamily: font,
+                            fontSize: 12, cursor: 'pointer', textDecoration: 'underline',
+                          }}
+                        >Sug: {sug.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -2107,7 +2235,7 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
               <div style={{
                 fontSize: 12, fontWeight: 700, color: BRAND.green, textTransform: 'uppercase',
                 letterSpacing: '0.03em', fontFamily: monoFont,
-              }}>Shared Pick-Up Date</div>
+              }}>Pick-Up Dates{datesUniform ? '' : ' — Mixed Across Batch'}</div>
               {/* Same yellow Sched Rule pill as the detail panel. One
                   shared rule shows plainly; mixed rules across the
                   batch are all listed so the mismatch is visible
@@ -2127,41 +2255,43 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
                 explicit design decision - see FriendlyDateInput. The
                 marginBottom the old input carried moves to a wrapper
                 so spacing is unchanged. */}
-            <div style={{ marginBottom: 8 }}>
-              <FriendlyDateInput
-                value={puDateInput}
-                onChange={e => setPuDateInput(e.target.value)}
-                font={font}
-              />
+            {/* Each box's date now lives on its own row in the box
+                list above (pre-filled from that box's OWN rule).
+                This card keeps the one-date-for-everything shortcut:
+                pick a date, Apply to All, Save. */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'stretch' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <FriendlyDateInput
+                  value={puDateInput}
+                  onChange={e => setPuDateInput(e.target.value)}
+                  font={font}
+                />
+              </div>
+              <button
+                onClick={applySharedToAll}
+                disabled={!puDateInput}
+                title="Copies this one date into every box's date field above (nothing is saved until Save)"
+                style={{
+                  flexShrink: 0, padding: '0 14px', fontSize: 13, fontWeight: 700, borderRadius: 5,
+                  border: '1.5px solid ' + (puDateInput ? BRAND.green : BRAND.line),
+                  cursor: puDateInput ? 'pointer' : 'default',
+                  background: BRAND.panel,
+                  color: puDateInput ? BRAND.greenDark : '#C7CCBE',
+                  fontFamily: font,
+                }}
+              >Apply to All</button>
             </div>
-            {/* Suggestion note - same adaptive behavior as the detail
-                panel (2026-07-05): when the field holds the
-                (strictest-rule) suggestion it says so plainly; when
-                the user typed something else, the clickable
-                "Suggested: ..." link returns. */}
+            {/* Suggestion note, per-box-dates edition: the strictest
+                rule's date still pre-fills the set-all field, but
+                the plain-language note now explains BOTH paths -
+                the box rows above already hold each box's own
+                suggestion, and this field is only for overriding
+                them all at once. */}
             {schedSuggestion && (() => {
-              const suggestedValue = toDateInputValue(schedSuggestion.date);
               const ruleLabel = schedRules.length > 1 ? 'strictest rule, ' + schedSuggestion.rule : schedSuggestion.rule;
-              const suggestedLabel = schedSuggestion.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-              if (puDateInput === suggestedValue) {
-                return (
-                  <div style={{ fontSize: 12, color: BRAND.muted, marginTop: -2, marginBottom: 8 }}>
-                    Date above is the <b>suggested date</b> per {ruleLabel} — just hit Save Date, or change it first.
-                  </div>
-                );
-              }
               return (
                 <div style={{ fontSize: 12, color: BRAND.muted, marginTop: -2, marginBottom: 8 }}>
-                  Suggested (per {ruleLabel}):{' '}
-                  <button
-                    type="button"
-                    onClick={() => setPuDateInput(suggestedValue)}
-                    style={{
-                      background: 'none', border: 'none', padding: 0, margin: 0,
-                      color: BRAND.greenDark, fontWeight: 700, fontFamily: font,
-                      fontSize: 12, cursor: 'pointer', textDecoration: 'underline',
-                    }}
-                  >{suggestedLabel}</button>
+                  Each box above is pre-filled with <b>its own rule's</b> suggested date — edit any of them, or use this field + <b>Apply to All</b> to put one date ({ruleLabel} shown) on every box. Then hit Save.
                 </div>
               );
             })()}
@@ -2172,15 +2302,16 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 onClick={handleSaveDateToAll}
-                disabled={!puDateInput || dateSaveState === 'saving'}
+                disabled={!anyDateToSave || dateSaveState === 'saving'}
+                title="Writes each box's own date (shown above) to its P/U Date field - boxes with no date are skipped"
                 style={{
                   flex: 2, padding: '8px', fontSize: 14, fontWeight: 700, borderRadius: 5,
-                  border: 'none', cursor: (!puDateInput || dateSaveState === 'saving') ? 'default' : 'pointer',
+                  border: 'none', cursor: (!anyDateToSave || dateSaveState === 'saving') ? 'default' : 'pointer',
                   background: dateSaveState === 'saving' ? BRAND.muted : BRAND.green,
-                  opacity: (!puDateInput && dateSaveState !== 'saving') ? 0.55 : 1,
+                  opacity: (!anyDateToSave && dateSaveState !== 'saving') ? 0.55 : 1,
                   color: '#FFFFFF', fontFamily: font,
                 }}
-              >{dateSaveState === 'saving' ? (dateSaveProgress || 'Saving…') : (boxes.length === 1 ? 'Save Date to This Box' : 'Save Date to All ' + boxes.length + ' Boxes')}</button>
+              >{dateSaveState === 'saving' ? (dateSaveProgress || 'Saving…') : (boxes.length === 1 ? 'Save Date to This Box' : 'Save Each Box\u2019s Date (' + boxes.length + ' Boxes)')}</button>
               <button
                 onClick={handleClearDateFromAll}
                 disabled={dateSaveState === 'saving' || !anyDateSaved}
