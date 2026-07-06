@@ -1,11 +1,19 @@
 // ==UserScript==
 // @name         WasteNet Box Monitor Scan
 // @namespace    wastenet
-// @version      4.5.1
+// @version      4.6
 // @match        http://h1.ces-web.com/*
 // @match        https://h1.ces-web.com/*
 // @grant        none
 // ==/UserScript==
+//
+// v4.6 CHANGE: every result now carries lastCycleHours - the "Last
+// Cycle: N hours/days" reading from the box page - for ALL boxes, not
+// just forced-YES/stale ones. The scanner always read this value; it
+// just discarded it for normal boxes. It now rides the payload as its
+// own field (and CSV column) so the dashboard's Box Data panel can
+// show "Last Cycle: 7.6 hours" on every box. Requires the matching
+// Code.gs update (Last Cycle Hrs column, appended as column 20).
 //
 // v4.5.1 FIX (found in live testing, same night): clicking Logout
 // parks the browser on a THIRD url - Default.aspx - which the v4.5
@@ -1003,6 +1011,7 @@
         datePullRequested: r.datePullRequested || '',
         serviceNeeded: r.serviceNeeded,
         advisory: r.advisory || '',
+        lastCycleHours: r.lastCycleHours === null || r.lastCycleHours === undefined ? '' : r.lastCycleHours,
         notes: r.notes || '',
       })),
     };
@@ -1044,7 +1053,7 @@
   function finishScan(results) {
     const sortedResults = sortResultsByServicePriority(results);
 
-    const headers = ['BoxId', 'Cell', 'Description', 'ShowMode', 'MaxPct', 'Trigger1Pct', 'Trigger2Pct', 'TriggerUsed', 'CrossedTrigger', 'DatePullRequested', 'ServiceNeeded', 'Advisory', 'Notes'];
+    const headers = ['BoxId', 'Cell', 'Description', 'ShowMode', 'MaxPct', 'Trigger1Pct', 'Trigger2Pct', 'TriggerUsed', 'CrossedTrigger', 'DatePullRequested', 'ServiceNeeded', 'Advisory', 'LastCycleHours', 'Notes'];
     const lines = [headers.join(',')];
     sortedResults.forEach((r) => {
       lines.push([
@@ -1060,6 +1069,7 @@
         csvEscape(r.datePullRequested || ''),
         r.serviceNeeded === null ? '' : (r.serviceNeeded ? 'YES' : 'NO'),
         csvEscape(r.advisory || ''),
+        r.lastCycleHours ?? '',
         csvEscape(r.notes || ''),
       ].join(','));
     });
@@ -1598,6 +1608,7 @@
         datePullRequested: '',
         serviceNeeded: true,
         advisory,
+        lastCycleHours: lastCycleHours === null ? null : Math.round(lastCycleHours * 10) / 10,
         notes: 'YES (forced): Last Cycle is ' + Math.round(lastCycleHours * 10) / 10 + ' hours (' + thresholdNote + ') - chart not read, this box needs attention regardless of suppression rules.',
       };
       state.pendingPhase = 'phase4';
@@ -1662,6 +1673,7 @@
       datePullRequested: datePullRequestedRaw ? datePullRequestedRaw.toISOString() : '',
       serviceNeeded,
       advisory,
+      lastCycleHours: lastCycleHours === null ? null : Math.round(lastCycleHours * 10) / 10,
       notes: (errorMsg
         ? 'NO (chart unreadable): ' + errorMsg
         : (recentlyRequested ? 'Suppressed: ' + suppressionReason + '.' : ''))
@@ -1724,6 +1736,7 @@
       datePullRequested: '',
       serviceNeeded: null,
       advisory: '',
+      lastCycleHours: null,
       notes: err && err.message ? err.message : String(err),
     };
     saveState(state);
@@ -1798,6 +1811,7 @@
             datePullRequested: '',
             serviceNeeded: null,
             advisory: '',
+            lastCycleHours: null,
             notes: 'Chart did not update within ' + (PER_BOX_TIMEOUT_MS / 1000) + 's after Select.',
           });
           fresh.pendingBoxId = null;
@@ -1885,6 +1899,7 @@
       datePullRequested: '',
       serviceNeeded: null,
       advisory: '',
+      lastCycleHours: null,
       notes: 'Box inactive (description starts with X/Y/Z) - not scanned.',
     }));
 
