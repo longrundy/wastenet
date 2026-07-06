@@ -1788,6 +1788,17 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
     return bestDate ? { date: bestDate, rule: bestRule } : null;
   })();
 
+  // Per explicit design decision (2026-07-05, same as the detail
+  // panel): the strictest-rule suggestion PRE-FILLS the shared date
+  // field when the panel opens with the field empty - one click on
+  // Save Date covers the normal case. Runs once on mount only, so it
+  // never overwrites a date the user has since typed or cleared.
+  React.useEffect(() => {
+    if (!puDateInput && schedSuggestion) {
+      setPuDateInput(toDateInputValue(schedSuggestion.date));
+    }
+  }, []);
+
   // The 'Service' pill maps to the dedicated 'Batch' template (the
   // batch service email with box list + confirm-all link); every other
   // pill uses the same generic Email Templates rows the detail panel
@@ -2074,24 +2085,37 @@ function BatchPanel({ haulCode, boxes, onClose, onSave, onSendEmail, masterConta
                 marginBottom: 8,
               }}
             />
-            {/* Suggested shared date - clickable to fill the field,
-                exactly like the detail panel's hint. When the batch
-                mixes rules, the strictest one wins (latest date) and
-                the label says so. */}
-            {schedSuggestion && (
-              <div style={{ fontSize: 12, color: BRAND.muted, marginTop: -2, marginBottom: 8 }}>
-                Suggested (per {schedRules.length > 1 ? 'strictest rule, ' + schedSuggestion.rule : schedSuggestion.rule}):{' '}
-                <button
-                  type="button"
-                  onClick={() => setPuDateInput(toDateInputValue(schedSuggestion.date))}
-                  style={{
-                    background: 'none', border: 'none', padding: 0, margin: 0,
-                    color: BRAND.greenDark, fontWeight: 700, fontFamily: font,
-                    fontSize: 12, cursor: 'pointer', textDecoration: 'underline',
-                  }}
-                >{schedSuggestion.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</button>
-              </div>
-            )}
+            {/* Suggestion note - same adaptive behavior as the detail
+                panel (2026-07-05): when the field holds the
+                (strictest-rule) suggestion it says so plainly; when
+                the user typed something else, the clickable
+                "Suggested: ..." link returns. */}
+            {schedSuggestion && (() => {
+              const suggestedValue = toDateInputValue(schedSuggestion.date);
+              const ruleLabel = schedRules.length > 1 ? 'strictest rule, ' + schedSuggestion.rule : schedSuggestion.rule;
+              const suggestedLabel = schedSuggestion.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+              if (puDateInput === suggestedValue) {
+                return (
+                  <div style={{ fontSize: 12, color: BRAND.muted, marginTop: -2, marginBottom: 8 }}>
+                    Date above is the <b>suggested date</b> per {ruleLabel} — just hit Save Date, or change it first.
+                  </div>
+                );
+              }
+              return (
+                <div style={{ fontSize: 12, color: BRAND.muted, marginTop: -2, marginBottom: 8 }}>
+                  Suggested (per {ruleLabel}):{' '}
+                  <button
+                    type="button"
+                    onClick={() => setPuDateInput(suggestedValue)}
+                    style={{
+                      background: 'none', border: 'none', padding: 0, margin: 0,
+                      color: BRAND.greenDark, fontWeight: 700, fontFamily: font,
+                      fontSize: 12, cursor: 'pointer', textDecoration: 'underline',
+                    }}
+                  >{suggestedLabel}</button>
+                </div>
+              );
+            })()}
             {/* Save + Clear pair, styled exactly like the detail
                 panel's Scheduling buttons: solid green Save (2/3
                 width), outlined Clear (1/3), Clear disabled until at
@@ -2907,7 +2931,16 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
     return { when, what };
   };
 
-  const [puDateInput, setPuDateInput] = React.useState(() => toDateInputValue(box.puDate));
+  // Suggested Pick-Up Date from the box's Scheduling Rule (NBD /
+  // N-BD + weekend/holiday math). Computed up here because, per
+  // explicit design decision (2026-07-05), it now PRE-FILLS the
+  // Pick-Up Date field whenever the box has no saved date - so
+  // scheduling the normal case is just one click on Save Date. A
+  // saved date always wins over the suggestion.
+  const schedSuggestedDate = (contacts && contacts.schedulingRule)
+    ? computeSuggestedPickupDate(contacts.schedulingRule) : null;
+  const schedSuggestedValue = schedSuggestedDate ? toDateInputValue(schedSuggestedDate) : '';
+  const [puDateInput, setPuDateInput] = React.useState(() => toDateInputValue(box.puDate) || schedSuggestedValue);
 
   // Which email category pill is active. 'Service' uses the per-box
   // template from Master Box List (contacts.subjectTemplate/
@@ -3060,7 +3093,10 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
   // never clobber input they're actively in the middle of working with.
   React.useEffect(() => {
     if (dateSaveState === 'idle') {
-      setPuDateInput(toDateInputValue(box.puDate));
+      // Saved date wins; otherwise fall back to the rule suggestion
+      // (so e.g. right after a Clear, the field re-arms with the
+      // suggested date, ready for the next one-click save).
+      setPuDateInput(toDateInputValue(box.puDate) || schedSuggestedValue);
     }
   }, [box.puDate, dateSaveState]);
 
@@ -3317,24 +3353,33 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                 }}
               />
             </label>
-            {/* Suggested Pick-Up Date hint - derived from the box's
-                Scheduling Rule pill (NBD / N-BD) and today's actual
-                date, per explicit design decision. Clickable so it
-                fills the field above rather than being read-only
-                reference text. Only rendered when the rule is present
-                and recognized. */}
-            {contacts && contacts.schedulingRule && (() => {
-              const suggested = computeSuggestedPickupDate(contacts.schedulingRule);
-              if (!suggested) return null;
-              const suggestedLabel = suggested.toLocaleDateString('en-US', {
+            {/* Suggestion note, per explicit design decision
+                (2026-07-05, revised): the suggested date now
+                PRE-FILLS the field above, so the normal case is just
+                Save Date. The note below adapts honestly to what's
+                actually in the field: when the field holds the
+                suggestion, it says so plainly; when the user has
+                typed a different date (or a saved date is showing),
+                it reverts to the clickable "Suggested: ..." link so
+                the suggestion is always one tap away. Only rendered
+                when the rule exists and is recognized. */}
+            {contacts && contacts.schedulingRule && schedSuggestedDate && (() => {
+              const suggestedLabel = schedSuggestedDate.toLocaleDateString('en-US', {
                 weekday: 'short', month: 'short', day: 'numeric',
               });
+              if (puDateInput === schedSuggestedValue) {
+                return (
+                  <div style={{ fontSize: 12, color: BRAND.muted, marginTop: 5 }}>
+                    Date above is the <b>suggested date</b> per Sched Rule: {contacts.schedulingRule} — just hit Save Date, or change it first.
+                  </div>
+                );
+              }
               return (
                 <div style={{ fontSize: 12, color: BRAND.muted, marginTop: 5 }}>
                   Suggested (per {contacts.schedulingRule}):{' '}
                   <button
                     type="button"
-                    onClick={() => setPuDateInput(toDateInputValue(suggested))}
+                    onClick={() => setPuDateInput(schedSuggestedValue)}
                     style={{
                       background: 'none', border: 'none', padding: 0, margin: 0,
                       color: BRAND.greenDark, fontWeight: 700, fontFamily: font,
