@@ -1677,8 +1677,18 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
               <div style={{ fontFamily: monoFont, fontSize: 16, fontWeight: 800, color: '#CCFF66' }}>
                 {boxId ? 'BOX #' + boxId + ' — EMAIL PROOF' : 'EMAIL PROOF'}
               </div>
+              {/* Width-capped with a right buffer, per explicit
+                  design decision (2026-07-06): a long description
+                  used to run right up against the button column
+                  before wrapping. Capping it makes it break earlier
+                  and fill two balanced lines instead of one long
+                  line plus a stub - reads more symmetrical against
+                  the stacked buttons. */}
               {boxDescription && (
-                <div style={{ fontFamily: font, fontSize: 13, fontWeight: 700, color: '#FFFFFF', marginTop: 2, wordBreak: 'break-word' }}>
+                <div style={{
+                  fontFamily: font, fontSize: 13, fontWeight: 700, color: '#FFFFFF',
+                  marginTop: 2, wordBreak: 'break-word', maxWidth: 520, paddingRight: 24,
+                }}>
                   {boxDescription}
                 </div>
               )}
@@ -1756,15 +1766,20 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
                 what the recipient's mail client will show. Safe to
                 inject: buildEmailHtml escapes every template-derived
                 character before adding its own markup. */}
+            {/* Email content buffer (2026-07-06): the rendered email
+                gets breathing room on all sides - matching the air
+                the date and recipient cards already have - so the
+                document reads clean instead of hugging the sheet's
+                edges. */}
             {htmlBody ? (
               <div
-                style={{ wordBreak: 'break-word' }}
+                style={{ wordBreak: 'break-word', padding: '6px 14px 20px' }}
                 dangerouslySetInnerHTML={{ __html: htmlBody }}
               />
             ) : (
               <div style={{
                 fontSize: 13, fontFamily: monoFont, color: BRAND.ink, lineHeight: 1.55,
-                whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                whiteSpace: 'pre-wrap', wordBreak: 'break-word', padding: '6px 14px 20px',
               }}>{body}</div>
             )}
           </div>
