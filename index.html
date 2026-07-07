@@ -2146,6 +2146,21 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
   // One box row, rendered as a helper - all views render rows as a
   // flat list. (The batch feature's grouped folder-tab rendering was
   // removed per explicit design decision, 2026-07-06 - may return.)
+  // ONE shared style object for the right-column row controls (MOVE
+  // and CONF'D), per explicit design decision (2026-07-06): the two
+  // were hand-matched before and still drifted (different radius,
+  // padding, effective height, letter-spacing - visibly different
+  // sizes on screen). Sharing the literal same object makes drift
+  // impossible: identical width, fixed height, radius, border,
+  // shadow, and flex-centering - only the label color differs.
+  const ROW_CTRL_STYLE = {
+    width: 96, height: 26, boxSizing: 'border-box',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+    fontSize: 10.5, fontWeight: 700, fontFamily: monoFont,
+    background: '#FFFFFF', border: '1px solid #E2E6DE', borderRadius: 5,
+    boxShadow: '0 1px 3px rgba(0,0,0,0.15)', whiteSpace: 'nowrap', padding: 0,
+  };
+
   const renderRow = (b) => (
         <div key={b._key} className="row-hover" onClick={() => onSelect(b)} style={{
           display: 'flex', alignItems: 'center', gap: 16, padding: '14px 16px', cursor: 'pointer',
@@ -2185,15 +2200,10 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                   onClick={() => setMoveMenuBoxId(moveMenuBoxId === b.boxId ? null : b.boxId)}
                   disabled={moveSaves[b.boxId] === 'saving'}
                   style={{
-                    background: '#FFFFFF',
+                    ...ROW_CTRL_STYLE,
                     color: moveSaves[b.boxId] === 'error' ? BRAND.red : BRAND.green,
-                    border: '1px solid #E2E6DE', borderRadius: 5, padding: '4px 0',
-                    width: 96, boxSizing: 'border-box', textAlign: 'center',
-                    fontSize: 10.5, fontWeight: 700, fontFamily: monoFont, letterSpacing: '0.03em',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
                     cursor: moveSaves[b.boxId] === 'saving' ? 'default' : 'pointer',
                     opacity: moveSaves[b.boxId] === 'saving' ? 0.6 : 1,
-                    whiteSpace: 'nowrap',
                   }}
                 >{moveSaves[b.boxId] === 'saving' ? 'MOVING…' : moveSaves[b.boxId] === 'error' ? 'MOVE FAILED' : 'MOVE \u25BE'}</button>
                 {moveMenuBoxId === b.boxId && (
@@ -2375,23 +2385,17 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                   <label
                     onClick={e => e.stopPropagation()}
                     style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      ...ROW_CTRL_STYLE,
                       // marginLeft auto pushes this pill to the FAR
                       // RIGHT of the pill row (flexbox), so CONF'D
                       // checkboxes line up vertically down the whole
                       // list for fast one-column check-off - per
                       // explicit design decision.
                       marginLeft: 'auto',
-                      // Same fixed width as the MOVE button above it
-                      // (2026-07-06) - the two stack as a symmetrical
-                      // right-side column on every row.
-                      width: 96, boxSizing: 'border-box', justifyContent: 'center',
-                      fontSize: 10.5, fontWeight: 700, fontFamily: monoFont,
                       color: isError ? '#FFFFFF' : '#1B4E79',
                       background: isError ? BRAND.red : '#FFFFFF',
                       border: '1px solid ' + (isError ? BRAND.red : '#E2E6DE'),
-                      boxShadow: isError ? 'none' : '0 1px 3px rgba(0,0,0,0.15)',
-                      borderRadius: 3, padding: '3px 0', whiteSpace: 'nowrap',
+                      boxShadow: isError ? 'none' : ROW_CTRL_STYLE.boxShadow,
                       cursor: isSaving ? 'default' : 'pointer', opacity: isSaving ? 0.6 : 1,
                     }}
                   >
