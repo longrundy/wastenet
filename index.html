@@ -1594,7 +1594,7 @@ function WasteNetDashboard() {
 // resets an in-progress proof): 'idle' -> 'preview' -> 'sending' ->
 // 'sent' | 'error' (error keeps the proof sheet open with the reason
 // shown and Send Email re-enabled for a retry).
-function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subject, body, htmlBody, canSend, noRecipientHint, hideIdleButton, sendState, sendError, onArm, onCancel, onConfirm, onReset, headerExtra, sendLocked, monoFont, font }) {
+function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subject, body, htmlBody, canSend, noRecipientHint, hideIdleButton, sendState, sendError, onArm, onCancel, onConfirm, onReset, headerExtra, sendLocked, boxId, boxDescription, monoFont, font }) {
   const previewRow = (label, value) => (
     value ? (
       <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
@@ -1660,7 +1660,22 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
             padding: '10px 14px 10px 20px', borderBottom: '1px solid ' + BRAND.line, background: BRAND.green,
             display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap',
           }}>
-            <div style={{ fontFamily: monoFont, fontSize: 16, fontWeight: 800, color: '#CCFF66' }}>EMAIL PROOF</div>
+            {/* Two-line header, per explicit design decision
+                (2026-07-06, matching the detail panel's header): Box
+                ID + EMAIL PROOF on the title line, the box's
+                description below it - so every proof states plainly
+                which box it belongs to. Callers that don't pass box
+                identity fall back to the plain one-line title. */}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: monoFont, fontSize: 16, fontWeight: 800, color: '#CCFF66' }}>
+                {boxId ? 'BOX #' + boxId + ' — EMAIL PROOF' : 'EMAIL PROOF'}
+              </div>
+              {boxDescription && (
+                <div style={{ fontFamily: font, fontSize: 13, fontWeight: 700, color: '#FFFFFF', marginTop: 2, wordBreak: 'break-word' }}>
+                  {boxDescription}
+                </div>
+              )}
+            </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               {/* Locked (quick-proof, date not yet saved): dressed
                   exactly like Back, so the header shows two quiet
@@ -1721,7 +1736,11 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
               border: '1px solid #E2E6DE', borderRadius: 6, padding: '10px 12px',
               background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.15)', marginBottom: 12,
             }}>
-              {previewRow('From:', 'WasteNet <office@wastenetinc.com>')}
+              {/* From: row deliberately NOT shown, per explicit
+                  design decision (2026-07-06, same treatment as Bcc)
+                  - every email sends from WasteNet
+                  <office@wastenetinc.com>, so the line carried no
+                  information worth the space. */}
               {previewRow('To:', effectiveTo)}
               {previewRow('Cc:', effectiveCc)}
               {/* Bcc row deliberately NOT shown, per explicit design
@@ -2075,6 +2094,8 @@ function QuickServiceProof({ box, contacts, sheetName, onSendEmail, onSave, onCl
       onReset={onClose}
       headerExtra={dateEditor}
       sendLocked={!dateIsSaved}
+      boxId={box.boxId}
+      boxDescription={box.description}
       monoFont={monoFont}
       font={font}
     />
@@ -3807,6 +3828,8 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                   htmlBody={htmlBody}
                   canSend={canSend}
                   noRecipientHint="To: recipient must be added"
+                  boxId={box.boxId}
+                  boxDescription={box.description}
                   sendState={sendState}
                   sendError={sendError}
                   onArm={() => setSendState('preview')}
