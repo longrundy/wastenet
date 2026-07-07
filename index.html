@@ -1656,9 +1656,16 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
               opens instead of below a long scroll. The × close was
               retired at the same time: Back does the identical thing
               and two ways out of the same door read as clutter. */}
+          {/* NO flexWrap here, per explicit design decision
+              (2026-07-06): with a long box description the button
+              group used to wrap onto its own row and land at the far
+              LEFT (Box 967). Instead the text block shrinks and wraps
+              WITHIN its own column (minWidth: 0 + wordBreak on the
+              description) while the buttons stay pinned top-right on
+              every proof, long description or short. */}
           <div style={{
             padding: '10px 14px 10px 20px', borderBottom: '1px solid ' + BRAND.line, background: BRAND.green,
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10,
           }}>
             {/* Two-line header, per explicit design decision
                 (2026-07-06, matching the detail panel's header): Box
@@ -1666,7 +1673,7 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
                 description below it - so every proof states plainly
                 which box it belongs to. Callers that don't pass box
                 identity fall back to the plain one-line title. */}
-            <div style={{ minWidth: 0 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontFamily: monoFont, fontSize: 16, fontWeight: 800, color: '#CCFF66' }}>
                 {boxId ? 'BOX #' + boxId + ' — EMAIL PROOF' : 'EMAIL PROOF'}
               </div>
@@ -1676,7 +1683,7 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
                 </div>
               )}
             </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
               {/* Locked (quick-proof, date not yet saved): dressed
                   exactly like Back, so the header shows two quiet
                   outline buttons and nothing looks ready to fire.
