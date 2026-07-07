@@ -1,11 +1,28 @@
 // ==UserScript==
 // @name         WasteNet Box Monitor Scan
 // @namespace    wastenet
-// @version      4.8
+// @version      4.9
 // @match        http://h1.ces-web.com/*
 // @match        https://h1.ces-web.com/*
 // @grant        none
 // ==/UserScript==
+//
+// v4.9 CHANGE: SCHEDULED-PICKUP DETECTION (Stage 1). CES marks a
+// pickup that has been scheduled but not yet recorded as a distinct
+// row in the Last 400 Days table - Date and Days present, Percent Full
+// and Cycle Count blank, and (the reliable tell, confirmed by DOM
+// inspection) a "Delete" submit button in its Action cell
+// (name="LastNDays1$DeleteButton1"), where completed rows have only
+// "Update Weight". getScheduledPickupInfo() finds that row and returns
+// its scheduled date. A box CES shows as scheduled is reported
+// serviceNeeded=false (it's already booked - no action needed),
+// OVERRIDING any upstream trigger/set-schedule YES, and carries new
+// scheduledPickup=true / scheduledDate fields plus a "SCHEDULED:" note.
+// This is an OBSERVED CES FACT and is deliberately SEPARATE from
+// WasteNet's own Scheduled/Notified/Confirmed workflow tracking (driven
+// by dashboard actions, not by the scan). v4.8's empty-detection is
+// untouched: the scheduled row already fails the four-cells-populated
+// rule, so days-since-empty is unaffected.
 //
 // v4.8 CHANGE: DATA-PRESENCE SERVICE DETECTION. The "last empty" is
 // now found by data presence, not row color. In the Last 400 Days
@@ -546,6 +563,51 @@
       daysSinceService = Math.round((today - svc) / 86400000);
     }
     return { daysSinceService, lastServiceDate };
+  }
+
+  // ---- v4.9: SCHEDULED-PICKUP detection (Delete-button signal) ----
+  // A pickup that has been SCHEDULED in CES but not yet recorded shows
+  // as a distinct row in the Last 400 Days table: it has a Date and Days
+  // but blank Percent Full / Cycle Count (so getServiceHistoryInfo above
+  // correctly does NOT treat it as a completed empty), and - the
+  // reliable tell, confirmed by DOM inspection - its Action cell carries
+  // BOTH a "Weight" submit button AND a "Delete" submit button
+  // (name="LastNDays1$DeleteButton1"), whereas a completed row has only
+  // an "Update Weight" button. The Delete button is the structural
+  // signal. This function finds the newest row whose Action cell
+  // contains a Delete control and returns its scheduled pickup date.
+  //
+  // IMPORTANT: this is an OBSERVED FACT from CES ("CES shows a pickup
+  // scheduled for this date"). It is entirely separate from WasteNet's
+  // own Scheduled/Notified/Confirmed workflow tracking, which is driven
+  // by dashboard actions, not by the scan. This detection only tells the
+  // scanner the box is already scheduled so it can be pulled out of
+  // "action needed" and its scheduled date surfaced.
+  //
+  // Returns { scheduledDate: Date|null } or null when the table is absent.
+  function getScheduledPickupInfo() {
+    const table = document.getElementById('LastNDays1_Table1');
+    if (!table) return null;
+    for (const tr of table.querySelectorAll('tr')) {
+      const tds = [...tr.children].filter((c) => c.tagName === 'TD');
+      if (tds.length < 5) continue; // need at least through the Action cell
+      const dateText = (tds[0].textContent || '').trim();
+      if (!/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateText)) continue; // header / non-data row
+      // Look in the Action cell (last cell) for a Delete control. Primary
+      // signal: an input/button whose name contains "DeleteButton";
+      // fallback: value/text exactly "Delete".
+      const actionCell = tds[tds.length - 1];
+      const controls = [...actionCell.querySelectorAll('input, button, a')];
+      const hasDelete = controls.some((el) => {
+        const name = (el.getAttribute && el.getAttribute('name')) || el.name || '';
+        const val = (el.value || el.textContent || '').trim();
+        return /DeleteButton/i.test(name) || /^delete$/i.test(val);
+      });
+      if (!hasDelete) continue;
+      const parsed = new Date(dateText);
+      return { scheduledDate: isNaN(parsed.getTime()) ? null : parsed };
+    }
+    return { scheduledDate: null };
   }
 
   // "Standard Cycles" line: <span id="CycleLabel">Cycle 471 /</span>.
@@ -1224,6 +1286,8 @@
         crossedTrigger: r.crossedTrigger === null || r.crossedTrigger === undefined ? '' : (r.crossedTrigger ? 'YES' : 'NO'),
         datePullRequested: r.datePullRequested || '',
         serviceNeeded: r.serviceNeeded,
+        scheduledPickup: r.scheduledPickup === true,
+        scheduledDate: r.scheduledDate || '',
         advisory: r.advisory || '',
         lastCycleHours: r.lastCycleHours === null || r.lastCycleHours === undefined ? '' : r.lastCycleHours,
         notes: r.notes || '',
@@ -1905,6 +1969,26 @@
         + ', order by ' + formatShortDay(schedDue.orderDate) + (schedDue.late ? ' (OVERDUE)' : '') + ' - forcing YES.');
     }
 
+    // v4.9: SCHEDULED-PICKUP detection. If CES shows a pickup already
+    // scheduled (Delete-button row in the Last 400 Days table), the box
+    // does NOT need action - it's already booked. This OVERRIDES every
+    // upstream YES (trigger crossing, set-schedule forcing). We record
+    // it as an observed CES fact via scheduledPickup / scheduledDate,
+    // kept entirely separate from WasteNet's own Scheduled/Notified/
+    // Confirmed workflow tracking (driven by dashboard actions, not the
+    // scan).
+    let scheduledPickup = false;
+    let scheduledDateIso = '';
+    const schedInfo = getScheduledPickupInfo();
+    if (schedInfo && schedInfo.scheduledDate) {
+      scheduledPickup = true;
+      scheduledDateIso = schedInfo.scheduledDate.toISOString();
+      serviceNeeded = false;
+      recentlyRequested = false;
+      log('Box ' + boxId + ': CES shows a scheduled pickup for '
+        + formatShortDay(schedInfo.scheduledDate) + ' - not action-needed.');
+    }
+
     state.pendingResult = {
       boxId: boxEntry ? boxEntry.boxId : boxId,
       cell: boxEntry ? boxEntry.cell : '',
@@ -1917,9 +2001,14 @@
       crossedTrigger: analysisResult ? crossedTrigger : null,
       datePullRequested: datePullRequestedRaw ? datePullRequestedRaw.toISOString() : '',
       serviceNeeded,
+      scheduledPickup,
+      scheduledDate: scheduledDateIso,
       advisory,
       lastCycleHours: lastCycleHours === null ? null : Math.round(lastCycleHours * 10) / 10,
-      notes: (schedForcedNote ? schedForcedNote + ' ' : '')
+      notes: (scheduledPickup ? 'SCHEDULED: CES shows a pickup scheduled for '
+          + formatShortDay(schedInfo.scheduledDate) + ' - not action-needed. '
+          : '')
+        + (schedForcedNote ? schedForcedNote + ' ' : '')
         + (errorMsg
         ? (schedForcedNote ? 'Chart unreadable: ' : 'NO (chart unreadable): ') + errorMsg
         : (recentlyRequested ? 'Suppressed: ' + suppressionReason + '.' : ''))
