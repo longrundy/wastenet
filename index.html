@@ -2154,7 +2154,11 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
         }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
+              {/* paddingRight buffer (2026-07-06): keeps a long
+                  description from crowding the MOVE/CONF'D column -
+                  it wraps a touch earlier instead of touching the
+                  buttons. */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1, paddingRight: 16 }}>
                 <span style={{ fontFamily: monoFont, fontSize: 15, color: BRAND.ink, fontWeight: 400 }}>
                   Box ID {b.boxId}{b.isInactive && <span style={{ fontWeight: 400, color: BRAND.muted }}> (Inactive Box)</span>}
                 </span>
@@ -2169,20 +2173,29 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                   stopPropagation on the wrapper keeps every click in
                   here from also opening the detail panel. */}
               <div onClick={e => e.stopPropagation()} style={{ position: 'relative', flexShrink: 0 }}>
+                {/* Sizing + color match with the CONF'D pill below
+                    it, per explicit design decision (2026-07-06):
+                    both right-side controls share one fixed width so
+                    they stack as a symmetrical column, the label
+                    green is BRAND.green to match SRVC EMAIL (the old
+                    #7CB84E read too light), and a dropdown caret
+                    (\u25BE - a text glyph, never an emoji) both
+                    fills the short word out and signals the menu. */}
                 <button
                   onClick={() => setMoveMenuBoxId(moveMenuBoxId === b.boxId ? null : b.boxId)}
                   disabled={moveSaves[b.boxId] === 'saving'}
                   style={{
                     background: '#FFFFFF',
-                    color: moveSaves[b.boxId] === 'error' ? BRAND.red : '#7CB84E',
-                    border: '1px solid #E2E6DE', borderRadius: 5, padding: '4px 12px',
+                    color: moveSaves[b.boxId] === 'error' ? BRAND.red : BRAND.green,
+                    border: '1px solid #E2E6DE', borderRadius: 5, padding: '4px 0',
+                    width: 96, boxSizing: 'border-box', textAlign: 'center',
                     fontSize: 10.5, fontWeight: 700, fontFamily: monoFont, letterSpacing: '0.03em',
                     boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
                     cursor: moveSaves[b.boxId] === 'saving' ? 'default' : 'pointer',
                     opacity: moveSaves[b.boxId] === 'saving' ? 0.6 : 1,
                     whiteSpace: 'nowrap',
                   }}
-                >{moveSaves[b.boxId] === 'saving' ? 'MOVING…' : moveSaves[b.boxId] === 'error' ? 'MOVE FAILED' : 'MOVE'}</button>
+                >{moveSaves[b.boxId] === 'saving' ? 'MOVING…' : moveSaves[b.boxId] === 'error' ? 'MOVE FAILED' : 'MOVE \u25BE'}</button>
                 {moveMenuBoxId === b.boxId && (
                   <React.Fragment>
                     {/* Invisible full-screen backdrop - a click
@@ -2369,12 +2382,16 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                       // list for fast one-column check-off - per
                       // explicit design decision.
                       marginLeft: 'auto',
+                      // Same fixed width as the MOVE button above it
+                      // (2026-07-06) - the two stack as a symmetrical
+                      // right-side column on every row.
+                      width: 96, boxSizing: 'border-box', justifyContent: 'center',
                       fontSize: 10.5, fontWeight: 700, fontFamily: monoFont,
                       color: isError ? '#FFFFFF' : '#1B4E79',
                       background: isError ? BRAND.red : '#FFFFFF',
                       border: '1px solid ' + (isError ? BRAND.red : '#E2E6DE'),
                       boxShadow: isError ? 'none' : '0 1px 3px rgba(0,0,0,0.15)',
-                      borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
+                      borderRadius: 3, padding: '3px 0', whiteSpace: 'nowrap',
                       cursor: isSaving ? 'default' : 'pointer', opacity: isSaving ? 0.6 : 1,
                     }}
                   >
