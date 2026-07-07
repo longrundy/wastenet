@@ -2345,7 +2345,20 @@ function QueueView({ boxes, onSelect, masterContacts, onSaveConfirmed, showConfi
                       borderRadius: 3, padding: '3px 8px', whiteSpace: 'nowrap',
                       cursor: hasTo ? 'pointer' : 'not-allowed',
                     }}
-                  >{'\u2709\uFE0E'} SRVC EMAIL</button>
+                  >{/* Inline SVG envelope instead of the \u2709
+                      character, per explicit design decision
+                      (2026-07-06): Chrome OS (and some other
+                      platforms) ignore the text-presentation
+                      variation selector and force the BLUE color
+                      emoji glyph regardless of CSS color. An SVG
+                      with currentColor stroke inherits the pill's
+                      green (and its muted gray when disabled) on
+                      every platform, no font lottery. */}
+                    <svg width="11" height="9" viewBox="0 0 16 12" fill="none" style={{ verticalAlign: '-1px', marginRight: 3 }}>
+                      <rect x="0.75" y="0.75" width="14.5" height="10.5" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+                      <path d="M1 1.5 L8 7 L15 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    SRVC EMAIL</button>
                 );
               })()}
               {/* Pickup Date pill - still only shown once a Pick-Up
