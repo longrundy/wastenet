@@ -1885,8 +1885,15 @@ function QuickServiceProof({ box, contacts, sheetName, onSendEmail, onSave, onCl
     }
   }
 
+  // Highlight phrases: the Service body's OWN compactor lines (with
+  // and without their bullet, so the bullet character goes green
+  // too), not just the Master Box List description - the two often
+  // differ, and it's the template's wording that must stand out.
+  const svcDescLines = getServiceDescriptionLines(c);
   const htmlBody = finalBody ? buildEmailHtml(finalBody, confirmUrl, 'Confirm Service Scheduled',
-    [formatDateInputValue(puDateInput), box.description, 'FIRM SERVICE DATE!', 'Firm Service Date!'],
+    [formatDateInputValue(puDateInput), box.description, 'FIRM SERVICE DATE!', 'Firm Service Date!']
+      .concat(svcDescLines.map(l => '\u2022 ' + l))
+      .concat(svcDescLines),
     SERVICE_CONFIRM_SENTENCE_PLAIN, SERVICE_CONFIRM_SENTENCE_HTML) : '';
   const bodyForSend = finalBody ? finalBody + emailSignaturePlain() : finalBody;
   const canSend = !!(effectiveTo && finalSubject && finalBody);
@@ -2516,6 +2523,31 @@ function parseServiceProperties(bodyTemplate) {
   }
   const propCount = items.filter(function (it) { return it.type === 'property'; }).length;
   return { lines: lines, anchorIdx: anchorIdx, items: items, propCount: propCount };
+}
+
+// Extracts a box's SERVICE-facing compactor description line(s) from
+// its Service Email Content body (column C) - the lines under the
+// "Please empty & return the following compactor(s):" anchor, minus
+// group headers, confirm-link placeholders, and any bullets a
+// template author already typed. These are the descriptions the
+// [service description] placeholder expands to in ANY email type, and
+// the phrases the HTML bold+green pass highlights - deliberately NOT
+// the Master Box List description, per explicit design decision
+// (2026-07-06): the Service body's wording (David's service-facing
+// text, phone numbers and all) is the one that recipients act on.
+// Returns [] when the box has no Service body or no anchor line - and
+// the placeholder is then deliberately left as literal text in the
+// draft, same leave-it-visible convention as [months]: an obvious
+// [service description] in the proof is a "this box's Service Email
+// Content needs fixing" flag, where silent substitution could let a
+// wrong description go out unnoticed.
+function getServiceDescriptionLines(contacts) {
+  const parsed = parseServiceProperties(String((contacts || {}).bodyTemplate || ''));
+  if (!parsed) return [];
+  return parsed.items
+    .filter(function (it) { return it.type === 'property'; })
+    .map(function (it) { return it.text.replace(/^[\u2022\-\*]\s*/, ''); })
+    .filter(function (t) { return t && !/\[confirm link\]/i.test(t) && !/^https?:/i.test(t); });
 }
 
 // Rebuilds a Service body so its property block contains ONLY the
@@ -3265,8 +3297,24 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
               finalSubject = finalSubject.replace(/\[year\]/gi, selectedYear);
               finalBody = finalBody.replace(/\[year\]/gi, selectedYear);
             }
-            finalSubject = finalSubject.replace(/\[box description\]/gi, box.description);
-            finalBody = finalBody.replace(/\[box description\]/gi, box.description);
+          }
+          // Per-box placeholders for EVERY category (2026-07-06 -
+          // [box description] was previously Weights-only):
+          //  [box description]     -> the Master Box List description
+          //  [service description] -> the box's SERVICE-facing
+          //     compactor line(s) parsed from its Service Email
+          //     Content body (column C) - bulleted in the body, and
+          //     joined with "; " in the subject, where newlines and
+          //     bullets don't belong. Boxes with no Service body (or
+          //     no anchor line in it) leave the placeholder as
+          //     literal text - the visible "fix this box's template"
+          //     flag, same convention as [months].
+          finalSubject = finalSubject.replace(/\[box description\]/gi, box.description);
+          finalBody = finalBody.replace(/\[box description\]/gi, box.description);
+          const svcDescLines = getServiceDescriptionLines(c);
+          if (svcDescLines.length > 0) {
+            finalSubject = finalSubject.replace(/\[service description\]/gi, svcDescLines.join('; '));
+            finalBody = finalBody.replace(/\[service description\]/gi, svcDescLines.map(l => '\u2022 ' + l).join('\n'));
           }
 
           // Property selection rebuild - runs BEFORE the confirmation
@@ -3342,7 +3390,9 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
           // buildEmailHtml). Non-Service emails have no confirmUrl and
           // simply get the nicely formatted HTML body.
           const htmlBody = finalBody ? buildEmailHtml(finalBody, confirmUrl, 'Confirm Service Scheduled',
-            [formatDateInputValue(puDateInput), box.description, 'FIRM SERVICE DATE!', 'Firm Service Date!'],
+            [formatDateInputValue(puDateInput), box.description, 'FIRM SERVICE DATE!', 'Firm Service Date!']
+              .concat(svcDescLines.map(l => '\u2022 ' + l))
+              .concat(svcDescLines),
             SERVICE_CONFIRM_SENTENCE_PLAIN, SERVICE_CONFIRM_SENTENCE_HTML) : '';
 
           // Server-side send (SendGrid via the Apps Script's
