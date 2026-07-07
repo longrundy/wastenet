@@ -1,11 +1,25 @@
 // ==UserScript==
 // @name         WasteNet Box Monitor Scan
 // @namespace    wastenet
-// @version      4.7.1
+// @version      4.8
 // @match        http://h1.ces-web.com/*
 // @match        https://h1.ces-web.com/*
 // @grant        none
 // ==/UserScript==
+//
+// v4.8 CHANGE: DATA-PRESENCE SERVICE DETECTION. The "last empty" is
+// now found by data presence, not row color. In the Last 400 Days
+// table a row counts as a completed empty when all four of Date,
+// Days, Percent Full, and Cycle Count are filled in (tested as
+// non-blank text, so a literal 0 still counts); the newest such row
+// is the last service. This replaces the old yellow/cornflowerblue/
+// lightcoral color matching, which misclassified box 139's 07/06
+// empty as an open request - anchoring days-since-empty to the prior
+// 06/26 empty (Days 11 of 7) and forcing a false YES. The related
+// "REQUESTED mm/dd" advisory token is removed: without color we no
+// longer distinguish an ordered request from a completed empty, and
+// per the decision the advisory now speaks in empties only. No
+// serviceNeeded logic changed; only how last-empty is read.
 //
 // v4.7 CHANGE: SET-SCHEDULE FORCING. Boxes with a WasteNet-managed
 // Set Schedule (Master Box List column K, e.g. "Every Friday") now
@@ -150,16 +164,15 @@
 //    run" and can never stop the scan. On every scanned box page the
 //    script reads:
 //      - Days since last completed service: the NEWEST row of the
-//        Last 400 Days table (LastNDays1_Table1) whose cells carry
-//        the Yellow background - the closed-loop completed-service
-//        marker. Rows are newest-first. LightCoral (today's running
-//        status) and CornflowerBlue (open, unfulfilled pull request)
-//        rows are skipped for this - but a CornflowerBlue row IS
-//        captured separately as an "open request" flag.
+//        Last 400 Days table (LastNDays1_Table1) with all four of
+//        Date, Days, Percent Full, and Cycle Count populated - the
+//        completed-service marker (see v4.8; superseded the old
+//        Yellow-background rule). Rows are newest-first; today's
+//        running-status row lacks Percent Full and is skipped.
 //      - Current cycles since last empty: the "Standard Cycles" line
 //        (span#CycleLabel, "Cycle N /") - resets to 0 at each empty.
 //    These combine into a new Advisory field on every result, e.g.
-//      "Days: 97 of 75 | Cycles: 471 of 400 | REQUESTED 07/01"
+//      "Days: 11 of 7 | Cycles: 123 of 230"
 //    ("of X" parts are omitted for boxes with no/N-A trigger values;
 //    page parts are omitted when unreadable). Advisory is a new
 //    column in both the console CSV and the Google Sheets upload -
@@ -485,38 +498,42 @@
   }
 
   // ---- v4.4: Days & Cycles advisory page readers ----
-  // Last 400 Days table (LastNDays1_Table1), rows newest-first:
-  //   LightCoral cells    = today's running-status row (not an entry)
-  //   CornflowerBlue cells = OPEN pull request (ordered, unfulfilled)
-  //   Yellow cells        = COMPLETED service (the closed loop) - the
-  //                         newest Yellow row is the last real service
-  // Returns { daysSinceService, lastServiceDate, openRequestDate }
-  // (each null when not found) or null when the table is absent.
+  // ---- v4.8: DATA-PRESENCE service detection (color-independent) ----
+  // Last 400 Days table (LastNDays1_Table1), rows newest-first. Each
+  // row has 6 cells: [0]=Date [1]=Days [2]=Percent Full [3]=Cycle
+  // Count [4]=Weight [5]=Action. A row is a COMPLETED EMPTY when all
+  // four of Date, Days, Percent Full, and Cycle Count are filled in -
+  // regardless of the row's background color. (Today's running-status
+  // row has a Date and Days but no Percent Full, so it is skipped; an
+  // ordered-but-unfulfilled request likewise lacks the completed
+  // Percent Full / Cycle Count, so it is not mistaken for an empty.)
+  // The newest row that passes is the last real service. This replaces
+  // the old yellow/cornflowerblue/lightcoral color matching, which
+  // misread rows when CES rendered a cell with a hex color or a
+  // different shade (e.g. box 139's 07/06 empty read as a request).
+  // Returns { daysSinceService, lastServiceDate } (each null when not
+  // found) or null when the table is absent. openRequestDate removed.
   function getServiceHistoryInfo() {
     const table = document.getElementById('LastNDays1_Table1');
     if (!table) return null;
+    // A cell counts as filled when it holds any non-blank text. Tested
+    // as an empty-string check (NOT truthiness) so a literal 0 - a real
+    // 0% full or 0 cycle count - still counts as a populated entry.
+    const filled = (td) => td && (td.textContent || '').trim() !== '';
     let lastServiceDate = null;
-    let openRequestDate = null;
     for (const tr of table.querySelectorAll('tr')) {
       const tds = [...tr.children].filter((c) => c.tagName === 'TD');
-      if (tds.length === 0) continue;
+      if (tds.length < 4) continue; // header or malformed row
       const dateText = (tds[0].textContent || '').trim();
       if (!/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateText)) continue; // header etc.
-      const rowStyles = tds
-        .map((td) => (td.getAttribute('style') || '').toLowerCase())
-        .join(' ');
-      if (rowStyles.includes('lightcoral')) continue;
-      if (rowStyles.includes('cornflowerblue')) {
-        if (!openRequestDate) {
-          const parsed = new Date(dateText);
-          if (!isNaN(parsed.getTime())) openRequestDate = parsed;
-        }
+      // The four-cells-populated rule: Date, Days, Percent Full, Cycle Count.
+      if (!(filled(tds[0]) && filled(tds[1]) && filled(tds[2]) && filled(tds[3]))) {
         continue;
       }
-      if (rowStyles.includes('yellow')) {
-        const parsed = new Date(dateText);
-        if (!isNaN(parsed.getTime())) lastServiceDate = parsed;
-        break; // newest-first: first Yellow row IS the last service
+      const parsed = new Date(dateText);
+      if (!isNaN(parsed.getTime())) {
+        lastServiceDate = parsed;
+        break; // newest-first: first fully-populated row IS the last service
       }
     }
     let daysSinceService = null;
@@ -528,7 +545,7 @@
       );
       daysSinceService = Math.round((today - svc) / 86400000);
     }
-    return { daysSinceService, lastServiceDate, openRequestDate };
+    return { daysSinceService, lastServiceDate };
   }
 
   // "Standard Cycles" line: <span id="CycleLabel">Cycle 471 /</span>.
@@ -544,9 +561,9 @@
   }
 
   // Composes the informational advisory string for the box currently
-  // on screen, e.g. "Days: 97 of 75 | Cycles: 471 of 400 | REQUESTED
-  // 07/01". Never throws; returns '' when nothing is readable. Does
-  // NOT influence serviceNeeded in any way.
+  // on screen, e.g. "Days: 11 of 7 | Cycles: 123 of 230". Never
+  // throws; returns '' when nothing is readable. Does NOT influence
+  // serviceNeeded in any way.
   function buildAdvisoryForCurrentBox(boxId, state) {
     try {
       const map = state && state.daysCyclesMap;
@@ -564,12 +581,9 @@
         if (trig && trig.c !== null && trig.c !== undefined) p += ' of ' + trig.c;
         parts.push(p);
       }
-      if (hist && hist.openRequestDate) {
-        const d = hist.openRequestDate;
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        parts.push('REQUESTED ' + mm + '/' + dd);
-      }
+      // v4.8: REQUESTED token removed - service detection is now
+      // data-presence based and no longer distinguishes an open
+      // request from an empty; the advisory speaks in empties only.
       // v4.5: Set Schedule marker from Master Box List column K,
       // delivered in the days_cycles map as 's'. v4.7: when the box
       // is inside its order window, the marker carries the pull it's
