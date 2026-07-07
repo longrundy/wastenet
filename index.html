@@ -1683,44 +1683,39 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
                 </div>
               )}
             </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-              {/* Locked (quick-proof, date not yet saved): dressed
-                  exactly like Back, so the header shows two quiet
-                  outline buttons and nothing looks ready to fire.
-                  Unlocked: the solid white button - the visual
-                  promotion IS the "you may send now" signal, paired
-                  with the red save-first message down in the date
-                  card. Clicks while locked still route to onConfirm,
-                  which no-ops behind the save gate. */}
+            {/* Stacked, equal-width action column pinned top-RIGHT,
+                per explicit design decision (2026-07-06; right side
+                chosen to match the detail panel's close placement and
+                the identity-left / actions-right order every other
+                card follows): Close (with an \u00D7 mark - a text
+                glyph, never an emoji) on top in the electric header
+                green, Send Email beneath it - same width, so the
+                column reads as one symmetrical unit on every proof. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'stretch', flexShrink: 0, width: 128 }}>
+              <button
+                onClick={() => { if (!sending) onCancel(); }}
+                disabled={sending}
+                style={{
+                  padding: '7px 0', fontSize: 13, fontWeight: 700, borderRadius: 5,
+                  border: 'none', cursor: sending ? 'default' : 'pointer',
+                  background: '#CCFF66', color: BRAND.greenDark,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.25)', fontFamily: font, whiteSpace: 'nowrap',
+                }}
+              >{'\u00D7'} Close</button>
               <button
                 onClick={onConfirm}
                 disabled={sending}
                 style={sendLocked ? {
-                  padding: '8px 18px', fontSize: 13.5, fontWeight: 700, borderRadius: 5,
+                  padding: '7px 0', fontSize: 13, fontWeight: 700, borderRadius: 5,
                   border: '1.5px solid rgba(255,255,255,0.6)', cursor: 'pointer',
                   background: 'transparent', color: '#E8F3DF', fontFamily: font, whiteSpace: 'nowrap',
                 } : {
-                  padding: '8px 18px', fontSize: 13.5, fontWeight: 700, borderRadius: 5,
+                  padding: '7px 0', fontSize: 13, fontWeight: 700, borderRadius: 5,
                   border: 'none', cursor: sending ? 'default' : 'pointer',
                   background: '#FFFFFF', color: sending ? BRAND.muted : BRAND.greenDark,
                   boxShadow: '0 1px 3px rgba(0,0,0,0.25)', fontFamily: font, whiteSpace: 'nowrap',
                 }}
               >{sending ? 'Sending…' : 'Send Email'}</button>
-              {/* Solid electric green (#CCFF66 - the EMAIL PROOF
-                  title's own color), per explicit design decision
-                  (2026-07-06): Back is always available, so it gets
-                  the standout treatment, while Send Email earns its
-                  white promotion only once unlocked. */}
-              <button
-                onClick={() => { if (!sending) onCancel(); }}
-                disabled={sending}
-                style={{
-                  padding: '8px 16px', fontSize: 13, fontWeight: 700, borderRadius: 5,
-                  border: 'none', cursor: sending ? 'default' : 'pointer',
-                  background: '#CCFF66', color: BRAND.greenDark,
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.25)', fontFamily: font, whiteSpace: 'nowrap',
-                }}
-              >Back</button>
             </div>
           </div>
           {/* Send-failure notice - was in the retired footer; now
