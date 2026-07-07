@@ -3311,10 +3311,18 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
           //     flag, same convention as [months].
           finalSubject = finalSubject.replace(/\[box description\]/gi, box.description);
           finalBody = finalBody.replace(/\[box description\]/gi, box.description);
+          // [service description] fallback, per explicit design
+          // decision (2026-07-06, reversing the earlier
+          // leave-it-literal choice): a box with no Service body (or
+          // no anchor line in it) falls back to the Master Box List
+          // description, so the placeholder always resolves to a real
+          // description and a Notice can never go out with bracket
+          // text in it.
           const svcDescLines = getServiceDescriptionLines(c);
-          if (svcDescLines.length > 0) {
-            finalSubject = finalSubject.replace(/\[service description\]/gi, svcDescLines.join('; '));
-            finalBody = finalBody.replace(/\[service description\]/gi, svcDescLines.map(l => '\u2022 ' + l).join('\n'));
+          const svcFallbackLines = svcDescLines.length > 0 ? svcDescLines : [String(box.description || '')].filter(t => t);
+          if (svcFallbackLines.length > 0) {
+            finalSubject = finalSubject.replace(/\[service description\]/gi, svcFallbackLines.join('; '));
+            finalBody = finalBody.replace(/\[service description\]/gi, svcFallbackLines.map(l => '\u2022 ' + l).join('\n'));
           }
 
           // Property selection rebuild - runs BEFORE the confirmation
@@ -3391,8 +3399,8 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
           // simply get the nicely formatted HTML body.
           const htmlBody = finalBody ? buildEmailHtml(finalBody, confirmUrl, 'Confirm Service Scheduled',
             [formatDateInputValue(puDateInput), box.description, 'FIRM SERVICE DATE!', 'Firm Service Date!']
-              .concat(svcDescLines.map(l => '\u2022 ' + l))
-              .concat(svcDescLines),
+              .concat(svcFallbackLines.map(l => '\u2022 ' + l))
+              .concat(svcFallbackLines),
             SERVICE_CONFIRM_SENTENCE_PLAIN, SERVICE_CONFIRM_SENTENCE_HTML) : '';
 
           // Server-side send (SendGrid via the Apps Script's
