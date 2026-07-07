@@ -1749,7 +1749,13 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
                   - every email sends from WasteNet
                   <office@wastenetinc.com>, so the line carried no
                   information worth the space. */}
-              {previewRow('To:', effectiveTo)}
+              {/* To row OMITTED when empty (office@ To-promotion,
+                  2026-07-06): the auto-filled office@ never shows on
+                  the proof, per explicit design decision - the row
+                  simply isn't there, rather than showing office@ or
+                  a confusing N/A. Real To recipients render exactly
+                  as before. */}
+              {effectiveTo ? previewRow('To:', effectiveTo) : null}
               {previewRow('Cc:', effectiveCc)}
               {/* Bcc row deliberately NOT shown, per explicit design
                   decision (2026-07-06) - the office@ blind copy still
@@ -1814,7 +1820,7 @@ function EmailSendBlock({ sendLabel, effectiveTo, effectiveCc, outgoingBcc, subj
           explicit design decision (replacing the earlier solid-red
           version). Shared component = identical in the detail panel
           AND the batch panel. */}
-      {!effectiveTo && noRecipientHint && (
+      {!canSend && noRecipientHint && (
         <div style={{
           marginTop: 8, padding: '8px 14px', background: '#FFFFFF',
           border: '1px solid #E2E6DE', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
@@ -3414,19 +3420,35 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
           // send_email action) - a copy always Bcc'd to office@ per
           // explicit design decision, and a To recipient is required
           // (SendGrid rejects an email with only Cc/Bcc recipients).
-          const outgoingBcc = withOfficeBcc(effectiveBcc);
+          // office@ To-promotion (2026-07-06, per explicit approval):
+          // SendGrid requires at least one To address, but real sends
+          // often have everyone in Cc/Bcc (mass client notifications,
+          // staff-only tests). When the To slot is EMPTY but somebody
+          // is in Cc or Bcc, office@ quietly takes the To slot - and
+          // comes OFF the Bcc for that send (SendGrid rejects the
+          // same address in two fields; office@ still gets its copy
+          // either way, so the mailbox record survives). The proof
+          // never shows the promoted office@ (the To row is simply
+          // omitted); when real recipients ARE in To, nothing changes
+          // from before - office@ stays in Bcc as always. The only
+          // remaining block is zero recipients anywhere - that's a
+          // misclick, not a send.
+          const officePromoted = !effectiveTo && !!(effectiveCc || effectiveBcc);
+          const sendTo = effectiveTo || (officePromoted ? OFFICE_EMAIL : '');
+          const outgoingBcc = officePromoted ? effectiveBcc : withOfficeBcc(effectiveBcc);
           // Plain-text company signature - appended AFTER the HTML
           // version is built above (buildEmailHtml adds its own HTML
           // signature), so neither version ends up with two.
           const bodyForSend = finalBody ? finalBody + emailSignaturePlain() : finalBody;
-          const canSend = !!(effectiveTo && finalSubject && finalBody);
+          const anyRecipient = !!(effectiveTo || effectiveCc || effectiveBcc);
+          const canSend = !!(anyRecipient && finalSubject && finalBody);
           const handleConfirmSend = async () => {
             if (sendState === 'sending') return;
             setSendState('sending');
             setSendError(null);
             try {
               await onSendEmail({
-                to: effectiveTo,
+                to: sendTo,
                 cc: effectiveCc,
                 bcc: outgoingBcc,
                 subject: finalSubject,
@@ -3537,7 +3559,12 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                   three placement selector columns, per explicit design
                   decision: it sits where the fix is (tap a To above),
                   and disappears the moment any group lands in To. */}
-              {!effectiveTo && (
+              {/* Softer, rarer gate (2026-07-06, office@
+                  To-promotion): a To recipient is no longer required
+                  - Cc or Bcc alone is fine, office@ auto-fills the To
+                  slot behind the scenes. The only true block left is
+                  ZERO recipients anywhere: a misclick, not a send. */}
+              {!effectiveTo && !effectiveCc && !effectiveBcc && (
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -6, marginBottom: 12 }}>
                   <div style={{
                     width: 118, boxSizing: 'border-box', textAlign: 'center',
@@ -3545,7 +3572,7 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                     border: '1px solid #E2E6DE', boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
                     borderRadius: 5, color: BRAND.red,
                     fontSize: 10, fontWeight: 700, fontFamily: monoFont, lineHeight: 1.35,
-                  }}>Must add To: recipient</div>
+                  }}>Must add a recipient</div>
                 </div>
               )}
 
@@ -3610,7 +3637,7 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                                 setEmailMenuFor(null);
                                 setSendState('preview');
                               }}
-                              title={canSend ? '' : 'To: recipient must be added'}
+                              title={canSend ? '' : 'Add at least one recipient (To, Cc, or Bcc)'}
                               style={{
                                 display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px',
                                 fontSize: 12.5, fontWeight: 600, fontFamily: font, border: 'none',
@@ -3813,7 +3840,7 @@ function DetailPanel({ box, onClose, onSave, onSendEmail, contacts, emailTemplat
                   body={bodyForSend}
                   htmlBody={htmlBody}
                   canSend={canSend}
-                  noRecipientHint="To: recipient must be added"
+                  noRecipientHint="Add at least one recipient (To, Cc, or Bcc)"
                   boxId={box.boxId}
                   boxDescription={box.description}
                   sendState={sendState}
