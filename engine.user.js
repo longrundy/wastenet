@@ -1,11 +1,20 @@
 // ==UserScript==
 // @name         WasteNet Box Monitor Scan
 // @namespace    wastenet
-// @version      4.13
+// @version      4.14
 // @match        http://h1.ces-web.com/*
 // @match        https://h1.ces-web.com/*
 // @grant        none
 // ==/UserScript==
+//
+// v4.14 CHANGE: NEEDS MARKING EMPTY - Stage 2 wiring. The v4.13 detection
+// (needsMarkingEmpty) is now added to the Google Sheets upload payload
+// (appended at END, position-stability) so it persists to the new "Needs
+// Marking Empty" sheet column and drives the dashboard's new bucket, which
+// pulls just-emptied boxes out of Action Needed (a just-emptied box needs
+// recording, not service - confirmed on boxes 827 and 596). Detection logic
+// and thresholds unchanged from v4.13; this only surfaces the flag to the
+// sheet. serviceNeeded and all other logic unchanged.
 //
 // v4.13 CHANGE: "NEEDS MARKING EMPTY" DETECTION (Stage 1 - DETECTION +
 // COUNT ONLY; no bucket/serviceNeeded change). A box that the hauler has
@@ -1474,6 +1483,9 @@
         monitorNotReporting: r.monitorNotReporting === true,
         monitorReasonCode: r.monitorReasonCode || '',
         monitorPrevSentinel: r.monitorPrevSentinel === true,
+        // v4.13 Stage 2: appended at END. Needs Marking Empty - box just
+        // emptied (drop-to-low + no red X) and David hasn't recorded it.
+        needsMarkingEmpty: r.needsMarkingEmpty === true,
       })),
     };
 
