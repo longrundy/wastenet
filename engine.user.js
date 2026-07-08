@@ -1439,6 +1439,16 @@
         + '   (* = last two entries agree; rNN = stacked reason code)');
     }
 
+    // Targeted/diagnostic run (runner --box): the flag rode through the
+    // whole scan in the persisted state, so read it here and DO NOT write
+    // the sheet - the console/CSV output above is the whole deliverable,
+    // and today's real tab is left untouched.
+    const st = loadState();
+    if (st && st.noUpload === true) {
+      log('TARGETED/diagnostic run - skipping Google Sheets upload (today\'s tab left untouched).');
+      return;
+    }
+
     sendToGoogleSheets(sortedResults);
   }
 
@@ -2192,6 +2202,26 @@
   function finalizeResult(state) {
     state.results.push(state.pendingResult);
     log(`(${state.results.length}/${state.boxList.length}) Box ${state.pendingResult.boxId} done: svc=${state.pendingResult.serviceNeeded}`);
+    // AUTO-VERBOSE on small runs (targeted --box or a small --test batch):
+    // dump the key decision fields so you can see WHY the scanner decided
+    // what it did - no separate flag. Threshold kept small so full scans
+    // stay terse. Runs BEFORE pendingResult is cleared below.
+    if (state.boxList && state.boxList.length <= 10 && state.pendingResult) {
+      const r = state.pendingResult;
+      log('  [detail] Box ' + r.boxId + ': ' + JSON.stringify({
+        serviceNeeded: r.serviceNeeded,
+        maxPct: r.maxPct,
+        trigger1: r.trigger1, trigger2: r.trigger2, triggerUsed: r.triggerUsed,
+        crossedTrigger: r.crossedTrigger,
+        lastCycleHours: r.lastCycleHours,
+        scheduledPickup: r.scheduledPickup, scheduledDate: r.scheduledDate,
+        monitorNotReporting: r.monitorNotReporting,
+        monitorReasonCode: r.monitorReasonCode,
+        monitorPrevSentinel: r.monitorPrevSentinel,
+        advisory: r.advisory,
+        notes: r.notes,
+      }));
+    }
     state.pendingBoxId = null;
     state.pendingShowMode = null;
     state.pendingPhase = null;
@@ -2276,7 +2306,7 @@
     selectRow(row.rowIndex);
   }
 
-  function startScanWithBoxList(rows, inactiveResults) {
+  function startScanWithBoxList(rows, inactiveResults, noUpload) {
     // Fetch the Green List ONCE here, before the first box - it rides
     // in the saved state through every page reload of the run, so this
     // is one fetch per scan, not one per box. A failed fetch is
@@ -2309,6 +2339,7 @@
         triggerChoice: getActiveTriggerChoice(),
         greenListBoxIds: greenListIds, // null = use built-in fallback
         daysCyclesMap: daysCyclesMap, // null = no trigger comparisons this run
+        noUpload: noUpload === true, // targeted/diagnostic run - finishScan skips the sheet upload
       };
       saveState(state);
       setRunningUI();
@@ -2318,7 +2349,7 @@
     });
   }
 
-  function startNewScan(limit) {
+  function startNewScan(limit, boxIds) {
     let rows;
     try {
       rows = getBoxRows();
@@ -2327,8 +2358,32 @@
       return;
     }
 
-    const inactiveRows = rows.filter((r) => isInactiveBoxDescription(r.description));
+    let inactiveRows = rows.filter((r) => isInactiveBoxDescription(r.description));
     rows = rows.filter((r) => !isInactiveBoxDescription(r.description));
+
+    // TARGETED run (runner --box, or a manual call with an ID list):
+    // scan ONLY the requested boxes, matched as trimmed strings. Filters
+    // BOTH the active and inactive lists so the run is exactly the
+    // requested boxes and nothing else. A targeted run is a DIAGNOSTIC
+    // run: it sets noUpload=true so finishScan does NOT overwrite today's
+    // real sheet tab. (limit/--test is ignored when an ID list is given.)
+    let noUpload = false;
+    if (Array.isArray(boxIds) && boxIds.length) {
+      const want = new Set(boxIds.map((b) => String(b).trim()).filter(Boolean));
+      const inSet = (r) => want.has(String(r.boxId).trim());
+      const foundActive = rows.filter(inSet);
+      const foundInactive = inactiveRows.filter(inSet);
+      const foundIds = new Set([...foundActive, ...foundInactive].map((r) => String(r.boxId).trim()));
+      const missing = [...want].filter((id) => !foundIds.has(id));
+      if (missing.length) {
+        log('Targeted run: ' + missing.length + ' requested box(es) not found in the grid (inactive-filtered out or not on this page): ' + missing.join(', '));
+      }
+      rows = foundActive;
+      inactiveRows = foundInactive;
+      noUpload = true;
+      log('TARGETED run: ' + rows.length + ' active box(es) [' + rows.map((r) => r.boxId).join(', ') + '] - console only, sheet will NOT be written.');
+    }
+
     if (inactiveRows.length > 0) {
       console.log('[Box Service Check v2] Skipping ' + inactiveRows.length + ' inactive box(es) (description starts with X/Y/Z).');
     }
@@ -2363,7 +2418,7 @@
       log(`Starting TEST batch: ${rows.length} boxes only.`);
     }
 
-    startScanWithBoxList(rows, inactiveResults);
+    startScanWithBoxList(rows, inactiveResults, noUpload);
   }
 
   function doResume(state) {

@@ -38,9 +38,11 @@
  *                       DASHBOARD_KEY=...      (optional, for upload verification)
  *
  * RUN MODES:
- *   node runner.js           - full scan
- *   node runner.js --test 5  - 5-box test batch
- *   node runner.js --login-only  - just prove login works, then exit
+ *   node runner.js                   - full scan
+ *   node runner.js --test 5          - 5-box test batch (writes the sheet)
+ *   node runner.js --box 906         - scan ONLY box 906 (console-only, no sheet write, full per-box detail)
+ *   node runner.js --box 906,453,583 - scan only those boxes (diagnostic/iteration)
+ *   node runner.js --login-only      - just prove login works, then exit
  */
 
 require('dotenv').config();
@@ -61,6 +63,14 @@ const argv = process.argv.slice(2);
 const LOGIN_ONLY = argv.includes('--login-only');
 const testIdx = argv.indexOf('--test');
 const TEST_COUNT = testIdx !== -1 ? parseInt(argv[testIdx + 1], 10) || 5 : null;
+// --box 906  or  --box 906,453,583 : targeted DIAGNOSTIC run. Scans only
+// those boxes, console-only (the engine skips the sheet upload), and the
+// engine auto-verboses per-box detail. Takes precedence over --test.
+const boxIdx = argv.indexOf('--box');
+const BOX_IDS = boxIdx !== -1
+  ? String(argv[boxIdx + 1] || '').split(',').map((s) => s.trim()).filter(Boolean)
+  : null;
+const TARGETED = !!(BOX_IDS && BOX_IDS.length);
 
 if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
 
@@ -180,7 +190,7 @@ async function loginIfNeeded(page) {
 }
 
 async function main() {
-  log('=== WasteNet headless scan run starting (' + (LOGIN_ONLY ? 'LOGIN TEST' : TEST_COUNT ? 'TEST ' + TEST_COUNT + ' BOXES' : 'FULL SCAN') + ') ===');
+  log('=== WasteNet headless scan run starting (' + (LOGIN_ONLY ? 'LOGIN TEST' : TARGETED ? 'TARGETED: box(es) ' + BOX_IDS.join(', ') : TEST_COUNT ? 'TEST ' + TEST_COUNT + ' BOXES' : 'FULL SCAN') + ') ===');
   const engineSource = fs.readFileSync(ENGINE_PATH, 'utf8');
 
   const browser = await chromium.launch({ headless: true });
@@ -229,7 +239,10 @@ async function main() {
     // Clear any stale scan state from a previous crashed run, then start.
     await page.evaluate((k) => localStorage.removeItem(k), STATE_KEY);
     await page.waitForFunction(() => typeof window.__startBoxServiceCheck === 'function', { timeout: 30000 });
-    await page.evaluate((n) => window.__startBoxServiceCheck(n || undefined), TEST_COUNT);
+    await page.evaluate(
+      ({ n, ids }) => window.__startBoxServiceCheck(n || undefined, (ids && ids.length) ? ids : undefined),
+      { n: TARGETED ? null : TEST_COUNT, ids: BOX_IDS }
+    );
     log('Scan started.');
 
     // Watch until done. The page reloads constantly mid-scan - every
@@ -248,10 +261,21 @@ async function main() {
       const prog = (state.results ? state.results.length : 0) + '/' + (state.boxList ? state.boxList.length : '?');
       if (prog !== lastProgress) { log('Progress: ' + prog + ' boxes.'); lastProgress = prog; }
       if (state.done) {
-        log('Engine reports DONE - ' + (state.results ? state.results.length : 0) + ' results. Allowing 2 minutes for upload...');
+        log('Engine reports DONE - ' + (state.results ? state.results.length : 0) + ' results.'
+          + (TARGETED ? '' : ' Allowing 2 minutes for upload...'));
         break;
       }
     }
+
+    // Targeted/diagnostic runs write nothing to the sheet, so there is no
+    // upload to wait for and no tab to verify - return immediately with
+    // the per-box detail already printed above.
+    if (TARGETED) {
+      log('=== TARGETED RUN COMPLETE (console-only, sheet not written) ===');
+      await browser.close();
+      return;
+    }
+
     await new Promise((r) => setTimeout(r, 120000));
 
     const verified = await verifyTodayTabExists();
