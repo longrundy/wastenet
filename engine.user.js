@@ -1,11 +1,25 @@
 // ==UserScript==
 // @name         WasteNet Box Monitor Scan
 // @namespace    wastenet
-// @version      4.10
+// @version      4.11
 // @match        http://h1.ces-web.com/*
 // @match        https://h1.ces-web.com/*
 // @grant        none
 // ==/UserScript==
+//
+// v4.11 CHANGE: INLINE PER-BOX RETRY on chart-update timeout. Previously a
+// box whose chart didn't refresh within PER_BOX_TIMEOUT_MS was immediately
+// written as a null placeholder ("Chart did not update...") and skipped -
+// meaning a box that briefly hiccuped got no reading and would NOT surface
+// in Action Needed even if full. Now, on timeout, the engine re-selects the
+// SAME box up to MAX_TIMEOUT_RETRIES (1) times before giving up; a transient
+// CES hiccup almost always clears on the immediate retry. The retry count is
+// keyed by boxId in the persisted state (timeoutRetryBoxId/timeoutRetryCount)
+// so it survives reloads and resets naturally when the scan moves to a
+// different box. Only after the retry is exhausted is the placeholder written
+// (now noting "retried 1x"). This pairs with the runner's coverage check,
+// which emails the exact box IDs if a box is STILL unverified after retries -
+// so nothing can fail silently. No other scan logic changed.
 //
 // v4.10 CHANGE: MONITOR-NOT-REPORTING DETECTION (Stage 1 - DETECTION +
 // COUNT ONLY; NO bucketing/serviceNeeded change). CES records the fixed
@@ -355,6 +369,12 @@
 
   const STORAGE_KEY = 'box_service_check_v2_state';
   const PER_BOX_TIMEOUT_MS = 6000;
+  // v4.11: on a per-box chart-update timeout, re-select the SAME box this
+  // many times before giving up and writing the placeholder. A transient CES
+  // hiccup almost always clears on the immediate next try, so 1 retry catches
+  // the vast majority while adding at most ~6s to a box that was going to fail
+  // anyway. The runner's coverage check (#1) is the backstop if a retry also fails.
+  const MAX_TIMEOUT_RETRIES = 1;
   const POLL_INTERVAL_MS = 150;
   const SCAN_CYCLES = 50;
   const RESET_CYCLES = 300;
@@ -2274,6 +2294,28 @@
       () => {
         const fresh = loadState();
         if (fresh && fresh.pendingBoxId === row.boxId) {
+          // v4.11: INLINE RETRY. Count timeouts for THIS box (keyed by
+          // boxId so moving to a different box naturally resets it). Under
+          // the cap, re-select the same box: point nextIndex back at it,
+          // clear the pending fields, and re-enter advanceToNextBox - which
+          // re-runs selectRow and starts a fresh chart wait. Only after the
+          // retries are exhausted do we write the placeholder and move on.
+          const priorRetries = (fresh.timeoutRetryBoxId === row.boxId) ? (fresh.timeoutRetryCount || 0) : 0;
+          if (priorRetries < MAX_TIMEOUT_RETRIES) {
+            fresh.timeoutRetryBoxId = row.boxId;
+            fresh.timeoutRetryCount = priorRetries + 1;
+            fresh.nextIndex -= 1; // re-point at this same box
+            fresh.pendingBoxId = null;
+            fresh.pendingShowMode = null;
+            fresh.pendingPhase = null;
+            fresh.pendingResult = null;
+            fresh.showModeAttempts = 0;
+            saveState(fresh);
+            log(`↻ Box ${row.boxId}: chart didn't update - retry ${fresh.timeoutRetryCount}/${MAX_TIMEOUT_RETRIES}...`);
+            advanceToNextBox(fresh);
+            return;
+          }
+          // Retries exhausted - write the placeholder as before.
           fresh.results.push({
             boxId: row.boxId,
             cell: row.cell,
@@ -2288,15 +2330,17 @@
             serviceNeeded: null,
             advisory: '',
             lastCycleHours: null,
-            notes: 'Chart did not update within ' + (PER_BOX_TIMEOUT_MS / 1000) + 's after Select.',
+            notes: 'Chart did not update within ' + (PER_BOX_TIMEOUT_MS / 1000) + 's after Select (retried ' + MAX_TIMEOUT_RETRIES + 'x).',
           });
           fresh.pendingBoxId = null;
           fresh.pendingShowMode = null;
           fresh.pendingPhase = null;
           fresh.pendingResult = null;
+          fresh.timeoutRetryBoxId = null;
+          fresh.timeoutRetryCount = 0;
           saveState(fresh);
           updateTimerDisplay(fresh);
-          log(`✕ Box ${row.boxId}: timed out (${fresh.results.length}/${fresh.boxList.length})`);
+          log(`✕ Box ${row.boxId}: timed out after ${MAX_TIMEOUT_RETRIES + 1} attempts (${fresh.results.length}/${fresh.boxList.length})`);
           advanceToNextBox(fresh);
         }
       },
