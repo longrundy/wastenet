@@ -1,11 +1,26 @@
 // ==UserScript==
 // @name         WasteNet Box Monitor Scan
 // @namespace    wastenet
-// @version      4.11
+// @version      4.12
 // @match        http://h1.ces-web.com/*
 // @match        https://h1.ces-web.com/*
 // @grant        none
 // ==/UserScript==
+//
+// v4.12 CHANGE: SUSTAINED fullness reading (fixes spike-inflated %). The
+// displayed Percent Full was the single tallest data-line pixel anywhere on
+// the chart, so two narrow vertical spikes on an otherwise-empty box (e.g.
+// box 448, broken tipper) read as "101%". Meanwhile the trigger DECISION
+// already ignored narrow spikes (SPIKE_MAX_CYCLES=3) - so the number and the
+// decision disagreed on what "full" meant. Now maxPct is the highest level
+// the line HOLDS across a full spike-width window (slide the window, take
+// each window's minimum, then the max), using the SAME spike width the
+// decision trusts. Genuinely-full boxes (wide high plateau) are unchanged;
+// only boxes whose height came from narrow spikes drop to their true
+// sustained level. The old raw peak is still computed and exposed as
+// rawPeakPct in the per-box --test detail (and on the result object) for
+// verification, but is NOT written to the sheet. crossesTrigger and all
+// other logic unchanged.
 //
 // v4.11 CHANGE: INLINE PER-BOX RETRY on chart-update timeout. Previously a
 // box whose chart didn't refresh within PER_BOX_TIMEOUT_MS was immediately
@@ -1273,19 +1288,55 @@
 
     const longestRun = runs.reduce((best, r) => (r.length > best.length ? r : best), runs[0]);
 
-    let maxPct = 0;
     let crossesTrigger = false;
 
-    for (const x of longestRun) {
-      for (const y of colHits[x]) {
-        const pct = 100 + ((y - topRow) / (bottomRow - topRow)) * (0 - 100);
-        if (pct > maxPct) maxPct = pct;
-      }
-    }
-
+    // Spike geometry - how many x-pixels correspond to SPIKE_MAX_CYCLES
+    // cycles. Shared by BOTH the fullness number (below) and the trigger
+    // decision (further down), so the two finally agree on what a "spike" is.
     const pixelsPerCycle = (longestRun[longestRun.length - 1] - longestRun[0]) / SCAN_CYCLES;
     const SPIKE_MAX_CYCLES = 3;
     const spikeMaxPixelWidth = pixelsPerCycle * SPIKE_MAX_CYCLES;
+
+    // Per-column fill %: the topmost (highest) data-line pixel in each column.
+    const colFill = longestRun.map((x) => {
+      let best = 0;
+      for (const y of colHits[x]) {
+        const pct = 100 + ((y - topRow) / (bottomRow - topRow)) * (0 - 100);
+        if (pct > best) best = pct;
+      }
+      return { x: x, pct: best };
+    });
+
+    // Raw peak = tallest pixel anywhere (the OLD definition). Kept only as a
+    // diagnostic so a targeted run can show peak-vs-sustained side by side.
+    // NOT written to the sheet.
+    let rawPeakPct = 0;
+    for (const cf of colFill) { if (cf.pct > rawPeakPct) rawPeakPct = cf.pct; }
+
+    // v4.12: SUSTAINED fullness, not the peak spike. maxPct is the highest
+    // level the line HOLDS across a full spike-width window: slide a window of
+    // spikeMaxPixelWidth across the columns, take each window's MINIMUM
+    // per-column fill (a narrow spike is dragged down by the lower shoulders
+    // inside the window; a genuine wide plateau survives), then take the MAX
+    // of those window-minimums. Uses the exact spike width the trigger
+    // decision already trusts, so the displayed % stops reporting transient
+    // spikes as fullness. Falls back to the raw peak when the run is too short
+    // to hold a full window.
+    let maxPct = 0;
+    const runSpanPx = longestRun[longestRun.length - 1] - longestRun[0];
+    if (colFill.length && spikeMaxPixelWidth > 0 && runSpanPx >= spikeMaxPixelWidth) {
+      for (let i = 0; i < colFill.length; i++) {
+        const windowEndX = colFill[i].x + spikeMaxPixelWidth;
+        if (windowEndX > longestRun[longestRun.length - 1]) break; // window would overrun the data
+        let windowMin = Infinity;
+        for (let j = i; j < colFill.length && colFill[j].x <= windowEndX; j++) {
+          if (colFill[j].pct < windowMin) windowMin = colFill[j].pct;
+        }
+        if (windowMin !== Infinity && windowMin > maxPct) maxPct = windowMin;
+      }
+    } else {
+      maxPct = rawPeakPct; // too few columns to assess a sustained level
+    }
 
     const aboveTriggerByCol = longestRun.map((x) => colHits[x].some((y) => y <= activeTriggerRow));
     const aboveRuns = [];
@@ -1318,6 +1369,7 @@
 
     return {
       maxPct: Math.round(maxPct * 10) / 10,
+      rawPeakPct: Math.round(rawPeakPct * 10) / 10,
       crossesTrigger,
       activeTriggerValue,
       hasEmptyMarker,
@@ -2133,6 +2185,7 @@
       description: boxEntry ? boxEntry.description : '',
       showMode,
       maxPct: analysisResult ? analysisResult.maxPct : null,
+      rawPeakPct: analysisResult ? analysisResult.rawPeakPct : null,
       trigger1,
       trigger2,
       triggerUsed: triggerChoice === 'trigger2' ? 'Trigger2' : 'Trigger1',
@@ -2231,6 +2284,7 @@
       log('  [detail] Box ' + r.boxId + ': ' + JSON.stringify({
         serviceNeeded: r.serviceNeeded,
         maxPct: r.maxPct,
+        rawPeakPct: r.rawPeakPct,
         trigger1: r.trigger1, trigger2: r.trigger2, triggerUsed: r.triggerUsed,
         crossedTrigger: r.crossedTrigger,
         lastCycleHours: r.lastCycleHours,
