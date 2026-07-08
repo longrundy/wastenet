@@ -1,11 +1,37 @@
 // ==UserScript==
 // @name         WasteNet Box Monitor Scan
 // @namespace    wastenet
-// @version      4.9
+// @version      4.10
 // @match        http://h1.ces-web.com/*
 // @match        https://h1.ces-web.com/*
 // @grant        none
 // ==/UserScript==
+//
+// v4.10 CHANGE: MONITOR-NOT-REPORTING DETECTION (Stage 1 - DETECTION +
+// COUNT ONLY; NO bucketing/serviceNeeded change). CES records the fixed
+// value 75000 in the Percent Full column when a box's monitor is not
+// sending data. This is a STANDALONE SENTINEL - not a 75/000 split, so
+// there is no reason code "75"; the whole 75000 is one value. A 2-digit
+// reason code (from the 44-97 list) may be stacked in FRONT of it to say
+// why, e.g. 4575000 = reason 45 (compactor repairs) + 75000.
+// classifyMonitorSentinel() matches exactly "75000" or "<2 digits>75000"
+// on a digits-only reduction. getServiceHistoryInfo() now also returns
+// the Percent Full text of the newest AND second-newest completed rows
+// (lastPercentRaw / prevPercentRaw); the newest is classified to set
+// monitorNotReporting (+ monitorReasonCode when stacked), and the
+// previous is classified to set monitorPrevSentinel so a --test/full run
+// can report the count split as "latest only" vs "last two agree" and we
+// can pick the strictness rule from real data. WHY THIS MATTERS: when the
+// monitor is dark the pixel-based fill read is meaningless (e.g. box 906
+// phantom-reads 101%), so it can wrongly land in Action Needed OR, via
+// closed-day/empty suppression, in No Action - the sentinel is the only
+// trustworthy signal. This pass ONLY surfaces + counts the signal (new
+// result fields, appended payload fields, an end-of-run cron.log summary,
+// and console-CSV columns). It deliberately does NOT change serviceNeeded
+// or any bucket; the "Monitor Down" bucket + Apps Script sheet columns
+// come in Stage 2 once the count is known. daysSinceService /
+// lastServiceDate semantics are unchanged (still the newest completed
+// row); getServiceHistoryInfo simply reads one extra row now.
 //
 // v4.9 CHANGE: SCHEDULED-PICKUP DETECTION (Stage 1). CES marks a
 // pickup that has been scheduled but not yet recorded as a distinct
@@ -538,6 +564,14 @@
     // 0% full or 0 cycle count - still counts as a populated entry.
     const filled = (td) => td && (td.textContent || '').trim() !== '';
     let lastServiceDate = null;
+    // v4.10: also capture the Percent Full text of the newest completed
+    // row (lastPercentRaw) and the second-newest (prevPercentRaw). These
+    // feed monitor-not-reporting sentinel detection. Reading a second row
+    // is the ONLY behavioural change here; lastServiceDate is still the
+    // newest completed row exactly as before.
+    let lastPercentRaw = null;
+    let prevPercentRaw = null;
+    let populatedSeen = 0;
     for (const tr of table.querySelectorAll('tr')) {
       const tds = [...tr.children].filter((c) => c.tagName === 'TD');
       if (tds.length < 4) continue; // header or malformed row
@@ -547,11 +581,17 @@
       if (!(filled(tds[0]) && filled(tds[1]) && filled(tds[2]) && filled(tds[3]))) {
         continue;
       }
-      const parsed = new Date(dateText);
-      if (!isNaN(parsed.getTime())) {
-        lastServiceDate = parsed;
-        break; // newest-first: first fully-populated row IS the last service
+      const pctText = (tds[2].textContent || '').trim();
+      if (populatedSeen === 0) {
+        // newest completed row = the last real service (unchanged semantics)
+        const parsed = new Date(dateText);
+        if (!isNaN(parsed.getTime())) lastServiceDate = parsed;
+        lastPercentRaw = pctText;
+      } else {
+        prevPercentRaw = pctText; // second-newest completed row
       }
+      populatedSeen++;
+      if (populatedSeen >= 2) break; // have newest + previous; done
     }
     let daysSinceService = null;
     if (lastServiceDate) {
@@ -562,7 +602,24 @@
       );
       daysSinceService = Math.round((today - svc) / 86400000);
     }
-    return { daysSinceService, lastServiceDate };
+    return { daysSinceService, lastServiceDate, lastPercentRaw, prevPercentRaw };
+  }
+
+  // v4.10: MONITOR-NOT-REPORTING sentinel classifier. CES records the
+  // fixed value 75000 in the Percent Full column when a box's monitor is
+  // not sending data. It is NOT a 75/000 split - the whole 75000 is one
+  // sentinel, so there is no reason code "75". A 2-digit reason code (from
+  // the 44-97 list) may be stacked in FRONT of it to say why the monitor
+  // is dark, e.g. 4575000 = reason 45 (compactor repairs) + 75000.
+  // Returns { isSentinel, reasonCode } where reasonCode is the leading two
+  // digits (string) when stacked, else null. Everything but digits is
+  // stripped first so stray formatting/whitespace cannot defeat the match.
+  function classifyMonitorSentinel(raw) {
+    const digits = String(raw == null ? '' : raw).replace(/\D/g, '');
+    if (digits === '75000') return { isSentinel: true, reasonCode: null };
+    const m = /^(\d{2})75000$/.exec(digits);
+    if (m) return { isSentinel: true, reasonCode: m[1] };
+    return { isSentinel: false, reasonCode: null };
   }
 
   // ---- v4.9: SCHEDULED-PICKUP detection (Delete-button signal) ----
@@ -1291,6 +1348,11 @@
         advisory: r.advisory || '',
         lastCycleHours: r.lastCycleHours === null || r.lastCycleHours === undefined ? '' : r.lastCycleHours,
         notes: r.notes || '',
+        // v4.10: appended at END (position-stability discipline). Apps
+        // Script can ignore these until Stage 2 adds matching columns.
+        monitorNotReporting: r.monitorNotReporting === true,
+        monitorReasonCode: r.monitorReasonCode || '',
+        monitorPrevSentinel: r.monitorPrevSentinel === true,
       })),
     };
 
@@ -1331,7 +1393,7 @@
   function finishScan(results) {
     const sortedResults = sortResultsByServicePriority(results);
 
-    const headers = ['BoxId', 'Cell', 'Description', 'ShowMode', 'MaxPct', 'Trigger1Pct', 'Trigger2Pct', 'TriggerUsed', 'CrossedTrigger', 'DatePullRequested', 'ServiceNeeded', 'Advisory', 'LastCycleHours', 'Notes'];
+    const headers = ['BoxId', 'Cell', 'Description', 'ShowMode', 'MaxPct', 'Trigger1Pct', 'Trigger2Pct', 'TriggerUsed', 'CrossedTrigger', 'DatePullRequested', 'ServiceNeeded', 'Advisory', 'LastCycleHours', 'Notes', 'MonitorNotReporting', 'MonitorReasonCode', 'MonitorPrevSentinel'];
     const lines = [headers.join(',')];
     sortedResults.forEach((r) => {
       lines.push([
@@ -1349,6 +1411,9 @@
         csvEscape(r.advisory || ''),
         r.lastCycleHours ?? '',
         csvEscape(r.notes || ''),
+        r.monitorNotReporting === true ? 'YES' : 'NO',
+        csvEscape(r.monitorReasonCode || ''),
+        r.monitorPrevSentinel === true ? 'YES' : 'NO',
       ].join(','));
     });
     const csvText = lines.join('\n');
@@ -1356,6 +1421,23 @@
     console.log('%c----- COPY EVERYTHING BELOW THIS LINE -----', 'font-weight:bold; color:#2980b9;');
     console.log(csvText);
     console.log('%c----- COPY EVERYTHING ABOVE THIS LINE -----', 'font-weight:bold; color:#2980b9;');
+
+    // v4.10: end-of-run MONITOR-NOT-REPORTING summary. Prints to cron.log
+    // so the count is visible after a full scan WITHOUT any sheet change -
+    // this is the whole point of the Stage-1 detection pass. The split
+    // (latest-only vs last-two-agree) decides the strictness rule before
+    // the Stage-2 "Monitor Down" bucket is built.
+    const mnr = sortedResults.filter((r) => r.monitorNotReporting === true);
+    const bothTwo = mnr.filter((r) => r.monitorPrevSentinel === true);
+    log('===== MONITOR NOT REPORTING: ' + mnr.length + ' of ' + sortedResults.length
+      + ' box(es) hit the 75000 sentinel on the latest completed entry; '
+      + bothTwo.length + ' of those also have the previous entry as sentinel (last-two-agree). =====');
+    if (mnr.length) {
+      log('  Sentinel boxes: ' + mnr.map((r) => r.boxId
+        + (r.monitorReasonCode ? '(r' + r.monitorReasonCode + ')' : '')
+        + (r.monitorPrevSentinel ? '*' : '')).join(', ')
+        + '   (* = last two entries agree; rNN = stacked reason code)');
+    }
 
     sendToGoogleSheets(sortedResults);
   }
@@ -1989,6 +2071,32 @@
         + formatShortDay(schedInfo.scheduledDate) + ' - not action-needed.');
     }
 
+    // v4.10: MONITOR-NOT-REPORTING detection (DETECTION + COUNT ONLY).
+    // Read the newest completed Percent Full from the service-history
+    // table; when it is the 75000 sentinel (optionally with a stacked
+    // reason code), flag the box and capture the reason. Also classify the
+    // PREVIOUS completed entry so a --test/full run can split the count as
+    // "latest only" vs "last two agree" - that decides the strictness rule
+    // later. NOTHING here changes serviceNeeded or bucketing; this pass
+    // only surfaces + counts the signal. (getServiceHistoryInfo is a pure
+    // DOM read, safe to call again here as getScheduledPickupInfo does.)
+    let monitorNotReporting = false;
+    let monitorReasonCode = '';
+    let monitorPrevSentinel = false;
+    const histSentinel = getServiceHistoryInfo();
+    if (histSentinel) {
+      const cur = classifyMonitorSentinel(histSentinel.lastPercentRaw);
+      if (cur.isSentinel) {
+        monitorNotReporting = true;
+        monitorReasonCode = cur.reasonCode || '';
+        monitorPrevSentinel = classifyMonitorSentinel(histSentinel.prevPercentRaw).isSentinel;
+        log('Box ' + boxId + ': MONITOR NOT REPORTING (75000 sentinel'
+          + (monitorReasonCode ? ', reason ' + monitorReasonCode : '')
+          + (monitorPrevSentinel ? ', prev entry also sentinel' : ', prev entry NOT sentinel')
+          + ') - fill % is unreliable. [detection only, bucket unchanged]');
+      }
+    }
+
     state.pendingResult = {
       boxId: boxEntry ? boxEntry.boxId : boxId,
       cell: boxEntry ? boxEntry.cell : '',
@@ -2003,6 +2111,9 @@
       serviceNeeded,
       scheduledPickup,
       scheduledDate: scheduledDateIso,
+      monitorNotReporting,
+      monitorReasonCode,
+      monitorPrevSentinel,
       advisory,
       lastCycleHours: lastCycleHours === null ? null : Math.round(lastCycleHours * 10) / 10,
       notes: (scheduledPickup ? 'SCHEDULED: CES shows a pickup scheduled for '
