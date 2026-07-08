@@ -1,11 +1,22 @@
 // ==UserScript==
 // @name         WasteNet Box Monitor Scan
 // @namespace    wastenet
-// @version      4.14
+// @version      4.15
 // @match        http://h1.ces-web.com/*
 // @match        https://h1.ces-web.com/*
 // @grant        none
 // ==/UserScript==
+//
+// v4.15 CHANGE: NEEDS MARKING EMPTY - tightened "was high before" test to
+// kill spike false-positives. v4.13's rule used the RAW prior peak to decide
+// the box "was full before emptying", so a single narrow spike (box 40: one
+// blip the pixel read caught as 51%) tripped it even though the box rode at
+// ~5% the whole window - inflating the list to ~59 boxes. Now "was high
+// before" reuses the spike-filtered SUSTAINED maxPct (the same value the
+// v4.12 fullness fix computes): the box only counts as having-filled if it
+// actually HELD a high level for a real stretch. Boxes that genuinely filled
+// and emptied (596, 827: sustained ~97%) still flag; spike-blips (box 40:
+// sustained 5.6%) no longer do. Nothing else changed.
 //
 // v4.14 CHANGE: NEEDS MARKING EMPTY - Stage 2 wiring. The v4.13 detection
 // (needsMarkingEmpty) is now added to the Google Sheets upload payload
@@ -1389,7 +1400,14 @@
       if (recentCols.length) recentMaxPct = Math.round(Math.max(...recentCols.map((cf) => cf.pct)) * 10) / 10;
       if (priorCols.length) priorMaxPct = Math.round(Math.max(...priorCols.map((cf) => cf.pct)) * 10) / 10;
       const recentAllLow = recentCols.length > 0 && recentCols.every((cf) => cf.pct <= NEEDS_EMPTY_LEVEL_PCT);
-      const wasHighBefore = priorCols.some((cf) => cf.pct >= NEEDS_EMPTY_HIGH_PCT);
+      // v4.15: "was high before" must be a SUSTAINED high, not a spike. Reuse
+      // the already-computed sustained maxPct (which the spike filter built):
+      // if the box ever HELD >= NEEDS_EMPTY_HIGH_PCT and is all-low now
+      // (recentAllLow guarantees the held-high was in the older region), it
+      // genuinely filled and emptied. The old test used the raw prior peak,
+      // which let a lone spike (box 40: one blip read as 51%) masquerade as
+      // "was full" and produced dozens of false positives.
+      const wasHighBefore = maxPct >= NEEDS_EMPTY_HIGH_PCT;
       needsMarkingEmpty = recentAllLow && wasHighBefore && !hasEmptyMarker;
     }
 
