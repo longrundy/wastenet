@@ -1,11 +1,27 @@
 // ==UserScript==
 // @name         WasteNet Box Monitor Scan
 // @namespace    wastenet
-// @version      4.12
+// @version      4.13
 // @match        http://h1.ces-web.com/*
 // @match        https://h1.ces-web.com/*
 // @grant        none
 // ==/UserScript==
+//
+// v4.13 CHANGE: "NEEDS MARKING EMPTY" DETECTION (Stage 1 - DETECTION +
+// COUNT ONLY; no bucket/serviceNeeded change). A box that the hauler has
+// emptied but David hasn't recorded yet shows a telltale chart shape: the
+// blue line drops from high straight to the bottom and STAYS low, with NO
+// red X (the red X only appears once David marks it - confirmed live on box
+// 827, which emptied with no red X). Detected from the per-column blue-line
+// data added in v4.12 plus the existing red-X detection (hasEmptyMarker):
+// needsMarkingEmpty = newest stretch near-empty (<= NEEDS_EMPTY_LEVEL_PCT)
+// AND an earlier stretch high (>= NEEDS_EMPTY_HIGH_PCT) AND no red X. This
+// pass only computes the flag, exposes it (plus recentMaxPct/priorMaxPct
+// diagnostics) in the --test per-box detail, and logs an end-of-run
+// summary; thresholds are first-pass and will be tuned via --box before
+// Stage 2 adds the sheet column + the dashboard "Needs Marking Empty" list
+// (which will also pull these out of Action Needed, fixing the 827-style
+// false service alarm). serviceNeeded and all other logic unchanged.
 //
 // v4.12 CHANGE: SUSTAINED fullness reading (fixes spike-inflated %). The
 // displayed Percent Full was the single tallest data-line pixel anywhere on
@@ -392,6 +408,13 @@
   const MAX_TIMEOUT_RETRIES = 1;
   const POLL_INTERVAL_MS = 150;
   const SCAN_CYCLES = 50;
+  // v4.13: "needs marking empty" detection thresholds (first-pass; tuned
+  // via --box before any bucket/sheet change). A box needs recording when
+  // its NEWEST stretch is near-empty, it was high BEFORE that (a real drop),
+  // and there's no red X yet (not recorded).
+  const NEEDS_EMPTY_LEVEL_PCT = 15;   // newest stretch at/under this = empty now
+  const NEEDS_EMPTY_HIGH_PCT = 50;    // must have been at/over this earlier = a real drop
+  const NEEDS_EMPTY_RECENT_CYCLES = 5; // how many of the newest cycles must all be low
   const RESET_CYCLES = 300;
   const SUPPRESS_DAYS = 3;
   const RESUME_STALE_MS = 15000;
@@ -1338,6 +1361,29 @@
       maxPct = rawPeakPct; // too few columns to assess a sustained level
     }
 
+    // v4.13 (Stage 1 - DETECTION ONLY): "needs marking empty". The box has
+    // physically emptied but David hasn't recorded it yet. True when the
+    // NEWEST stretch of the blue line is near-empty, it was high BEFORE that
+    // (a real drop happened, not an always-empty box), AND there is no red X
+    // (hasEmptyMarker=false -> not yet recorded). Newest = rightmost columns,
+    // the same convention the trigger logic uses for its "newest edge".
+    // NOTHING here affects serviceNeeded or bucketing - it only computes the
+    // flag + a couple of diagnostics so a --test run can show and tune it.
+    let needsMarkingEmpty = false;
+    let recentMaxPct = null;
+    let priorMaxPct = null;
+    if (colFill.length && pixelsPerCycle > 0) {
+      const lastX = colFill[colFill.length - 1].x;
+      const cutoffX = lastX - pixelsPerCycle * NEEDS_EMPTY_RECENT_CYCLES;
+      const recentCols = colFill.filter((cf) => cf.x >= cutoffX);
+      const priorCols = colFill.filter((cf) => cf.x < cutoffX);
+      if (recentCols.length) recentMaxPct = Math.round(Math.max(...recentCols.map((cf) => cf.pct)) * 10) / 10;
+      if (priorCols.length) priorMaxPct = Math.round(Math.max(...priorCols.map((cf) => cf.pct)) * 10) / 10;
+      const recentAllLow = recentCols.length > 0 && recentCols.every((cf) => cf.pct <= NEEDS_EMPTY_LEVEL_PCT);
+      const wasHighBefore = priorCols.some((cf) => cf.pct >= NEEDS_EMPTY_HIGH_PCT);
+      needsMarkingEmpty = recentAllLow && wasHighBefore && !hasEmptyMarker;
+    }
+
     const aboveTriggerByCol = longestRun.map((x) => colHits[x].some((y) => y <= activeTriggerRow));
     const aboveRuns = [];
     let runStart = null;
@@ -1370,6 +1416,9 @@
     return {
       maxPct: Math.round(maxPct * 10) / 10,
       rawPeakPct: Math.round(rawPeakPct * 10) / 10,
+      needsMarkingEmpty,
+      recentMaxPct,
+      priorMaxPct,
       crossesTrigger,
       activeTriggerValue,
       hasEmptyMarker,
@@ -1509,6 +1558,17 @@
         + (r.monitorReasonCode ? '(r' + r.monitorReasonCode + ')' : '')
         + (r.monitorPrevSentinel ? '*' : '')).join(', ')
         + '   (* = last two entries agree; rNN = stacked reason code)');
+    }
+
+    // v4.13 (Stage 1): end-of-run "needs marking empty" summary so the count
+    // and box list are visible in cron.log for tuning, WITHOUT any sheet or
+    // bucket change yet.
+    const nme = sortedResults.filter((r) => r.needsMarkingEmpty === true);
+    log('===== NEEDS MARKING EMPTY: ' + nme.length + ' of ' + sortedResults.length
+      + ' box(es) show a fresh drop-to-empty with no red X (David hasn\'t recorded it). [detection only] =====');
+    if (nme.length) {
+      log('  Needs-empty boxes: ' + nme.map((r) => r.boxId
+        + ' (recent<=' + r.recentMaxPct + '%, prior<=' + r.priorMaxPct + '%)').join(', '));
     }
 
     // Targeted/diagnostic run (runner --box): the flag rode through the
@@ -2186,6 +2246,9 @@
       showMode,
       maxPct: analysisResult ? analysisResult.maxPct : null,
       rawPeakPct: analysisResult ? analysisResult.rawPeakPct : null,
+      needsMarkingEmpty: analysisResult ? analysisResult.needsMarkingEmpty === true : false,
+      recentMaxPct: analysisResult ? analysisResult.recentMaxPct : null,
+      priorMaxPct: analysisResult ? analysisResult.priorMaxPct : null,
       trigger1,
       trigger2,
       triggerUsed: triggerChoice === 'trigger2' ? 'Trigger2' : 'Trigger1',
@@ -2285,6 +2348,9 @@
         serviceNeeded: r.serviceNeeded,
         maxPct: r.maxPct,
         rawPeakPct: r.rawPeakPct,
+        needsMarkingEmpty: r.needsMarkingEmpty,
+        recentMaxPct: r.recentMaxPct,
+        priorMaxPct: r.priorMaxPct,
         trigger1: r.trigger1, trigger2: r.trigger2, triggerUsed: r.triggerUsed,
         crossedTrigger: r.crossedTrigger,
         lastCycleHours: r.lastCycleHours,
