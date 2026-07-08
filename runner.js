@@ -249,6 +249,7 @@ async function main() {
     // poll must tolerate being mid-navigation.
     const startedAt = Date.now();
     let lastProgress = '';
+    let finalState = null;
     for (;;) {
       if (Date.now() - startedAt > SCAN_TIMEOUT_MS) throw new Error('Scan exceeded the 4-hour ceiling.');
       await new Promise((r) => setTimeout(r, POLL_MS));
@@ -261,6 +262,7 @@ async function main() {
       const prog = (state.results ? state.results.length : 0) + '/' + (state.boxList ? state.boxList.length : '?');
       if (prog !== lastProgress) { log('Progress: ' + prog + ' boxes.'); lastProgress = prog; }
       if (state.done) {
+        finalState = state;
         log('Engine reports DONE - ' + (state.results ? state.results.length : 0) + ' results.'
           + (TARGETED ? '' : ' Allowing 2 minutes for upload...'));
         break;
@@ -275,6 +277,63 @@ async function main() {
       await browser.close();
       return;
     }
+
+    // ---- COVERAGE CHECK: no box left behind ----------------------------
+    // Compare the active boxes the engine ATTEMPTED (boxList) against the
+    // boxes that produced a REAL scan result. A box is UNVERIFIED if it
+    // produced no result row at all (a true drop) or only a timeout
+    // placeholder ("Chart did not update ..."). Inactive X/Y/Z boxes are
+    // never in boxList, so they are never falsely flagged. On any shortfall
+    // we log loudly and (full scans only) email the exact box IDs, so a box
+    // can never fail SILENTLY - the worst case becomes a named alert, not a
+    // gap nobody sees. Read-only: this can never affect the scan itself.
+    try {
+      const boxList = (finalState && finalState.boxList) || [];
+      const results = (finalState && finalState.results) || [];
+      const TIMEOUT_NOTE = /^Chart did not update/i;
+      // IDs of active boxes we attempted this run.
+      const attempted = new Set(boxList.filter((b) => b && b.boxId != null).map((b) => String(b.boxId)));
+      // IDs that produced a REAL scan result (not a timeout placeholder).
+      const realResults = new Set();
+      results.forEach((r) => {
+        if (!r || r.boxId == null) return;
+        if (TIMEOUT_NOTE.test(String(r.notes || ''))) return; // placeholder, not a real scan
+        realResults.add(String(r.boxId));
+      });
+      // Verified = attempted boxes that produced a real result (inactive boxes
+      // are never in `attempted`, so they can't inflate this count).
+      const verifiedCount = [...attempted].filter((id) => realResults.has(id)).length;
+      const unverified = boxList
+        .filter((b) => b && b.boxId != null && !realResults.has(String(b.boxId)))
+        .map((b) => {
+          const hadRow = results.some((r) => r && String(r.boxId) === String(b.boxId));
+          return {
+            id: String(b.boxId),
+            desc: String(b.description || '').slice(0, 60),
+            reason: hadRow ? 'timed out (no reading)' : 'no result row (dropped)',
+          };
+        });
+
+      log('Coverage: ' + verifiedCount + '/' + attempted.size + ' active boxes verified'
+        + (unverified.length ? ' - ' + unverified.length + ' UNVERIFIED' : ' - all accounted for') + '.');
+
+      if (unverified.length) {
+        const lines = unverified.map((u) => '  - Box ' + u.id + (u.desc ? ' (' + u.desc + ')' : '') + ' \u2014 ' + u.reason);
+        log('\u26a0\ufe0f BOXES LEFT UNVERIFIED THIS RUN:\n' + lines.join('\n'));
+        if (!TEST_COUNT) { // email only on a real full scan, not a --test batch
+          await sendAlert(
+            'WasteNet: ' + unverified.length + ' box(es) UNVERIFIED - ' + todayTabPrefix(),
+            'Today\'s scan finished, but ' + unverified.length + ' active box(es) did NOT get a fresh reading and need a manual check in CES:\n\n'
+            + lines.join('\n')
+            + '\n\nWHY THIS MATTERS: these boxes have no current fill reading, so they will NOT appear in Action Needed even if they are actually full. Please open each one in Monitor.aspx and verify it doesn\'t need service.\n\n'
+            + 'Coverage: ' + verifiedCount + ' of ' + attempted.size + ' active boxes verified this run.');
+          log('Alert email sent for ' + unverified.length + ' unverified box(es).');
+        }
+      }
+    } catch (covErr) {
+      log('Coverage check error (non-fatal): ' + covErr.message);
+    }
+    // --------------------------------------------------------------------
 
     await new Promise((r) => setTimeout(r, 120000));
 
