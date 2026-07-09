@@ -1,11 +1,27 @@
 // ==UserScript==
 // @name         WasteNet Box Monitor Scan
 // @namespace    wastenet
-// @version      4.15
+// @version      4.16
 // @match        http://h1.ces-web.com/*
 // @match        https://h1.ces-web.com/*
 // @grant        none
 // ==/UserScript==
+//
+// v4.16 CHANGE: NEEDS MARKING EMPTY - added a data-based "already recorded"
+// guard so a box whose empty is genuinely recorded no longer false-flags when
+// the chart's pixel red-X detection misses the marker. The v4.13 rule gates on
+// !hasEmptyMarker (no red X on the chart) as its "not recorded yet" test, but
+// the red X is detected by pixel clustering (compact red blob, taller than 5px,
+// narrower than a quarter-plot) and that missed box 21's X - so a box recorded
+// yesterday still showed as needs-marking-empty. The fix reuses the service-
+// history table, which is a far more reliable record than a pixel blob: if
+// getServiceHistoryInfo() shows a COMPLETED empty row within
+// NEEDS_EMPTY_RECORDED_DAYS, the drop HAS been recorded (that row is the
+// record) and needsMarkingEmpty is suppressed regardless of the pixel check.
+// getServiceHistoryInfo only counts fully-populated rows, so a scheduled-
+// pickup row (blank percent/cycle) never trips it. Same data-presence-beats-
+// pixel-color principle as the v4.8 empty fix. ISOLATED to needsMarkingEmpty:
+// serviceNeeded and its assignments are untouched.
 //
 // v4.15 CHANGE: NEEDS MARKING EMPTY - tightened "was high before" test to
 // kill spike false-positives. v4.13's rule used the RAW prior peak to decide
@@ -435,6 +451,13 @@
   const NEEDS_EMPTY_LEVEL_PCT = 15;   // newest stretch at/under this = empty now
   const NEEDS_EMPTY_HIGH_PCT = 50;    // must have been at/over this earlier = a real drop
   const NEEDS_EMPTY_RECENT_CYCLES = 5; // how many of the newest cycles must all be low
+  // v4.16: a COMPLETED empty row this recent in the service-history table means
+  // the box has already been recorded (that row IS the record), so needs-
+  // marking-empty must not fire even when the chart's pixel red-X detection
+  // missed the marker. Data-presence beats pixel color - same principle as the
+  // v4.8 fix. Kept tight so a genuine record-then-refill-then-empty-again inside
+  // the window is still catchable; tune via --box if needed.
+  const NEEDS_EMPTY_RECORDED_DAYS = 3; // completed empty within this many days = already recorded
   const RESET_CYCLES = 300;
   const SUPPRESS_DAYS = 3;
   const RESUME_STALE_MS = 15000;
@@ -1392,6 +1415,23 @@
     let needsMarkingEmpty = false;
     let recentMaxPct = null;
     let priorMaxPct = null;
+    // v4.16: data-based "already recorded" guard. If the service-history table
+    // shows a COMPLETED empty within NEEDS_EMPTY_RECORDED_DAYS, the drop we see
+    // on the chart has been recorded (that row is the record) even when the
+    // pixel red-X detection missed the marker (box 21). getServiceHistoryInfo()
+    // only returns fully-populated rows, so a scheduled-pickup row (blank
+    // percent/cycle) never trips this. Pure DOM read of the current box; never
+    // throws here. Isolated to needsMarkingEmpty - serviceNeeded untouched.
+    let recentlyRecorded = false;
+    let recordedDaysAgo = null;
+    let nmeSuppressedByRecord = false;
+    try {
+      const histNME = getServiceHistoryInfo();
+      if (histNME && histNME.daysSinceService !== null) {
+        recordedDaysAgo = histNME.daysSinceService;
+        recentlyRecorded = histNME.daysSinceService <= NEEDS_EMPTY_RECORDED_DAYS;
+      }
+    } catch (e) { recentlyRecorded = false; }
     if (colFill.length && pixelsPerCycle > 0) {
       const lastX = colFill[colFill.length - 1].x;
       const cutoffX = lastX - pixelsPerCycle * NEEDS_EMPTY_RECENT_CYCLES;
@@ -1408,7 +1448,14 @@
       // which let a lone spike (box 40: one blip read as 51%) masquerade as
       // "was full" and produced dozens of false positives.
       const wasHighBefore = maxPct >= NEEDS_EMPTY_HIGH_PCT;
-      needsMarkingEmpty = recentAllLow && wasHighBefore && !hasEmptyMarker;
+      // v4.16: !recentlyRecorded is the new guard - a recorded empty (per the
+      // service-history table) is never "needs marking", regardless of the
+      // pixel red-X result.
+      const chartSaysNeedsEmpty = recentAllLow && wasHighBefore && !hasEmptyMarker;
+      needsMarkingEmpty = chartSaysNeedsEmpty && !recentlyRecorded;
+      // true only when the guard is what flipped a would-be flag off - the
+      // precise "rescued a false positive" signal (e.g. box 21), for the log.
+      nmeSuppressedByRecord = chartSaysNeedsEmpty && recentlyRecorded;
     }
 
     const aboveTriggerByCol = longestRun.map((x) => colHits[x].some((y) => y <= activeTriggerRow));
@@ -1446,6 +1493,9 @@
       needsMarkingEmpty,
       recentMaxPct,
       priorMaxPct,
+      recentlyRecorded,
+      recordedDaysAgo,
+      nmeSuppressedByRecord,
       crossesTrigger,
       activeTriggerValue,
       hasEmptyMarker,
@@ -1599,6 +1649,14 @@
     if (nme.length) {
       log('  Needs-empty boxes: ' + nme.map((r) => r.boxId
         + ' (recent<=' + r.recentMaxPct + '%, prior<=' + r.priorMaxPct + '%)').join(', '));
+    }
+    // v4.16: boxes whose chart looked like needs-marking-empty but were
+    // suppressed because the service-history table shows a recent completed
+    // empty (the pixel red-X was missed). Confirms the guard is working.
+    const rescued = sortedResults.filter((r) => r.nmeSuppressedByRecord === true);
+    if (rescued.length) {
+      log('  v4.16 guard suppressed ' + rescued.length + ' would-be false positive(s) via service-history record: '
+        + rescued.map((r) => r.boxId + ' (recorded ' + r.recordedDaysAgo + 'd ago)').join(', '));
     }
 
     // Targeted/diagnostic run (runner --box): the flag rode through the
@@ -2279,6 +2337,9 @@
       needsMarkingEmpty: analysisResult ? analysisResult.needsMarkingEmpty === true : false,
       recentMaxPct: analysisResult ? analysisResult.recentMaxPct : null,
       priorMaxPct: analysisResult ? analysisResult.priorMaxPct : null,
+      recentlyRecorded: analysisResult ? analysisResult.recentlyRecorded === true : false,
+      recordedDaysAgo: analysisResult ? analysisResult.recordedDaysAgo : null,
+      nmeSuppressedByRecord: analysisResult ? analysisResult.nmeSuppressedByRecord === true : false,
       trigger1,
       trigger2,
       triggerUsed: triggerChoice === 'trigger2' ? 'Trigger2' : 'Trigger1',
