@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WasteNet Box Monitor</title>
+<style>
+  :root{
+    --green:#5CAA16; --green-dark:#3B6D11; --green-darker:#27500A;
+    --green-tint:#EAF3DE; --green-tint-2:#F4FAEC; --green-border:#C0DD97;
+    --amber:#EF9F27; --amber-dark:#854F0B;
+    --red:#E24B4A; --red-dark:#A32D2D; --red-darker:#791F1F; --red-tint:#FCEBEB;
+    --ink:#1A1D1A; --ink-2:#525A60; --ink-3:#8A8F8A;
+    --line:#E4E7E0; --line-strong:#CFD4CA;
+    --track:#D3D1C7;
+    --card:#FFFFFF; --panel:#F6F7F3; --page:#FAFBF8;
+    --radius:10px;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:var(--font); background:var(--page); color:var(--ink);
+    font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:820px; margin:0 auto; padding:20px 16px 80px;}
+
+  /* header bar (Option A) */
+  .header-bar{display:flex; align-items:center; justify-content:space-between; gap:12px; border:0.5px solid var(--line); border-radius:12px; background:var(--card); padding:12px 16px; margin-bottom:16px;}
+  .brand{display:flex; align-items:center; gap:10px; min-width:0;}
+  .brand-logo-wide{height:26px; width:auto; object-fit:contain; flex:0 0 auto;}
+  .brand-name{font-size:17px; font-weight:800; letter-spacing:0.04em; color:var(--green); flex:0 0 auto;}
+  .brand-div{width:1px; height:16px; background:var(--line-strong); flex:0 0 auto;}
+  .brand-tool{font-size:13px; color:var(--ink-2); flex:0 0 auto;}
+  .header-right{display:flex; align-items:center; gap:8px; flex:0 0 auto;}
+  .btn{font-size:12px; font-weight:500; color:var(--ink); background:var(--card); border:0.5px solid var(--line-strong); padding:6px 12px; border-radius:16px; cursor:pointer; display:inline-flex; align-items:center; gap:5px; transition:background .12s;}
+  .btn:hover{background:var(--panel);}
+  .btn.on{background:var(--green); color:#fff; border-color:var(--green);}
+  .btn.ghost{background:transparent;}
+  .scan-meta{font-size:11px; font-weight:700; color:var(--ink); text-align:right; white-space:nowrap;}
+  /* date navigation */
+  .date-nav{display:flex; align-items:center; gap:2px; position:relative;}
+  .date-arrow{font-size:16px; line-height:1; color:var(--ink-2); background:transparent; border:0.5px solid var(--line-strong); border-radius:8px; width:26px; height:28px; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center;}
+  .date-arrow:hover{background:var(--panel);}
+  .date-arrow:disabled{opacity:0.3; cursor:default;}
+  .date-label{font-size:11px; font-weight:700; color:var(--ink); background:transparent; border:0.5px solid var(--line-strong); border-radius:8px; height:28px; padding:0 10px; cursor:pointer; white-space:nowrap; display:flex; align-items:center; gap:5px;}
+  .date-label:hover{background:var(--panel);}
+  .date-caret{font-size:9px; color:var(--ink-3);}
+  .date-drop{display:none; position:absolute; top:32px; right:0; z-index:20; background:var(--card); border:0.5px solid var(--line-strong); border-radius:10px; box-shadow:0 6px 24px rgba(0,0,0,0.12); max-height:280px; overflow-y:auto; min-width:180px; padding:5px;}
+  .date-drop.show{display:block;}
+  .date-opt{font-size:12px; padding:7px 11px; border-radius:7px; cursor:pointer; white-space:nowrap; color:var(--ink);}
+  .date-opt:hover{background:var(--panel);}
+  .date-opt.cur{background:var(--green-tint); color:var(--green-darker); font-weight:600;}
+  .date-opt .latest-pill{font-size:9px; background:var(--green); color:#fff; padding:1px 6px; border-radius:10px; margin-left:6px;}
+  .past-banner{background:#FAEEDA; border:0.5px solid #FAC775; color:var(--amber-dark); padding:9px 14px; border-radius:10px; font-size:12px; font-weight:500; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .past-banner button{font-size:11px; font-weight:600; color:#fff; background:var(--green); border:none; padding:5px 12px; border-radius:14px; cursor:pointer;}
+  .icon-btn{padding:6px 10px;}
+
+  /* clickable scorecard */
+  .scorecard{border:0.5px solid var(--line); border-radius:14px; background:var(--card); padding:15px 18px; margin-bottom:22px;}
+  .score-meta{display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-bottom:12px; min-height:30px;}
+  .score-groups{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:14px;}
+  .score-cap{font-size:11px; color:var(--ink-3); margin-bottom:6px; text-align:center;}
+  .score-btn{display:flex; border:0.5px solid var(--line); border-radius:12px; overflow:hidden;}
+  .score-half{flex:1; min-width:0; padding:11px 6px; text-align:center; cursor:pointer; transition:background .12s;}
+  .score-btn > .score-half:first-child{border-right:0.5px solid var(--line);}
+  .score-half:hover{background:var(--panel);}
+  .score-badge{display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%;}
+  .score-badge svg{width:16px; height:16px;}
+  .score-half-n{font-size:21px; font-weight:600; letter-spacing:-0.01em; line-height:1.15; margin-top:5px;}
+  .score-half-l{font-size:11px; color:var(--ink-2); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .score-total{font-size:11px; color:var(--ink-3); align-self:center;}
+  .header-tools{display:flex; align-items:center; gap:8px;}
+  /* search in scorecard */
+  .score-right{margin-left:auto; display:flex; align-items:center; gap:8px;}
+  .search-btn{font-size:16px; line-height:1; color:var(--ink-2); background:transparent; border:0.5px solid var(--line-strong); border-radius:8px; width:30px; height:28px; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center;}
+  .search-btn:hover{background:var(--panel); color:var(--green);}
+  .search-box{display:flex; align-items:center; gap:6px; border:0.5px solid var(--green-border); border-radius:8px; background:var(--card); padding:0 8px; height:30px; min-width:240px;}
+  .search-box .search-ico{font-size:15px; color:var(--green); font-style:normal;}
+  .search-box input{border:none; outline:none; background:transparent; font-size:13px; color:var(--ink); flex:1; height:100%; font-family:inherit;}
+  .search-x{background:transparent; border:none; font-size:18px; color:var(--ink-3); cursor:pointer; padding:0 2px; line-height:1;}
+  .search-x:hover{color:var(--ink);}
+  /* bucket tags on search results */
+  .bucket-tag{font-size:9px; font-weight:600; padding:1px 7px; border-radius:12px; text-transform:uppercase; letter-spacing:0.03em;}
+  .bt-action{background:var(--red-tint); color:var(--red-dark);}
+  .bt-stale{background:#FAEEDA; color:var(--amber-dark);}
+  .bt-clear{background:var(--green-tint); color:var(--green-darker);}
+  .bt-scheduled{background:#E6F1FB; color:#185FA5;}
+  .bt-monitor{background:#EAECEF; color:#47505C;}
+  .bt-needsempty{background:#DDF2F0; color:#0C6E69;}
+  .bt-handsoff{background:#EEF0F2; color:#4B5563;}
+  .req-tag{font-size:10px; font-weight:500; color:#185FA5; background:#E6F1FB; padding:1px 7px; border-radius:12px;}
+  .reason-sched-pickup .reason-label{color:#185FA5;}
+  .reason-overdue .reason-label{color:#A32D2D;}
+  .overdue-tag{font-size:10px; font-weight:500; color:#A32D2D; background:#FCEBEB; padding:1px 7px; border-radius:12px;}
+  .sfold{margin-bottom:0;}
+  .sfold-tabs{display:flex; gap:4px; padding-left:2px;}
+  .sfold-tab{font:inherit; display:inline-flex; align-items:center; gap:7px; border-radius:10px 10px 0 0; padding:7px 15px 8px; font-size:13px; font-weight:500; cursor:pointer; border:0.5px solid; border-bottom:none; margin-bottom:-1px; position:relative; z-index:2;}
+  .sfold-tab .stab-n{font-size:11px; font-weight:400; opacity:0.85;}
+  .sfold-tab:hover{filter:brightness(0.98);}
+  .sfold-body{border:0.5px solid var(--line); border-radius:0 12px 12px 12px; background:var(--card); overflow:hidden;}
+  .reason-monitor .reason-label{color:#47505C;}
+  .reason-needsempty .reason-label{color:#0C6E69;}
+  .reason-handsoff .reason-label{color:#6B7280;}
+  .monitor-reason-tag{font-size:10px; font-weight:500; color:#47505C; background:#EAECEF; padding:1px 7px; border-radius:12px;}
+  .needsempty-tag{font-size:10px; font-weight:500; color:#0C6E69; background:#DDF2F0; padding:1px 7px; border-radius:12px;}
+  .handsoff-tag{font-size:10px; font-weight:500; color:#4B5563; background:#EEF0F2; padding:1px 7px; border-radius:12px;}
+
+  /* stale scans section */
+  .stale-section{margin-top:28px; border:0.5px solid var(--line); border-radius:12px; overflow:hidden; background:var(--card);}
+  .stale-head{display:flex; align-items:center; justify-content:space-between; padding:14px 16px; cursor:pointer; background:var(--panel);}
+  .stale-head:hover{background:#EFEFE9;}
+  .stale-title{font-size:14px; font-weight:600; color:var(--ink);}
+  .stale-count{font-size:12px; font-weight:600; color:var(--amber-dark); background:#FAEEDA; padding:1px 9px; border-radius:12px; margin-left:4px;}
+  .stale-sub{font-size:11px; color:var(--ink-3); margin-top:3px;}
+  .stale-chev{font-size:12px; color:var(--ink-3);}
+  .stale-body{display:none;}
+  .stale-body.show{display:block;}
+  .stale-row{border-top:0.5px solid var(--line);}
+  .fresh-tag{font-size:10px; font-weight:600; color:#fff; background:var(--red-dark); padding:1px 7px; border-radius:12px;}
+  .also-stale-tag{font-size:10px; font-weight:500; color:var(--amber-dark); background:#FAEEDA; padding:1px 7px; border-radius:12px;}
+  .section-note{font-size:12px; color:var(--ink-2); margin-bottom:12px; padding:0 2px;}
+  .plain-list{border:0.5px solid var(--line); border-radius:12px; overflow:hidden; background:var(--card);}
+  .plain-list .row{border-bottom:0.5px solid var(--line);}
+  .plain-list .row:last-child, .plain-list .detail:last-child{border-bottom:none;}
+
+  /* status banner */
+  .banner{padding:12px 14px; border-radius:var(--radius); font-size:13px; margin-bottom:18px; display:none;}
+  .banner.show{display:block;}
+  .banner.err{background:var(--red-tint); color:var(--red-darker); border:0.5px solid #F0999A;}
+  .banner.info{background:var(--green-tint-2); color:var(--green-darker); border:0.5px solid var(--green-border);}
+
+  /* hauler folder */
+  .folder{margin-bottom:22px;}
+  .folder-tab{display:inline-flex; align-items:center; gap:7px; background:var(--green-tint); border:0.5px solid var(--green-border); border-bottom:none; border-radius:10px 10px 0 0; padding:8px 16px 9px; font-size:13px; font-weight:600; color:var(--green-darker); margin-bottom:-1px; position:relative; z-index:2;}
+  .folder-tab .cnt{font-size:11px; color:var(--green-dark); font-weight:400;}
+  .folder-body{border:0.5px solid var(--green-border); border-radius:0 12px 12px 12px; overflow:hidden; background:var(--card);}
+
+  /* date batch bar */
+  .datebar{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 14px; background:var(--green-tint-2); border-bottom:0.5px solid var(--line);}
+  .date-tabs{display:flex; gap:7px; align-items:center; flex-wrap:wrap;}
+  .date-tabs .lbl{font-size:11px; color:var(--green-dark); margin-right:2px;}
+  .date-pill{font-size:12px; font-weight:500; color:var(--green-dark); background:transparent; border:0.5px solid var(--green-border); padding:6px 13px; border-radius:16px; cursor:pointer; transition:all .12s;}
+  .date-pill.sel{color:#fff; background:var(--green); border-color:var(--green);}
+  .date-pill:hover:not(.sel){background:var(--green-tint);}
+  .batch-dormant{font-size:11px; color:var(--ink-3); font-style:italic; white-space:nowrap;}
+
+  /* rows */
+  .row{display:flex; align-items:center; gap:14px; padding:13px 16px; border-bottom:0.5px solid var(--line); cursor:pointer; transition:background .1s;}
+  .row:last-child{border-bottom:none;}
+  .row:hover{background:var(--panel);}
+  .row.open{background:var(--panel);}
+  .row.missed{background:var(--red-tint);}
+  .edge{flex:0 0 3px; align-self:stretch; border-radius:2px; min-height:34px;}
+  .row-main{flex:1; min-width:0;}
+  .row-name{font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .row.missed .row-name{color:var(--red-darker);}
+  .row-meta{display:flex; align-items:center; gap:6px; margin-top:6px; flex-wrap:wrap;}
+  .row-id{font-size:10px; color:var(--ink-3); margin-right:2px;}
+  .box-id-strong{font-size:12px; font-weight:700; color:var(--ink);}
+
+  /* checklist (dormant tonight) */
+  .steps{display:inline-flex; align-items:center; gap:6px;}
+  .step{display:inline-flex; align-items:center; gap:3px; font-size:11px;}
+  .step .box{width:10px;height:10px;border-radius:2.5px;background:transparent;border:1px solid var(--line-strong);flex:0 0 auto;}
+  .step.done{color:var(--green-dark);}
+  .step.done .chk{color:var(--green-dark); font-weight:700; font-size:11px; line-height:1;}
+  .step.todo{color:var(--ink-3);}
+  .step-sep{color:var(--ink-3); font-size:14px; font-weight:600; margin:0 1px;}
+
+  /* fill bar */
+  .fill-wrap{flex:0 0 100px;}
+  .track{height:11px; background:var(--track); border-radius:6px; position:relative; overflow:hidden; box-shadow:inset 0 1px 2px rgba(0,0,0,0.22), inset 0 -0.5px 0 rgba(255,255,255,0.5);}
+  .fill{position:absolute; left:0; top:0; bottom:0; border-radius:6px;}
+  .trig{position:absolute; top:0; bottom:0; width:2px; background:#4A1B0C;}
+  .fill-labels{display:flex; justify-content:space-between; margin-top:4px;}
+  .fill-pct{font-size:12px; font-weight:600;}
+  .fill-trig{font-size:10px; color:var(--ink-3);}
+
+  /* trigger-reason indicator (shown when a box has no fill reading) */
+  .fill-wrap.reason{text-align:right;}
+  .reason-label{font-size:11px; font-weight:600; color:var(--ink-2);}
+  .reason-detail{font-size:10px; color:var(--ink-3); margin-top:2px;}
+  .reason-days .reason-label{color:var(--amber-dark);}
+  .reason-cycles .reason-label{color:var(--amber-dark);}
+  .reason-stale .reason-label{color:var(--red-dark);}
+  .reason-sched .reason-label{color:var(--green-dark);}
+
+  .chev{flex:0 0 18px; text-align:center; color:var(--ink-3); font-size:11px; transition:transform .15s;}
+  .row.open .chev{transform:rotate(180deg);}
+
+  /* expanded detail */
+  .detail{background:var(--panel); border-bottom:0.5px solid var(--line); padding:0 12px 14px 12px; display:none;}
+  .detail.show{display:block;}
+  .detail-inner{background:var(--card); border:0.5px solid var(--line); border-radius:var(--radius); padding:14px 16px;}
+  .dstats{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:12px;}
+  .dstat{background:var(--panel); border-radius:var(--radius); padding:9px 11px;}
+  .dstat-top{display:flex; align-items:center; justify-content:space-between; gap:6px;}
+  .dicon{display:inline-flex; align-items:center; color:var(--ink-3); flex:0 0 auto;}
+  .dicon svg{display:block;}
+  .dstat .k{font-size:10px; color:var(--ink-2);}
+  .dstat .v{font-size:15px; font-weight:600; margin-top:2px;}
+  .dstat .v .u{font-size:11px; color:var(--ink-3); font-weight:400;}
+  .drow{display:flex; gap:8px; font-size:12px; color:var(--ink-2); padding:5px 0; border-top:0.5px solid var(--line);}
+  .drow .dk{flex:0 0 130px; color:var(--ink-3);}
+  .drow .dv{flex:1; color:var(--ink);}
+  .decision{display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600; padding:3px 10px; border-radius:14px;}
+  .decision.yes{background:var(--red-tint); color:var(--red-dark);}
+  .decision.no{background:var(--green-tint); color:var(--green-darker);}
+  .dormant-note{margin-top:12px; padding:9px 11px; background:var(--green-tint-2); border-radius:8px; font-size:11px; color:var(--green-darker);}
+
+  /* standalone single-box row */
+  .solo{border:0.5px solid var(--line); border-radius:12px; background:var(--card); overflow:hidden; margin-bottom:12px;}
+
+  /* pill for service-needed on row */
+  .need-pill{font-size:10px; font-weight:600; padding:2px 7px; border-radius:12px;}
+  .need-pill.yes{background:var(--red-tint); color:var(--red-dark);}
+
+  .missed-flag{font-size:11px; background:var(--red-dark); color:#fff; padding:2px 8px; border-radius:20px; font-weight:500; display:inline-flex; align-items:center; gap:4px;}
+
+  .empty-state{text-align:center; padding:60px 20px; color:var(--ink-2);}
+  .empty-state .big{font-size:16px; font-weight:500; color:var(--ink); margin-bottom:6px;}
+
+  .foot{text-align:center; font-size:11px; color:var(--ink-3); margin-top:24px; line-height:1.7;}
+  .spinner{display:inline-block; width:16px;height:16px;border:2px solid var(--green-border);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-3px;margin-right:6px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  @media (max-width:560px){
+    .fill-wrap{flex:0 0 78px;}
+    .row-meta{gap:5px;}
+    .step .lbl-txt{display:none;}
+    .dstats{grid-template-columns:repeat(2,1fr);}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header-bar">
+    <div class="brand">
+      <div class="brand-name">WASTENET</div>
+      <div class="brand-div"></div>
+      <div class="brand-tool">Box Monitor Dashboard</div>
+    </div>
+    <div class="header-right">
+      <div class="header-tools" id="headerTools"></div>
+      <div class="date-nav">
+        <button class="date-label" id="dateLabel" title="Pick a scan date"><span id="scanInfo">Loading…</span> <span class="date-caret">▾</span></button>
+        <div class="date-drop" id="dateDrop"></div>
+      </div>
+      <button class="btn ghost icon-btn" id="refreshBtn" aria-label="Refresh"><span id="refreshIcon">↻</span></button>
+      <button class="btn ghost" id="demoBtn">Demo</button>
+    </div>
+  </div>
+
+  <div class="summary" id="summary"></div>
+
+  <div class="banner" id="banner"></div>
+
+  <div id="list">
+    <div class="empty-state"><span class="spinner"></span>Loading the latest scan…</div>
+  </div>
+
+  <div class="foot">
+    Monitoring view · reads the latest scan · scheduling and notifications not yet wired<br>
+    Tap any box to see its monitoring detail
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   WasteNet Box Monitor — Phase 1 monitoring view
+   Reads the live `latest` scan via JSONP. Writes nothing.
+   Scheduling / notifying / confirming are shown as dormant
+   design only — not wired to anything.
+   ============================================================ */
+
+var API = "https://script.google.com/macros/s/AKfycbwc3siwl0OTP2O5WzNZCDn4cj3MDVRfcVxJW0TZtoPnAKLwhYSwmW_m1h7ib6Yf_Dvk9w/exec";
+var KEY = "TRA$H";
+
+var state = { rows: [], scanTitle: "", demo: false, openId: null, dateSel: {}, staleOpen: false, view: "action",
+  tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedTab: null };
+
+/* ---------- JSONP ---------- */
+function jsonp(params, cb){
+  var name = "wn_cb_" + Math.random().toString(36).slice(2);
+  var timeout = setTimeout(function(){ cleanup(); cb({ ok:false, error:"Request timed out. Check your connection and the access code." }); }, 30000);
+  function cleanup(){
+    clearTimeout(timeout);
+    try{ delete window[name]; }catch(e){ window[name] = undefined; }
+    if(s && s.parentNode) s.parentNode.removeChild(s);
+  }
+  window[name] = function(data){ cleanup(); cb(data); };
+  var qs = Object.keys(params).map(function(k){ return encodeURIComponent(k)+"="+encodeURIComponent(params[k]); }).join("&");
+  var s = document.createElement("script");
+  s.src = API + "?" + qs + "&callback=" + name;
+  s.onerror = function(){ cleanup(); cb({ ok:false, error:"Could not reach the server." }); };
+  document.body.appendChild(s);
+}
+
+/* ---------- helpers ---------- */
+function normBoxId(v){ if(v==null) return ""; var s=String(v); return s.slice(-2)===".0" ? s.slice(0,-2) : s; }
+
+function toNum(v){ if(v===""||v==null) return null; var n=Number(v); return isNaN(n)?null:n; }
+
+// Abbreviate a long description to "Customer · short locator".
+// Simple dashboard-side shortening for Phase 1; refine later.
+function abbrev(desc){
+  if(!desc) return "(no description)";
+  var d = String(desc);
+  // strip trailing bracket codes and "Formerly" tails
+  d = d.replace(/\s*\[[^\]]*\]\s*/g, " ").replace(/\s*-\s*Formerly.*$/i,"").trim();
+  // take before the first " - " (usually customer + unit), fall back to whole
+  var parts = d.split(" - ");
+  var head = parts[0].trim();
+  // if there's a street-ish second part, append a shortened form
+  if(parts.length > 1){
+    var loc = parts[1].replace(/,.*$/,"").trim(); // drop city/state tail
+    if(loc && loc.length <= 26) head = head + " · " + loc;
+  }
+  return head.length > 46 ? head.slice(0,44).trim() + "…" : head;
+}
+
+// Parse "Days: 11 of 7 | Cycles: 123 of 230 | ..." advisory string.
+function parseAdvisory(adv){
+  var out = { days:null, daysTrig:null, cycles:null, cyclesTrig:null, tokens:[] };
+  if(!adv) return out;
+  var s = String(adv);
+  var dm = s.match(/Days:\s*([\d.]+)(?:\s*of\s*([\d.]+))?/i);
+  if(dm){ out.days = toNum(dm[1]); out.daysTrig = dm[2]!=null?toNum(dm[2]):null; }
+  var cm = s.match(/Cycles:\s*([\d.]+)(?:\s*of\s*([\d.]+))?/i);
+  if(cm){ out.cycles = toNum(cm[1]); out.cyclesTrig = cm[2]!=null?toNum(cm[2]):null; }
+  // surface any SET SCHED / NEVER SCHED style markers
+  s.split("|").forEach(function(t){
+    t = t.trim();
+    if(/SET SCHED|NEVER SCHED/i.test(t)) out.tokens.push(t);
+  });
+  return out;
+}
+
+// Determine the channel from Srvc Mthd / Haul Code.
+function channelOf(r){
+  var hc = String(r["Haul Code"]||"").toUpperCase();
+  var sm = String(r["Srvc Mthd"]||"").toLowerCase();
+  if(hc.indexOf("MYRNA") !== -1) return "phone";
+  if(sm.indexOf("portal") !== -1) return "portal";
+  if(sm.indexOf("phone") !== -1) return "phone";
+  if(sm.indexOf("email") !== -1) return "email";
+  return sm || "—";
+}
+
+// Fill color ramp by how close to / over trigger.
+function fillColor(pct, trig){
+  if(pct==null) return {bar:"#B4B2A9", txt:"#5F5E5A"};
+  var t = trig==null ? 50 : trig;
+  if(pct >= t) return {bar:"#E24B4A", txt:"#A32D2D"};          // at/over trigger
+  if(pct >= t*0.75) return {bar:"#EF9F27", txt:"#854F0B"};      // approaching
+  return {bar:"#639922", txt:"#3B6D11"};                        // low
+}
+function edgeColor(pct, trig){
+  if(pct==null) return "#B4B2A9";
+  var t = trig==null ? 50 : trig;
+  if(pct >= t) return "#E24B4A";
+  if(pct >= t*0.75) return "#EF9F27";
+  return "#639922";
+}
+
+function fmtDate(v){
+  if(!v) return "";
+  var d = new Date(v);
+  if(isNaN(d.getTime())) return String(v);
+  return (d.getMonth()+1)+"/"+d.getDate()+"/"+String(d.getFullYear()).slice(2);
+}
+function shortDay(v){
+  if(!v) return "";
+  var d = new Date(v);
+  if(isNaN(d.getTime())) return String(v);
+  var days=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  var mo=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return days[d.getDay()]+" "+mo[d.getMonth()]+" "+d.getDate();
+}
+function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+// Format the scan title into "Tue 7-7-26 · 11:57 AM" — date and time only.
+// Input looks like "Scan completed: 2026-07-07 11:57" (may have extra tail).
+function formatScanMeta(title){
+  if(!title) return "";
+  var m = String(title).match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2})/);
+  if(!m) return String(title); // unrecognized — show as-is
+  var y=+m[1], mo=+m[2], d=+m[3], hh=+m[4], mm=m[5];
+  var days=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  var dow = days[new Date(y, mo-1, d).getDay()];
+  var ampm = hh>=12 ? "PM" : "AM";
+  var h12 = hh%12; if(h12===0) h12=12;
+  var yy = String(y).slice(2);
+  return dow+" "+mo+"-"+d+"-"+yy+" · "+h12+":"+mm+" "+ampm;
+}
+// a day or more → "56d 14h" (days and remaining hours).
+function humanHours(h){
+  if(h==null) return "—";
+  if(h < 24) return (Math.round(h*10)/10)+"h";
+  var d = Math.floor(h/24);
+  var rem = Math.round(h - d*24);
+  if(rem === 24){ d += 1; rem = 0; }
+  return rem>0 ? (d+"d "+rem+"h") : (d+"d");
+}
+
+/* ---------- build a normalized box model from a raw sheet row ---------- */
+function modelOf(r){
+  var pct = toNum(r["Max Pct"]);
+  // Sanity guard: a real fill percent is roughly 0–150 (allowing some
+  // overflow for genuinely over-full boxes). David's out-of-band service
+  // codes (e.g. 1556070) live in the weight table's Percent Full cell, not
+  // in Max Pct — but if any such value ever leaked into Max Pct, treat it
+  // as "no valid fill reading" so the row falls through to its real trigger
+  // reason instead of displaying a nonsense percentage.
+  if(pct != null && (pct < 0 || pct > 150)) pct = null;
+  var t1 = toNum(r["Trigr1 Pct"]);
+  var t2 = toNum(r["Trigr2 Pct"]);
+  var used = String(r["Trigr Used"]||"");
+  var trig = used.toLowerCase().indexOf("trigger2")!==-1 ? t2 : t1;
+  if(trig==null) trig = t1!=null?t1:t2;
+  var adv = parseAdvisory(r["Advisory"]);
+  var need = String(r["Srvc Need"]||"").toUpperCase();
+  return {
+    id: normBoxId(r["Box ID"]),
+    desc: abbrev(r["Description"]),
+    fullDesc: String(r["Description"]||""),
+    haulCode: String(r["Haul Code"]||"").trim() || "—",
+    channel: channelOf(r),
+    pct: pct, trig: trig,
+    lastCycle: toNum(r["Last Cycle Hrs"]),
+    days: adv.days, daysTrig: adv.daysTrig,
+    cycles: adv.cycles, cyclesTrig: adv.cyclesTrig,
+    advTokens: adv.tokens,
+    advRaw: String(r["Advisory"]||""),
+    need: need,                                  // YES / NO / N/A / YES (FORCED)
+    notes: String(r["Notes"]||""),
+    schDate: r["Sch Date"] || "",
+    puDate: r["P/U Date"] || "",
+    confirmed: r["Cnfrmd"]===true || String(r["Cnfrmd"]).toLowerCase()==="true",
+    datePullReq: r["Date Pull Req'd"] || "",
+    scheduledPickup: String(r["Scheduled Pickup"]||"").toUpperCase()==="YES" || r["Scheduled Pickup"]===true,
+    scheduledDate: r["Scheduled Date"] || "",
+    // Monitor Down (scanner v4.10): CES reports the 75000 sentinel, so the
+    // monitor isn't sending data and the fill % is meaningless. Reason code
+    // is the 2-digit code stacked in front (e.g. 45 = compactor repairs);
+    // prevSentinel = the previous entry was the sentinel too (dark 2+ cycles).
+    monitorDown: String(r["Monitor Not Reporting"]||"").toUpperCase()==="YES" || r["Monitor Not Reporting"]===true,
+    monitorReason: String(r["Monitor Reason Code"]||"").trim(),
+    monitorPrevSentinel: String(r["Monitor Prev Sentinel"]||"").toUpperCase()==="YES" || r["Monitor Prev Sentinel"]===true,
+    // Needs Marking Empty (scanner v4.13): box physically emptied (drop-to-low
+    // + no red X) but David hasn't recorded it. Takes precedence over service -
+    // a just-emptied box needs recording, not a pickup.
+    needsEmpty: String(r["Needs Marking Empty"]||"").toUpperCase()==="YES" || r["Needs Marking Empty"]===true
+  };
+}
+
+/* ---------- checklist steps (dormant — derived from existing columns) ---------- */
+function stepsHtml(b){
+  // Scheduled = Sch Date present; Confirmed = Cnfrmd true; Notified has no
+  // column yet so it always renders "to do" in Phase 1.
+  var scheduled = !!b.schDate;
+  var confirmed = b.confirmed;
+  function step(done, label){
+    if(done) return '<span class="step done"><span class="chk">✓</span><span class="lbl-txt">'+label+'</span></span>';
+    return '<span class="step todo"><span class="box"></span><span class="lbl-txt">'+label+'</span></span>';
+  }
+  var sep = '<span class="step-sep">›</span>';
+  return '<span class="steps">'+ step(scheduled,"Scheduled")+sep+ step(false,"Notified")+sep+ step(confirmed,"Confirmed") +'</span>';
+}
+
+/* ---------- why is this box on the action list? ----------
+   A box can be flagged for service by fill, by days-overdue, by cycles,
+   or by a set-schedule rule. When there's no fill reading, surface
+   whichever trigger is actually driving the YES so the row explains
+   itself instead of showing an empty bar. Returns null when fill exists
+   (the fill bar is the reason and the hero). */
+function triggerReason(b){
+  // Helper: express a large hour count as readable days + hours.
+  function dur(h){
+    return humanHours(h) + " since cycle";
+  }
+  // set-schedule marker is the explanation if present — it's a rule, not a reading
+  var setTok = b.advTokens.find(function(t){ return /SET SCHED/i.test(t); });
+  if(setTok) return { kind:"sched", label:"set schedule", detail:setTok.replace(/^SET SCHED\s*-?\s*/i,"") };
+  // STALE / OFFLINE wins over days-overdue: a box that hasn't cycled in a
+  // week+ is an offline problem (the root cause), not merely "overdue for a
+  // pickup". The scanner's own stale threshold is ~168h (7 days). Surfacing
+  // this as "stale" is more accurate than "60 of 7 days overdue".
+  if(b.lastCycle!=null && b.lastCycle >= 168)
+    return { kind:"stale", label:"not cycling", detail:dur(b.lastCycle) };
+  // days over its trigger (genuinely overdue but still cycling)
+  if(b.days!=null && b.daysTrig!=null && b.days >= b.daysTrig)
+    return { kind:"days", label:"days overdue", detail:b.days+" of "+b.daysTrig+" days" };
+  // cycles over its trigger
+  if(b.cycles!=null && b.cyclesTrig!=null && b.cycles >= b.cyclesTrig)
+    return { kind:"cycles", label:"over cycles", detail:b.cycles+" of "+b.cyclesTrig+" cycles" };
+  // lesser staleness (24h–168h) — quieter than "not cycling" but still worth noting
+  if(b.lastCycle!=null && b.lastCycle >= 24)
+    return { kind:"stale", label:"stale", detail:dur(b.lastCycle) };
+  // fallback: days present without trigger, or nothing specific
+  if(b.days!=null) return { kind:"days", label:"days", detail:b.days+(b.daysTrig!=null?" of "+b.daysTrig:"")+" days" };
+  return { kind:"other", label:"flagged", detail:"" };
+}
+
+function fillIndicator(b, fc, pctW, trigL){
+  // Fill reading exists → the recessed fill bar is the hero.
+  if(b.pct != null){
+    return '<div class="fill-wrap">'+
+      '<div class="track">'+
+        '<div class="fill" style="width:'+pctW+'%;background:'+fc.bar+';"></div>'+
+        (trigL!=null?'<div class="trig" style="left:'+trigL+'%;"></div>':'')+
+      '</div>'+
+      '<div class="fill-labels">'+
+        '<span class="fill-pct" style="color:'+fc.txt+';">'+Math.round(b.pct)+'%</span>'+
+        '<span class="fill-trig">'+(b.trig==null?'':'trig '+Math.round(b.trig))+'</span>'+
+      '</div>'+
+    '</div>';
+  }
+  // No fill reading → surface the real trigger reason instead of an empty bar.
+  var r = triggerReason(b);
+  return '<div class="fill-wrap reason reason-'+r.kind+'">'+
+    '<div class="reason-label">'+esc(r.label)+'</div>'+
+    (r.detail?'<div class="reason-detail">'+esc(r.detail)+'</div>':'')+
+  '</div>';
+}
+
+/* ---------- row html ---------- */
+function rowHtml(b, missed, bucketTag){
+  var fc = fillColor(b.pct, b.trig);
+  var ec = edgeColor(b.pct, b.trig);
+  var pctW = b.pct==null ? 0 : Math.max(0, Math.min(100, b.pct));
+  var trigL = b.trig==null ? null : Math.max(0, Math.min(100, b.trig));
+  var open = state.openId === b.id;
+
+  // In search results, tag which bucket the box lives in.
+  var bTag = "";
+  if(bucketTag){
+    var labels = { action:"schedule service", needsempty:"record empty", handsoff:"hands-off", monitor:"monitor down", scheduled:"scheduled", stale:"stale", clear:"clear" };
+    bTag = '<span class="bucket-tag bt-'+bucketTag+'">'+labels[bucketTag]+'</span>';
+  }
+
+  var metaInner;
+  if(missed){
+    metaInner = '<span class="missed-flag">⚠ missed pickup'+(b.puDate?' · expected '+esc(shortDay(b.puDate)):'')+'</span>' + bTag;
+  } else {
+    metaInner = '<span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span>'+
+      (bucketTag? ' · '+esc(b.haulCode) : '')+' · '+esc(b.channel)+'</span>' + bTag + stepsHtml(b) +
+      (alsoStale(b) ? '<span class="also-stale-tag">also not cycling</span>' : '');
+  }
+
+  var fillBlock = fillIndicator(b, fc, pctW, trigL);
+
+  return ''+
+    '<div class="row'+(open?' open':'')+(missed?' missed':'')+'" data-id="'+esc(b.id)+'">'+
+      '<div class="edge" style="background:'+(missed?'#A32D2D':ec)+';"></div>'+
+      '<div class="row-main">'+
+        '<div class="row-name">'+esc(b.desc)+'</div>'+
+        '<div class="row-meta">'+metaInner+'</div>'+
+      '</div>'+
+      fillBlock+
+      '<div class="chev">▾</div>'+
+    '</div>'+
+    detailHtml(b);
+}
+
+/* ---------- expanded detail (monitoring focus) ---------- */
+function detailHtml(b){
+  var open = state.openId === b.id;
+  var decisionClass = (b.need.indexOf("YES")!==-1) ? "yes" : "no";
+  var decisionText = (b.need.indexOf("YES")!==-1) ? "Service needed" : (b.need==="N/A"?"Not scanned":"No service needed");
+  var forced = b.need.indexOf("FORCED")!==-1;
+
+  // stat tile with an icon accent (top-right). Fullness gets a battery that
+  // fills to the percentage; the others get a simple monochrome glyph.
+  var ICON_CAL = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg>';
+  var ICON_CYC = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14-4M4 5v4h4"/><path d="M4 13a8 8 0 0 0 14 4M20 19v-4h-4"/></svg>';
+  var ICON_CLK = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>';
+  var battery = function(pct, trig){
+    if(pct==null) return '<svg viewBox="0 0 24 16" width="26" height="17" fill="none" stroke="var(--ink-3)" stroke-width="1.5"><rect x="1.5" y="3" width="18" height="10" rx="2"/><rect x="20.5" y="6" width="2.2" height="4" rx="1" fill="var(--ink-3)" stroke="none"/></svg>';
+    var p = Math.max(0, Math.min(100, pct));
+    var w = (p/100)*15;
+    var col = (trig!=null && pct>=trig) ? '#A32D2D' : (trig!=null && pct>=trig*0.75 ? '#BA7517' : '#639922');
+    return '<svg viewBox="0 0 24 16" width="26" height="17" fill="none" stroke="var(--ink-3)" stroke-width="1.5">'+
+      '<rect x="1.5" y="3" width="18" height="10" rx="2"/>'+
+      '<rect x="20.5" y="6" width="2.2" height="4" rx="1" fill="var(--ink-3)" stroke="none"/>'+
+      '<rect x="3" y="4.5" width="'+w.toFixed(1)+'" height="7" rx="1" fill="'+col+'" stroke="none"/>'+
+    '</svg>';
+  };
+  var stat = function(k,v,u,icon){
+    return '<div class="dstat">'+
+      '<div class="dstat-top"><span class="k">'+k+'</span><span class="dicon">'+(icon||'')+'</span></div>'+
+      '<div class="v">'+v+(u?'<span class="u"> '+u+'</span>':'')+'</div>'+
+    '</div>';
+  };
+
+  var stats =
+    '<div class="dstats">'+
+      stat("Fullness", b.pct==null?"—":Math.round(b.pct)+"%", b.trig!=null?"/ trig "+Math.round(b.trig):"", battery(b.pct, b.trig))+
+      stat("Days since empty", b.days==null?"—":b.days, b.daysTrig!=null?"of "+b.daysTrig:"", ICON_CAL)+
+      stat("Cycles", b.cycles==null?"—":b.cycles, b.cyclesTrig!=null?"of "+b.cyclesTrig:"", ICON_CYC)+
+      stat("Last cycle", b.lastCycle==null?"—":humanHours(b.lastCycle), "", ICON_CLK)+
+    '</div>';
+
+  var rows = "";
+  rows += '<div class="drow"><span class="dk">Decision</span><span class="dv"><span class="decision '+decisionClass+'">'+decisionText+(forced?' (forced)':'')+'</span></span></div>';
+  if(b.advTokens.length) rows += '<div class="drow"><span class="dk">Schedule</span><span class="dv">'+esc(b.advTokens.join(" · "))+'</span></div>';
+  if(b.puDate) rows += '<div class="drow"><span class="dk">Pickup date</span><span class="dv">'+esc(fmtDate(b.puDate))+'</span></div>';
+  if(b.datePullReq) rows += '<div class="drow"><span class="dk">Date pull req\'d</span><span class="dv">'+esc(fmtDate(b.datePullReq))+'</span></div>';
+  if(b.notes) rows += '<div class="drow"><span class="dk">Notes</span><span class="dv">'+esc(b.notes)+'</span></div>';
+  rows += '<div class="drow"><span class="dk">Full name</span><span class="dv">'+esc(b.fullDesc)+'</span></div>';
+
+  return '<div class="detail'+(open?' show':'')+'" data-detail="'+esc(b.id)+'">'+
+    '<div class="detail-inner">'+
+      stats + rows +
+      '<div class="dormant-note">Scheduling, notifications, and confirmations aren\'t wired yet — this view is for checking the monitoring.</div>'+
+    '</div>'+
+  '</div>';
+}
+
+/* ---------- bucket classification ----------
+   A box is a STALE SCAN when its ONLY reason for being flagged is that it
+   stopped cycling (forced YES by the last-cycle threshold) AND it has no
+   genuine actionable trigger — no valid fill reading at/over trigger, and
+   not over its days/cycles triggers. A genuinely-full or genuinely-overdue
+   box stays in ACTION NEEDED even if it's also stale (it gets a flag). */
+function isStaleScan(b){
+  var forcedStale = /YES\s*\(forced\)[\s\S]*Last Cycle/i.test(b.notes) ||
+                    (b.lastCycle!=null && b.lastCycle >= 168 && b.pct==null);
+  if(!forcedStale) return false;
+  // A stale box's days/cycles-over-trigger is a SYMPTOM of not cycling, not
+  // an independent reason to act — so those don't rescue it from the stale
+  // bucket. Only a genuine FILL reading at/over trigger means it's really
+  // full and belongs in Action Needed (flagged as also-stale).
+  var fullOverTrigger = (b.pct!=null && b.trig!=null && b.pct >= b.trig);
+  if(fullOverTrigger) return false;
+  return true;
+}
+function alsoStale(b){ return (b.lastCycle!=null && b.lastCycle >= 168); }
+// Only count a CES scheduled pickup as CURRENT if its date is recent. CES
+// leaves old un-cleared pickup rows around (box 890 showed an Apr 2025 date),
+// and a year-old pickup is not a live schedule. Keep any date from the scan
+// day back through SCHEDULE_STALE_DAYS ago, plus any FUTURE date (a genuine
+// upcoming pickup); anything older drops out of Scheduled and re-buckets by
+// its reading. No-date / unparseable rows are left as-is (they aren't the
+// stale-date problem). Compared against the SCAN's date (tab), not "now", so
+// past scans classify correctly.
+var SCHEDULE_STALE_DAYS = 7;
+function scanRefDate(){
+  var m = String(state.currentTab||state.scanTitle||"").match(/(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return new Date(+m[1], +m[2]-1, +m[3]);
+  return new Date(); // fall back to now (e.g. latest before the tab name resolves)
+}
+// Days the scheduled pickup date sits from the scan (>0 past-due, <0 future).
+function schedAgeDays(b){
+  if(!b.scheduledDate) return null;
+  var d = new Date(b.scheduledDate);
+  if(isNaN(d.getTime())) return null;
+  return (scanRefDate() - d) / 86400000;
+}
+// Did the box empty on/after its scheduled date - i.e. it WAS serviced since?
+// Signals, best first: it just physically emptied (needsEmpty); its last empty
+// (days-since-empty) is more recent than the scheduled date; or it reads clearly
+// near-empty now. Any of these => the pickup happened, so it's not "missed".
+function servicedSinceScheduled(b){
+  if(b.needsEmpty) return true;
+  var schedAgo = schedAgeDays(b);
+  if(schedAgo == null) return false;
+  if(b.days != null && b.days <= schedAgo + 0.5) return true;   // emptied more recently than the schedule
+  if(b.pct != null && b.trig != null && b.pct < b.trig * 0.5) return true; // clearly empty now
+  return false;
+}
+function isScheduled(b){
+  if(b.scheduledPickup !== true) return false;
+  if(!b.scheduledDate) return true;            // no date -> not the stale problem, leave as-is
+  var d = new Date(b.scheduledDate);
+  if(isNaN(d.getTime())) return true;          // unparseable -> leave as-is
+  var ageDays = (scanRefDate() - d) / 86400000; // >0 = in the past
+  if(ageDays > SCHEDULE_STALE_DAYS) return false;              // stale year-old row -> not scheduled
+  if(ageDays > 0.5 && servicedSinceScheduled(b)) return false; // past-due but already serviced -> not scheduled
+  return true;                                  // future + recent-past kept
+}
+// A scheduled box whose date has passed and was NOT serviced since = potential
+// missed pickup (flagged for research, sorted to the top of the Scheduled list).
+function isSchedOverdue(b){
+  var a = schedAgeDays(b);
+  return a != null && a > 0.5 && !servicedSinceScheduled(b);
+}
+// Monitor Down: the CES 75000 sentinel fired, so the fill reading can't be
+// trusted. This is an EQUIPMENT-health state, not a fill state, so it takes
+// precedence over every fill-based bucket - a dead monitor must never hide
+// in No Action (or get force-buried by closed-day logic) behind a phantom %.
+function isMonitorDown(b){ return b.monitorDown === true; }
+// Needs Marking Empty: box just emptied, not recorded. Takes precedence over
+// every service-oriented bucket - a just-emptied box needs recording, not a
+// pickup. Ranks just below hands-off (which is "do nothing at all").
+function isNeedsEmpty(b){ return b.needsEmpty === true; }
+// HANDS-OFF: boxes Dave does nothing for, per his directive - they go to No
+// Action no matter what the reading says. Keyed on the EXACT Column K text
+// (case-insensitive, whitespace-collapsed - NOT a prefix), because other
+// "Never Schedule -" notes exist where Dave DOES still watch the box, and
+// those must keep behaving normally. Column K arrives via the days_cycles
+// endpoint (the box's Set Schedule value), fetched live from Master Box List,
+// so changing a box's status is a one-cell edit - no code, no scan.
+var HANDS_OFF = {
+  "never schedule - myrna handles direct": "myrna",
+  "never schedule - box not monitoring": "notmon"
+};
+function handsOffKind(b){
+  var v = state.setSchedById[b.id];
+  if(!v) return null;
+  var norm = String(v).trim().toLowerCase().replace(/\s+/g, " ");
+  return HANDS_OFF[norm] || null; // "myrna" | "notmon" | null
+}
+function isHandsOff(b){ return handsOffKind(b) !== null; }
+// Reason codes that may be stacked in front of the 75000 sentinel (why the
+// monitor is dark). Kept in sync with the Percent Full code sheet; an
+// unknown code still shows as "reason NN" rather than nothing.
+var MONITOR_REASONS = {
+  "44":"another source","45":"compactor repairs","46":"new compactor","47":"wash",
+  "48":"damaged by hauler","49":"power source problem","54":"corp audit","55":"blocked",
+  "56":"bridging/jamming","57":"consecutive days","58":"customer request","59":"gate locked",
+  "64":"hot/contaminated","65":"hauler/landfill","66":"unknown","67":"predetermined schedule",
+  "68":"stop service","69":"wrong compactor","78":"weather","84":"dry run","85":"leaking",
+  "86":"unexpected usage","88":"monitor problem","89":"weight","94":"canceled service",
+  "95":"other comp broken","96":"changed service date","97":"bugs/other"
+};
+function monitorReasonText(code){
+  if(!code) return "";
+  return MONITOR_REASONS[code] || ("reason "+code);
+}
+// Which bucket a box belongs to (for search-result tags). Hands-off first.
+function bucketOf(b){
+  if(isHandsOff(b)) return "handsoff";
+  if(isNeedsEmpty(b)) return "needsempty";
+  if(isMonitorDown(b)) return "monitor";
+  if(isScheduled(b)) return "scheduled";
+  if(b.need.indexOf("YES")===-1) return "clear";
+  return isStaleScan(b) ? "stale" : "action";
+}
+
+/* ---------- grouping & render ---------- */
+function render(){
+  var listEl = document.getElementById("list");
+
+  // Precedence, highest first: hands-off (do nothing) > needs-marking-empty
+  // (just emptied, record it - NOT service) > monitor down > scheduled >
+  // action > stale > no action. Each is pulled from what the previous left.
+  var handsOff = state.rows.filter(isHandsOff);
+  var afterHandsOff = state.rows.filter(function(b){ return !isHandsOff(b); });
+  var needsEmpty = afterHandsOff.filter(isNeedsEmpty);
+  var pool = afterHandsOff.filter(function(b){ return !isNeedsEmpty(b); });
+  var monitorDown = pool.filter(isMonitorDown);
+  var notDown = pool.filter(function(b){ return !isMonitorDown(b); });
+  var scheduled = notDown.filter(isScheduled);
+  var allYes = notDown.filter(function(b){ return b.need.indexOf("YES")!==-1 && !isScheduled(b); });
+  var stale  = allYes.filter(isStaleScan);
+  var action = allYes.filter(function(b){ return !isStaleScan(b); });
+  var clearNormal = notDown.filter(function(b){ return b.need.indexOf("YES")===-1 && b.need!=="N/A" && !isScheduled(b); });
+  var clear  = clearNormal.concat(handsOff); // hands-off ride in No Action
+  var total  = state.rows.length;
+
+  var counts = { action:action.length, needsempty:needsEmpty.length, monitor:monitorDown.length, scheduled:scheduled.length, stale:stale.length, clear:clear.length };
+  var pct = function(n){ return total? (n/total*100).toFixed(1) : 0; };
+
+  // ----- clickable scorecard: three grouped cards, icon badge over number -----
+  // Each half carries data-view (the existing bucket key) so all filtering
+  // behavior is unchanged. Inline SVG icons (no external font dependency).
+  var SC_IC = {
+    action:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg>',
+    needsempty:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="5" width="12" height="16" rx="2"/><path d="M9 5V4h6v1"/><path d="M9 13l2 2 4-4"/></svg>',
+    monitor:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M7 20h10M9 16v4M15 16v4"/></svg>',
+    stale:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="6"/><path d="M21 21l-5-5"/></svg>',
+    scheduled:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>',
+    clear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>'
+  };
+  var half = function(key, color, darkColor, tintBg, n, label){
+    var on = state.view===key;
+    return '<div class="score-half'+(on?' on':'')+'" data-view="'+key+'"'+
+      (on?' style="box-shadow:inset 0 -2px 0 0 '+color+';"':'')+'>'+
+      '<span class="score-badge" style="background:'+tintBg+';color:'+color+';">'+SC_IC[key]+'</span>'+
+      '<div class="score-half-n" style="color:'+(on?darkColor:color)+';">'+n+'</div>'+
+      '<div class="score-half-l">'+label+'</div>'+
+    '</div>';
+  };
+  var group = function(caption, inner){
+    return '<div><div class="score-cap">'+caption+'</div>'+
+      '<div class="score-btn">'+inner+'</div></div>';
+  };
+  // total + search now live in the top header card (headerTools slot)
+  document.getElementById("headerTools").innerHTML =
+    (state.searchOpen
+      ? '<div class="search-box"><i class="search-ico">⌕</i><input type="text" id="searchInput" placeholder="Search box #, site, hauler…" value="'+esc(state.search)+'" autocomplete="off"><button class="search-x" id="searchClose" aria-label="Close search">×</button></div>'
+      : '<span class="score-total">'+total+' total</span><button class="search-btn" id="searchOpen" aria-label="Search boxes" title="Search boxes">⌕</button>'
+    );
+  document.getElementById("summary").outerHTML =
+    '<div class="scorecard" id="summary">'+
+      '<div class="score-groups">'+
+        group("needs action",
+          half("action","#A32D2D","#A32D2D","#FCEBEB",counts.action,"schedule service")+
+          half("needsempty","#0F8C86","#0F6E56","#E1F5EE",counts.needsempty,"record empty"))+
+        group("equipment concerns",
+          half("monitor","#5B6470","#444441","#F1EFE8",counts.monitor,"monitor down")+
+          half("stale","#BA7517","#854F0B","#FAEEDA",counts.stale,"stale scans"))+
+        group("informational",
+          half("scheduled","#378ADD","#185FA5","#E6F1FB",counts.scheduled,"scheduled")+
+          half("clear","#639922","#3B6D11","#EAF3DE",counts.clear,"no action"))+
+      '</div>'+
+    '</div>';
+
+  var html = "";
+  var q = state.search.trim().toLowerCase();
+
+  // ----- SEARCH: flat list of matches across ALL boxes, each tagged with its bucket -----
+  if(q){
+    var matches = state.rows.filter(function(b){
+      if(b.need==="N/A") return false; // skip inactive
+      return (("#"+b.id).indexOf(q)!==-1) ||
+             (b.id.toLowerCase().indexOf(q)!==-1) ||
+             (b.fullDesc.toLowerCase().indexOf(q)!==-1) ||
+             (b.desc.toLowerCase().indexOf(q)!==-1) ||
+             (b.haulCode.toLowerCase().indexOf(q)!==-1);
+    });
+    if(matches.length===0){
+      html += '<div class="empty-state" style="padding:40px 20px;"><div class="big">No matches</div>Nothing matches “'+esc(state.search)+'”. Try a box number, site name, or hauler code.</div>';
+    } else {
+      html += '<div class="section-note">'+matches.length+' match'+(matches.length===1?'':'es')+' for “'+esc(state.search)+'” · across all boxes</div>';
+      html += '<div class="plain-list">'+ matches.map(function(b){ return rowHtml(b, false, bucketOf(b)); }).join("") +'</div>';
+    }
+    listEl.innerHTML = html;
+    wireRows();
+    wireScorecard();
+    wireSearch();
+    return;
+  }
+
+  if(state.view === "action"){
+    if(action.length === 0){
+      html += '<div class="empty-state" style="padding:40px 20px;"><div class="big">Nothing needs action</div>Every box is below trigger or already handled. Check stale scans for boxes that stopped cycling.</div>';
+    } else {
+      var groups = {};
+      action.forEach(function(b){ var k=b.haulCode||"—"; (groups[k]=groups[k]||[]).push(b); });
+      var keys = Object.keys(groups).sort(function(a,b){
+        var d = groups[b].length - groups[a].length; return d!==0 ? d : a.localeCompare(b);
+      });
+      keys.forEach(function(k){
+        var boxes = groups[k];
+        if(boxes.length === 1) html += '<div class="solo">'+ rowHtml(boxes[0], isMissed(boxes[0])) +'</div>';
+        else html += folderHtml(k, boxes);
+      });
+    }
+  }
+  else if(state.view === "scheduled"){
+    var overdue = scheduled.filter(isSchedOverdue);
+    var upcoming = scheduled.filter(function(b){ return !isSchedOverdue(b); });
+    overdue.sort(function(a,b){ return (schedAgeDays(b)||0) - (schedAgeDays(a)||0); }); // most overdue first
+    upcoming.sort(function(a,b){
+      var ad=a.scheduledDate?new Date(a.scheduledDate):new Date(8640000000000000);
+      var bd=b.scheduledDate?new Date(b.scheduledDate):new Date(8640000000000000);
+      return ad-bd; // soonest first
+    });
+    if(scheduled.length === 0){
+      html += '<div class="empty-state" style="padding:40px 20px;"><div class="big">Nothing scheduled</div>No boxes currently show a scheduled pickup in CES.</div>';
+    } else {
+      // sub-tab as a folder tab: active tab colored (red=past due, blue=upcoming),
+      // inactive tab outlined + transparent, body neutral. Shows one subset.
+      var stab = state.schedTab;
+      if(stab!=="overdue" && stab!=="upcoming") stab = overdue.length ? "overdue" : "upcoming";
+      if(stab==="overdue" && !overdue.length) stab = "upcoming";
+      if(stab==="upcoming" && !upcoming.length && overdue.length) stab = "overdue";
+      var odActive = stab==="overdue";
+      html += '<div class="sfold">'+
+        '<div class="sfold-tabs">'+
+          '<button class="sfold-tab" data-schedtab="overdue" style="'+(odActive
+              ? "background:#FCEBEB;color:#A32D2D;border-color:#E4A0A0;"
+              : "background:transparent;color:#A87A7A;border-color:#EAC3C3;")+'">past due <span class="stab-n">'+overdue.length+'</span></button>'+
+          '<button class="sfold-tab" data-schedtab="upcoming" style="'+(!odActive
+              ? "background:#E6F1FB;color:#185FA5;border-color:#93BCE6;"
+              : "background:transparent;color:#7892A8;border-color:#C4DAF0;")+'">upcoming <span class="stab-n">'+upcoming.length+'</span></button>'+
+        '</div>'+
+        '<div class="sfold-body">'+
+          (odActive?overdue:upcoming).map(function(b){ return scheduledRowHtml(b, odActive); }).join("")+
+        '</div>'+
+      '</div>';
+    }
+  }
+  else if(state.view === "stale"){
+    stale.sort(function(a,b){
+      var ah=a.lastCycle==null?Infinity:a.lastCycle, bh=b.lastCycle==null?Infinity:b.lastCycle; return ah-bh;
+    });
+    if(stale.length === 0){
+      html += '<div class="empty-state" style="padding:40px 20px;"><div class="big">No stale scans</div>Every box is cycling normally.</div>';
+    } else {
+      html += '<div class="plain-list">'+ stale.map(function(b){ return staleRowHtml(b); }).join("") +'</div>';
+    }
+  }
+  else if(state.view === "needsempty"){
+    needsEmpty.sort(function(a,b){ return String(a.id).localeCompare(String(b.id), undefined, {numeric:true}); });
+    if(needsEmpty.length === 0){
+      html += '<div class="empty-state" style="padding:40px 20px;"><div class="big">Nothing to record</div>No box has an un-recorded empty right now.</div>';
+    } else {
+      html += '<div class="plain-list">'+ needsEmpty.map(function(b){ return needsEmptyRowHtml(b); }).join("") +'</div>';
+    }
+  }
+  else if(state.view === "monitor"){
+    // Longest-down first: boxes whose previous entry is also the sentinel
+    // (dark 2+ cycles) lead, then the rest, each by box id.
+    monitorDown.sort(function(a,b){
+      if(a.monitorPrevSentinel !== b.monitorPrevSentinel) return a.monitorPrevSentinel ? -1 : 1;
+      return String(a.id).localeCompare(String(b.id), undefined, {numeric:true});
+    });
+    if(monitorDown.length === 0){
+      html += '<div class="empty-state" style="padding:40px 20px;"><div class="big">No monitors down</div>Every box is reporting data. Nothing shows the 75000 sentinel.</div>';
+    } else {
+      html += '<div class="plain-list">'+ monitorDown.map(function(b){ return monitorRowHtml(b); }).join("") +'</div>';
+    }
+  }
+  else { // clear (No Action) - normal cycling-fine boxes, then hands-off
+    clearNormal.sort(function(a,b){ return (b.pct==null?-1:b.pct) - (a.pct==null?-1:a.pct); });
+    html += '<div class="plain-list">'+ clearNormal.map(function(b){ return rowHtml(b, false); }).join("") +'</div>';
+    if(handsOff.length){
+      handsOff.sort(function(a,b){ return String(a.id).localeCompare(String(b.id), undefined, {numeric:true}); });
+      html += '<div class="plain-list">'+ handsOff.map(function(b){ return handsOffRowHtml(b); }).join("") +'</div>';
+    }
+  }
+
+  listEl.innerHTML = html;
+  wireRows();
+  wireScorecard();
+  wireSearch();
+}
+
+function wireScorecard(){
+  document.querySelectorAll('.score-tab, .score-seg, .score-half').forEach(function(el){
+    el.addEventListener("click", function(){
+      state.view = el.getAttribute("data-view");
+      state.openId = null;
+      // switching bucket clears an active search
+      state.search = ""; state.searchOpen = false;
+      render();
+    });
+  });
+  document.querySelectorAll('.sfold-tab').forEach(function(el){
+    el.addEventListener("click", function(){
+      state.schedTab = el.getAttribute("data-schedtab");
+      state.openId = null;
+      render();
+    });
+  });
+}
+
+function wireSearch(){
+  var openBtn = document.getElementById("searchOpen");
+  if(openBtn) openBtn.addEventListener("click", function(){ state.searchOpen = true; render(); setTimeout(function(){ var i=document.getElementById("searchInput"); if(i) i.focus(); }, 0); });
+  var input = document.getElementById("searchInput");
+  if(input){
+    input.addEventListener("input", function(){ state.search = input.value; updateResults(); });
+  }
+  var closeBtn = document.getElementById("searchClose");
+  if(closeBtn) closeBtn.addEventListener("click", function(){ state.search=""; state.searchOpen=false; render(); });
+}
+
+// Update ONLY the results list as the user types — leaves the scorecard and
+// its focused search input untouched so typing never loses focus.
+function updateResults(){
+  var listEl = document.getElementById("list");
+  var q = state.search.trim().toLowerCase();
+  var html = "";
+  if(q){
+    var matches = state.rows.filter(function(b){
+      if(b.need==="N/A") return false;
+      return (("#"+b.id).indexOf(q)!==-1) || (b.id.toLowerCase().indexOf(q)!==-1) ||
+             (b.fullDesc.toLowerCase().indexOf(q)!==-1) || (b.desc.toLowerCase().indexOf(q)!==-1) ||
+             (b.haulCode.toLowerCase().indexOf(q)!==-1);
+    });
+    if(matches.length===0){
+      html = '<div class="empty-state" style="padding:40px 20px;"><div class="big">No matches</div>Nothing matches “'+esc(state.search)+'”. Try a box number, site name, or hauler code.</div>';
+    } else {
+      html = '<div class="section-note">'+matches.length+' match'+(matches.length===1?'':'es')+' for “'+esc(state.search)+'” · across all boxes</div>'+
+             '<div class="plain-list">'+ matches.map(function(b){ return rowHtml(b, false, bucketOf(b)); }).join("") +'</div>';
+    }
+    listEl.innerHTML = html;
+    wireRows();
+  } else {
+    // search cleared but box still open — full re-render to restore bucket view
+    render();
+  }
+}
+
+/* a scheduled-pickup row: leads with the scheduled date, not a fill bar */
+function scheduledRowHtml(b, overdue){
+  var open = state.openId === b.id;
+  var when = b.scheduledDate ? shortDay(b.scheduledDate) : "date unknown";
+  return ''+
+    '<div class="row sched-row'+(open?' open':'')+'" data-id="'+esc(b.id)+'">'+
+      '<div class="edge" style="background:'+(overdue?'#A32D2D':'#378ADD')+';"></div>'+
+      '<div class="row-main">'+
+        '<div class="row-name">'+esc(b.desc)+'</div>'+
+        '<div class="row-meta"><span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span> · '+esc(b.haulCode)+' · '+esc(b.channel)+'</span></div>'+
+      '</div>'+
+      '<div class="fill-wrap reason '+(overdue?'reason-overdue':'reason-sched-pickup')+'">'+
+        '<div class="reason-label">'+(overdue?'past due':'pickup '+esc(when))+'</div>'+
+        '<div class="reason-detail">'+(overdue?'pickup was '+esc(when)+' · verify':'scheduled in CES')+'</div>'+
+      '</div>'+
+      '<div class="chev">▾</div>'+
+    '</div>'+
+    detailHtml(b);
+}
+
+/* a stale-scan row: leads with how recently it stopped, not a fill bar */
+function staleRowHtml(b){
+  var open = state.openId === b.id;
+  var fresh = (b.lastCycle!=null && b.lastCycle < 72); // stopped within ~3 days = likely a real break
+  return ''+
+    '<div class="row stale-row'+(open?' open':'')+'" data-id="'+esc(b.id)+'">'+
+      '<div class="edge" style="background:'+(fresh?'#E24B4A':'#B4B2A9')+';"></div>'+
+      '<div class="row-main">'+
+        '<div class="row-name">'+esc(b.desc)+'</div>'+
+        '<div class="row-meta"><span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span> · '+esc(b.haulCode)+' · '+esc(b.channel)+'</span>'+
+          (fresh?'<span class="fresh-tag">just stopped</span>':'')+
+        '</div>'+
+      '</div>'+
+      '<div class="fill-wrap reason reason-stale">'+
+        '<div class="reason-label">not cycling</div>'+
+        '<div class="reason-detail">'+esc(humanHours(b.lastCycle))+' since cycle</div>'+
+      '</div>'+
+      '<div class="chev">▾</div>'+
+    '</div>'+
+    detailHtml(b);
+}
+
+/* a monitor-down row: leads with the equipment problem, not a fill bar.
+   The fill % is deliberately NOT shown as a headline - it's a phantom. */
+function monitorRowHtml(b){
+  var open = state.openId === b.id;
+  var reason = monitorReasonText(b.monitorReason);
+  var detail = b.monitorPrevSentinel ? "dark 2+ cycles" : "just went dark";
+  return ''+
+    '<div class="row monitor-row'+(open?' open':'')+'" data-id="'+esc(b.id)+'">'+
+      '<div class="edge" style="background:#5B6470;"></div>'+
+      '<div class="row-main">'+
+        '<div class="row-name">'+esc(b.desc)+'</div>'+
+        '<div class="row-meta"><span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span> · '+esc(b.haulCode)+' · '+esc(b.channel)+'</span>'+
+          (reason?'<span class="monitor-reason-tag">'+esc(reason)+'</span>':'')+
+        '</div>'+
+      '</div>'+
+      '<div class="fill-wrap reason reason-monitor">'+
+        '<div class="reason-label">monitor down</div>'+
+        '<div class="reason-detail">'+esc(detail)+'</div>'+
+      '</div>'+
+      '<div class="chev">▾</div>'+
+    '</div>'+
+    detailHtml(b);
+}
+
+/* a needs-marking-empty row: the box just emptied and needs recording, not
+   service. Lead with "record empty" rather than the pre-empty fill %. */
+function needsEmptyRowHtml(b){
+  var open = state.openId === b.id;
+  return ''+
+    '<div class="row needsempty-row'+(open?' open':'')+'" data-id="'+esc(b.id)+'">'+
+      '<div class="edge" style="background:#0F8C86;"></div>'+
+      '<div class="row-main">'+
+        '<div class="row-name">'+esc(b.desc)+'</div>'+
+        '<div class="row-meta"><span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span> · '+esc(b.haulCode)+' · '+esc(b.channel)+'</span>'+
+          '<span class="needsempty-tag">just emptied</span>'+
+        '</div>'+
+      '</div>'+
+      '<div class="fill-wrap reason reason-needsempty">'+
+        '<div class="reason-label">record empty</div>'+
+        '<div class="reason-detail">not marked yet</div>'+
+      '</div>'+
+      '<div class="chev">▾</div>'+
+    '</div>'+
+    detailHtml(b);
+}
+
+/* a hands-off row: Dave does nothing for these, so lead with a muted
+   "no action" reason rather than the fill bar (which may be a real Myrna
+   reading or a phantom on the not-monitoring boxes). Gray, quiet. */
+function handsOffRowHtml(b){
+  var open = state.openId === b.id;
+  var kind = handsOffKind(b);
+  var tag = (kind==="myrna") ? "MYRNA \u00b7 hauler-scheduled" : "not monitored";
+  var detail = (kind==="myrna") ? "Myrna handles direct" : "box not monitoring";
+  return ''+
+    '<div class="row handsoff-row'+(open?' open':'')+'" data-id="'+esc(b.id)+'">'+
+      '<div class="edge" style="background:#A9AEB5;"></div>'+
+      '<div class="row-main">'+
+        '<div class="row-name">'+esc(b.desc)+'</div>'+
+        '<div class="row-meta"><span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span> · '+esc(b.haulCode)+' · '+esc(b.channel)+'</span>'+
+          '<span class="handsoff-tag">'+esc(tag)+'</span>'+
+        '</div>'+
+      '</div>'+
+      '<div class="fill-wrap reason reason-handsoff">'+
+        '<div class="reason-label">no action</div>'+
+        '<div class="reason-detail">'+esc(detail)+'</div>'+
+      '</div>'+
+      '<div class="chev">▾</div>'+
+    '</div>'+
+    detailHtml(b);
+}
+
+function folderHtml(haulCode, boxes){
+  var chanLabel = boxes[0].channel;
+  // sub-group by pickup date; boxes with no date go in "Needs scheduling"
+  var byDate = {}; var order = [];
+  boxes.forEach(function(b){
+    var key = b.puDate ? fmtDate(b.puDate) : "__none__";
+    if(!byDate[key]){ byDate[key] = { label: b.puDate?shortDay(b.puDate):"Needs scheduling", boxes:[], raw:b.puDate||"" }; order.push(key); }
+    byDate[key].boxes.push(b);
+  });
+  // order: needs-scheduling first, then dates ascending
+  order.sort(function(a,b){
+    if(a==="__none__") return -1; if(b==="__none__") return 1;
+    return new Date(byDate[a].raw) - new Date(byDate[b].raw);
+  });
+
+  var sel = state.dateSel[haulCode];
+  if(sel==null || order.indexOf(sel)===-1) sel = order[0];
+  state.dateSel[haulCode] = sel;
+
+  var tabs = order.map(function(key){
+    var g = byDate[key];
+    var isSel = key===sel;
+    return '<button class="date-pill'+(isSel?' sel':'')+'" data-haul="'+esc(haulCode)+'" data-date="'+esc(key)+'">'+esc(g.label)+' · '+g.boxes.length+'</button>';
+  }).join("");
+
+  var shownBoxes = byDate[sel].boxes;
+  var rowsHtml = shownBoxes.map(function(b){ return rowHtml(b, isMissed(b)); }).join("");
+
+  return ''+
+    '<div class="folder">'+
+      '<div><span class="folder-tab">📁 '+esc(haulCode)+' <span class="cnt">'+boxes.length+' boxes · '+esc(chanLabel)+'</span></span></div>'+
+      '<div class="folder-body">'+
+        '<div class="datebar">'+
+          '<div class="date-tabs"><span class="lbl">Pickup:</span>'+tabs+'</div>'+
+          '<span class="batch-dormant">batch email — coming soon</span>'+
+        '</div>'+
+        rowsHtml+
+      '</div>'+
+    '</div>';
+}
+
+/* ---------- missed-pickup heuristic (display only, Phase 1) ----------
+   A box is shown "missed" only when it has a confirmed pickup date that
+   is in the PAST and it still needs action. Real detection (comparing to
+   an actual empty event) is Phase 3 — this is a conservative display cue. */
+function isMissed(b){
+  if(!b.puDate || !b.confirmed) return false;
+  var d = new Date(b.puDate);
+  if(isNaN(d.getTime())) return false;
+  var today = new Date(); today.setHours(0,0,0,0);
+  d.setHours(0,0,0,0);
+  return d < today;
+}
+
+/* ---------- interactions ---------- */
+function wireRows(){
+  var listEl = document.getElementById("list");
+  // date pill switching
+  listEl.querySelectorAll(".date-pill").forEach(function(p){
+    p.addEventListener("click", function(e){
+      e.stopPropagation();
+      state.dateSel[p.getAttribute("data-haul")] = p.getAttribute("data-date");
+      render();
+    });
+  });
+  // row expand (accordion — one open at a time)
+  listEl.querySelectorAll(".row").forEach(function(rw){
+    rw.addEventListener("click", function(){
+      var id = rw.getAttribute("data-id");
+      state.openId = (state.openId===id) ? null : id;
+      render();
+    });
+  });
+}
+
+/* ---------- data load ---------- */
+function setBanner(msg, kind){
+  var b = document.getElementById("banner");
+  if(!msg){ b.className="banner"; b.innerHTML=""; return; }
+  b.className = "banner show "+(kind||"info");
+  b.innerHTML = msg;
+}
+
+function load(){
+  if(state.demo){ loadDemo(); return; }
+  document.getElementById("scanInfo").textContent = "Loading…";
+  document.getElementById("list").innerHTML = '<div class="empty-state"><span class="spinner"></span>Loading the latest scan…</div>';
+  setBanner("");
+  loadScan("latest");
+  fetchTabList();
+  fetchSetSchedule();
+}
+
+// Fetch each box's Column K "Set Schedule" value live from the Master Box
+// List (via the days_cycles endpoint's `s` field) so hands-off boxes can be
+// forced into No Action. Reads live, so a Column K edit reflects on next
+// load with no scan. Failure is non-fatal: the map stays empty and every
+// box just buckets normally (same as before this feature).
+function fetchSetSchedule(){
+  jsonp({ action:"days_cycles", key:KEY }, function(data){
+    if(data && data.ok && data.map){
+      var m = {};
+      Object.keys(data.map).forEach(function(id){
+        var entry = data.map[id];
+        var s = entry && entry.s;
+        if(s) m[normBoxId(id)] = s;
+      });
+      state.setSchedById = m;
+      if(!state.demo) render(); // re-classify now that Column K is known
+    }
+  });
+}
+
+// Load either the latest scan (action='latest') or a specific dated tab.
+function loadScan(which){
+  var params = (which==="latest") ? { action:"latest", key:KEY } : { action:"tab", name:which, key:KEY };
+  document.getElementById("list").innerHTML = '<div class="empty-state"><span class="spinner"></span>Loading scan…</div>';
+  jsonp(params, function(data){
+    if(!data || !data.ok){
+      var msg = (data && data.authRequired) ? "Access code was rejected by the server." : (data && data.error) || "Could not load the scan.";
+      setBanner(msg, "err");
+      document.getElementById("scanInfo").textContent = "Couldn't load";
+      document.getElementById("list").innerHTML = '<div class="empty-state"><div class="big">Couldn\'t load the scan</div>'+esc(msg)+'</div>';
+      return;
+    }
+    state.scanTitle = data.scanTitle || data.sheetName || "";
+    state.currentTab = data.sheetName || (which==="latest"?null:which);
+    state.rows = (data.rows||[]).map(modelOf).filter(function(b){ return b.id; });
+    // Determine if this is the latest tab (first in the tab list, once we have it).
+    state.isLatest = (which==="latest") || (state.tabs.length>0 && state.currentTab===state.tabs[0]);
+    document.getElementById("scanInfo").textContent = formatScanMeta(state.scanTitle) || (state.currentTab||"");
+    updateDateNav();
+    updatePastBanner();
+    render();
+  });
+}
+
+// Fetch the list of available scan dates for the picker + prev/next.
+function fetchTabList(){
+  jsonp({ action:"list_tabs", key:KEY }, function(data){
+    if(data && data.ok && data.tabs){
+      state.tabs = data.tabs; // newest first
+      // now that we know the ordering, re-confirm isLatest for the current view
+      if(state.currentTab) state.isLatest = (state.currentTab === state.tabs[0]);
+      updateDateNav();
+      updatePastBanner();
+    }
+  });
+}
+
+// (Re)build the dropdown of available scan dates.
+function updateDateNav(){
+  var drop = document.getElementById("dateDrop");
+  if(drop){
+    drop.innerHTML = state.tabs.map(function(t, i){
+      var cur = (t===state.currentTab);
+      return '<div class="date-opt'+(cur?' cur':'')+'" data-tab="'+esc(t)+'">'+esc(scanDateShort(t))+
+             (i===0?'<span class="latest-pill">latest</span>':'')+'</div>';
+    }).join("") || '<div class="date-opt">No past scans found</div>';
+    drop.querySelectorAll(".date-opt[data-tab]").forEach(function(o){
+      o.addEventListener("click", function(){
+        state.dropOpen = false; drop.classList.remove("show");
+        state.openId = null;
+        loadScan(o.getAttribute("data-tab"));
+      });
+    });
+  }
+}
+
+// Short label for a tab name like "2026-07-06" -> "Mon 7-6-26".
+function scanDateShort(tabName){
+  var m = String(tabName).match(/(\d{4})-(\d{2})-(\d{2})/);
+  if(!m) return tabName;
+  var y=+m[1], mo=+m[2], d=+m[3];
+  var days=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  var dow = days[new Date(y,mo-1,d).getDay()];
+  var extra = tabName.replace(/^\d{4}-\d{2}-\d{2}\s*/,""); // keep any " (2)" suffix
+  return dow+" "+mo+"-"+d+"-"+String(y).slice(2)+(extra?" "+extra:"");
+}
+
+// Show/hide the "viewing past scan" banner (with its own back-to-latest).
+function updatePastBanner(){
+  var showPast = !state.isLatest && !state.demo && state.currentTab;
+  if(showPast){
+    setBanner('<div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">'+
+      '<span>Viewing a past scan — '+esc(scanDateShort(state.currentTab))+'. This is not today\'s live data.</span>'+
+      '<button id="bannerLatest" style="font-size:11px; font-weight:600; color:#fff; background:var(--green); border:none; padding:5px 12px; border-radius:14px; cursor:pointer;">Back to latest</button>'+
+      '</div>', "warn");
+    var bl = document.getElementById("bannerLatest");
+    if(bl) bl.addEventListener("click", function(){ state.openId=null; loadScan("latest"); });
+  } else if(!state.demo){
+    setBanner("");
+  }
+}
+
+/* ---------- demo data (states live data may not show) ---------- */
+function loadDemo(){
+  document.getElementById("scanInfo").textContent = "Demo data · not live";
+  setBanner("Showing demo data so you can see states the live scan may not have right now (phone/MYRNA, missed pickup). Click “Demo data” again to return to live.", "info");
+  var mk = function(o){ return o; };
+  state.rows = [
+    mk({id:"21",desc:"Metro National · 840 Gessner",fullDesc:"Metro National - (600) 840 Gessner Rd (40/RECYCLE) - Houston, TX 77024",haulCode:"C-600",channel:"email",pct:88,trig:62,lastCycle:12.2,days:71,daysTrig:null,cycles:242,cyclesTrig:200,advTokens:[],advRaw:"",need:"YES",notes:"",schDate:"",puDate:"",confirmed:false,datePullReq:""}),
+    mk({id:"22",desc:"Metro National · 945 Bunker Hill",fullDesc:"Metro National - (521) 945 Bunker Hill Rd",haulCode:"C-600",channel:"email",pct:55,trig:51,lastCycle:0.1,days:4,daysTrig:8,cycles:33,cyclesTrig:109,advTokens:[],advRaw:"",need:"YES",notes:"",schDate:"2026-07-08",puDate:"2026-07-09",confirmed:false,datePullReq:"2026-07-08"}),
+    mk({id:"89",desc:"Metro National · 9807 Katy Fwy",fullDesc:"Metro National - (602) 9807 Katy Freeway",haulCode:"C-600",channel:"email",pct:71,trig:81,lastCycle:3.7,days:1,daysTrig:58,cycles:5,cyclesTrig:259,advTokens:[],advRaw:"",need:"YES",notes:"",schDate:"2026-07-08",puDate:"2026-07-10",confirmed:true,datePullReq:"2026-07-08"}),
+    mk({id:"26",desc:"SPM Oil & Gas · 7708 Wyatt",fullDesc:"SPM Oil & Gas - 7708 Wyatt Dr [WOOD / 026]",haulCode:"506",channel:"email",pct:58,trig:50,lastCycle:12.9,days:19,daysTrig:31,cycles:51,cyclesTrig:42,advTokens:[],advRaw:"",need:"YES",notes:"",schDate:"2026-07-08",puDate:"2026-07-09",confirmed:true,datePullReq:"2026-07-08"}),
+    mk({id:"132",desc:"MYRNA · GM North #3 Cardboard",fullDesc:"MYRNA - GM / North #3 Cardboard",haulCode:"MYRNA",channel:"phone",pct:64,trig:50,lastCycle:8.4,days:13,daysTrig:5,cycles:244,cyclesTrig:125,advTokens:["SET SCHED"],advRaw:"",need:"YES",notes:"",schDate:"2026-07-08",puDate:"2026-07-09",confirmed:false,datePullReq:"2026-07-08"}),
+    mk({id:"139",desc:"Costco 1049 · State Hwy 276",fullDesc:"Costco 1049 - 1225 State Hwy 276 - Rockwall, TX",haulCode:"C-300",channel:"portal",pct:6,trig:41,lastCycle:0.4,days:1,daysTrig:7,cycles:26,cyclesTrig:230,advTokens:[],advRaw:"",need:"NO",notes:"",schDate:"",puDate:"",confirmed:false,datePullReq:""}),
+    mk({id:"20",desc:"Metro National · 9807 Katy Fwy",fullDesc:"Metro National - (602) 9807 Katy Freeway (25/TRASH) - Houston, TX 77079",haulCode:"C-600",channel:"email",pct:60.5,trig:70,lastCycle:3.1,days:15,daysTrig:35,cycles:119,cyclesTrig:161,advTokens:[],advRaw:"",need:"NO",notes:"SCHEDULED: CES shows a pickup scheduled for Wed 07/08",schDate:"",puDate:"",confirmed:false,datePullReq:"2026-07-06",scheduledPickup:true,scheduledDate:"2026-07-08"}),
+    mk({id:"57",desc:"Four Oaks · 1300 Post Oak",fullDesc:"Four Oaks [Trash] - 1300 Post Oak - Houston, TX 77056",haulCode:"810",channel:"email",pct:81,trig:41,lastCycle:0.9,days:6,daysTrig:8,cycles:52,cyclesTrig:277,advTokens:[],advRaw:"",need:"YES",notes:"Hauler confirmed Mon pickup",schDate:"2026-07-02",puDate:"2026-07-06",confirmed:true,datePullReq:"2026-07-02"})
+  ];
+  render();
+}
+
+/* ---------- boot ---------- */
+document.getElementById("refreshBtn").addEventListener("click", load);
+document.getElementById("demoBtn").addEventListener("click", function(){
+  state.demo = !state.demo;
+  this.classList.toggle("on", state.demo);
+  state.openId = null; state.dateSel = {};
+  if(!state.demo){ load(); }
+  else { loadDemo(); }
+});
+
+document.getElementById("dateLabel").addEventListener("click", function(e){
+  e.stopPropagation();
+  if(state.demo) return;
+  var drop = document.getElementById("dateDrop");
+  state.dropOpen = !state.dropOpen;
+  drop.classList.toggle("show", state.dropOpen);
+});
+// close dropdown on outside click
+document.addEventListener("click", function(){
+  if(state.dropOpen){ state.dropOpen=false; var d=document.getElementById("dateDrop"); if(d) d.classList.remove("show"); }
+});
+
+load();
+</script>
+</body>
+</html>
