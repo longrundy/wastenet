@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-monitor · build 2026-07-09-mobile · chip + mobile-responsive header/scorecard -->
+<!-- wastenet-monitor · build 2026-07-09-nodemo · chip + mobile + demo removed -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -268,7 +268,6 @@
         <div class="date-drop" id="dateDrop"></div>
       </div>
       <button class="btn ghost icon-btn" id="refreshBtn" aria-label="Refresh"><span id="refreshIcon">↻</span></button>
-      <button class="btn ghost" id="demoBtn">Demo</button>
     </div>
   </div>
 
@@ -297,7 +296,7 @@
 var API = "https://script.google.com/macros/s/AKfycbwc3siwl0OTP2O5WzNZCDn4cj3MDVRfcVxJW0TZtoPnAKLwhYSwmW_m1h7ib6Yf_Dvk9w/exec";
 var KEY = "TRA$H";
 
-var state = { rows: [], scanTitle: "", demo: false, openId: null, dateSel: {}, staleOpen: false, view: "action",
+var state = { rows: [], scanTitle: "", openId: null, dateSel: {}, staleOpen: false, view: "action",
   tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, schedTab: null };
 
 /* ---------- JSONP ---------- */
@@ -1360,7 +1359,6 @@ function setBanner(msg, kind){
 }
 
 function load(){
-  if(state.demo){ loadDemo(); return; }
   document.getElementById("scanInfo").textContent = "Loading…";
   document.getElementById("list").innerHTML = '<div class="empty-state"><span class="spinner"></span>Loading the latest scan…</div>';
   setBanner("");
@@ -1389,7 +1387,7 @@ function fetchSetSchedule(){
       });
       state.setSchedById = m;
       state.schedRuleById = rules;
-      if(!state.demo) render(); // re-classify + re-render now that K/rule are known
+      render(); // re-classify + re-render now that K/rule are known
     }
   });
 }
@@ -1463,7 +1461,7 @@ function scanDateShort(tabName){
 
 // Show/hide the "viewing past scan" banner (with its own back-to-latest).
 function updatePastBanner(){
-  var showPast = !state.isLatest && !state.demo && state.currentTab;
+  var showPast = !state.isLatest && state.currentTab;
   if(showPast){
     setBanner('<div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">'+
       '<span>Viewing a past scan — '+esc(scanDateShort(state.currentTab))+'. This is not today\'s live data.</span>'+
@@ -1471,42 +1469,16 @@ function updatePastBanner(){
       '</div>', "warn");
     var bl = document.getElementById("bannerLatest");
     if(bl) bl.addEventListener("click", function(){ state.openId=null; loadScan("latest"); });
-  } else if(!state.demo){
+  } else {
     setBanner("");
   }
 }
 
-/* ---------- demo data (states live data may not show) ---------- */
-function loadDemo(){
-  document.getElementById("scanInfo").textContent = "Demo data · not live";
-  setBanner("Showing demo data so you can see states the live scan may not have right now (phone/MYRNA, missed pickup). Click “Demo data” again to return to live.", "info");
-  var mk = function(o){ return o; };
-  state.rows = [
-    mk({id:"21",desc:"Metro National · 840 Gessner",fullDesc:"Metro National - (600) 840 Gessner Rd (40/RECYCLE) - Houston, TX 77024",haulCode:"C-600",channel:"email",pct:88,trig:62,lastCycle:12.2,days:71,daysTrig:null,cycles:242,cyclesTrig:200,advTokens:[],advRaw:"",need:"YES",notes:"",schDate:"",puDate:"",confirmed:false,datePullReq:""}),
-    mk({id:"22",desc:"Metro National · 945 Bunker Hill",fullDesc:"Metro National - (521) 945 Bunker Hill Rd",haulCode:"C-600",channel:"email",pct:55,trig:51,lastCycle:0.1,days:4,daysTrig:8,cycles:33,cyclesTrig:109,advTokens:[],advRaw:"",need:"YES",notes:"",schDate:"2026-07-08",puDate:"2026-07-09",confirmed:false,datePullReq:"2026-07-08"}),
-    mk({id:"89",desc:"Metro National · 9807 Katy Fwy",fullDesc:"Metro National - (602) 9807 Katy Freeway",haulCode:"C-600",channel:"email",pct:71,trig:81,lastCycle:3.7,days:1,daysTrig:58,cycles:5,cyclesTrig:259,advTokens:[],advRaw:"",need:"YES",notes:"",schDate:"2026-07-08",puDate:"2026-07-10",confirmed:true,datePullReq:"2026-07-08"}),
-    mk({id:"26",desc:"SPM Oil & Gas · 7708 Wyatt",fullDesc:"SPM Oil & Gas - 7708 Wyatt Dr [WOOD / 026]",haulCode:"506",channel:"email",pct:58,trig:50,lastCycle:12.9,days:19,daysTrig:31,cycles:51,cyclesTrig:42,advTokens:[],advRaw:"",need:"YES",notes:"",schDate:"2026-07-08",puDate:"2026-07-09",confirmed:true,datePullReq:"2026-07-08"}),
-    mk({id:"132",desc:"MYRNA · GM North #3 Cardboard",fullDesc:"MYRNA - GM / North #3 Cardboard",haulCode:"MYRNA",channel:"phone",pct:64,trig:50,lastCycle:8.4,days:13,daysTrig:5,cycles:244,cyclesTrig:125,advTokens:["SET SCHED"],advRaw:"",need:"YES",notes:"",schDate:"2026-07-08",puDate:"2026-07-09",confirmed:false,datePullReq:"2026-07-08"}),
-    mk({id:"139",desc:"Costco 1049 · State Hwy 276",fullDesc:"Costco 1049 - 1225 State Hwy 276 - Rockwall, TX",haulCode:"C-300",channel:"portal",pct:6,trig:41,lastCycle:0.4,days:1,daysTrig:7,cycles:26,cyclesTrig:230,advTokens:[],advRaw:"",need:"NO",notes:"",schDate:"",puDate:"",confirmed:false,datePullReq:""}),
-    mk({id:"20",desc:"Metro National · 9807 Katy Fwy",fullDesc:"Metro National - (602) 9807 Katy Freeway (25/TRASH) - Houston, TX 77079",haulCode:"C-600",channel:"email",pct:60.5,trig:70,lastCycle:3.1,days:15,daysTrig:35,cycles:119,cyclesTrig:161,advTokens:[],advRaw:"",need:"NO",notes:"SCHEDULED: CES shows a pickup scheduled for Wed 07/08",schDate:"",puDate:"",confirmed:false,datePullReq:"2026-07-06",scheduledPickup:true,scheduledDate:"2026-07-08"}),
-    mk({id:"57",desc:"Four Oaks · 1300 Post Oak",fullDesc:"Four Oaks [Trash] - 1300 Post Oak - Houston, TX 77056",haulCode:"810",channel:"email",pct:81,trig:41,lastCycle:0.9,days:6,daysTrig:8,cycles:52,cyclesTrig:277,advTokens:[],advRaw:"",need:"YES",notes:"Hauler confirmed Mon pickup",schDate:"2026-07-02",puDate:"2026-07-06",confirmed:true,datePullReq:"2026-07-02"})
-  ];
-  render();
-}
-
 /* ---------- boot ---------- */
 document.getElementById("refreshBtn").addEventListener("click", load);
-document.getElementById("demoBtn").addEventListener("click", function(){
-  state.demo = !state.demo;
-  this.classList.toggle("on", state.demo);
-  state.openId = null; state.dateSel = {};
-  if(!state.demo){ load(); }
-  else { loadDemo(); }
-});
 
 document.getElementById("dateLabel").addEventListener("click", function(e){
   e.stopPropagation();
-  if(state.demo) return;
   var drop = document.getElementById("dateDrop");
   state.dropOpen = !state.dropOpen;
   drop.classList.toggle("show", state.dropOpen);
