@@ -1,11 +1,28 @@
 // ==UserScript==
 // @name         WasteNet Box Monitor Scan
 // @namespace    wastenet
-// @version      4.16
+// @version      4.17
 // @match        http://h1.ces-web.com/*
 // @match        https://h1.ces-web.com/*
 // @grant        none
 // ==/UserScript==
+//
+// v4.17 CHANGE: LAST-CYCLE THRESHOLD - added low-cadence ("rarely cycles")
+// awareness so genuinely low-volume boxes stop false-flagging as stale. The
+// v4.4 closed-day logic only helps boxes shut on SPECIFIC weekdays; a box like
+// #53 (Silver Eagle) that cycles a handful of times a MONTH across all days has
+// no "closed weekday" to detect, so the flat 24h rule forced YES at ~1.6 days.
+// Now computeLastCycleThreshold() also sizes a threshold to the box's OWN normal
+// gap between cycles (from the same Daily Cycle Count grid): average the box's
+// cycles/day over the complete weeks, and when it's genuinely low-volume, allow
+// ~2x its normal gap before forcing YES - bounded by a hard cap so a truly-dead
+// low-usage box still surfaces. The final threshold is the MAX of the closed-day
+// and cadence extensions (whichever gives more room - they are NOT stacked), and
+// falls back to the flat 24h when there are <4 complete weeks of grid history.
+// Applies to EVERY box, but only loosens low-volume ones (a box averaging >= 1
+// cycle/day keeps ~24h and is unaffected). Only the THRESHOLD changes - the
+// serviceNeeded assignments are untouched. Once a low-volume box is no longer
+// forced-YES, the dashboard drops it into No Action on its own.
 //
 // v4.16 CHANGE: NEEDS MARKING EMPTY - added a data-based "already recorded"
 // guard so a box whose empty is genuinely recorded no longer false-flags when
@@ -444,6 +461,16 @@
   const MAX_TIMEOUT_RETRIES = 1;
   const POLL_INTERVAL_MS = 150;
   const SCAN_CYCLES = 50;
+  // v4.17: low-cadence "last cycle" threshold. A box averaging fewer than
+  // LOW_CADENCE_MAX_PER_DAY cycles/day (over the complete cycle-grid weeks) is
+  // treated as low-volume; its not-cycling threshold is scaled to
+  // CADENCE_SLACK_MULT x its own average gap between cycles, capped at
+  // CADENCE_MAX_HOURS so a genuinely-dead low-usage box still surfaces. A box at
+  // or above the per-day rate is unaffected (its normal gap is under a day, so
+  // the scaled value stays around the flat 24h).
+  const LOW_CADENCE_MAX_PER_DAY = 1;   // must average < this many cycles/day to qualify
+  const CADENCE_SLACK_MULT = 2;        // allow ~2x the box's own normal gap before forcing YES
+  const CADENCE_MAX_HOURS = 24 * 10;   // hard cap (10 days) so a dead low-volume box still surfaces
   // v4.13: "needs marking empty" detection thresholds (first-pass; tuned
   // via --box before any bucket/sheet change). A box needs recording when
   // its NEWEST stretch is near-empty, it was high BEFORE that (a real drop),
@@ -591,9 +618,9 @@
   // cells); data rows run OLDEST to NEWEST top-to-bottom; the current
   // in-progress week's cells carry background-color:Yellow and are
   // excluded (their future days read 0 and would poison the vote).
-  // Returns a Set of closed weekday column indices (0=Mon .. 6=Sun),
-  // or null when there are fewer than 4 complete weeks to vote with.
-  function getClosedWeekdayColumns() {
+  // v4.17: the grid parse is factored into getCompleteWeeks() so both the
+  // closed-day vote and the low-cadence calc read the same data.
+  function getCompleteWeeks() {
     const table = document.getElementById('CycleCount1_CycleCountGridView');
     if (!table) return null;
     const completeWeeks = [];
@@ -608,6 +635,14 @@
       if (counts.some((n) => isNaN(n))) continue;
       completeWeeks.push(counts);
     }
+    return completeWeeks;
+  }
+
+  // Returns a Set of closed weekday column indices (0=Mon .. 6=Sun),
+  // or null when there are fewer than 4 complete weeks to vote with.
+  function getClosedWeekdayColumns() {
+    const completeWeeks = getCompleteWeeks();
+    if (!completeWeeks) return null;
     if (completeWeeks.length < 4) return null;
     const closed = new Set();
     for (let col = 0; col < 7; col++) {
@@ -620,25 +655,63 @@
     return closed;
   }
 
-  // Option B threshold: 24h base, +24h for each CONSECUTIVE closed day
-  // walking backward from yesterday (capped at 6 - a box "closed" all
-  // 7 days would otherwise loop forever, and such a box is exactly the
-  // kind that deserves a look anyway). Returns
-  // { thresholdHours, closedDaysCounted, gridUsable }.
+  // v4.17: low-cadence ("rarely cycles") threshold in hours. A box that
+  // normally rests several days between cycles shouldn't be forced-YES the
+  // moment it crosses 24h. From the same grid, average the box's cycles/day
+  // over the complete weeks; when that rate is genuinely low, its NORMAL gap
+  // between cycles is long, so scale the threshold to CADENCE_SLACK_MULT x that
+  // gap, capped at CADENCE_MAX_HOURS. Returns 24 (no change) when there isn't
+  // enough history, the box has no cycles at all, or the box isn't low-volume.
+  function computeCadenceThresholdHours() {
+    const completeWeeks = getCompleteWeeks();
+    if (!completeWeeks || completeWeeks.length < 4) return 24; // not enough history
+    let totalCycles = 0;
+    for (const week of completeWeeks) {
+      for (const n of week) totalCycles += n;
+    }
+    const totalDays = completeWeeks.length * 7;
+    if (totalCycles <= 0) return 24; // no cycles recorded - leave the flat rule
+    const avgPerDay = totalCycles / totalDays;
+    if (avgPerDay >= LOW_CADENCE_MAX_PER_DAY) return 24; // busy box - unaffected
+    const normalGapDays = totalDays / totalCycles;        // avg days between cycles
+    const thresholdHours = normalGapDays * CADENCE_SLACK_MULT * 24;
+    return Math.min(thresholdHours, CADENCE_MAX_HOURS);   // bounded
+  }
+
+  // Combined "last cycle" threshold. Takes the MORE LENIENT of two extensions -
+  // they are NOT stacked:
+  //   - closed-day (v4.4): 24h base + 24h per CONSECUTIVE closed weekday walking
+  //     backward from yesterday (capped at 6).
+  //   - low-cadence (v4.17): sized to the box's own average gap between cycles.
+  // Falls back to a flat 24h when the grid has <4 complete weeks. Returns
+  // { thresholdHours, closedDaysCounted, cadenceThresholdHours, thresholdSource,
+  //   gridUsable }.
   function computeLastCycleThreshold() {
     const closed = getClosedWeekdayColumns();
-    if (!closed || closed.size === 0) {
-      return { thresholdHours: 24, closedDaysCounted: 0, gridUsable: !!closed };
+    const gridUsable = !!closed;
+    let closedExtra = 0;
+    if (closed && closed.size > 0) {
+      for (let i = 1; i <= 6; i++) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const col = (d.getDay() + 6) % 7; // JS 0=Sun..6=Sat -> grid 0=Mon..6=Sun
+        if (closed.has(col)) closedExtra++;
+        else break;
+      }
     }
-    let extra = 0;
-    for (let i = 1; i <= 6; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const col = (d.getDay() + 6) % 7; // JS 0=Sun..6=Sat -> grid 0=Mon..6=Sun
-      if (closed.has(col)) extra++;
-      else break;
-    }
-    return { thresholdHours: 24 * (1 + extra), closedDaysCounted: extra, gridUsable: true };
+    const closedThreshold = 24 * (1 + closedExtra);
+    const cadenceThreshold = computeCadenceThresholdHours();
+    const thresholdHours = Math.max(closedThreshold, cadenceThreshold);
+    const thresholdSource = cadenceThreshold > closedThreshold
+      ? 'cadence'
+      : (closedExtra > 0 ? 'closed-days' : 'flat-24h');
+    return {
+      thresholdHours,
+      closedDaysCounted: closedExtra,
+      cadenceThresholdHours: Math.round(cadenceThreshold),
+      thresholdSource,
+      gridUsable,
+    };
   }
 
   // ---- v4.4: Days & Cycles advisory page readers ----
@@ -2182,9 +2255,11 @@
     const thresholdInfo = computeLastCycleThreshold();
     const LAST_CYCLE_THRESHOLD_HOURS = thresholdInfo.thresholdHours;
     if (lastCycleHours !== null && lastCycleHours > LAST_CYCLE_THRESHOLD_HOURS) {
-      const thresholdNote = thresholdInfo.closedDaysCounted > 0
-        ? '>' + LAST_CYCLE_THRESHOLD_HOURS + 'h threshold, extended for ' + thresholdInfo.closedDaysCounted + ' detected closed day(s)'
-        : '>' + LAST_CYCLE_THRESHOLD_HOURS + 'h / 1 day' + (thresholdInfo.gridUsable ? '' : ' - flat rule, <4 weeks of cycle-grid history');
+      const thresholdNote = thresholdInfo.thresholdSource === 'cadence'
+        ? '>' + LAST_CYCLE_THRESHOLD_HOURS + 'h threshold, sized to this box\'s low cycle cadence'
+        : thresholdInfo.closedDaysCounted > 0
+          ? '>' + LAST_CYCLE_THRESHOLD_HOURS + 'h threshold, extended for ' + thresholdInfo.closedDaysCounted + ' detected closed day(s)'
+          : '>' + LAST_CYCLE_THRESHOLD_HOURS + 'h / 1 day' + (thresholdInfo.gridUsable ? '' : ' - flat rule, <4 weeks of cycle-grid history');
       state.pendingResult = {
         boxId: boxEntry ? boxEntry.boxId : boxId,
         cell: boxEntry ? boxEntry.cell : '',
@@ -2207,8 +2282,11 @@
       phase4_resetScanCycles(state);
       return;
     }
-    if (lastCycleHours !== null && lastCycleHours > 24 && thresholdInfo.closedDaysCounted > 0) {
-      log(`Box ${boxId}: Last Cycle ${Math.round(lastCycleHours * 10) / 10}h suppressed by closed-day threshold (${LAST_CYCLE_THRESHOLD_HOURS}h, ${thresholdInfo.closedDaysCounted} closed day(s)) - reading chart normally.`);
+    if (lastCycleHours !== null && lastCycleHours > 24 && LAST_CYCLE_THRESHOLD_HOURS > 24) {
+      const why = thresholdInfo.thresholdSource === 'cadence'
+        ? 'low-cadence threshold (' + LAST_CYCLE_THRESHOLD_HOURS + 'h, sized to this box\'s own cycle rhythm)'
+        : 'closed-day threshold (' + LAST_CYCLE_THRESHOLD_HOURS + 'h, ' + thresholdInfo.closedDaysCounted + ' closed day(s))';
+      log(`Box ${boxId}: Last Cycle ${Math.round(lastCycleHours * 10) / 10}h suppressed by ${why} - reading chart normally.`);
     }
 
     let analysisResult = null;
