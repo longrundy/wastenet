@@ -167,6 +167,7 @@
   .step.done .chk{color:var(--green-dark); font-weight:700; font-size:11px; line-height:1;}
   .step.todo{color:var(--ink-3);}
   .step-sep{color:var(--ink-3); font-size:14px; font-weight:600; margin:0 1px;}
+  .sug-chip{display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; color:var(--green-darker); background:var(--green-tint); border:0.5px solid var(--green-border); padding:2px 8px; border-radius:20px; white-space:nowrap;}
 
   /* fill bar */
   .fill-wrap{flex:0 0 100px;}
@@ -279,7 +280,7 @@ var API = "https://script.google.com/macros/s/AKfycbwc3siwl0OTP2O5WzNZCDn4cj3MDV
 var KEY = "TRA$H";
 
 var state = { rows: [], scanTitle: "", demo: false, openId: null, dateSel: {}, staleOpen: false, view: "action",
-  tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedTab: null };
+  tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, schedTab: null };
 
 /* ---------- JSONP ---------- */
 function jsonp(params, cb){
@@ -308,16 +309,22 @@ function toNum(v){ if(v===""||v==null) return null; var n=Number(v); return isNa
 function abbrev(desc){
   if(!desc) return "(no description)";
   var d = String(desc);
+  var acctM = d.match(/\((\d{2,5})\)/);            // account/unit number, e.g. (601)
+  var acct = acctM ? acctM[1] : "";
   // strip trailing bracket codes and "Formerly" tails
   d = d.replace(/\s*\[[^\]]*\]\s*/g, " ").replace(/\s*-\s*Formerly.*$/i,"").trim();
   // take before the first " - " (usually customer + unit), fall back to whole
   var parts = d.split(" - ");
   var head = parts[0].trim();
+  var appendedLoc = false;
   // if there's a street-ish second part, append a shortened form
   if(parts.length > 1){
-    var loc = parts[1].replace(/,.*$/,"").trim(); // drop city/state tail
-    if(loc && loc.length <= 26) head = head + " · " + loc;
+    var loc = parts[1].replace(/,.*$/,"").replace(/^\(\d{2,5}\)\s*/,"").trim(); // drop city/state + leading acct
+    if(loc && loc.length <= 26){ head = head + " · " + loc; appendedLoc = true; }
   }
+  // when the name would otherwise stand alone, append the account number so
+  // same-named sites (e.g. two "Metro National"s) are distinguishable
+  if(acct && !appendedLoc) head = head + " · " + acct;
   return head.length > 46 ? head.slice(0,44).trim() + "…" : head;
 }
 
@@ -380,6 +387,132 @@ function shortDay(v){
   return days[d.getDay()]+" "+mo[d.getMonth()]+" "+d.getDate();
 }
 function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+/* ---------- suggested pickup date ----------
+   Ported VERBATIM from the ops dashboard (index.html) so the two views can
+   never disagree on a suggested date. Same NBD/1-BD/2-BD interpretation, same
+   core-6 holiday set, same observed-date shifting. When the email/notification
+   tool is built, it should call suggestedPickupFor() at SEND time rather than
+   re-implementing any of this — one place for the rule logic. */
+
+// Returns the nth occurrence of a given weekday in a month (or the LAST
+// occurrence when n is -1). weekday: 0=Sun...6=Sat. Used to compute floating
+// holidays (Memorial Day, Labor Day, Thanksgiving) without hardcoding dates.
+function nthWeekdayOfMonth(year, monthIndex, weekday, n){
+  if(n > 0){
+    var first = new Date(year, monthIndex, 1);
+    var day = 1 + ((weekday - first.getDay() + 7) % 7) + (n - 1) * 7;
+    return new Date(year, monthIndex, day);
+  }
+  var lastDay = new Date(year, monthIndex + 1, 0);
+  var d = lastDay.getDate() - ((lastDay.getDay() - weekday + 7) % 7);
+  return new Date(year, monthIndex, d);
+}
+
+// Shifts a fixed-date holiday landing on a weekend to the observed day:
+// Saturday -> Friday, Sunday -> Monday. Standard US business practice.
+function observedHolidayDate(date){
+  var dow = date.getDay();
+  var result = new Date(date);
+  if(dow === 6) result.setDate(result.getDate() - 1);
+  else if(dow === 0) result.setDate(result.getDate() + 1);
+  return result;
+}
+
+// The "core 6" holidays most waste haulers actually close for — deliberately
+// NOT the full federal list. Computed algorithmically so it never needs yearly
+// upkeep.
+function getCoreHolidaysForYear(year){
+  return [
+    observedHolidayDate(new Date(year, 0, 1)),   // New Year's Day
+    nthWeekdayOfMonth(year, 4, 1, -1),           // Memorial Day - last Mon of May
+    observedHolidayDate(new Date(year, 6, 4)),   // July 4th
+    nthWeekdayOfMonth(year, 8, 1, 1),            // Labor Day - 1st Mon of Sep
+    nthWeekdayOfMonth(year, 10, 4, 4),           // Thanksgiving - 4th Thu of Nov
+    observedHolidayDate(new Date(year, 11, 25))  // Christmas
+  ];
+}
+
+// Set of yyyy-MM-dd holiday strings spanning this year and next (so a count
+// crossing the year boundary still catches New Year's Day).
+function buildHolidaySet(year){
+  var dates = getCoreHolidaysForYear(year).concat(getCoreHolidaysForYear(year + 1));
+  return new Set(dates.map(toDateInputValue));
+}
+
+// Adds a number of BUSINESS days (skipping Sat/Sun and the core-6 holidays)
+// to a date and returns the resulting Date.
+function addBusinessDays(date, days, holidaySet){
+  var result = new Date(date);
+  var added = 0;
+  while(added < days){
+    result.setDate(result.getDate() + 1);
+    var dow = result.getDay();
+    var isWeekend = dow === 0 || dow === 6;
+    var isHoliday = holidaySet && holidaySet.has(toDateInputValue(result));
+    if(!isWeekend && !isHoliday) added++;
+  }
+  return result;
+}
+
+// yyyy-MM-dd for a Date (matches index.html: UTC getters resolve a local-
+// midnight date to the same calendar day in timezones behind UTC).
+function toDateInputValue(value){
+  if(!value) return "";
+  var d = new Date(value);
+  if(isNaN(d.getTime())) return "";
+  var yyyy = d.getUTCFullYear();
+  var mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  var dd = String(d.getUTCDate()).padStart(2, "0");
+  return yyyy + "-" + mm + "-" + dd;
+}
+
+// Turns a per-box Scheduling Rule ("NBD","1-BD","2-BD",...) into a suggested
+// Pick-Up Date computed from TODAY. "N-BD" = N business days ON TOP OF the
+// next-business-day baseline: NBD=+1, "1-BD"=+2, "2-BD"=+3. Business days skip
+// weekends AND the core-6 holidays (no awareness of one-off site closures —
+// same blind spot the scanner has). Returns null for unrecognized rules.
+function computeSuggestedPickupDate(rule){
+  if(!rule) return null;
+  var normalized = String(rule).trim().toUpperCase();
+  var businessDays = null;
+  if(normalized === "NBD"){
+    businessDays = 1;
+  } else {
+    var m = normalized.match(/^(\d+)-BD$/);
+    if(m) businessDays = parseInt(m[1], 10) + 1;
+  }
+  if(businessDays === null) return null;
+  var today = new Date();
+  today.setHours(0, 0, 0, 0);
+  var holidaySet = buildHolidaySet(today.getFullYear());
+  return addBusinessDays(today, businessDays, holidaySet);
+}
+
+// Single source of truth for the suggested pickup date on a box. The detail
+// panel is the first consumer today; the future email/notification tool should
+// call THIS (at send time) so subject line, body, and notifications all read
+// the exact same value. Resolves the box's Scheduling Rule (Master Box List,
+// days_cycles field `r`) from the live map. Returns { rule, date, value, label,
+// dateReq } or null when there's no rule or the rule string is unrecognized.
+function suggestedPickupFor(b){
+  var rule = (b && b.id && state.schedRuleById) ? state.schedRuleById[b.id] : null;
+  if(!rule) return null;
+  var d = computeSuggestedPickupDate(rule);
+  if(!d) return null;
+  return {
+    rule: rule,
+    date: d,                          // Date object
+    value: toDateInputValue(d),       // yyyy-MM-dd (form inputs / API payloads)
+    label: shortDay(d)                // "Mon Jul 13" (display)
+  };
+}
+
+// The suggested pickup date (row chip + detail-panel row) belongs ONLY on the
+// schedule-service page — scorecard "schedule service" == view "action" — and
+// not while searching across buckets. On monitor-down / stale / scheduled / no-
+// action it's misleading noise, so it's gated everywhere by this single check.
+function onSchedulePage(){ return state.view === "action" && !state.search.trim(); }
 
 // Format the scan title into "Tue 7-7-26 · 11:57 AM" — date and time only.
 // Input looks like "Scan completed: 2026-07-07 11:57" (may have extra tail).
@@ -470,6 +603,19 @@ function stepsHtml(b){
   return '<span class="steps">'+ step(scheduled,"Scheduled")+sep+ step(false,"Notified")+sep+ step(confirmed,"Confirmed") +'</span>';
 }
 
+/* ---------- suggested-pickup chip (schedule-service rows only) ----------
+   Trails after the Scheduled › Notified › Confirmed block so those three stay
+   anchored. Shows the same suggestedPickupFor() value as the detail panel — the
+   date Dave types into the portal. Empty string when the box has no usable
+   rule, so it simply doesn't render. Suppression on "Notified" happens once
+   that write-back exists (Phase 2); until then it shows for every action box. */
+function suggestedChipHtml(b){
+  var sug = suggestedPickupFor(b);
+  if(!sug) return "";
+  var cal = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto;"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg>';
+  return '<span class="sug-chip" title="Suggested pickup per '+esc(sug.rule)+'">'+cal+esc(sug.label)+'</span>';
+}
+
 /* ---------- why is this box on the action list? ----------
    A box can be flagged for service by fill, by days-overdue, by cycles,
    or by a set-schedule rule. When there's no fill reading, surface
@@ -547,6 +693,7 @@ function rowHtml(b, missed, bucketTag){
   } else {
     metaInner = '<span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span>'+
       (bucketTag? ' · '+esc(b.haulCode) : '')+' · '+esc(b.channel)+'</span>' + bTag + stepsHtml(b) +
+      (onSchedulePage() ? suggestedChipHtml(b) : "") +
       (alsoStale(b) ? '<span class="also-stale-tag">also not cycling</span>' : '');
   }
 
@@ -608,6 +755,15 @@ function detailHtml(b){
   if(b.advTokens.length) rows += '<div class="drow"><span class="dk">Schedule</span><span class="dv">'+esc(b.advTokens.join(" · "))+'</span></div>';
   if(b.puDate) rows += '<div class="drow"><span class="dk">Pickup date</span><span class="dv">'+esc(fmtDate(b.puDate))+'</span></div>';
   if(b.datePullReq) rows += '<div class="drow"><span class="dk">Date pull req\'d</span><span class="dv">'+esc(fmtDate(b.datePullReq))+'</span></div>';
+  // Suggested pickup date from the box's Scheduling Rule (days_cycles field r),
+  // computed off today's date via the shared suggestedPickupFor(). Display-only
+  // here — this same value will feed the email subject/body and notifications
+  // once that tool is wired. Shown ONLY on the schedule-service page (gated),
+  // and silently absent when there's no/unknown rule.
+  var sug = onSchedulePage() ? suggestedPickupFor(b) : null;
+  if(sug) rows += '<div class="drow"><span class="dk">Suggested pickup</span><span class="dv">'+
+    '<span style="color:var(--green-dark); font-weight:600;">'+esc(sug.label)+'</span>'+
+    '<span style="color:var(--ink-3); margin-left:7px;">per '+esc(sug.rule)+'</span></span></div>';
   if(b.notes) rows += '<div class="drow"><span class="dk">Notes</span><span class="dv">'+esc(b.notes)+'</span></div>';
   rows += '<div class="drow"><span class="dk">Full name</span><span class="dv">'+esc(b.fullDesc)+'</span></div>';
 
@@ -1203,14 +1359,19 @@ function load(){
 function fetchSetSchedule(){
   jsonp({ action:"days_cycles", key:KEY }, function(data){
     if(data && data.ok && data.map){
-      var m = {};
+      var m = {};      // Column K "Set Schedule" (field s) → hands-off matching
+      var rules = {};  // Scheduling Rule (field r) → suggested pickup date
       Object.keys(data.map).forEach(function(id){
         var entry = data.map[id];
+        var nid = normBoxId(id);
         var s = entry && entry.s;
-        if(s) m[normBoxId(id)] = s;
+        if(s) m[nid] = s;
+        var r = entry && entry.r;
+        if(r) rules[nid] = String(r).trim();
       });
       state.setSchedById = m;
-      if(!state.demo) render(); // re-classify now that Column K is known
+      state.schedRuleById = rules;
+      if(!state.demo) render(); // re-classify + re-render now that K/rule are known
     }
   });
 }
