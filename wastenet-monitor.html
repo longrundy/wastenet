@@ -29,6 +29,12 @@
   /* header bar (Option A) */
   /* merged top card - header + scorecard in one, sticky on scroll */
   .topcard{border:0.5px solid var(--line); border-radius:12px; background:var(--card); padding:12px 16px 15px; margin-bottom:16px; position:sticky; top:8px; z-index:30;}
+  /* Full-width page-colored strip fixed to the very top of the viewport,
+     shown only while the card is pinned. It fills the gap above the
+     sticky card (its 8px offset) so box rows scrolling underneath never
+     peek out over the top edge. z-index between the rows and the card. */
+  .top-mask{position:fixed; left:0; right:0; top:0; height:12px; background:var(--page); z-index:29; display:none; pointer-events:none;}
+  body.pinned .top-mask{display:block;}
   .header-bar{display:flex; align-items:center; justify-content:space-between; gap:12px;}
   .topcard .scorecard{border:none; border-radius:0; background:transparent; padding:0; margin:12px 0 0;}
   /* slim pinned state: JS adds .pinned once the card scrolls to the top */
@@ -270,7 +276,9 @@
 </style>
 </head>
 <body>
+<div class="top-mask"></div>
 <div class="wrap">
+  <div id="pinSentinel" style="height:0; margin:0; padding:0;"></div>
 
   <div class="topcard" id="topcard">
     <div class="header-bar">
@@ -1556,13 +1564,37 @@ document.addEventListener("click", function(){
 // to the sticky threshold (8px, matching the CSS `top:8px`).
 (function(){
   var tc = document.getElementById("topcard");
-  if(!tc) return;
-  var onScroll = function(){
-    var pinned = tc.getBoundingClientRect().top <= 9;
+  var sentinel = document.getElementById("pinSentinel");
+  if(!tc || !sentinel) return;
+  // Measure a FIXED sentinel above the card (not the card itself, which
+  // moves/shrinks when it pins - that self-reference is what caused the
+  // flicker: shrinking nudged the scroll, which un-pinned, which grew it,
+  // which re-pinned...). Plus hysteresis: pin once the sentinel is 8px
+  // above the top, but don't un-pin until it's back to 2px - the gap
+  // between the two thresholds stops the states oscillating at a single
+  // boundary. A rAF guard coalesces rapid scroll events into one update.
+  var pinned = false;
+  var ticking = false;
+  var apply = function(){
+    ticking = false;
+    var y = sentinel.getBoundingClientRect().top;
+    // Card seats at top:8px and the sentinel sits ~20px above it (wrap's
+    // top padding), so the sentinel is near -12px when the card visually
+    // pins. Pin at -12, un-pin at -6 - a 6px hysteresis band that brackets
+    // the seating point and stops any oscillation.
+    if(!pinned && y <= -12){ pinned = true; }
+    else if(pinned && y >= -6){ pinned = false; }
+    else return; // no state change
     tc.classList.toggle("pinned", pinned);
+    document.body.classList.toggle("pinned", pinned);
+  };
+  var onScroll = function(){
+    if(ticking) return;
+    ticking = true;
+    requestAnimationFrame(apply);
   };
   window.addEventListener("scroll", onScroll, { passive:true });
-  onScroll();
+  apply();
 })();
 
 load();
