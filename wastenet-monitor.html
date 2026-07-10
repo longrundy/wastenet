@@ -324,7 +324,7 @@ var API = "https://script.google.com/macros/s/AKfycbwc3siwl0OTP2O5WzNZCDn4cj3MDV
 var KEY = "TRA$H";
 
 var state = { rows: [], scanTitle: "", openId: null, dateSel: {}, staleOpen: false, view: "action",
-  tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, staffNotesById: {}, staffNotesUpdById: {}, notesOpenId: null, schedTab: null };
+  tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, staffNotesById: {}, staffNotesUpdById: {}, notesOpenId: null, schedTab: null, clearTab: null };
 
 /* ---------- JSONP ---------- */
 function jsonp(params, cb){
@@ -987,7 +987,14 @@ function render(){
   var stale  = allYes.filter(isStaleScan);
   var action = allYes.filter(function(b){ return !isStaleScan(b); });
   var clearNormal = notDown.filter(function(b){ return b.need.indexOf("YES")===-1 && b.need!=="N/A" && !isScheduled(b); });
-  var clear  = clearNormal.concat(handsOff); // hands-off ride in No Action
+  // Inactive boxes (need==="N/A" - descriptions starting X/Y/Z, retired).
+  // Previously these fell into NO bucket, so the six scorecard numbers
+  // summed to less than the total. They now ride in No Action (behind an
+  // "Inactive" sub-tab), which makes the six buckets reconcile exactly to
+  // the scan total. Pulled from the same notDown pool as clearNormal.
+  var inactive = notDown.filter(function(b){ return b.need==="N/A"; });
+  var clearActive = clearNormal.concat(handsOff); // hands-off ride in No Action's Active tab
+  var clear  = clearActive.concat(inactive);      // No Action = active + inactive combined
   var total  = state.rows.length;
 
   var counts = { action:action.length, needsempty:needsEmpty.length, monitor:monitorDown.length, scheduled:scheduled.length, stale:stale.length, clear:clear.length };
@@ -1174,13 +1181,46 @@ function render(){
       html += '<div class="plain-list">'+ monitorDown.map(function(b){ return monitorRowHtml(b); }).join("") +'</div>';
     }
   }
-  else { // clear (No Action) - normal cycling-fine boxes, then hands-off
+  else { // clear (No Action) - Active tab (cycling-fine + hands-off) and
+         // Inactive tab (retired X/Y/Z boxes), so every box in the total
+         // is reachable and the six buckets reconcile to the scan total.
     clearNormal.sort(function(a,b){ return (b.pct==null?-1:b.pct) - (a.pct==null?-1:a.pct); });
-    html += '<div class="plain-list">'+ clearNormal.map(function(b){ return rowHtml(b, false); }).join("") +'</div>';
-    if(handsOff.length){
-      handsOff.sort(function(a,b){ return String(a.id).localeCompare(String(b.id), undefined, {numeric:true}); });
-      html += '<div class="plain-list">'+ handsOff.map(function(b){ return handsOffRowHtml(b); }).join("") +'</div>';
+    handsOff.sort(function(a,b){ return String(a.id).localeCompare(String(b.id), undefined, {numeric:true}); });
+    inactive.sort(function(a,b){ return String(a.id).localeCompare(String(b.id), undefined, {numeric:true}); });
+    var activeCount = clearNormal.length + handsOff.length;
+
+    // Default to Active; fall back sensibly if one side is empty.
+    var ctab = state.clearTab;
+    if(ctab!=="active" && ctab!=="inactive") ctab = "active";
+    if(ctab==="active" && activeCount===0 && inactive.length) ctab = "inactive";
+    if(ctab==="inactive" && inactive.length===0) ctab = "active";
+    var actActive = ctab==="active";
+
+    html += '<div class="sfold">'+
+      '<div class="sfold-tabs">'+
+        '<button class="sfold-tab" data-cleartab="active" style="'+(actActive
+            ? "background:#EAF3DE;color:#3B6D11;border-color:#B7D98C;"
+            : "background:transparent;color:#7C9460;border-color:#CFE1B6;")+'">active <span class="stab-n">'+activeCount+'</span></button>'+
+        '<button class="sfold-tab" data-cleartab="inactive" style="'+(!actActive
+            ? "background:#F1EFE8;color:#444441;border-color:#C7C4B8;"
+            : "background:transparent;color:#8A877E;border-color:#DAD7CC;")+'">inactive <span class="stab-n">'+inactive.length+'</span></button>'+
+      '</div>'+
+      '<div class="sfold-body">';
+    if(actActive){
+      if(activeCount===0){
+        html += '<div class="empty-state" style="padding:32px 20px;"><div class="big">Nothing here</div>No active no-action boxes right now.</div>';
+      } else {
+        html += clearNormal.map(function(b){ return rowHtml(b, false); }).join("");
+        html += handsOff.map(function(b){ return handsOffRowHtml(b); }).join("");
+      }
+    } else {
+      if(inactive.length===0){
+        html += '<div class="empty-state" style="padding:32px 20px;"><div class="big">No inactive boxes</div>Every box in this scan is active.</div>';
+      } else {
+        html += inactive.map(function(b){ return rowHtml(b, false); }).join("");
+      }
     }
+    html += '</div></div>';
   }
 
   listEl.innerHTML = html;
@@ -1206,7 +1246,10 @@ function wireScorecard(){
   });
   document.querySelectorAll('.sfold-tab').forEach(function(el){
     el.addEventListener("click", function(){
-      state.schedTab = el.getAttribute("data-schedtab");
+      var st = el.getAttribute("data-schedtab");
+      var ct = el.getAttribute("data-cleartab");
+      if(st){ state.schedTab = st; }
+      if(ct){ state.clearTab = ct; }
       state.openId = null;
       render();
     });
