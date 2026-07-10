@@ -109,6 +109,7 @@
   .bt-monitor{background:#EAECEF; color:#47505C;}
   .bt-needsempty{background:#DDF2F0; color:#0C6E69;}
   .bt-handsoff{background:#EEF0F2; color:#4B5563;}
+  .bt-inactive{background:#F1EFE8; color:#5F5E5A;}
   .req-tag{font-size:10px; font-weight:500; color:#185FA5; background:#E6F1FB; padding:1px 7px; border-radius:12px;}
   .reason-sched-pickup .reason-label{color:#185FA5;}
   .reason-overdue .reason-label{color:#A32D2D;}
@@ -727,7 +728,7 @@ function rowHtml(b, missed, bucketTag){
   // In search results, tag which bucket the box lives in.
   var bTag = "";
   if(bucketTag){
-    var labels = { action:"schedule service", needsempty:"record empty", handsoff:"hands-off", monitor:"monitor down", scheduled:"scheduled", stale:"stale", clear:"clear" };
+    var labels = { action:"schedule service", needsempty:"record empty", handsoff:"hands-off", monitor:"monitor down", scheduled:"scheduled", stale:"stale", clear:"clear", inactive:"inactive" };
     bTag = '<span class="bucket-tag bt-'+bucketTag+'">'+labels[bucketTag]+'</span>';
   }
 
@@ -961,6 +962,7 @@ function monitorReasonText(code){
 }
 // Which bucket a box belongs to (for search-result tags). Hands-off first.
 function bucketOf(b){
+  if(b.need==="N/A") return "inactive";
   if(isHandsOff(b)) return "handsoff";
   if(isNeedsEmpty(b)) return "needsempty";
   if(isMonitorDown(b)) return "monitor";
@@ -1080,7 +1082,9 @@ function render(){
   // ----- SEARCH: flat list of matches across ALL boxes, each tagged with its bucket -----
   if(q){
     var matches = state.rows.filter(function(b){
-      if(b.need==="N/A") return false; // skip inactive
+      // Inactive (N/A) boxes ARE searchable - if a box is in the scan you
+      // should be able to find it. They're tagged with their bucket in the
+      // results (bucketOf handles N/A), so results still show what each is.
       return (("#"+b.id).indexOf(q)!==-1) ||
              (b.id.toLowerCase().indexOf(q)!==-1) ||
              (b.fullDesc.toLowerCase().indexOf(q)!==-1) ||
@@ -1284,7 +1288,6 @@ function updateResults(){
   var html = "";
   if(q){
     var matches = state.rows.filter(function(b){
-      if(b.need==="N/A") return false;
       return (("#"+b.id).indexOf(q)!==-1) || (b.id.toLowerCase().indexOf(q)!==-1) ||
              (b.fullDesc.toLowerCase().indexOf(q)!==-1) || (b.desc.toLowerCase().indexOf(q)!==-1) ||
              (b.haulCode.toLowerCase().indexOf(q)!==-1);
