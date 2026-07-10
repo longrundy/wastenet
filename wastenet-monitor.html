@@ -27,7 +27,21 @@
   .wrap{max-width:820px; margin:0 auto; padding:20px 16px 80px;}
 
   /* header bar (Option A) */
-  .header-bar{display:flex; align-items:center; justify-content:space-between; gap:12px; border:0.5px solid var(--line); border-radius:12px; background:var(--card); padding:12px 16px; margin-bottom:16px;}
+  /* merged top card - header + scorecard in one, sticky on scroll */
+  .topcard{border:0.5px solid var(--line); border-radius:12px; background:var(--card); padding:12px 16px 15px; margin-bottom:16px; position:sticky; top:8px; z-index:30;}
+  .header-bar{display:flex; align-items:center; justify-content:space-between; gap:12px;}
+  .topcard .scorecard{border:none; border-radius:0; background:transparent; padding:0; margin:12px 0 0;}
+  /* slim pinned state: JS adds .pinned once the card scrolls to the top */
+  .topcard.pinned{padding:8px 16px; box-shadow:0 3px 12px rgba(0,0,0,0.10);}
+  .topcard.pinned .scorecard{margin-top:8px;}
+  .topcard.pinned .score-groups{gap:8px;}
+  .topcard.pinned .score-cap{display:none;}
+  .topcard.pinned .score-half{padding:5px 6px; display:flex; align-items:baseline; justify-content:center; gap:5px;}
+  .topcard.pinned .score-half-n{font-size:16px; margin-top:0;}
+  .topcard.pinned .score-half-l{font-size:10.5px; margin-top:0;}
+  .lbl-short{display:none;}
+  .topcard.pinned .lbl-full{display:none;}
+  .topcard.pinned .lbl-short{display:inline;}
   .brand{display:flex; align-items:center; gap:10px; min-width:0;}
   .brand-logo-wide{height:26px; width:auto; object-fit:contain; flex:0 0 auto;}
   .brand-name{font-size:17px; font-weight:800; letter-spacing:0.04em; color:var(--green); flex:0 0 auto;}
@@ -66,9 +80,7 @@
   .score-half{flex:1; min-width:0; padding:11px 6px; text-align:center; cursor:pointer; transition:background .12s;}
   .score-btn > .score-half:first-child{border-right:0.5px solid var(--line);}
   .score-half:hover{background:var(--panel);}
-  .score-badge{display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%;}
-  .score-badge svg{width:16px; height:16px;}
-  .score-half-n{font-size:21px; font-weight:600; letter-spacing:-0.01em; line-height:1.15; margin-top:5px;}
+  .score-half-n{font-size:21px; font-weight:600; letter-spacing:-0.01em; line-height:1.15; margin-top:2px;}
   .score-half-l{font-size:11px; color:var(--ink-2); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .score-total{font-size:11px; color:var(--ink-3); align-self:center;}
   .header-tools{display:flex; align-items:center; gap:8px;}
@@ -260,23 +272,25 @@
 <body>
 <div class="wrap">
 
-  <div class="header-bar">
-    <div class="brand">
-      <div class="brand-name">WASTENET</div>
-      <div class="brand-div"></div>
-      <div class="brand-tool">Box Monitor Dashboard</div>
-    </div>
-    <div class="header-right">
-      <div class="header-tools" id="headerTools"></div>
-      <div class="date-nav">
-        <button class="date-label" id="dateLabel" title="Pick a scan date"><span id="scanInfo">Loading…</span> <span class="date-caret">▾</span></button>
-        <div class="date-drop" id="dateDrop"></div>
+  <div class="topcard" id="topcard">
+    <div class="header-bar">
+      <div class="brand">
+        <div class="brand-name">WASTENET</div>
+        <div class="brand-div"></div>
+        <div class="brand-tool">Box Monitor Dashboard</div>
       </div>
-      <button class="btn ghost icon-btn" id="refreshBtn" aria-label="Refresh"><span id="refreshIcon">↻</span></button>
+      <div class="header-right">
+        <div class="header-tools" id="headerTools"></div>
+        <div class="date-nav">
+          <button class="date-label" id="dateLabel" title="Pick a scan date"><span id="scanInfo">Loading…</span> <span class="date-caret">▾</span></button>
+          <div class="date-drop" id="dateDrop"></div>
+        </div>
+        <button class="btn ghost icon-btn" id="refreshBtn" aria-label="Refresh"><span id="refreshIcon">↻</span></button>
+      </div>
     </div>
-  </div>
 
-  <div class="summary" id="summary"></div>
+    <div class="summary" id="summary"></div>
+  </div>
 
   <div class="banner" id="banner"></div>
 
@@ -971,24 +985,16 @@ function render(){
   var counts = { action:action.length, needsempty:needsEmpty.length, monitor:monitorDown.length, scheduled:scheduled.length, stale:stale.length, clear:clear.length };
   var pct = function(n){ return total? (n/total*100).toFixed(1) : 0; };
 
-  // ----- clickable scorecard: three grouped cards, icon badge over number -----
+  // ----- clickable scorecard: three grouped cards, number + label -----
   // Each half carries data-view (the existing bucket key) so all filtering
-  // behavior is unchanged. Inline SVG icons (no external font dependency).
-  var SC_IC = {
-    action:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg>',
-    needsempty:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="5" width="12" height="16" rx="2"/><path d="M9 5V4h6v1"/><path d="M9 13l2 2 4-4"/></svg>',
-    monitor:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M7 20h10M9 16v4M15 16v4"/></svg>',
-    stale:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="6"/><path d="M21 21l-5-5"/></svg>',
-    scheduled:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>',
-    clear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>'
-  };
-  var half = function(key, color, darkColor, tintBg, n, label){
+  // behavior is unchanged.
+  var half = function(key, color, darkColor, tintBg, n, label, shortLabel){
     var on = state.view===key;
     return '<div class="score-half'+(on?' on':'')+'" data-view="'+key+'"'+
       (on?' style="box-shadow:inset 0 -2px 0 0 '+color+';"':'')+'>'+
-      '<span class="score-badge" style="background:'+tintBg+';color:'+color+';">'+SC_IC[key]+'</span>'+
       '<div class="score-half-n" style="color:'+(on?darkColor:color)+';">'+n+'</div>'+
-      '<div class="score-half-l">'+label+'</div>'+
+      '<div class="score-half-l"><span class="lbl-full">'+label+'</span>'+
+        '<span class="lbl-short">'+(shortLabel||label)+'</span></div>'+
     '</div>';
   };
   var group = function(caption, inner){
@@ -1001,20 +1007,20 @@ function render(){
       ? '<div class="search-box"><i class="search-ico">⌕</i><input type="text" id="searchInput" placeholder="Search box #, site, hauler…" value="'+esc(state.search)+'" autocomplete="off"><button class="search-x" id="searchClose" aria-label="Close search">×</button></div>'
       : '<span class="score-total">'+total+' total</span><button class="search-btn" id="searchOpen" aria-label="Search boxes" title="Search boxes">⌕</button>'
     );
-  document.getElementById("summary").outerHTML =
-    '<div class="scorecard" id="summary">'+
+  var summaryEl = document.getElementById("summary");
+  summaryEl.className = "summary scorecard";
+  summaryEl.innerHTML =
       '<div class="score-groups">'+
         group("needs action",
-          half("action","#A32D2D","#A32D2D","#FCEBEB",counts.action,"schedule service")+
-          half("needsempty","#0F8C86","#0F6E56","#E1F5EE",counts.needsempty,"record empty"))+
+          half("action","#A32D2D","#A32D2D","#FCEBEB",counts.action,"schedule service","service")+
+          half("needsempty","#0F8C86","#0F6E56","#E1F5EE",counts.needsempty,"record empty","empty"))+
         group("equipment concerns",
-          half("monitor","#5B6470","#444441","#F1EFE8",counts.monitor,"monitor down")+
-          half("stale","#BA7517","#854F0B","#FAEEDA",counts.stale,"stale scans"))+
+          half("monitor","#5B6470","#444441","#F1EFE8",counts.monitor,"monitor down","down")+
+          half("stale","#BA7517","#854F0B","#FAEEDA",counts.stale,"stale scans","stale"))+
         group("informational",
-          half("scheduled","#378ADD","#185FA5","#E6F1FB",counts.scheduled,"scheduled")+
-          half("clear","#639922","#3B6D11","#EAF3DE",counts.clear,"no action"))+
-      '</div>'+
-    '</div>';
+          half("scheduled","#378ADD","#185FA5","#E6F1FB",counts.scheduled,"scheduled","scheduled")+
+          half("clear","#639922","#3B6D11","#EAF3DE",counts.clear,"no action","no action"))+
+      '</div>';
 
   var html = "";
   var q = state.search.trim().toLowerCase();
@@ -1541,6 +1547,23 @@ document.getElementById("dateLabel").addEventListener("click", function(e){
 document.addEventListener("click", function(){
   if(state.dropOpen){ state.dropOpen=false; var d=document.getElementById("dateDrop"); if(d) d.classList.remove("show"); }
 });
+
+// Slim the top card once it sticks to the top. A sentinel div sits just
+// above the card; when it scrolls out of view, the card is pinned, so we
+// add .pinned (which collapses the scorecard to a compact single-row bar
+// via CSS). Using scroll position rather than IntersectionObserver here
+// because the card itself is position:sticky - we compare its top offset
+// to the sticky threshold (8px, matching the CSS `top:8px`).
+(function(){
+  var tc = document.getElementById("topcard");
+  if(!tc) return;
+  var onScroll = function(){
+    var pinned = tc.getBoundingClientRect().top <= 9;
+    tc.classList.toggle("pinned", pinned);
+  };
+  window.addEventListener("scroll", onScroll, { passive:true });
+  onScroll();
+})();
 
 load();
 </script>
