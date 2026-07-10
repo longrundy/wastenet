@@ -28,7 +28,7 @@
 
   /* header bar (Option A) */
   /* merged top card - header + scorecard in one, sticky on scroll */
-  .topcard{border:0.5px solid var(--line); border-radius:12px; background:var(--card); padding:12px 16px 15px; margin-bottom:16px; position:sticky; top:8px; z-index:30;}
+  .topcard{border:0.5px solid var(--line); border-radius:12px; background:var(--card); padding:12px 16px 15px; margin-bottom:16px; position:sticky; top:8px; z-index:30; transition:padding .12s ease;}
   /* Full-width page-colored strip fixed to the very top of the viewport,
      shown only while the card is pinned. It fills the gap above the
      sticky card (its 8px offset) so box rows scrolling underneath never
@@ -1556,45 +1556,43 @@ document.addEventListener("click", function(){
   if(state.dropOpen){ state.dropOpen=false; var d=document.getElementById("dateDrop"); if(d) d.classList.remove("show"); }
 });
 
-// Slim the top card once it sticks to the top. A sentinel div sits just
-// above the card; when it scrolls out of view, the card is pinned, so we
-// add .pinned (which collapses the scorecard to a compact single-row bar
-// via CSS). Using scroll position rather than IntersectionObserver here
-// because the card itself is position:sticky - we compare its top offset
-// to the sticky threshold (8px, matching the CSS `top:8px`).
+// Slim the top card once it sticks to the top. A zero-height sentinel
+// sits just above the card; an IntersectionObserver flips the .pinned
+// class (which collapses the scorecard to a compact single-row bar via
+// CSS) when that sentinel crosses the top edge. See the detailed note
+// inside for why the observer replaced the earlier scroll-position
+// approach (it was flicker-prone).
 (function(){
   var tc = document.getElementById("topcard");
   var sentinel = document.getElementById("pinSentinel");
-  if(!tc || !sentinel) return;
-  // Measure a FIXED sentinel above the card (not the card itself, which
-  // moves/shrinks when it pins - that self-reference is what caused the
-  // flicker: shrinking nudged the scroll, which un-pinned, which grew it,
-  // which re-pinned...). Plus hysteresis: pin once the sentinel is 8px
-  // above the top, but don't un-pin until it's back to 2px - the gap
-  // between the two thresholds stops the states oscillating at a single
-  // boundary. A rAF guard coalesces rapid scroll events into one update.
-  var pinned = false;
-  var ticking = false;
-  var apply = function(){
-    ticking = false;
-    var y = sentinel.getBoundingClientRect().top;
-    // Card seats at top:8px and the sentinel sits ~20px above it (wrap's
-    // top padding), so the sentinel is near -12px when the card visually
-    // pins. Pin at -12, un-pin at -6 - a 6px hysteresis band that brackets
-    // the seating point and stops any oscillation.
-    if(!pinned && y <= -12){ pinned = true; }
-    else if(pinned && y >= -6){ pinned = false; }
-    else return; // no state change
-    tc.classList.toggle("pinned", pinned);
-    document.body.classList.toggle("pinned", pinned);
+  if(!tc || !sentinel){ if(tc){} return; }
+  // IntersectionObserver is the flicker-proof way to detect "the card has
+  // stuck to the top." The earlier scroll-position approach re-measured
+  // geometry every frame, but pinning SHRINKS the card ~44px, which
+  // reflows the page, which changes the geometry, which re-triggered the
+  // measurement - a feedback loop that oscillated and locked up. The
+  // observer instead fires only when the sentinel crosses the top edge,
+  // a boolean event that the card's own resize cannot feed back into.
+  // rootMargin pushes the trigger line down to where the card seats
+  // (top:8px), so the state flips exactly as the card reaches its pinned
+  // position. threshold:0 = fire on any crossing.
+  var setPinned = function(on){
+    tc.classList.toggle("pinned", on);
+    document.body.classList.toggle("pinned", on);
   };
-  var onScroll = function(){
-    if(ticking) return;
-    ticking = true;
-    requestAnimationFrame(apply);
-  };
-  window.addEventListener("scroll", onScroll, { passive:true });
-  apply();
+  if("IntersectionObserver" in window){
+    var io = new IntersectionObserver(function(entries){
+      // sentinel visible (intersecting) = not scrolled past = NOT pinned.
+      setPinned(!entries[0].isIntersecting);
+    }, { threshold:0, rootMargin:"-8px 0px 0px 0px" });
+    io.observe(sentinel);
+  } else {
+    // Fallback for ancient browsers: simple scroll check, no resize
+    // feedback because we read the sentinel (fixed) not the card.
+    var onScroll = function(){ setPinned(sentinel.getBoundingClientRect().top <= 0); };
+    window.addEventListener("scroll", onScroll, { passive:true });
+    onScroll();
+  }
 })();
 
 load();
