@@ -455,7 +455,13 @@ function openCesEmpty(event, encodedId){
   var left = dualLeft + Math.max(0, (vw - w) / 2);
   var top  = dualTop  + Math.max(0, (vh - h) / 2);
   var feat = "popup=yes,scrollbars=yes,resizable=yes,width="+w+",height="+h+",left="+Math.round(left)+",top="+Math.round(top);
-  var win = window.open(url, "cesMarkEmpty", feat);
+  // Per-box window name (not a single shared "cesMarkEmpty") - a shared
+  // name made every click reuse the FIRST window opened, so every button
+  // kept showing whichever box was opened first. A unique name per box
+  // means each box gets its own popup (and re-clicking the same box just
+  // refocuses that box's window, which is the sensible behavior).
+  var winName = "cesMarkEmpty_" + encodedId;
+  var win = window.open(url, winName, feat);
   if(!win){ window.open(url, "_blank"); }
   else { win.focus(); }
   return false;
