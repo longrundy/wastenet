@@ -298,6 +298,7 @@
       </div>
     </div>
 
+    <div id="scoreSentinel" style="height:0; margin:0; padding:0;"></div>
     <div class="summary" id="summary"></div>
   </div>
 
@@ -1675,25 +1676,27 @@ document.addEventListener("click", function(){
   }
 });
 
-// Reveal the fixed slim bar once the full top card has scrolled out of
-// view. This is flicker-proof: the slim bar is a SEPARATE fixed element
-// that fades in via opacity only - showing it never changes page layout,
-// so it can't shift the scroll or feed back into the trigger (the bug
-// that plagued the earlier single-resizing-card approach). We observe
-// the full card; when it leaves the viewport, show the bar.
+// Reveal the fixed slim bar as soon as the SCORECARD reaches the top of
+// the screen - not when the whole card has fully scrolled away (which
+// felt late and let the bar drop in over the first list rows). We watch
+// a zero-height sentinel placed just above the scorecard: once it passes
+// above the viewport top, show the slim bar. Still flicker-proof - the
+// slim bar is a separate fixed element that fades in via opacity, so
+// showing it never shifts layout or feeds back into the trigger.
 (function(){
-  var full = document.getElementById("topcard");
+  var sentinel = document.getElementById("scoreSentinel");
   var slim = document.getElementById("slimbar");
-  if(!full || !slim) return;
+  if(!sentinel || !slim) return;
   if("IntersectionObserver" in window){
     var io = new IntersectionObserver(function(entries){
-      // full card intersecting (any part visible) = hide slim bar.
+      // sentinel intersecting (still on/below the top edge) = hide bar;
+      // once it scrolls above the top, show the bar.
       slim.classList.toggle("show", !entries[0].isIntersecting);
     }, { threshold:0 });
-    io.observe(full);
+    io.observe(sentinel);
   } else {
     var onScroll = function(){
-      slim.classList.toggle("show", full.getBoundingClientRect().bottom <= 0);
+      slim.classList.toggle("show", sentinel.getBoundingClientRect().top <= 0);
     };
     window.addEventListener("scroll", onScroll, { passive:true });
     onScroll();
