@@ -125,8 +125,13 @@
   .reason-handsoff .reason-label{color:#6B7280;}
   .monitor-reason-tag{font-size:10px; font-weight:500; color:#47505C; background:#EAECEF; padding:1px 7px; border-radius:12px;}
   .needsempty-tag{font-size:10px; font-weight:500; color:#0C6E69; background:#DDF2F0; padding:1px 7px; border-radius:12px;}
-  .ces-empty-btn{display:inline-block; margin-top:6px; font-size:10.5px; font-weight:600; color:#fff; background:#0F8C86; padding:4px 10px; border-radius:12px; text-decoration:none; white-space:nowrap; transition:background .12s;}
+  .ces-empty-btn{display:inline-block; font-size:10.5px; font-weight:600; color:#fff; background:#0F8C86; padding:4px 10px; border-radius:12px; text-decoration:none; white-space:nowrap; transition:background .12s;}
   .ces-empty-btn:hover{background:#0C6E69;}
+  .empty-actions{display:flex; align-items:center; gap:10px; margin-top:6px;}
+  .empty-check{display:inline-flex; align-items:center; gap:5px; cursor:pointer; font-size:10.5px; font-weight:600; color:var(--ink-2); user-select:none;}
+  .empty-check input{width:14px; height:14px; margin:0; cursor:pointer; accent-color:#0F8C86;}
+  .empty-check.on{color:#0C6E69;}
+  .empty-check-txt{white-space:nowrap;}
   .handsoff-tag{font-size:10px; font-weight:500; color:#4B5563; background:#EEF0F2; padding:1px 7px; border-radius:12px;}
 
   /* stale scans section */
@@ -328,7 +333,7 @@ var API = "https://script.google.com/macros/s/AKfycbwc3siwl0OTP2O5WzNZCDn4cj3MDV
 var KEY = "TRA$H";
 
 var state = { rows: [], scanTitle: "", openId: null, dateSel: {}, staleOpen: false, view: "action",
-  tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, staffNotesById: {}, staffNotesUpdById: {}, notesOpenId: null, schedTab: null, clearTab: null };
+  tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, staffNotesById: {}, staffNotesUpdById: {}, emptyMarkedById: {}, notesOpenId: null, schedTab: null, clearTab: null };
 
 /* ---------- JSONP ---------- */
 function jsonp(params, cb){
@@ -1421,14 +1426,20 @@ function needsEmptyRowHtml(b){
       '</div>'+
       '<div class="fill-wrap reason reason-needsempty">'+
         '<div class="reason-label">record empty</div>'+
-        '<div class="reason-detail">not marked yet</div>'+
-        // Opens CES's MarkEmpty page for THIS box in a new tab, so the
-        // empty can be recorded right there (saves live in CES on Close).
-        // Relies on the user's existing CES session - if signed in
-        // (David is, all day), it's one click; if not, CES prompts a
-        // login first. A real <a target="_blank">; the click is stopped
-        // from bubbling so it doesn't also toggle the row open/closed.
-        '<a class="ces-empty-btn" href="http://h1.ces-web.com/MarkEmpty.aspx?BoxId='+encodeURIComponent(b.id)+'" target="_blank" rel="noopener" onclick="return openCesEmpty(event, \''+encodeURIComponent(b.id)+'\');" title="Open this box\'s Mark Empty page in CES">Mark empty in CES</a>'+
+        (state.emptyMarkedById && state.emptyMarkedById[b.id]
+          ? '<div class="reason-detail" style="color:#0C6E69;font-weight:600;">marked \u2713</div>'
+          : '<div class="reason-detail">not marked yet</div>')+
+        // Checkbox (left) + CES button (right) on ONE row to keep the
+        // card compact - they were stacked, which made rows taller.
+        '<div class="empty-actions">'+
+          '<label class="empty-check'+(state.emptyMarkedById && state.emptyMarkedById[b.id]?' on':'')+'" onclick="event.stopPropagation();" title="Mark that you recorded this empty in CES">'+
+            '<input type="checkbox" data-emptycheck="'+esc(b.id)+'"'+(state.emptyMarkedById && state.emptyMarkedById[b.id]?' checked':'')+'>'+
+            '<span class="empty-check-txt">marked empty</span>'+
+          '</label>'+
+          // Opens CES's MarkEmpty page for THIS box in a popup, so the
+          // empty can be recorded right there (saves live in CES on Close).
+          '<a class="ces-empty-btn" href="http://h1.ces-web.com/MarkEmpty.aspx?BoxId='+encodeURIComponent(b.id)+'" target="_blank" rel="noopener" onclick="return openCesEmpty(event, \''+encodeURIComponent(b.id)+'\');" title="Open this box\'s Mark Empty page in CES">Mark empty in CES</a>'+
+        '</div>'+
       '</div>'+
       '<div class="chev">▾</div>'+
     '</div>'+
@@ -1518,6 +1529,24 @@ function isMissed(b){
 /* ---------- interactions ---------- */
 function wireRows(){
   var listEl = document.getElementById("list");
+  // marked-empty checkbox: persist via mark_empty, update optimistically.
+  listEl.querySelectorAll("input[data-emptycheck]").forEach(function(cb){
+    cb.addEventListener("click", function(e){ e.stopPropagation(); });
+    cb.addEventListener("change", function(e){
+      e.stopPropagation();
+      var id = cb.getAttribute("data-emptycheck");
+      var nowChecked = cb.checked;
+      // Optimistic local update so the UI responds instantly; the save
+      // runs in the background. If it fails, re-sync from the server.
+      if(!state.emptyMarkedById) state.emptyMarkedById = {};
+      if(nowChecked){ state.emptyMarkedById[id] = "just now"; }
+      else { delete state.emptyMarkedById[id]; }
+      jsonp({ action:"mark_empty", boxId:id, marked:(nowChecked?"true":"false"), key:KEY }, function(data){
+        if(!data || !data.ok){ fetchEmptyMarked(); }
+      });
+      render();
+    });
+  });
   // date pill switching
   listEl.querySelectorAll(".date-pill").forEach(function(p){
     p.addEventListener("click", function(e){
@@ -1563,6 +1592,21 @@ function load(){
   loadScan("latest");
   fetchTabList();
   fetchSetSchedule();
+  fetchEmptyMarked();
+}
+
+// Fetch the set of boxes manually flagged "marked empty in CES" so the
+// record-empty rows can show a checked state. Non-fatal on failure - the
+// checkboxes just start unchecked.
+function fetchEmptyMarked(){
+  jsonp({ action:"empty_marked_list", key:KEY }, function(data){
+    if(data && data.ok && data.marked){
+      var m = {};
+      Object.keys(data.marked).forEach(function(id){ m[normBoxId(id)] = data.marked[id]; });
+      state.emptyMarkedById = m;
+      render();
+    }
+  });
 }
 
 // Fetch each box's Column K "Set Schedule" value live from the Master Box
