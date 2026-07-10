@@ -125,6 +125,8 @@
   .reason-handsoff .reason-label{color:#6B7280;}
   .monitor-reason-tag{font-size:10px; font-weight:500; color:#47505C; background:#EAECEF; padding:1px 7px; border-radius:12px;}
   .needsempty-tag{font-size:10px; font-weight:500; color:#0C6E69; background:#DDF2F0; padding:1px 7px; border-radius:12px;}
+  .ces-empty-btn{display:inline-block; margin-top:6px; font-size:10.5px; font-weight:600; color:#fff; background:#0F8C86; padding:4px 10px; border-radius:12px; text-decoration:none; white-space:nowrap; transition:background .12s;}
+  .ces-empty-btn:hover{background:#0C6E69;}
   .handsoff-tag{font-size:10px; font-weight:500; color:#4B5563; background:#EEF0F2; padding:1px 7px; border-radius:12px;}
 
   /* stale scans section */
@@ -433,6 +435,31 @@ function shortDay(v){
   return days[d.getDay()]+" "+mo[d.getMonth()]+" "+d.getDate();
 }
 function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+// Opens the CES MarkEmpty page for a box in a compact popup window
+// (the page is small, so a full tab wastes space). Called from the
+// record-empty rows' "Mark empty in CES" button.
+//   - event.stopPropagation() so the click doesn't also toggle the row.
+//   - event.preventDefault() so the <a>'s own navigation doesn't ALSO
+//     fire (we open the window ourselves).
+//   - If the popup is blocked, fall back to a normal new tab so the
+//     button never silently fails. Returns false to suppress the link.
+function openCesEmpty(event, encodedId){
+  if(event){ event.stopPropagation(); event.preventDefault(); }
+  var url = "http://h1.ces-web.com/MarkEmpty.aspx?BoxId=" + encodedId;
+  var w = 1040, h = 780;
+  var dualLeft = (window.screenLeft !== undefined) ? window.screenLeft : (screen.left||0);
+  var dualTop  = (window.screenTop  !== undefined) ? window.screenTop  : (screen.top||0);
+  var vw = window.innerWidth || document.documentElement.clientWidth || screen.width;
+  var vh = window.innerHeight || document.documentElement.clientHeight || screen.height;
+  var left = dualLeft + Math.max(0, (vw - w) / 2);
+  var top  = dualTop  + Math.max(0, (vh - h) / 2);
+  var feat = "popup=yes,scrollbars=yes,resizable=yes,width="+w+",height="+h+",left="+Math.round(left)+",top="+Math.round(top);
+  var win = window.open(url, "cesMarkEmpty", feat);
+  if(!win){ window.open(url, "_blank"); }
+  else { win.focus(); }
+  return false;
+}
 
 /* ---------- suggested pickup date ----------
    Ported VERBATIM from the ops dashboard (index.html) so the two views can
@@ -1389,6 +1416,13 @@ function needsEmptyRowHtml(b){
       '<div class="fill-wrap reason reason-needsempty">'+
         '<div class="reason-label">record empty</div>'+
         '<div class="reason-detail">not marked yet</div>'+
+        // Opens CES's MarkEmpty page for THIS box in a new tab, so the
+        // empty can be recorded right there (saves live in CES on Close).
+        // Relies on the user's existing CES session - if signed in
+        // (David is, all day), it's one click; if not, CES prompts a
+        // login first. A real <a target="_blank">; the click is stopped
+        // from bubbling so it doesn't also toggle the row open/closed.
+        '<a class="ces-empty-btn" href="http://h1.ces-web.com/MarkEmpty.aspx?BoxId='+encodeURIComponent(b.id)+'" target="_blank" rel="noopener" onclick="return openCesEmpty(event, \''+encodeURIComponent(b.id)+'\');" title="Open this box\'s Mark Empty page in CES">Mark empty in CES</a>'+
       '</div>'+
       '<div class="chev">▾</div>'+
     '</div>'+
