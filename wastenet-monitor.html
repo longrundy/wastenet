@@ -1197,6 +1197,11 @@ function wireScorecard(){
       // switching bucket clears an active search
       state.search = ""; state.searchOpen = false;
       render();
+      // Jump back to the top so the new bucket's list starts at its
+      // first item, rather than staying parked wherever the previous
+      // bucket was scrolled to (which lands you mid-list). This also
+      // retracts the slim bar since the full card comes back into view.
+      window.scrollTo(0, 0);
     });
   });
   document.querySelectorAll('.sfold-tab').forEach(function(el){
