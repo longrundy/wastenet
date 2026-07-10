@@ -425,6 +425,7 @@ async function postResultsToAppsScript(results, stamp) {
     date: stamp,
     results: results.map((r) => ({
       boxId: r.boxId,
+      description: r.description,
       haulerAccountRaw: r.haulerAccountRaw,
       haulerCode: r.haulerCode,
       notesBelow: r.notesBelow,
@@ -476,6 +477,23 @@ async function postResultsToAppsScript(results, stamp) {
     await sendAlert('WasteNet collector: ' + (resp.unmapped ? resp.unmapped.length : 0) + ' unmapped / ' + (resp.unknownBoxes ? resp.unknownBoxes.length : 0) + ' unknown - ' + stamp,
       'Today\'s Box Management sync completed and posted successfully, but flagged the following for review:\n\n' + problems.join('\n\n') +
       '\n\nNothing was silently defaulted - unmapped boxes show "UNMAPPED (<value>)" in the Scheduling Rule (auto) column until the map tab is updated. The next nightly run picks the fix up automatically.');
+  }
+
+  // CES drift alert - only when the drift report found a mismatch between
+  // CES and your Master Box List / Inactive Boxes tabs. The full details
+  // are on the "CES Drift" tab (rewritten fresh each run); this email is
+  // just the nudge to go look. Silent on the (usual) days with no drift.
+  if (resp.drift && resp.drift.ok && resp.drift.count > 0 && !TEST_COUNT && !TARGETED) {
+    const bt = resp.drift.byType || {};
+    const parts = [];
+    if (bt.newlyRetired) parts.push(bt.newlyRetired + ' newly retired (move to Inactive)');
+    if (bt.reactivated) parts.push(bt.reactivated + ' reactivated (move to Master)');
+    if (bt.newBox) parts.push(bt.newBox + ' new box(es) (add a row)');
+    if (bt.vanished) parts.push(bt.vanished + ' vanished from CES (investigate)');
+    log('CES DRIFT: ' + resp.drift.count + ' box(es) - ' + parts.join(', '));
+    await sendAlert('WasteNet: ' + resp.drift.count + ' box(es) drifted from CES - ' + stamp,
+      'CES no longer matches your box tabs on ' + resp.drift.count + ' box(es):\n\n  ' + parts.join('\n  ') +
+      '\n\nOpen the "CES Drift" tab in the WasteNet sheet for the box-by-box list and the suggested action for each. Nothing was changed automatically - the drift report is read-only and only YOU move/add/remove rows. Once you resolve a box, it drops off the tab on the next nightly run.');
   }
 }
 
