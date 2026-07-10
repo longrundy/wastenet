@@ -470,11 +470,16 @@ async function postResultsToAppsScript(results, stamp) {
     problems.push('UNMAPPED HaulerAccount value(s) - add a row for each to the "Hauler Rule Map" tab (column A = the value shown, column B = NBD, 1-BD, or 2-BD):\n' + lines.join('\n'));
   }
   if (resp.unknownBoxes && resp.unknownBoxes.length) {
-    log('Boxes in CES but NOT on Master Box List (' + resp.unknownBoxes.length + '): ' + resp.unknownBoxes.join(', '));
-    problems.push('Box IDs found on BoxManagement.aspx that have NO row on the Master Box List tab (CES vs list drift - probably new or renumbered boxes):\n  ' + resp.unknownBoxes.join(', '));
+    // Still log to console for the run record, but DON'T email it - the
+    // CES Drift report now handles "box not on Master" correctly (it
+    // knows an inactive box on the Inactive Boxes tab is fine, and only
+    // flags genuinely-new boxes). The old alert emailed all 39 inactive
+    // boxes every night as if they were a problem, which was pure noise.
+    // Genuine new boxes now surface on the CES Drift tab as "New box".
+    log('Boxes in CES but not on Master Box List (' + resp.unknownBoxes.length + ') - handled by the CES Drift report, not emailed: ' + resp.unknownBoxes.join(', '));
   }
   if (problems.length && !TEST_COUNT && !TARGETED) {
-    await sendAlert('WasteNet collector: ' + (resp.unmapped ? resp.unmapped.length : 0) + ' unmapped / ' + (resp.unknownBoxes ? resp.unknownBoxes.length : 0) + ' unknown - ' + stamp,
+    await sendAlert('WasteNet collector: ' + (resp.unmapped ? resp.unmapped.length : 0) + ' unmapped HaulerAccount value(s) - ' + stamp,
       'Today\'s Box Management sync completed and posted successfully, but flagged the following for review:\n\n' + problems.join('\n\n') +
       '\n\nNothing was silently defaulted - unmapped boxes show "UNMAPPED (<value>)" in the Scheduling Rule (auto) column until the map tab is updated. The next nightly run picks the fix up automatically.');
   }
