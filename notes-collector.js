@@ -1,7 +1,21 @@
 /**
  * WasteNet Box Management Collector
  * =================================
- * v1.1 - INVENTORY PHASE
+ * v2.0 - DAILY SYNC PHASE
+ *   v2.0 (2026-07-10): now POSTS results to the Apps Script backend
+ *     ({ type: "box_management" } payload -> handleBoxManagementPost),
+ *     which writes the five collector columns on Master Box List,
+ *     converts HaulerAccount -> NBD/1-BD/2-BD via the Hauler Rule Map
+ *     tab, and appends day-over-day changes to the CES Change Log tab.
+ *     The collector itself still reports CES FACTS ONLY - all
+ *     interpretation (the rule mapping) lives server-side on the
+ *     editable map tab, per the standing architecture rule. Posting
+ *     happens on FULL runs automatically; --test/--box runs stay
+ *     local-only unless --post is added (for validating the pipeline
+ *     on a handful of boxes before trusting the cron run). Requires
+ *     APPS_SCRIPT_URL in .env - same web app URL the scanner/dashboard
+ *     already use. Alerts (full runs only): post failure, UNMAPPED
+ *     HaulerAccount values, boxes not found on Master Box List.
  *   v1.1 (2026-07-10): splitNotes rebuilt from live-data review of the
  *     93 no-divider boxes - a divider is now a 10+ underscore run
  *     ANYWHERE in a line (handles "____X", "____=", glued-to-content,
@@ -32,12 +46,12 @@
  *      .json, and prints an INVENTORY of distinct HaulerAccount
  *      spellings with counts - the input for seeding the mapping tab.
  *
- * WHAT IT DOES **NOT** DO (yet - phase 2, after the mapping tab is
- * seeded from the inventory):
- *   - Post anything to Apps Script / the Master Box List
- *   - Convert HaulerAccount to NBD / 1-BD / 2-BD (interpretation
- *     belongs in the Apps Script / dashboard layer, per the standing
- *     architecture rule: this script reports CES facts only)
+ * WHAT IT STILL DOES **NOT** DO:
+ *   - Convert HaulerAccount to NBD / 1-BD / 2-BD locally - the payload
+ *     carries the RAW value; conversion happens in Apps Script against
+ *     the editable Hauler Rule Map tab (interpretation belongs in that
+ *     layer, per the standing architecture rule: this script reports
+ *     CES facts only)
  *
  * FILES THIS EXPECTS NEXT TO IT (/opt/wastenet):
  *   .env   - same file the scanner already uses:
@@ -45,11 +59,19 @@
  *              CES_PASS=...
  *              SENDGRID_API_KEY=...   (optional, failure alerts)
  *              ALERT_EMAIL=...        (optional, failure alerts)
+ *              APPS_SCRIPT_URL=...    (v2.0 - the deployed web app URL,
+ *                                      same one the scanner posts scan
+ *                                      results to; required for the
+ *                                      daily post, everything else
+ *                                      still works without it)
  *
  * RUN MODES:
- *   node notes-collector.js                 - full run, every box
- *   node notes-collector.js --test 5        - first 5 boxes only
- *   node notes-collector.js --box 9,15,18   - only those box IDs
+ *   node notes-collector.js                 - full run, every box, POSTS
+ *   node notes-collector.js --test 5        - first 5 boxes, local only
+ *   node notes-collector.js --test 5 --post - first 5 boxes AND post
+ *                                             (pipeline validation)
+ *   node notes-collector.js --box 9,15,18   - only those IDs, local only
+ *   node notes-collector.js --box 9 --post  - those IDs AND post
  *   node notes-collector.js --login-only    - prove login works, exit
  *
  * Failure behavior mirrors runner.js: screenshot to ./logs and a
@@ -78,6 +100,13 @@ const BOX_IDS = boxIdx !== -1
   ? String(argv[boxIdx + 1] || '').split(',').map((s) => s.trim()).filter(Boolean)
   : null;
 const TARGETED = !!(BOX_IDS && BOX_IDS.length);
+// v2.0: full runs always post to Apps Script; --test/--box runs post
+// only when --post is explicitly added (so casual diagnostics can never
+// half-overwrite the Master Box List columns with a partial box set -
+// see the safety note inside postResultsToAppsScript()).
+const FORCE_POST = argv.includes('--post');
+const SHOULD_POST = LOGIN_ONLY ? false : ((!TEST_COUNT && !TARGETED) || FORCE_POST);
+const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || '';
 
 if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
 
@@ -312,6 +341,144 @@ function csvEscape(v) {
   return s;
 }
 
+/**
+ * POSTs a JSON payload to the Apps Script web app and returns the
+ * parsed JSON response. Apps Script ALWAYS answers a web-app POST with
+ * a 302 redirect to script.googleusercontent.com (the same structural
+ * quirk that forced JSONP on the dashboard's read side) - browsers and
+ * Tampermonkey follow it automatically, but Node's https module does
+ * not, so this follows up to 5 redirects by hand, switching to GET for
+ * the hop (which is what the redirect target expects - the response
+ * body lives there).
+ */
+function postToAppsScript(payload) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify(payload);
+    const step = (urlStr, method, data, hops) => {
+      if (hops > 5) return reject(new Error('Too many redirects posting to Apps Script.'));
+      let u;
+      try { u = new URL(urlStr); } catch (e) { return reject(new Error('Bad Apps Script URL: ' + urlStr)); }
+      const opts = {
+        hostname: u.hostname,
+        port: u.port || undefined,
+        path: u.pathname + u.search,
+        method: method,
+        headers: {},
+        timeout: 120000,
+      };
+      if (data) {
+        opts.headers['Content-Type'] = 'application/json';
+        opts.headers['Content-Length'] = Buffer.byteLength(data);
+      }
+      const req = https.request(opts, (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          res.resume(); // drain, then follow
+          return step(res.headers.location, 'GET', null, hops + 1);
+        }
+        let b = '';
+        res.on('data', (c) => { b += c; });
+        res.on('end', () => {
+          try { resolve(JSON.parse(b)); }
+          catch (e) { reject(new Error('Apps Script returned non-JSON (HTTP ' + res.statusCode + '): ' + b.slice(0, 300))); }
+        });
+      });
+      req.on('timeout', () => { req.destroy(new Error('Apps Script request timed out.')); });
+      req.on('error', reject);
+      if (data) req.write(data);
+      req.end();
+    };
+    step(APPS_SCRIPT_URL, 'POST', body, 0);
+  });
+}
+
+/**
+ * v2.0 - sends the scraped results to Apps Script as a
+ * { type: "box_management" } payload and logs/alerts on the summary
+ * that comes back. The payload deliberately carries ONLY what the
+ * backend writes (boxId, raw HaulerAccount, HaulerCode, below-line
+ * notes) - the full record incl. notesRaw/above/divider stays in the
+ * daily CSV/JSON on the droplet, which remains the raw-archive layer.
+ *
+ * PARTIAL-RUN SAFETY: posting a --test/--box subset only touches the
+ * rows for the boxes actually in the payload (the backend matches by
+ * Box ID and never clears rows it wasn't sent), so a --post validation
+ * run can't blank out the rest of the fleet - but its values for THOSE
+ * boxes do land for real, which is exactly the point of --post.
+ *
+ * Alerting (FULL runs only - a --post validation run just logs):
+ *   - post failure                      -> alert (data didn't land)
+ *   - unmapped HaulerAccount value(s)   -> alert (rule map needs a row)
+ *   - box IDs not on Master Box List    -> alert (list drift vs CES)
+ */
+async function postResultsToAppsScript(results, stamp) {
+  if (!APPS_SCRIPT_URL) {
+    log('POST SKIPPED: APPS_SCRIPT_URL is not set in .env - results were NOT sent to the Master Box List.');
+    if (!TEST_COUNT && !TARGETED) {
+      await sendAlert('WasteNet collector: results NOT posted - ' + stamp,
+        'The Box Management collector scraped ' + results.length + ' boxes but could not post them: APPS_SCRIPT_URL is missing from /opt/wastenet/.env.\n\nAdd the deployed Apps Script web app URL (the same one the scanner posts to) and re-run:\n  cd /opt/wastenet && node notes-collector.js');
+    }
+    return;
+  }
+
+  const payload = {
+    type: 'box_management',
+    date: stamp,
+    results: results.map((r) => ({
+      boxId: r.boxId,
+      haulerAccountRaw: r.haulerAccountRaw,
+      haulerCode: r.haulerCode,
+      notesBelow: r.notesBelow,
+    })),
+  };
+
+  log('Posting ' + payload.results.length + ' boxes to Apps Script...');
+  let resp;
+  try {
+    resp = await postToAppsScript(payload);
+  } catch (e) {
+    log('POST FAILED: ' + e.message);
+    if (!TEST_COUNT && !TARGETED) {
+      await sendAlert('WasteNet collector: post to Apps Script FAILED - ' + stamp,
+        'The Box Management collector scraped ' + results.length + ' boxes, but posting them to the Apps Script backend failed:\n\n' + e.message +
+        '\n\nThe day\'s raw data is safe in /opt/wastenet/logs (box-management-' + stamp + '.csv/.json). Re-run the post by re-running the collector.');
+    }
+    return;
+  }
+
+  if (!resp || resp.ok !== true) {
+    const errMsg = resp && resp.error ? resp.error : JSON.stringify(resp);
+    log('POST REJECTED by Apps Script: ' + errMsg);
+    if (!TEST_COUNT && !TARGETED) {
+      await sendAlert('WasteNet collector: Apps Script rejected the post - ' + stamp,
+        'The backend returned an error for today\'s box_management post:\n\n' + errMsg +
+        '\n\nThe day\'s raw data is safe in /opt/wastenet/logs. Re-run the post by re-running the collector.');
+    }
+    return;
+  }
+
+  log('POST OK - matched ' + resp.boxesMatched + ' boxes on Master Box List'
+    + (resp.bootstrap ? ' (BOOTSTRAP run - columns created, no changes logged)' : '')
+    + ' | hauler changes: ' + resp.haulerChanged
+    + ' | notes changes: ' + resp.notesChanged
+    + ' | change-log rows: ' + resp.changesLogged);
+
+  const problems = [];
+  if (resp.unmapped && resp.unmapped.length) {
+    const lines = resp.unmapped.map((u) => '  - Box ' + u.boxId + ': "' + u.value + '"');
+    log('UNMAPPED HaulerAccount value(s) (' + resp.unmapped.length + ') - the Scheduling Rule (auto) cell reads UNMAPPED for these until a row is added to the Hauler Rule Map tab:\n' + lines.join('\n'));
+    problems.push('UNMAPPED HaulerAccount value(s) - add a row for each to the "Hauler Rule Map" tab (column A = the value shown, column B = NBD, 1-BD, or 2-BD):\n' + lines.join('\n'));
+  }
+  if (resp.unknownBoxes && resp.unknownBoxes.length) {
+    log('Boxes in CES but NOT on Master Box List (' + resp.unknownBoxes.length + '): ' + resp.unknownBoxes.join(', '));
+    problems.push('Box IDs found on BoxManagement.aspx that have NO row on the Master Box List tab (CES vs list drift - probably new or renumbered boxes):\n  ' + resp.unknownBoxes.join(', '));
+  }
+  if (problems.length && !TEST_COUNT && !TARGETED) {
+    await sendAlert('WasteNet collector: ' + (resp.unmapped ? resp.unmapped.length : 0) + ' unmapped / ' + (resp.unknownBoxes ? resp.unknownBoxes.length : 0) + ' unknown - ' + stamp,
+      'Today\'s Box Management sync completed and posted successfully, but flagged the following for review:\n\n' + problems.join('\n\n') +
+      '\n\nNothing was silently defaulted - unmapped boxes show "UNMAPPED (<value>)" in the Scheduling Rule (auto) column until the map tab is updated. The next nightly run picks the fix up automatically.');
+  }
+}
+
 /** Wait until the Box Details panel shows the target BoxId (postback
  *  landed) - tolerant of the full-page WebForms reload. */
 async function waitForBoxDetails(page, targetId) {
@@ -477,6 +644,14 @@ async function main() {
         await sendAlert('WasteNet collector: ' + failures.length + ' box(es) not scraped - ' + stamp,
           'The Box Management collector finished, but ' + failures.length + ' box(es) could not be scraped:\n\n' + lines.join('\n'));
       }
+    }
+
+    /* -------------------- POST TO APPS SCRIPT (v2.0) -------------------- */
+
+    if (SHOULD_POST && results.length > 0) {
+      await postResultsToAppsScript(results, stamp);
+    } else if (results.length > 0) {
+      log('Local-only run (--test/--box without --post) - nothing was sent to Apps Script.');
     }
 
     log('=== RUN COMPLETE - ' + results.length + ' boxes in ' + Math.round((Date.now() - startedAt) / 60000) + ' min ===');
