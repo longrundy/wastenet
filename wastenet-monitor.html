@@ -125,8 +125,6 @@
   .reason-handsoff .reason-label{color:#6B7280;}
   .monitor-reason-tag{font-size:10px; font-weight:500; color:#47505C; background:#EAECEF; padding:1px 7px; border-radius:12px;}
   .needsempty-tag{font-size:10px; font-weight:500; color:#0C6E69; background:#DDF2F0; padding:1px 7px; border-radius:12px;}
-  .ces-empty-btn{display:inline-block; font-size:10.5px; font-weight:600; color:#fff; background:#0F8C86; padding:4px 10px; border-radius:12px; text-decoration:none; white-space:nowrap; transition:background .12s;}
-  .ces-empty-btn:hover{background:#0C6E69;}
   .empty-actions{display:flex; align-items:center; gap:10px; margin-top:6px;}
   .empty-check{display:inline-flex; align-items:center; gap:5px; cursor:pointer; font-size:10.5px; font-weight:600; color:var(--ink-2); user-select:none;}
   .empty-check input{width:14px; height:14px; margin:0; cursor:pointer; accent-color:#0F8C86;}
@@ -441,46 +439,6 @@ function shortDay(v){
 }
 function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 
-// Opens the CES MarkEmpty page for a box in a compact popup window
-// (the page is small, so a full tab wastes space). Called from the
-// record-empty rows' "Mark empty in CES" button.
-//   - event.stopPropagation() so the click doesn't also toggle the row.
-//   - event.preventDefault() so the <a>'s own navigation doesn't ALSO
-//     fire (we open the window ourselves).
-//   - If the popup is blocked, fall back to a normal new tab so the
-//     button never silently fails. Returns false to suppress the link.
-function openCesEmpty(event, encodedId){
-  if(event){ event.stopPropagation(); event.preventDefault(); }
-  // Cache-buster (_ts): the URL already carries the right BoxId, but CES
-  // was serving a STALE page - the first box loaded (39) kept showing
-  // even though the address bar read the new BoxId. A unique query param
-  // per click forces CES to treat every open as a fresh page rather than
-  // returning a cached one. Harmless to CES (ignores unknown params).
-  var url = "http://h1.ces-web.com/MarkEmpty.aspx?BoxId=" + encodedId + "&_ts=" + Date.now();
-  var isMobile = /iPad|iPhone|iPod|Android|Mobile/i.test(navigator.userAgent)
-    || (navigator.maxTouchPoints > 1 && /Macintosh/i.test(navigator.userAgent)); // iPadOS reports as Mac
-  if(isMobile){
-    window.open(url, "_blank");
-    return false;
-  }
-  var w = 1040, h = 780;
-  var dualLeft = (window.screenLeft !== undefined) ? window.screenLeft : (screen.left||0);
-  var dualTop  = (window.screenTop  !== undefined) ? window.screenTop  : (screen.top||0);
-  var vw = window.innerWidth || document.documentElement.clientWidth || screen.width;
-  var vh = window.innerHeight || document.documentElement.clientHeight || screen.height;
-  var left = dualLeft + Math.max(0, (vw - w) / 2);
-  var top  = dualTop  + Math.max(0, (vh - h) / 2);
-  var feat = "popup=yes,scrollbars=yes,resizable=yes,width="+w+",height="+h+",left="+Math.round(left)+",top="+Math.round(top);
-  // Unique window name per CLICK (timestamp), not just per box - a
-  // per-box name still let an already-open window get reused and show
-  // stale content. A fresh name guarantees a new window with the new
-  // URL every time.
-  var winName = "cesMarkEmpty_" + encodedId + "_" + Date.now();
-  var win = window.open(url, winName, feat);
-  if(!win){ window.open(url, "_blank"); }
-  else { win.focus(); }
-  return false;
-}
 
 /* ---------- suggested pickup date ----------
    Ported VERBATIM from the ops dashboard (index.html) so the two views can
@@ -1439,16 +1397,20 @@ function needsEmptyRowHtml(b){
         (state.emptyMarkedById && state.emptyMarkedById[b.id]
           ? '<div class="reason-detail" style="color:#0C6E69;font-weight:600;">marked \u2713</div>'
           : '<div class="reason-detail">not marked yet</div>')+
-        // Checkbox (left) + CES button (right) on ONE row to keep the
-        // card compact - they were stacked, which made rows taller.
+        // Manual "I recorded this empty in CES" checkbox. Persists via
+        // ?action=mark_empty; the daily scan is the authoritative clear
+        // (box drops off this list once CES shows the empty). Click is
+        // stopped from bubbling so it doesn't toggle the row open.
+        // (A direct "open this box in CES" button was explored but CES
+        // has no way to target a box by URL - MarkEmpty.aspx reads the
+        // box from the session, and the Monitor filter is a fuzzy text
+        // match - so a reliable link was impossible. The real one-click
+        // is future scanner automation, not a link.)
         '<div class="empty-actions">'+
           '<label class="empty-check'+(state.emptyMarkedById && state.emptyMarkedById[b.id]?' on':'')+'" onclick="event.stopPropagation();" title="Mark that you recorded this empty in CES">'+
             '<input type="checkbox" data-emptycheck="'+esc(b.id)+'"'+(state.emptyMarkedById && state.emptyMarkedById[b.id]?' checked':'')+'>'+
             '<span class="empty-check-txt">marked empty</span>'+
           '</label>'+
-          // Opens CES's MarkEmpty page for THIS box in a popup, so the
-          // empty can be recorded right there (saves live in CES on Close).
-          '<a class="ces-empty-btn" href="http://h1.ces-web.com/MarkEmpty.aspx?BoxId='+encodeURIComponent(b.id)+'" target="_blank" rel="noopener" onclick="return openCesEmpty(event, \''+encodeURIComponent(b.id)+'\');" title="Open this box\'s Mark Empty page in CES">Mark empty in CES</a>'+
         '</div>'+
       '</div>'+
       '<div class="chev">▾</div>'+
