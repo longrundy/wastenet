@@ -1045,7 +1045,14 @@ function render(){
     '<div class="header-bar">'+
       '<div class="brand"><div class="brand-name">WASTENET</div><div class="brand-div"></div>'+
         '<div class="brand-tool">Box Monitor Dashboard</div></div>'+
-      '<div class="header-right"><span class="score-total">'+total+' total</span></div>'+
+      '<div class="header-right">'+
+        (state.searchOpen
+          ? '<div class="search-box"><i class="search-ico">⌕</i><input type="text" id="slimSearchInput" placeholder="Search box #, site, hauler…" value="'+esc(state.search)+'" autocomplete="off"><button class="search-x" id="slimSearchClose" aria-label="Close search">×</button></div>'
+          : '<span class="score-total">'+total+' total</span><button class="search-btn" id="slimSearchOpen" aria-label="Search boxes" title="Search boxes">⌕</button>')+
+        '<div class="date-nav"><button class="date-label" id="slimDateLabel" title="Pick a scan date"><span>'+esc(document.getElementById("scanInfo") ? document.getElementById("scanInfo").textContent : "")+'</span> <span class="date-caret">▾</span></button>'+
+        '<div class="date-drop" id="slimDateDrop"></div></div>'+
+        '<button class="btn ghost icon-btn" id="slimRefreshBtn" aria-label="Refresh">↻</button>'+
+      '</div>'+
     '</div>'+
     '<div class="score-groups">'+
       slimGroup(
@@ -1209,6 +1216,15 @@ function wireSearch(){
   }
   var closeBtn = document.getElementById("searchClose");
   if(closeBtn) closeBtn.addEventListener("click", function(){ state.search=""; state.searchOpen=false; render(); });
+  // Slim-bar copies of the same controls (distinct IDs, identical actions).
+  var slimOpen = document.getElementById("slimSearchOpen");
+  if(slimOpen) slimOpen.addEventListener("click", function(){ state.searchOpen = true; render(); setTimeout(function(){ var i=document.getElementById("slimSearchInput"); if(i) i.focus(); }, 0); });
+  var slimInput = document.getElementById("slimSearchInput");
+  if(slimInput){
+    slimInput.addEventListener("input", function(){ state.search = slimInput.value; updateResults(); });
+  }
+  var slimClose = document.getElementById("slimSearchClose");
+  if(slimClose) slimClose.addEventListener("click", function(){ state.search=""; state.searchOpen=false; render(); });
 }
 
 // Update ONLY the results list as the user types — leaves the scorecard and
@@ -1526,10 +1542,12 @@ function fetchTabList(){
   });
 }
 
-// (Re)build the dropdown of available scan dates.
+// (Re)build the dropdown(s) of available scan dates - both the full
+// header's and the slim bar's, since they share the same tab list.
 function updateDateNav(){
-  var drop = document.getElementById("dateDrop");
-  if(drop){
+  ["dateDrop","slimDateDrop"].forEach(function(dropId){
+    var drop = document.getElementById(dropId);
+    if(!drop) return;
     drop.innerHTML = state.tabs.map(function(t, i){
       var cur = (t===state.currentTab);
       return '<div class="date-opt'+(cur?' cur':'')+'" data-tab="'+esc(t)+'">'+esc(scanDateShort(t))+
@@ -1537,12 +1555,14 @@ function updateDateNav(){
     }).join("") || '<div class="date-opt">No past scans found</div>';
     drop.querySelectorAll(".date-opt[data-tab]").forEach(function(o){
       o.addEventListener("click", function(){
-        state.dropOpen = false; drop.classList.remove("show");
+        state.dropOpen = false;
+        var d1=document.getElementById("dateDrop"); if(d1) d1.classList.remove("show");
+        var d2=document.getElementById("slimDateDrop"); if(d2) d2.classList.remove("show");
         state.openId = null;
         loadScan(o.getAttribute("data-tab"));
       });
     });
-  }
+  });
 }
 
 // Short label for a tab name like "2026-07-06" -> "Mon 7-6-26".
@@ -1580,9 +1600,27 @@ document.getElementById("dateLabel").addEventListener("click", function(e){
   state.dropOpen = !state.dropOpen;
   drop.classList.toggle("show", state.dropOpen);
 });
+// Slim-bar date label + refresh are recreated on every render, so wire
+// them by delegation on the document rather than a one-time binding.
+document.addEventListener("click", function(e){
+  var lbl = e.target.closest ? e.target.closest("#slimDateLabel") : null;
+  if(lbl){
+    e.stopPropagation();
+    var drop = document.getElementById("slimDateDrop");
+    state.dropOpen = !state.dropOpen;
+    if(drop) drop.classList.toggle("show", state.dropOpen);
+    return;
+  }
+  var rb = e.target.closest ? e.target.closest("#slimRefreshBtn") : null;
+  if(rb){ e.stopPropagation(); load(); }
+});
 // close dropdown on outside click
 document.addEventListener("click", function(){
-  if(state.dropOpen){ state.dropOpen=false; var d=document.getElementById("dateDrop"); if(d) d.classList.remove("show"); }
+  if(state.dropOpen){
+    state.dropOpen=false;
+    var d=document.getElementById("dateDrop"); if(d) d.classList.remove("show");
+    var s=document.getElementById("slimDateDrop"); if(s) s.classList.remove("show");
+  }
 });
 
 // Reveal the fixed slim bar once the full top card has scrolled out of
