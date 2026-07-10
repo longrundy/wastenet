@@ -1,0 +1,466 @@
+/**
+ * WasteNet Box Management Collector
+ * =================================
+ * v1.0 - INVENTORY PHASE
+ *
+ * Runs SEPARATELY from the daily Monitor.aspx scan engine. This script
+ * never touches engine.user.js, runner.js, or their cron entry.
+ *
+ * WHAT IT DOES:
+ *   1. Launches headless Chromium (Playwright), logs into the CES
+ *      portal using the exact same structural login as runner.js
+ *      (credentials from the same .env).
+ *   2. Navigates to BoxManagement.aspx.
+ *   3. Walks the "Select Box To View" list page by page (the < > pager),
+ *      clicking Select on every box.
+ *   4. After each Select postback, scrapes from the Box Details panel:
+ *        - HaulerAccount  (raw, exactly as CES has it)
+ *        - HaulerCode
+ *        - Notes          (raw, plus an above-line / below-line split
+ *                          on the underscore divider)
+ *        - Description, Cell (for human-readable output)
+ *   5. Writes everything to ./logs/box-management-YYYY-MM-DD.csv and
+ *      .json, and prints an INVENTORY of distinct HaulerAccount
+ *      spellings with counts - the input for seeding the mapping tab.
+ *
+ * WHAT IT DOES **NOT** DO (yet - phase 2, after the mapping tab is
+ * seeded from the inventory):
+ *   - Post anything to Apps Script / the Master Box List
+ *   - Convert HaulerAccount to NBD / 1-BD / 2-BD (interpretation
+ *     belongs in the Apps Script / dashboard layer, per the standing
+ *     architecture rule: this script reports CES facts only)
+ *
+ * FILES THIS EXPECTS NEXT TO IT (/opt/wastenet):
+ *   .env   - same file the scanner already uses:
+ *              CES_USER=...
+ *              CES_PASS=...
+ *              SENDGRID_API_KEY=...   (optional, failure alerts)
+ *              ALERT_EMAIL=...        (optional, failure alerts)
+ *
+ * RUN MODES:
+ *   node notes-collector.js                 - full run, every box
+ *   node notes-collector.js --test 5        - first 5 boxes only
+ *   node notes-collector.js --box 9,15,18   - only those box IDs
+ *   node notes-collector.js --login-only    - prove login works, exit
+ *
+ * Failure behavior mirrors runner.js: screenshot to ./logs and a
+ * SendGrid alert (when configured). A --test or --box run never emails.
+ */
+
+require('dotenv').config();
+const { chromium } = require('playwright');
+const fs = require('fs');
+const path = require('path');
+const https = require('https');
+
+const BOX_MGMT_URL = 'http://h1.ces-web.com/BoxManagement.aspx';
+const LOG_DIR = path.join(__dirname, 'logs');
+const RUN_TIMEOUT_MS = 60 * 60 * 1000; // hard ceiling: 1 hour for ~480 boxes
+const SELECT_TIMEOUT_MS = 20000;       // per-box postback wait
+const PAGE_SETTLE_MS = 400;            // small settle after each postback
+const MAX_PAGES = 100;                 // pager safety stop
+
+const argv = process.argv.slice(2);
+const LOGIN_ONLY = argv.includes('--login-only');
+const testIdx = argv.indexOf('--test');
+const TEST_COUNT = testIdx !== -1 ? parseInt(argv[testIdx + 1], 10) || 5 : null;
+const boxIdx = argv.indexOf('--box');
+const BOX_IDS = boxIdx !== -1
+  ? String(argv[boxIdx + 1] || '').split(',').map((s) => s.trim()).filter(Boolean)
+  : null;
+const TARGETED = !!(BOX_IDS && BOX_IDS.length);
+
+if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
+
+function ts() { return new Date().toISOString().replace('T', ' ').slice(0, 19); }
+function log(msg) { console.log('[' + ts() + '] ' + msg); }
+function todayStamp() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+/** Failure alert via SendGrid - identical pattern to runner.js. */
+function sendAlert(subject, body) {
+  return new Promise((resolve) => {
+    const key = process.env.SENDGRID_API_KEY;
+    const to = process.env.ALERT_EMAIL;
+    if (!key || !to) { log('No SENDGRID_API_KEY/ALERT_EMAIL configured - skipping email alert.'); return resolve(false); }
+    const payload = JSON.stringify({
+      personalizations: [{ to: [{ email: to }], subject: subject }],
+      from: { email: 'office@wastenetinc.com', name: 'WasteNet Collector' },
+      content: [{ type: 'text/plain', value: body }],
+    });
+    const req = https.request({
+      hostname: 'api.sendgrid.com', path: '/v3/mail/send', method: 'POST',
+      headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
+    }, (res) => { log('Alert email HTTP ' + res.statusCode); res.resume(); resolve(res.statusCode === 202); });
+    req.on('error', (e) => { log('Alert email failed: ' + e.message); resolve(false); });
+    req.write(payload); req.end();
+  });
+}
+
+async function screenshot(page, name) {
+  try {
+    const f = path.join(LOG_DIR, name + '_' + Date.now() + '.png');
+    await page.screenshot({ path: f, fullPage: true });
+    log('Screenshot saved: ' + f);
+  } catch (e) { /* page may be mid-navigation - fine */ }
+}
+
+/** Structural login - same rule as runner.js: it is only a login form
+ *  when a password field is present AND the Select$ grid is absent.
+ *  (BoxManagement's right-hand list uses the same WebForms Select
+ *  buttons as Monitor's grid, so grid-presence works here too.) */
+async function loginIfNeeded(page) {
+  await page.waitForLoadState('domcontentloaded');
+  await page.waitForTimeout(1500);
+  const status = await page.evaluate(() => {
+    const gridPresent = [...document.querySelectorAll('input[type="button"], input[type="submit"]')]
+      .some((b) => /Select\$/.test(b.getAttribute('onclick') || '') || /Select/i.test(b.getAttribute('name') || ''));
+    const pwdPresent = !!document.querySelector('input[type="password"]');
+    return { gridPresent, pwdPresent };
+  });
+  if (status.gridPresent || !status.pwdPresent) return false; // logged in / not a login form
+  const user = process.env.CES_USER, pass = process.env.CES_PASS;
+  if (!user || !pass) throw new Error('CES_USER / CES_PASS not set in .env');
+  log('Login form detected (at ' + page.url() + ') - logging in as ' + user + '...');
+  await page.evaluate(({ u, p }) => {
+    const pwd = document.querySelector('input[type="password"]');
+    const texts = [...document.querySelectorAll('input[type="text"]')];
+    let userInput = null;
+    for (const t of texts) {
+      if (t.compareDocumentPosition(pwd) & Node.DOCUMENT_POSITION_FOLLOWING) userInput = t;
+    }
+    if (!userInput) throw new Error('Could not locate the User Name field.');
+    userInput.value = u;
+    pwd.value = p;
+    const cb = document.querySelector('input[type="checkbox"]');
+    if (cb && !cb.checked) cb.click();
+    const btn = [...document.querySelectorAll('input[type="submit"], input[type="button"], button')]
+      .find((b) => /log\s*in/i.test(b.value || b.textContent || ''));
+    if (!btn) throw new Error('Could not locate the Log In button.');
+    btn.click();
+  }, { u: user, p: pass });
+  await page.waitForLoadState('domcontentloaded');
+  await page.waitForTimeout(2500);
+  const after = await page.evaluate(() => {
+    const pwdPresent = !!document.querySelector('input[type="password"]');
+    return { pwdPresent };
+  });
+  if (after.pwdPresent) {
+    throw new Error('Login was rejected - still on the login form after submitting. Check CES_USER/CES_PASS in .env.');
+  }
+  log('Logged in - now at ' + page.url());
+  return true;
+}
+
+/* ------------------------------------------------------------------ *
+ *  PAGE-SIDE HELPERS (run inside the browser via page.evaluate)
+ * ------------------------------------------------------------------ */
+
+/** Harvest the boxes visible on the CURRENT page of the Select Box To
+ *  View list. Finds the grid by its header row (BoxId / Cell /
+ *  Description) and returns [{ boxId, cell, description }] for each
+ *  data row that has a Select button. Runs in the page. */
+function pageHarvestList() {
+  const tables = [...document.querySelectorAll('table')];
+  for (const t of tables) {
+    const headText = (t.rows[0] ? t.rows[0].innerText : '') || '';
+    if (!(/BoxId/i.test(headText) && /Description/i.test(headText))) continue;
+    const out = [];
+    for (let i = 1; i < t.rows.length; i++) {
+      const r = t.rows[i];
+      const btn = r.querySelector('input[type="button"], input[type="submit"], a');
+      if (!btn) continue;
+      const cells = [...r.cells].map((c) => (c.innerText || '').trim());
+      // cells: [Select][BoxId][Cell][Description]
+      const boxId = (cells[1] || '').trim();
+      if (!/^\d+$/.test(boxId)) continue;
+      out.push({ boxId: boxId, cell: cells[2] || '', description: cells[3] || '' });
+    }
+    if (out.length) return out;
+  }
+  return [];
+}
+
+/** Click the Select button on the row whose BoxId equals target.
+ *  Returns true if the click was dispatched. Runs in the page. */
+function pageClickSelect(target) {
+  const tables = [...document.querySelectorAll('table')];
+  for (const t of tables) {
+    const headText = (t.rows[0] ? t.rows[0].innerText : '') || '';
+    if (!(/BoxId/i.test(headText) && /Description/i.test(headText))) continue;
+    for (let i = 1; i < t.rows.length; i++) {
+      const r = t.rows[i];
+      const cells = [...r.cells].map((c) => (c.innerText || '').trim());
+      if ((cells[1] || '').trim() !== target) continue;
+      const btn = r.querySelector('input[type="button"], input[type="submit"], a');
+      if (!btn) return false;
+      btn.click();
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Scrape the Box Details panel by label text. For each wanted label,
+ *  finds the row whose first cell matches it exactly and returns the
+ *  value cell's textarea/input value or plain text. Runs in the page. */
+function pageScrapeDetails() {
+  function valueOfRow(row) {
+    const valCell = row.cells[1];
+    if (!valCell) return '';
+    const ta = valCell.querySelector('textarea');
+    if (ta) return ta.value;
+    const inp = valCell.querySelector('input[type="text"]');
+    if (inp) return inp.value;
+    return (valCell.innerText || '').trim();
+  }
+  const wanted = ['BoxId', 'Description', 'Cell', 'HaulerAccount', 'HaulerCode', 'Notes', 'CesNotes'];
+  const out = {};
+  const rows = [...document.querySelectorAll('table tr')];
+  for (const row of rows) {
+    if (!row.cells || row.cells.length < 2) continue;
+    const label = (row.cells[0].innerText || '').trim();
+    if (wanted.indexOf(label) === -1) continue;
+    if (out[label] !== undefined) continue; // first match wins (Box Details is the first panel in the DOM)
+    out[label] = valueOfRow(row);
+  }
+  return out;
+}
+
+/** Find and click the pager's ">" (next page) button for the list.
+ *  Returns true if a next button was found and clicked. Runs in page. */
+function pageClickNext() {
+  const btns = [...document.querySelectorAll('input[type="button"], input[type="submit"], a')];
+  const next = btns.find((b) => {
+    const v = (b.value !== undefined ? b.value : b.textContent) || '';
+    return v.trim() === '>';
+  });
+  if (!next || next.disabled) return false;
+  next.click();
+  return true;
+}
+
+/* ------------------------------------------------------------------ *
+ *  NODE-SIDE HELPERS
+ * ------------------------------------------------------------------ */
+
+/** Split a Notes field on the first divider line (a line that is
+ *  entirely underscores, possibly with whitespace). Above-line is the
+ *  fixed identity content; below-line is the dynamic troubleshooting
+ *  content, with any further pure-underscore lines removed. */
+function splitNotes(raw) {
+  const text = String(raw == null ? '' : raw).replace(/\r\n/g, '\n');
+  const lines = text.split('\n');
+  const isDivider = (l) => /^[\s_]*_{3,}[\s_]*$/.test(l);
+  const idx = lines.findIndex(isDivider);
+  if (idx === -1) {
+    return { above: text.trim(), below: '', hasDivider: false };
+  }
+  const above = lines.slice(0, idx).join('\n').trim();
+  const below = lines.slice(idx + 1).filter((l) => !isDivider(l)).join('\n').trim();
+  return { above: above, below: below, hasDivider: true };
+}
+
+/** Normalize a raw HaulerAccount value for the inventory grouping:
+ *  trim, collapse whitespace, uppercase, strip trailing ">" junk.
+ *  (Display/grouping only - the CSV always keeps the true raw value.) */
+function normalizeHauler(raw) {
+  return String(raw == null ? '' : raw)
+    .replace(/[>\s]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+}
+
+function csvEscape(v) {
+  const s = String(v == null ? '' : v);
+  if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+/** Wait until the Box Details panel shows the target BoxId (postback
+ *  landed) - tolerant of the full-page WebForms reload. */
+async function waitForBoxDetails(page, targetId) {
+  await page.waitForFunction((tid) => {
+    const rows = [...document.querySelectorAll('table tr')];
+    for (const row of rows) {
+      if (!row.cells || row.cells.length < 2) continue;
+      if ((row.cells[0].innerText || '').trim() === 'BoxId') {
+        return (row.cells[1].innerText || '').trim() === tid;
+      }
+    }
+    return false;
+  }, targetId, { timeout: SELECT_TIMEOUT_MS });
+}
+
+async function main() {
+  log('=== WasteNet Box Management collector starting ('
+    + (LOGIN_ONLY ? 'LOGIN TEST' : TARGETED ? 'TARGETED: box(es) ' + BOX_IDS.join(', ') : TEST_COUNT ? 'TEST ' + TEST_COUNT + ' BOXES' : 'FULL RUN')
+    + ') ===');
+
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
+  const page = await context.newPage();
+  const startedAt = Date.now();
+
+  const results = [];       // one entry per box scraped
+  const seenBoxIds = new Set();
+  let failures = [];        // boxes we attempted but could not scrape
+
+  try {
+    await page.goto(BOX_MGMT_URL, { timeout: 45000 });
+    await loginIfNeeded(page);
+    if (!/BoxManagement\.aspx/i.test(page.url())) {
+      log('Not on BoxManagement.aspx after login (at ' + page.url() + ') - navigating there.');
+      await page.goto(BOX_MGMT_URL, { timeout: 45000 });
+      await loginIfNeeded(page);
+    }
+
+    // The right-hand list present = logged in and on the right page.
+    await page.waitForFunction(() => {
+      const tables = [...document.querySelectorAll('table')];
+      return tables.some((t) => {
+        const headText = (t.rows[0] ? t.rows[0].innerText : '') || '';
+        return /BoxId/i.test(headText) && /Description/i.test(headText);
+      });
+    }, { timeout: 30000 });
+    log('BoxManagement page verified - box list present.');
+
+    if (LOGIN_ONLY) {
+      log('LOGIN TEST PASSED. Exiting.');
+      await browser.close();
+      return;
+    }
+
+    let done = false;
+    let pageNum = 1;
+
+    for (let p = 0; p < MAX_PAGES && !done; p++) {
+      if (Date.now() - startedAt > RUN_TIMEOUT_MS) throw new Error('Run exceeded the 1-hour ceiling.');
+
+      const list = await page.evaluate(pageHarvestList);
+      if (!list.length) {
+        log('Page ' + pageNum + ': no rows harvested - stopping pager walk.');
+        break;
+      }
+      const newOnPage = list.filter((b) => !seenBoxIds.has(b.boxId));
+      log('Page ' + pageNum + ': ' + list.length + ' rows (' + newOnPage.length + ' new).');
+      if (!newOnPage.length) {
+        // Pager wrapped or stalled - we've seen everything.
+        log('No new boxes on this page - list exhausted.');
+        break;
+      }
+
+      for (const box of newOnPage) {
+        if (TARGETED && BOX_IDS.indexOf(box.boxId) === -1) { seenBoxIds.add(box.boxId); continue; }
+        if (Date.now() - startedAt > RUN_TIMEOUT_MS) throw new Error('Run exceeded the 1-hour ceiling.');
+
+        let scraped = null;
+        for (let attempt = 1; attempt <= 2 && !scraped; attempt++) {
+          try {
+            const clicked = await page.evaluate(pageClickSelect, box.boxId);
+            if (!clicked) throw new Error('Select button not found on current page');
+            await page.waitForLoadState('domcontentloaded').catch(() => {});
+            await waitForBoxDetails(page, box.boxId);
+            await page.waitForTimeout(PAGE_SETTLE_MS);
+            scraped = await page.evaluate(pageScrapeDetails);
+          } catch (e) {
+            log('  Box ' + box.boxId + ' attempt ' + attempt + ' failed: ' + e.message);
+            if (attempt === 2) failures.push({ boxId: box.boxId, description: box.description, reason: e.message });
+            else await page.waitForTimeout(1500);
+          }
+        }
+        seenBoxIds.add(box.boxId);
+        if (!scraped) continue;
+
+        const notes = splitNotes(scraped.Notes);
+        results.push({
+          boxId: box.boxId,
+          description: scraped.Description || box.description,
+          cell: scraped.Cell || box.cell,
+          haulerAccountRaw: scraped.HaulerAccount != null ? scraped.HaulerAccount : '',
+          haulerAccountNorm: normalizeHauler(scraped.HaulerAccount),
+          haulerCode: scraped.HaulerCode != null ? scraped.HaulerCode : '',
+          notesRaw: scraped.Notes != null ? scraped.Notes : '',
+          notesAbove: notes.above,
+          notesBelow: notes.below,
+          notesHasDivider: notes.hasDivider,
+        });
+        log('  Box ' + box.boxId + ' OK - HaulerAccount="' + (scraped.HaulerAccount || '') + '" HaulerCode="' + (scraped.HaulerCode || '') + '"'
+          + (notes.below ? ' [below-line notes present]' : ''));
+
+        if (TEST_COUNT && results.length >= TEST_COUNT) { done = true; break; }
+        if (TARGETED && results.length + failures.length >= BOX_IDS.length) { done = true; break; }
+      }
+
+      if (done) break;
+
+      // Advance the pager. The list grid keeps its page across Select
+      // postbacks (WebForms ViewState), so ">" moves from wherever we are.
+      const advanced = await page.evaluate(pageClickNext);
+      if (!advanced) { log('No ">" pager button found/clickable - assuming last page.'); break; }
+      await page.waitForLoadState('domcontentloaded').catch(() => {});
+      await page.waitForTimeout(1200);
+      pageNum++;
+    }
+
+    /* -------------------- OUTPUT -------------------- */
+
+    const stamp = todayStamp();
+    const csvPath = path.join(LOG_DIR, 'box-management-' + stamp + '.csv');
+    const jsonPath = path.join(LOG_DIR, 'box-management-' + stamp + '.json');
+
+    const header = ['boxId', 'description', 'cell', 'haulerAccountRaw', 'haulerAccountNorm', 'haulerCode', 'notesAbove', 'notesBelow', 'notesHasDivider', 'notesRaw'];
+    const csv = [header.join(',')].concat(results.map((r) => header.map((h) => csvEscape(r[h])).join(','))).join('\n');
+    fs.writeFileSync(csvPath, csv);
+    fs.writeFileSync(jsonPath, JSON.stringify({ date: stamp, count: results.length, failures: failures, results: results }, null, 2));
+    log('Wrote ' + results.length + ' boxes to ' + csvPath);
+    log('Wrote JSON to ' + jsonPath);
+
+    // -------- HaulerAccount inventory: the whole point of phase 1 -------
+    const counts = {};
+    for (const r of results) {
+      const k = r.haulerAccountNorm === '' ? '(blank)' : r.haulerAccountNorm;
+      counts[k] = (counts[k] || 0) + 1;
+    }
+    const inv = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+    const invLines = inv.map((k) => '  ' + String(counts[k]).padStart(4) + '  ' + k);
+    const invText = 'HaulerAccount DISTINCT VALUES (' + inv.length + ' spellings across ' + results.length + ' boxes):\n' + invLines.join('\n');
+    log('\n' + invText);
+    fs.writeFileSync(path.join(LOG_DIR, 'hauler-inventory-' + stamp + '.txt'), invText + '\n');
+
+    // Divider sanity check for the notes split logic.
+    const noDivider = results.filter((r) => !r.notesHasDivider && r.notesRaw.trim() !== '');
+    if (noDivider.length) {
+      log('NOTE: ' + noDivider.length + ' box(es) have non-empty Notes with NO underscore divider - review their notesRaw in the JSON before locking the split logic: '
+        + noDivider.slice(0, 15).map((r) => r.boxId).join(', ') + (noDivider.length > 15 ? ', ...' : ''));
+    }
+
+    if (failures.length) {
+      const lines = failures.map((f) => '  - Box ' + f.boxId + (f.description ? ' (' + String(f.description).slice(0, 60) + ')' : '') + ' - ' + f.reason);
+      log('BOXES NOT SCRAPED THIS RUN (' + failures.length + '):\n' + lines.join('\n'));
+      if (!TEST_COUNT && !TARGETED) {
+        await sendAlert('WasteNet collector: ' + failures.length + ' box(es) not scraped - ' + stamp,
+          'The Box Management collector finished, but ' + failures.length + ' box(es) could not be scraped:\n\n' + lines.join('\n'));
+      }
+    }
+
+    log('=== RUN COMPLETE - ' + results.length + ' boxes in ' + Math.round((Date.now() - startedAt) / 60000) + ' min ===');
+    await browser.close();
+  } catch (err) {
+    log('RUN FAILED: ' + err.message);
+    await screenshot(page, 'collector_failure');
+    if (!TEST_COUNT && !TARGETED && !LOGIN_ONLY) {
+      await sendAlert('WasteNet collector FAILED - ' + todayStamp(),
+        'The Box Management collector run failed at ' + ts() + '.\n\nReason: ' + err.message +
+        '\n\nA screenshot was saved in /opt/wastenet/logs on the server.' +
+        '\n\nThis does NOT affect the main 4:30 AM Monitor scan - it runs independently.');
+    }
+    await browser.close();
+    process.exit(1);
+  }
+}
+
+main();
