@@ -451,7 +451,18 @@ function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,
 //     button never silently fails. Returns false to suppress the link.
 function openCesEmpty(event, encodedId){
   if(event){ event.stopPropagation(); event.preventDefault(); }
-  var url = "http://h1.ces-web.com/MarkEmpty.aspx?BoxId=" + encodedId;
+  // Cache-buster (_ts): the URL already carries the right BoxId, but CES
+  // was serving a STALE page - the first box loaded (39) kept showing
+  // even though the address bar read the new BoxId. A unique query param
+  // per click forces CES to treat every open as a fresh page rather than
+  // returning a cached one. Harmless to CES (ignores unknown params).
+  var url = "http://h1.ces-web.com/MarkEmpty.aspx?BoxId=" + encodedId + "&_ts=" + Date.now();
+  var isMobile = /iPad|iPhone|iPod|Android|Mobile/i.test(navigator.userAgent)
+    || (navigator.maxTouchPoints > 1 && /Macintosh/i.test(navigator.userAgent)); // iPadOS reports as Mac
+  if(isMobile){
+    window.open(url, "_blank");
+    return false;
+  }
   var w = 1040, h = 780;
   var dualLeft = (window.screenLeft !== undefined) ? window.screenLeft : (screen.left||0);
   var dualTop  = (window.screenTop  !== undefined) ? window.screenTop  : (screen.top||0);
@@ -460,12 +471,11 @@ function openCesEmpty(event, encodedId){
   var left = dualLeft + Math.max(0, (vw - w) / 2);
   var top  = dualTop  + Math.max(0, (vh - h) / 2);
   var feat = "popup=yes,scrollbars=yes,resizable=yes,width="+w+",height="+h+",left="+Math.round(left)+",top="+Math.round(top);
-  // Per-box window name (not a single shared "cesMarkEmpty") - a shared
-  // name made every click reuse the FIRST window opened, so every button
-  // kept showing whichever box was opened first. A unique name per box
-  // means each box gets its own popup (and re-clicking the same box just
-  // refocuses that box's window, which is the sensible behavior).
-  var winName = "cesMarkEmpty_" + encodedId;
+  // Unique window name per CLICK (timestamp), not just per box - a
+  // per-box name still let an already-open window get reused and show
+  // stale content. A fresh name guarantees a new window with the new
+  // URL every time.
+  var winName = "cesMarkEmpty_" + encodedId + "_" + Date.now();
   var win = window.open(url, winName, feat);
   if(!win){ window.open(url, "_blank"); }
   else { win.focus(); }
