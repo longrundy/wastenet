@@ -1,7 +1,16 @@
 /**
  * WasteNet Box Management Collector
  * =================================
- * v1.0 - INVENTORY PHASE
+ * v1.1 - INVENTORY PHASE
+ *   v1.1 (2026-07-10): splitNotes rebuilt from live-data review of the
+ *     93 no-divider boxes - a divider is now a 10+ underscore run
+ *     ANYWHERE in a line (handles "____X", "____=", glued-to-content,
+ *     and annotations after the divider); boxes with NO divider now
+ *     put ALL notes in below-line so the dashboard never hides them.
+ *     normalizeHauler now strips Dave's * < > decorations so
+ *     "** +1 **" / "* +1 *" / "<+1" all group as "+1".
+ *   v1.0 (2026-07-10): first version, login + full scrape verified
+ *     live (479 boxes, 7 min).
  *
  * Runs SEPARATELY from the daily Monitor.aspx scan engine. This script
  * never touches engine.user.js, runner.js, or their cron entry.
@@ -246,29 +255,52 @@ function pageClickNext() {
  *  NODE-SIDE HELPERS
  * ------------------------------------------------------------------ */
 
-/** Split a Notes field on the first divider line (a line that is
- *  entirely underscores, possibly with whitespace). Above-line is the
- *  fixed identity content; below-line is the dynamic troubleshooting
- *  content, with any further pure-underscore lines removed. */
+/** Split a Notes field on the FIRST divider: a run of 10+ underscores
+ *  ANYWHERE in a line (verified against live data 2026-07-10: Dave's
+ *  dividers often carry trailing junk like "____X" / "____=", carry
+ *  real annotations after them, or sit glued to the end of a content
+ *  line - a whole-line-only rule missed 93 boxes).
+ *    - Text BEFORE the underscore run (incl. earlier lines) -> above.
+ *    - Text AFTER it -> kept at the top of below (it's real content,
+ *      e.g. "[3/23/26 THRU 3/28 // WILL BE CLOSED]"), except a lone
+ *      trailing X/x/= right after the underscores (typing artifact).
+ *    - Later underscore runs inside below are stripped; lines left
+ *      empty by that are dropped.
+ *    - NO divider at all (old-format boxes): everything -> below, so
+ *      the dashboard shows the full notes rather than hiding them. */
 function splitNotes(raw) {
   const text = String(raw == null ? '' : raw).replace(/\r\n/g, '\n');
-  const lines = text.split('\n');
-  const isDivider = (l) => /^[\s_]*_{3,}[\s_]*$/.test(l);
-  const idx = lines.findIndex(isDivider);
-  if (idx === -1) {
-    return { above: text.trim(), below: '', hasDivider: false };
+  const DIV = /_{10,}/;
+  const m = text.match(DIV);
+  if (!m) {
+    return { above: '', below: text.trim(), hasDivider: false };
   }
-  const above = lines.slice(0, idx).join('\n').trim();
-  const below = lines.slice(idx + 1).filter((l) => !isDivider(l)).join('\n').trim();
+  const above = text.slice(0, m.index).trim();
+  let below = text.slice(m.index + m[0].length);
+  below = below.replace(/^[ \t]*[Xx=](?=\s|$)/, ''); // lone artifact right after the divider
+  below = below.replace(/_{10,}[ \t]*[Xx=]?/g, '');  // later divider runs (with their artifacts)
+  // Trim each line's trailing space and collapse runs of blank lines.
+  below = below
+    .split('\n')
+    .map((l) => l.replace(/[ \t]+$/, ''))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
   return { above: above, below: below, hasDivider: true };
 }
 
 /** Normalize a raw HaulerAccount value for the inventory grouping:
- *  trim, collapse whitespace, uppercase, strip trailing ">" junk.
- *  (Display/grouping only - the CSV always keeps the true raw value.) */
+ *  strip Dave's decorations (leading/trailing * < > runs), collapse
+ *  whitespace, trim, uppercase. Collapses "** +1 **", "* +1 *" and
+ *  "<+1" all to "+1", "*48*" to "48", "+2>" to "+2", etc. Internal
+ *  characters are untouched, so "+1> PW" keeps its ">" and stays a
+ *  distinct value with its own mapping row.
+ *  (Grouping only - the CSV always keeps the true raw value.) */
 function normalizeHauler(raw) {
   return String(raw == null ? '' : raw)
-    .replace(/[>\s]+$/g, '')
+    .trim()
+    .replace(/^[*<>\s]+/, '')
+    .replace(/[*<>\s]+$/, '')
     .replace(/\s+/g, ' ')
     .trim()
     .toUpperCase();
