@@ -210,7 +210,7 @@
   .notes-toggle{width:22px; height:22px; border-radius:50%; border:1px solid #C9CFC2; background:#fff; color:var(--ink-3); font-weight:700; font-size:13px; line-height:1; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:0; vertical-align:middle;}
   .notes-toggle:hover{border-color:var(--green); color:var(--green-dark);}
   .notes-toggle.open{border-color:var(--green); background:#EDF5E2; color:var(--green-dark);}
-  .staff-note{margin-top:8px; background:#F7F9F3; border:0.5px solid var(--line); border-radius:6px; padding:9px 11px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; line-height:1.5; color:var(--ink); white-space:pre-wrap; word-break:break-word;}
+  .staff-note{margin-top:6px; background:#F7F9F3; border:0.5px solid var(--line); border-radius:6px; padding:8px 10px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; line-height:1.45; color:var(--ink); white-space:pre-wrap; word-break:break-word;}
   .staff-note-upd{margin-top:6px; font-family:inherit; font-size:11px; color:var(--ink-3);}
   .decision{display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600; padding:3px 10px; border-radius:14px;}
   .decision.yes{background:var(--red-tint); color:var(--red-dark);}
@@ -795,6 +795,15 @@ function detailHtml(b){
   // in place when notesOpenId matches this box.
   var staffNote = state.staffNotesById ? state.staffNotesById[b.id] : null;
   if(staffNote){
+    // Tidy the CES text for display only (the stored note is untouched):
+    // collapse any run of 2+ blank lines down to a single blank line, drop
+    // trailing spaces on each line, and trim leading/trailing blank lines -
+    // David often leaves big vertical gaps in the CES field that would
+    // otherwise make this block needlessly tall.
+    staffNote = String(staffNote)
+      .replace(/[ \t]+(\r?\n)/g, '$1')   // strip trailing spaces per line
+      .replace(/(\r?\n){3,}/g, '\n\n')   // 2+ blank lines -> one blank line
+      .replace(/^\s+|\s+$/g, '');        // trim leading/trailing whitespace
     var noteOpen = (state.notesOpenId === b.id);
     var nu = state.staffNotesUpdById ? state.staffNotesUpdById[b.id] : null;
     rows += '<div class="drow"><span class="dk">WN Staff Notes</span><span class="dv">'+
