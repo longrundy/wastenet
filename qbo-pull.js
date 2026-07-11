@@ -1,16 +1,26 @@
 /**
- * qbo-pull.js - WasteNet QuickBooks Online invoice pull
+ * qbo-pull.js - WasteNet QuickBooks Online pull
  *
- * Reads ALL invoices from the production QuickBooks company, resolves
- * customer names, and POSTs the result to the WasteNet Accounting
- * Dashboard Apps Script, which writes them to the "Invoices" tab.
+ * Reads from the production QuickBooks company and POSTs to the WasteNet
+ * Accounting Dashboard Apps Script:
+ *
+ *   Invoices  - what is owed and what is settled
+ *   Payments  - WHEN money actually arrived, and against which invoice
+ *
+ * The Payments pull is what makes monthly commissions possible. An
+ * invoice's Balance tells us THAT it was paid; only a Payment tells us
+ * WHEN. Agents are paid for the month the money landed, so the payment
+ * date is the commission period.
+ *
+ * A single QuickBooks payment can settle several invoices, and it links
+ * to them by internal Id (not the invoice number a human sees). So we
+ * fan each payment out into one row per invoice application, and map
+ * the internal Id back to the invoice number using the invoice list we
+ * already fetched.
  *
  * USAGE
  *   node qbo-pull.js           full run: fetch + post to the sheet
- *   node qbo-pull.js --test    fetch only, print a sample, post NOTHING
- *
- * The --test flag is a safety valve: it lets you see exactly what would
- * be sent without touching the sheet.
+ *   node qbo-pull.js --test    fetch only, print a summary, post NOTHING
  *
  * READ-ONLY against QuickBooks. This script never writes to QBO.
  */
@@ -122,7 +132,7 @@ async function query(sql) {
 }
 
 /**
- * QuickBooks caps any query at 1000 rows, so we page through with
+ * QuickBooks caps any query at 1000 rows, so page through with
  * STARTPOSITION until a short page tells us we've reached the end.
  */
 async function queryAll(entity, fields) {
@@ -150,10 +160,11 @@ async function queryAll(entity, fields) {
 /* Post to the sheet                                                   */
 /* ------------------------------------------------------------------ */
 
-function postToSheet(invoices) {
+function postToSheet(invoices, payments) {
   return new Promise(function (resolve, reject) {
     var payload = JSON.stringify({
       invoices: invoices,
+      payments: payments,
       pulledAt: new Date().toISOString()
     });
 
@@ -200,26 +211,31 @@ function postToSheet(invoices) {
     log('Connected to ' + environment + ' company realmId=' + tokens.realmId);
     if (TEST_MODE) log('TEST MODE - nothing will be written to the sheet.');
 
-    // --- Customers: invoices carry only a customer ref id, so map id -> name
+    /* --- Customers: invoices and payments carry only a ref id --- */
     log('Fetching customers...');
     var customers = await queryAll('Customer', 'Id, DisplayName');
     var nameById = {};
     customers.forEach(function (c) { nameById[String(c.Id)] = c.DisplayName; });
     log('Customers: ' + customers.length);
 
-    // --- Invoices
+    /* --- Invoices --- */
     log('Fetching invoices...');
-    var raw = await queryAll(
+    var rawInv = await queryAll(
       'Invoice',
       'Id, DocNumber, TxnDate, DueDate, TotalAmt, Balance, CustomerRef'
     );
-    log('Invoices: ' + raw.length);
+    log('Invoices: ' + rawInv.length);
 
-    var invoices = raw.map(function (i) {
+    // Invoice internal Id -> human invoice number. Payments link by Id.
+    var docById = {};
+
+    var invoices = rawInv.map(function (i) {
       var custId = i.CustomerRef && i.CustomerRef.value;
+      var doc = i.DocNumber || i.Id;
+      docById[String(i.Id)] = doc;
       return {
         id:        i.Id,
-        docNumber: i.DocNumber || i.Id,
+        docNumber: doc,
         txnDate:   i.TxnDate || '',
         dueDate:   i.DueDate || '',
         customer:  nameById[String(custId)] ||
@@ -229,27 +245,95 @@ function postToSheet(invoices) {
       };
     });
 
-    // Newest first
     invoices.sort(function (a, b) {
       return String(b.txnDate).localeCompare(String(a.txnDate));
     });
 
+    /* --- Payments --- */
+    log('Fetching payments...');
+    var rawPay = await queryAll(
+      'Payment',
+      'Id, TxnDate, TotalAmt, CustomerRef, Line'
+    );
+    log('Payments: ' + rawPay.length);
+
+    // Fan each payment out into one row per invoice it settled.
+    var payments = [];
+    var unapplied = 0;
+
+    rawPay.forEach(function (p) {
+      var custId = p.CustomerRef && p.CustomerRef.value;
+      var custName = nameById[String(custId)] ||
+                     (p.CustomerRef && p.CustomerRef.name) || '';
+      var lines = p.Line || [];
+      var linked = 0;
+
+      lines.forEach(function (ln) {
+        var txns = ln.LinkedTxn || [];
+        txns.forEach(function (t) {
+          if (t.TxnType !== 'Invoice') return;
+          linked++;
+          payments.push({
+            paymentId: p.Id,
+            txnDate:   p.TxnDate || '',
+            customer:  custName,
+            docNumber: docById[String(t.TxnId)] || t.TxnId,
+            amount:    Number(ln.Amount) || 0
+          });
+        });
+      });
+
+      // A payment with no invoice link is a credit / unapplied balance.
+      // Keep it, with a blank invoice number, so the money is not lost.
+      if (linked === 0) {
+        unapplied++;
+        payments.push({
+          paymentId: p.Id,
+          txnDate:   p.TxnDate || '',
+          customer:  custName,
+          docNumber: '',
+          amount:    Number(p.TotalAmt) || 0
+        });
+      }
+    });
+
+    payments.sort(function (a, b) {
+      return String(b.txnDate).localeCompare(String(a.txnDate));
+    });
+
+    /* --- Summary --- */
     var open = invoices.filter(function (i) { return i.balance !== 0; });
-    var paid = invoices.length - open.length;
     var owed = open.reduce(function (s, i) { return s + i.balance; }, 0);
+    var collected = payments.reduce(function (s, p) { return s + p.amount; }, 0);
+
+    // Money collected per month - this is the commission period grain.
+    var byMonth = {};
+    payments.forEach(function (p) {
+      var m = String(p.txnDate).slice(0, 7);
+      if (!m) return;
+      byMonth[m] = (byMonth[m] || 0) + p.amount;
+    });
+    var months = Object.keys(byMonth).sort().reverse();
 
     log('');
-    log('  Total invoices: ' + invoices.length);
-    log('  Paid:           ' + paid);
-    log('  Open:           ' + open.length);
-    log('  Outstanding:    $' + owed.toFixed(2));
+    log('  Invoices:        ' + invoices.length);
+    log('    open:          ' + open.length + '  ($' + owed.toFixed(2) + ' outstanding)');
+    log('    paid:          ' + (invoices.length - open.length));
+    log('  Payment rows:    ' + payments.length + '  ($' + collected.toFixed(2) + ' collected)');
+    log('    unapplied:     ' + unapplied + ' (no invoice link)');
     log('');
 
-    log('Sample (5 newest):');
-    invoices.slice(0, 5).forEach(function (i) {
-      var status = i.balance === 0 ? 'PAID' : 'owes ' + i.balance;
-      log('   Inv ' + i.docNumber + '  ' + i.txnDate + '  ' +
-          i.customer + '  $' + i.total + '  [' + status + ']');
+    log('Collected by month (6 most recent):');
+    months.slice(0, 6).forEach(function (m) {
+      log('   ' + m + '   $' + byMonth[m].toFixed(2));
+    });
+    log('');
+
+    log('Sample payments (5 newest):');
+    payments.slice(0, 5).forEach(function (p) {
+      log('   ' + p.txnDate + '  ' + p.customer +
+          '  inv ' + (p.docNumber || '(unapplied)') +
+          '  $' + p.amount.toFixed(2));
     });
     log('');
 
@@ -258,8 +342,9 @@ function postToSheet(invoices) {
       return;
     }
 
-    log('Posting ' + invoices.length + ' invoices to the accounting sheet...');
-    var resp = await postToSheet(invoices);
+    log('Posting ' + invoices.length + ' invoices and ' +
+        payments.length + ' payment rows...');
+    var resp = await postToSheet(invoices, payments);
     log('Sheet replied: ' + resp);
     log('DONE.');
 
