@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet index · build 2026-07-11-landing-b · front door -->
+<!-- wastenet index · build 2026-07-11-landing-c · front door -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -24,8 +24,8 @@
     padding:24px;
   }
 
-  .stage{width:min(520px,100%); text-align:center;}
-  .logo{width:200px; height:auto; margin:0 auto 34px; display:block;}
+  .stage{width:min(560px,100%); text-align:center;}
+  .logo{width:200px; height:auto; margin:0 auto 32px; display:block;}
 
   /* lock */
   .lock-card{width:min(340px,100%); margin:0 auto; background:var(--card); border:0.5px solid var(--line-strong); border-radius:12px; padding:22px; box-shadow:0 3px 14px rgba(0,0,0,0.06);}
@@ -36,38 +36,38 @@
   .lock-btn:hover{background:var(--green-dark);}
   .lock-err{margin-top:11px; padding:8px 10px; background:var(--red-tint); border:0.5px solid var(--red); border-radius:6px; color:var(--red-dark); font-size:12.5px; font-weight:600;}
 
-  /* choices - no cards, just icon + label. The disc is the affordance. */
+  /* choices */
   .picker{display:none;}
-  .picker.show{display:flex; justify-content:center; gap:56px;}
+  .picker.show{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px;}
 
   .pick{
-    display:flex; flex-direction:column; align-items:center; gap:14px;
-    text-decoration:none; cursor:pointer; padding:6px 4px;
+    display:block; text-align:center; text-decoration:none; cursor:pointer;
+    background:var(--card); border:0.5px solid var(--line-strong); border-radius:14px;
+    padding:26px 20px 22px; font-family:var(--font);
+    transition:border-color .16s ease, background .16s ease, transform .16s ease, box-shadow .16s ease;
     -webkit-tap-highlight-color:transparent;
   }
+  .pick:hover{
+    border-color:var(--green); background:var(--green-tint-2);
+    transform:translateY(-2px); box-shadow:0 4px 16px rgba(92,170,22,0.10);
+  }
+
   .disc{
-    width:84px; height:84px; border-radius:50%;
-    background:var(--green-tint-2); border:1px solid var(--green-border);
+    width:56px; height:56px; border-radius:50%; margin:0 auto 14px;
+    background:var(--green-tint); border:1px solid var(--green-border);
     display:flex; align-items:center; justify-content:center;
     color:var(--green-dark);
-    transition:background .16s ease, border-color .16s ease, color .16s ease, transform .16s ease;
+    transition:background .16s ease, border-color .16s ease, color .16s ease;
   }
-  .pick:hover .disc{
-    background:var(--green); border-color:var(--green); color:#fff;
-    transform:translateY(-3px);
-  }
-  .disc svg{width:36px; height:36px; display:block;}
-  .pick-t{
-    font-size:14px; font-weight:600; color:var(--ink-2); letter-spacing:0.01em;
-    transition:color .16s ease;
-  }
-  .pick:hover .pick-t{color:var(--green-dark);}
+  .pick:hover .disc{background:var(--green); border-color:var(--green); color:#fff;}
+  .disc svg{width:26px; height:26px; display:block;}
 
-  @media (max-width:460px){
-    .picker.show{gap:34px;}
+  .pick-t{font-size:15px; font-weight:600; color:var(--ink); margin-bottom:5px;}
+  .pick-d{font-size:12.5px; color:var(--ink-2); line-height:1.5;}
+
+  @media (max-width:480px){
+    .picker.show{grid-template-columns:1fr;}
     .logo{width:165px;}
-    .disc{width:74px; height:74px;}
-    .disc svg{width:32px; height:32px;}
   }
 </style>
 </head>
@@ -88,7 +88,6 @@
 
     <a class="pick" href="wastenet-monitor.html">
       <div class="disc">
-        <!-- compactor with a fill level -->
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M4 7h16l-1.4 12.2a1 1 0 0 1-1 .8H6.4a1 1 0 0 1-1-.8L4 7z"/>
@@ -97,11 +96,11 @@
         </svg>
       </div>
       <div class="pick-t">Box Monitoring</div>
+      <div class="pick-d">Fill levels, service scheduling, and the daily action list.</div>
     </a>
 
     <a class="pick" href="wastenet-accounting.html">
       <div class="disc">
-        <!-- invoice -->
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M6 3h12v18l-2.4-1.6L13.2 21 12 19.6 10.8 21l-2.4-1.6L6 21V3z"/>
@@ -111,6 +110,7 @@
         </svg>
       </div>
       <div class="pick-t">Accounting</div>
+      <div class="pick-d">Receivables, invoice aging, and agent commissions.</div>
     </a>
 
   </div>
@@ -127,8 +127,8 @@
    next, where the Apps Script checks it server-side. A wrong
    code therefore fails on THAT page's lock screen, not this one.
 
-   The point of gating here is convenience, not security: unlock
-   once, and both dashboards open for the rest of the session.
+   Gating here is for convenience, not security: unlock once and
+   both dashboards open for the rest of the session.
 
    The legacy dashboard still lives at wastenet-legacy.html - it
    just isn't linked from here any more.

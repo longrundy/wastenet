@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-accounting · build 2026-07-11-a · receivables view -->
+<!-- wastenet-accounting · build 2026-07-11-b · tabs + slimbar + fast load -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -24,9 +24,23 @@
     font-family:var(--font); background:var(--page); color:var(--ink);
     font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased;
   }
-  .wrap{max-width:820px; margin:0 auto; padding:20px 16px 80px;}
+  .wrap{max-width:820px; margin:0 auto; padding:20px 16px 60px;}
 
+  /* top card - header + scorecard. Scrolls away normally. */
   .topcard{border:0.5px solid var(--line); border-radius:12px; background:var(--card); padding:12px 16px 15px; margin-bottom:16px;}
+
+  /* Fixed slim bar - always in the DOM, hidden until scrolled. Fades in
+     via opacity/visibility (no layout change), so showing it can never
+     shift the page or feed back into the scroll. Same approach as the
+     monitor page. */
+  .slimbar{position:fixed; left:0; right:0; top:0; z-index:40; background:var(--card); border-bottom:0.5px solid var(--line-strong); box-shadow:0 3px 12px rgba(0,0,0,0.10); opacity:0; visibility:hidden; transition:opacity .15s ease, visibility .15s ease;}
+  .slimbar.show{opacity:1; visibility:visible;}
+  .slimbar-inner{max-width:820px; margin:0 auto; padding:8px 16px;}
+  .slimbar .header-bar{margin-bottom:8px;}
+  .slimbar .score-groups{grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px;}
+  .slimbar .score-half{padding:5px 6px; display:flex; align-items:baseline; justify-content:center; gap:5px;}
+  .slimbar .score-half-n{font-size:15px; margin-top:0;}
+  .slimbar .score-half-l{font-size:10.5px; margin-top:0;}
 
   .header-bar{display:flex; align-items:center; justify-content:space-between; gap:12px;}
   .brand{display:flex; align-items:center; gap:10px; min-width:0;}
@@ -34,49 +48,50 @@
   .brand-div{width:1px; height:16px; background:var(--line-strong); flex:0 0 auto;}
   .header-right{display:flex; align-items:center; gap:8px; flex:0 0 auto;}
 
-  /* view switcher - swaps between Box Monitor and Accounting */
   .viewnav{position:relative; flex:0 0 auto;}
   .view-label{font-size:13px; color:var(--ink-2); background:transparent; border:none; padding:2px 4px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; font-family:var(--font);}
   .view-label:hover{color:var(--ink);}
   .view-caret{font-size:9px; color:var(--ink-3);}
-  .view-drop{position:absolute; top:100%; left:0; margin-top:6px; background:var(--card); border:0.5px solid var(--line-strong); border-radius:10px; box-shadow:0 4px 14px rgba(0,0,0,0.10); min-width:190px; z-index:50; display:none; overflow:hidden;}
+  .view-drop{position:absolute; top:100%; left:0; margin-top:6px; background:var(--card); border:0.5px solid var(--line-strong); border-radius:10px; box-shadow:0 4px 14px rgba(0,0,0,0.10); min-width:190px; z-index:60; display:none; overflow:hidden;}
   .view-drop.open{display:block;}
   .view-opt{display:block; width:100%; text-align:left; padding:9px 14px; font-size:13px; color:var(--ink); background:transparent; border:none; cursor:pointer; font-family:var(--font);}
   .view-opt:hover{background:var(--panel);}
   .view-opt.cur{color:var(--green-dark); font-weight:600; background:var(--green-tint-2);}
 
-  .btn{font-size:12px; font-weight:500; color:var(--ink); background:var(--card); border:0.5px solid var(--line-strong); padding:6px 12px; border-radius:16px; cursor:pointer; display:inline-flex; align-items:center; gap:5px; transition:background .12s; font-family:var(--font);}
+  .btn{font-size:12px; font-weight:500; color:var(--ink); background:var(--card); border:0.5px solid var(--line-strong); padding:6px 9px; border-radius:16px; cursor:pointer; display:inline-flex; align-items:center; gap:5px; transition:background .12s; font-family:var(--font);}
   .btn:hover{background:var(--panel);}
-  .icon-btn{padding:6px 9px;}
   .stamp{font-size:11px; color:var(--ink-3); white-space:nowrap;}
 
-  /* scorecard - mirrors the monitor page grouping */
+  /* scorecard */
   .summary{margin-top:12px;}
   .score-groups{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px;}
   .score-group-label{font-size:10.5px; color:var(--ink-3); text-align:center; margin-bottom:4px; letter-spacing:0.02em;}
   .score-btn{display:flex; border:0.5px solid var(--line); border-radius:12px; overflow:hidden;}
   .score-btn > .score-half:first-child{border-right:0.5px solid var(--line);}
   .score-half{flex:1; min-width:0; padding:11px 6px; text-align:center;}
-  .score-half-n{font-size:21px; font-weight:600; letter-spacing:-0.01em; line-height:1.15; margin-top:2px;}
+  .score-half-n{font-size:20px; font-weight:600; letter-spacing:-0.01em; line-height:1.15; margin-top:2px;}
   .score-half-l{font-size:11px; color:var(--ink-2); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .n-ink{color:var(--ink);}
   .n-red{color:var(--red-dark);}
   .n-green{color:var(--green-dark);}
 
-  /* aging bar */
-  .agebar{display:flex; height:9px; border-radius:5px; overflow:hidden; margin:16px 0 10px;}
-  .agebar span{display:block; transition:flex .3s;}
-
-  .ages{display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:7px;}
-  .age{border:0.5px solid var(--line); border-radius:10px; background:var(--card); padding:8px 6px; cursor:pointer; text-align:center; transition:background .12s, border-color .12s;}
-  .age:hover{background:var(--panel);}
-  .age.on{border-color:var(--green); background:var(--green-tint-2);}
-  .age-l{font-size:10.5px; color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .age-n{font-size:14px; font-weight:600; margin-top:2px; letter-spacing:-0.01em;}
-  .age-c{font-size:10px; color:var(--ink-3); margin-top:1px;}
+  /* aging tabs - selectable, like the monitor's pickup-date tabs */
+  .tabs{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;}
+  .tab{
+    font-size:12px; font-weight:500; font-family:var(--font);
+    color:var(--ink-2); background:var(--card);
+    border:0.5px solid var(--line-strong); border-radius:16px;
+    padding:6px 12px; cursor:pointer; white-space:nowrap;
+    display:inline-flex; align-items:baseline; gap:6px;
+    transition:background .12s, border-color .12s, color .12s;
+  }
+  .tab:hover{background:var(--panel);}
+  .tab.on{background:var(--green); border-color:var(--green); color:#fff;}
+  .tab-n{font-size:11px; opacity:0.75;}
+  .tab.on .tab-n{opacity:0.9;}
 
   /* table */
-  .tablecard{border:0.5px solid var(--line); border-radius:14px; background:var(--card); padding:14px 16px 6px; margin-top:18px;}
+  .tablecard{border:0.5px solid var(--line); border-radius:14px; background:var(--card); padding:14px 16px 6px;}
   .tablehead{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;}
   .tabletitle{font-size:14px; font-weight:600;}
   .search{font-size:12px; padding:6px 10px; border:0.5px solid var(--line-strong); border-radius:16px; width:170px; outline:none; font-family:var(--font); color:var(--ink); background:var(--card);}
@@ -90,7 +105,6 @@
   tr:last-child td{border-bottom:none;}
   tbody tr:hover{background:var(--panel);}
   .num{text-align:right;}
-  .cust{color:var(--ink);}
   .muted{color:var(--ink-2);}
 
   .chip{display:inline-block; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:600; white-space:nowrap;}
@@ -117,17 +131,15 @@
   .lock-btn{width:100%; margin-top:12px; padding:11px; font-size:14px; font-weight:600; border-radius:6px; border:none; cursor:pointer; background:var(--green); color:#fff; font-family:var(--font);}
   .lock-err{margin-top:12px; padding:8px 10px; background:var(--red-tint); border:0.5px solid var(--red); border-radius:6px; color:var(--red-dark); font-size:12.5px; font-weight:600;}
 
-  .foot{text-align:center; font-size:11px; color:var(--ink-3); margin-top:28px; line-height:1.6;}
-
   @media (max-width:560px){
     .score-groups{grid-template-columns:1fr; gap:8px;}
-    .ages{grid-template-columns:repeat(3,1fr); gap:6px;}
     .search{width:110px;}
     th:nth-child(3), td:nth-child(3){display:none;}
   }
 </style>
 </head>
 <body>
+
 <div class="lock" id="lock">
   <div class="lock-card">
     <div class="lock-brand">WASTENET</div>
@@ -138,15 +150,17 @@
   </div>
 </div>
 
+<div class="slimbar" id="slimbar"><div class="slimbar-inner" id="slimbarInner"></div></div>
+
 <div class="wrap">
 
-  <div class="topcard">
+  <div class="topcard" id="topcard">
     <div class="header-bar">
       <div class="brand">
         <div class="brand-name">WASTENET</div>
         <div class="brand-div"></div>
         <div class="viewnav">
-          <button class="view-label" id="viewBtn">Accounting Dashboard <span class="view-caret">▾</span></button>
+          <button class="view-label" id="viewBtn">Accounting Dashboard <span class="view-caret">&#9662;</span></button>
           <div class="view-drop" id="viewDrop">
             <button class="view-opt" id="goMonitor">Box Monitor Dashboard</button>
             <button class="view-opt cur">Accounting Dashboard</button>
@@ -154,34 +168,36 @@
         </div>
       </div>
       <div class="header-right">
-        <span class="stamp" id="stamp">Loading…</span>
-        <button class="btn icon-btn" id="refreshBtn" aria-label="Refresh">↻</button>
+        <span class="stamp" id="stamp">Loading&hellip;</span>
+        <button class="btn" id="refreshBtn" aria-label="Refresh">&#8635;</button>
       </div>
     </div>
 
+    <div id="scoreSentinel" style="height:0; margin:0; padding:0;"></div>
     <div class="summary" id="summary"></div>
   </div>
 
   <div class="banner" id="banner"></div>
 
   <div id="body">
-    <div class="empty-state"><span class="spinner"></span>Loading invoices…</div>
+    <div class="empty-state"><span class="spinner"></span>Loading invoices&hellip;</div>
   </div>
 
-  <div class="foot">
-    Receivables view · reads the nightly QuickBooks pull · read-only<br>
-    Refreshed daily at 5:00 AM
-  </div>
 </div>
 
 <script>
 /* ============================================================
-   WasteNet Accounting — receivables view
-   Reads the `invoices` action from the accounting Apps Script
-   via JSONP. Writes nothing.
+   WasteNet Accounting - receivables view.
+
+   Reads the `receivables` action, which returns ONLY the open
+   invoices plus the counts the scorecard needs. The Invoices tab
+   holds ~6,000 rows; shipping all of them to render ~140 was the
+   whole reason this page used to load slowly.
    ============================================================ */
 
 var API = "https://script.google.com/macros/s/AKfycbwvvAfVChkEJPlgz8c0iRbH23YIrtxM7SGjm5YgNz-kgs43N7hCGtd8nqBewJJOt8mV/exec";
+var MONITOR_URL = "wastenet-monitor.html";
+
 /* Access code. NOT hardcoded - this file's source is public on GitHub,
    so a baked-in key would protect nothing. Entered on the lock screen,
    held in sessionStorage for the tab session, sent with every request
@@ -205,17 +221,17 @@ function lockOut(msg){
   var inp = document.getElementById("lockIn");
   if(inp){ inp.value = ""; inp.focus(); }
 }
-var MONITOR_URL = "wastenet-monitor.html";
 
 var state = {
-  invoices: [],
+  invoices: [],      // open only
+  paidCount: 0,
   age: "all",
   search: "",
   sortKey: "age",
   sortDir: "desc"
 };
 
-/* ---------- JSONP (same pattern as the monitor page) ---------- */
+/* ---------- JSONP ---------- */
 function jsonp(params, cb){
   var name = "wn_cb_" + Math.random().toString(36).slice(2);
   var s;
@@ -259,17 +275,16 @@ function esc(s){
     .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
-/* Days past due. Negative or zero = not yet due. */
+/* Days past due. Zero or negative = not yet due. */
 function daysOverdue(inv){
   if(!inv.dueDate) return 0;
   var due = new Date(inv.dueDate + "T00:00:00");
   if(isNaN(due.getTime())) return 0;
-  var today = new Date();
-  today = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  return Math.floor((today - due) / 86400000);
+  var t = new Date();
+  t = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  return Math.floor((t - due) / 86400000);
 }
 
-/* Aging bucket key for an invoice. */
 function bucketOf(inv){
   var d = daysOverdue(inv);
   if(d <= 0)  return "current";
@@ -280,39 +295,30 @@ function bucketOf(inv){
 }
 
 var BUCKETS = [
-  { key:"current", label:"Current",    color:"var(--green)",     chip:"chip-cur" },
-  { key:"b30",     label:"1–30 days",  color:"var(--amber)",     chip:"chip-30"  },
-  { key:"b60",     label:"31–60 days", color:"var(--coral)",     chip:"chip-60"  },
-  { key:"b90",     label:"61–90 days", color:"var(--red)",       chip:"chip-90"  },
-  { key:"b90p",    label:"90+ days",   color:"var(--red-dark)",  chip:"chip-90p" }
+  { key:"current", label:"Current",    chip:"chip-cur"  },
+  { key:"b30",     label:"1\u201330 days",  chip:"chip-30"   },
+  { key:"b60",     label:"31\u201360 days", chip:"chip-60"   },
+  { key:"b90",     label:"61\u201390 days", chip:"chip-90"   },
+  { key:"b90p",    label:"90+ days",   chip:"chip-90p"  }
 ];
 
 function chipFor(inv){
   var d = daysOverdue(inv);
   var b = bucketOf(inv);
   var meta = BUCKETS.filter(function(x){ return x.key === b; })[0];
-  var text = d <= 0 ? "Current" : d + "d";
-  return '<span class="chip ' + meta.chip + '">' + text + '</span>';
+  return '<span class="chip ' + meta.chip + '">' + (d <= 0 ? "Current" : d + "d") + '</span>';
 }
 
 /* ---------- render ---------- */
-function openInvoices(){
-  return state.invoices.filter(function(i){ return Number(i.balance) !== 0; });
-}
-
-function renderSummary(){
-  var all  = state.invoices;
-  var open = openInvoices();
-
+function summaryHTML(compact){
+  var open = state.invoices;
   var outstanding = open.reduce(function(s,i){ return s + (Number(i.balance)||0); }, 0);
   var pastDue = open.filter(function(i){ return daysOverdue(i) > 0; });
   var pastDueAmt = pastDue.reduce(function(s,i){ return s + (Number(i.balance)||0); }, 0);
-  var paidCount = all.length - open.length;
 
-  document.getElementById("summary").innerHTML =
-    '<div class="score-groups">' +
+  return '<div class="score-groups">' +
       '<div>' +
-        '<div class="score-group-label">receivables</div>' +
+        (compact ? '' : '<div class="score-group-label">receivables</div>') +
         '<div class="score-btn">' +
           '<div class="score-half">' +
             '<div class="score-half-n n-ink">' + moneyShort(outstanding) + '</div>' +
@@ -325,14 +331,14 @@ function renderSummary(){
         '</div>' +
       '</div>' +
       '<div>' +
-        '<div class="score-group-label">invoices</div>' +
+        (compact ? '' : '<div class="score-group-label">invoices</div>') +
         '<div class="score-btn">' +
           '<div class="score-half">' +
             '<div class="score-half-n n-ink">' + open.length + '</div>' +
             '<div class="score-half-l">open</div>' +
           '</div>' +
           '<div class="score-half">' +
-            '<div class="score-half-n n-green">' + paidCount.toLocaleString("en-US") + '</div>' +
+            '<div class="score-half-n n-green">' + state.paidCount.toLocaleString("en-US") + '</div>' +
             '<div class="score-half-l">paid</div>' +
           '</div>' +
         '</div>' +
@@ -340,35 +346,37 @@ function renderSummary(){
     '</div>';
 }
 
-function renderBody(){
-  var open = openInvoices();
+function renderSummary(){
+  document.getElementById("summary").innerHTML = summaryHTML(false);
 
-  /* bucket totals */
-  var totals = {};
-  var counts = {};
-  BUCKETS.forEach(function(b){ totals[b.key] = 0; counts[b.key] = 0; });
+  document.getElementById("slimbarInner").innerHTML =
+    '<div class="header-bar">' +
+      '<div class="brand"><div class="brand-name">WASTENET</div><div class="brand-div"></div>' +
+        '<div style="font-size:13px; color:var(--ink-2);">Accounting Dashboard</div></div>' +
+    '</div>' +
+    summaryHTML(true);
+}
+
+function renderBody(){
+  var open = state.invoices;
+
+  var counts = {}, totals = {};
+  BUCKETS.forEach(function(b){ counts[b.key] = 0; totals[b.key] = 0; });
   open.forEach(function(i){
     var k = bucketOf(i);
-    totals[k] += Number(i.balance) || 0;
     counts[k] += 1;
+    totals[k] += Number(i.balance) || 0;
   });
 
-  var grand = BUCKETS.reduce(function(s,b){ return s + totals[b.key]; }, 0) || 1;
-
-  var bar = '<div class="agebar">' + BUCKETS.map(function(b){
-    var pct = (totals[b.key] / grand) * 100;
-    if(pct <= 0) return "";
-    return '<span style="flex:' + pct.toFixed(2) + '; background:' + b.color + ';"></span>';
-  }).join("") + '</div>';
-
-  var ages = '<div class="ages">' + BUCKETS.map(function(b){
-    var on = state.age === b.key ? " on" : "";
-    return '<div class="age' + on + '" data-age="' + b.key + '">' +
-             '<div class="age-l">' + b.label + '</div>' +
-             '<div class="age-n">' + moneyShort(totals[b.key]) + '</div>' +
-             '<div class="age-c">' + counts[b.key] + ' inv</div>' +
-           '</div>';
-  }).join("") + '</div>';
+  /* tabs: All + each aging bucket */
+  var tabs = '<div class="tabs">' +
+    '<button class="tab' + (state.age === "all" ? " on" : "") + '" data-age="all">' +
+      'All <span class="tab-n">' + open.length + '</span></button>' +
+    BUCKETS.map(function(b){
+      return '<button class="tab' + (state.age === b.key ? " on" : "") + '" data-age="' + b.key + '">' +
+               b.label + ' <span class="tab-n">' + counts[b.key] + '</span></button>';
+    }).join("") +
+  '</div>';
 
   /* filter */
   var rows = open.slice();
@@ -401,14 +409,14 @@ function renderBody(){
 
   var caret = function(k){
     if(state.sortKey !== k) return "";
-    return ' <span class="sc">' + (state.sortDir === "asc" ? "▲" : "▼") + '</span>';
+    return ' <span class="sc">' + (state.sortDir === "asc" ? "\u25B2" : "\u25BC") + '</span>';
   };
 
   var head =
     '<thead><tr>' +
-      '<th data-sort="inv"     style="width:13%">Invoice'  + caret("inv")     + '</th>' +
-      '<th data-sort="cust"    style="width:36%">Customer' + caret("cust")    + '</th>' +
-      '<th data-sort="due"     style="width:17%">Due'      + caret("due")     + '</th>' +
+      '<th data-sort="inv"     style="width:13%">Invoice'  + caret("inv")  + '</th>' +
+      '<th data-sort="cust"    style="width:36%">Customer' + caret("cust") + '</th>' +
+      '<th data-sort="due"     style="width:17%">Due'      + caret("due")  + '</th>' +
       '<th data-sort="balance" style="width:18%" class="num">Balance' + caret("balance") + '</th>' +
       '<th data-sort="age"     style="width:16%" class="num">Age' + caret("age") + '</th>' +
     '</tr></thead>';
@@ -420,37 +428,39 @@ function renderBody(){
     tbody = '<tbody>' + rows.map(function(i){
       return '<tr>' +
         '<td class="muted">' + esc(i.docNumber) + '</td>' +
-        '<td class="cust" title="' + esc(i.customer) + '">' + esc(i.customer) + '</td>' +
-        '<td class="muted">' + esc(i.dueDate || "—") + '</td>' +
+        '<td title="' + esc(i.customer) + '">' + esc(i.customer) + '</td>' +
+        '<td class="muted">' + esc(i.dueDate || "\u2014") + '</td>' +
         '<td class="num">' + money(i.balance) + '</td>' +
         '<td class="num">' + chipFor(i) + '</td>' +
       '</tr>';
     }).join("") + '</tbody>';
   }
 
-  var title = state.age === "all"
+  var label = state.age === "all"
     ? "Open invoices"
-    : "Open invoices · " + BUCKETS.filter(function(b){ return b.key === state.age; })[0].label;
+    : BUCKETS.filter(function(b){ return b.key === state.age; })[0].label;
+
+  var owed = rows.reduce(function(s,i){ return s + (Number(i.balance)||0); }, 0);
 
   var table =
     '<div class="tablecard">' +
       '<div class="tablehead">' +
-        '<div class="tabletitle">' + title + ' <span style="color:var(--ink-3); font-weight:400;">(' + rows.length + ')</span></div>' +
+        '<div class="tabletitle">' + label +
+          ' <span style="color:var(--ink-3); font-weight:400;">\u00b7 ' + moneyShort(owed) + '</span></div>' +
         '<input class="search" id="search" type="text" placeholder="Search customer or #" value="' + esc(state.search) + '">' +
       '</div>' +
       '<table>' + head + tbody + '</table>' +
     '</div>';
 
-  document.getElementById("body").innerHTML = bar + ages + table;
+  document.getElementById("body").innerHTML = tabs + table;
   wireBody();
 }
 
 /* ---------- events ---------- */
 function wireBody(){
-  document.querySelectorAll(".age").forEach(function(el){
+  document.querySelectorAll(".tab").forEach(function(el){
     el.onclick = function(){
-      var k = el.getAttribute("data-age");
-      state.age = (state.age === k) ? "all" : k;
+      state.age = el.getAttribute("data-age");
       renderBody();
     };
   });
@@ -489,17 +499,18 @@ function showError(msg){
 
 /* ---------- load ---------- */
 function load(){
-  document.getElementById("stamp").textContent = "Loading…";
-  jsonp({ action:"invoices", key:KEY }, function(data){
+  document.getElementById("stamp").textContent = "Loading\u2026";
+  jsonp({ action:"receivables", key:KEY }, function(data){
     if(!data || !data.ok){
       showError((data && data.error) || "Could not load invoices.");
       document.getElementById("stamp").textContent = "";
       return;
     }
     document.getElementById("banner").className = "banner";
-    state.invoices = data.invoices || [];
+    state.invoices  = data.invoices || [];
+    state.paidCount = Number(data.paidCount) || 0;
     document.getElementById("stamp").textContent =
-      state.invoices.length.toLocaleString("en-US") + " invoices";
+      (Number(data.totalCount) || 0).toLocaleString("en-US") + " invoices";
     renderSummary();
     renderBody();
   });
@@ -508,18 +519,33 @@ function load(){
 /* ---------- header ---------- */
 var viewBtn  = document.getElementById("viewBtn");
 var viewDrop = document.getElementById("viewDrop");
-
-viewBtn.onclick = function(e){
-  e.stopPropagation();
-  viewDrop.classList.toggle("open");
-};
+viewBtn.onclick = function(e){ e.stopPropagation(); viewDrop.classList.toggle("open"); };
 document.addEventListener("click", function(){ viewDrop.classList.remove("open"); });
-
-document.getElementById("goMonitor").onclick = function(){
-  window.location.href = MONITOR_URL;
-};
-
+document.getElementById("goMonitor").onclick = function(){ window.location.href = MONITOR_URL; };
 document.getElementById("refreshBtn").onclick = function(){ load(); };
+
+/* ---------- slim bar ----------
+   Watches a zero-height sentinel just above the scorecard. Once it
+   scrolls above the viewport top, the fixed slim bar fades in. The bar
+   is a separate fixed element, so showing it never shifts layout and
+   can't feed back into the scroll. Same mechanism as the monitor page. */
+(function(){
+  var sentinel = document.getElementById("scoreSentinel");
+  var slim = document.getElementById("slimbar");
+  if(!sentinel || !slim) return;
+  if("IntersectionObserver" in window){
+    var io = new IntersectionObserver(function(entries){
+      slim.classList.toggle("show", !entries[0].isIntersecting);
+    }, { threshold:0 });
+    io.observe(sentinel);
+  } else {
+    var onScroll = function(){
+      slim.classList.toggle("show", sentinel.getBoundingClientRect().top <= 0);
+    };
+    window.addEventListener("scroll", onScroll, { passive:true });
+    onScroll();
+  }
+})();
 
 /* ---------- lock screen ---------- */
 (function(){
@@ -540,7 +566,6 @@ document.getElementById("refreshBtn").onclick = function(){ load(); };
   lockBtn.onclick = unlock;
   lockIn.onkeydown = function(e){ if(e.key === "Enter") unlock(); };
 
-  // Already unlocked earlier this session? Go straight in.
   if(KEY){
     lock.classList.add("hide");
     load();
