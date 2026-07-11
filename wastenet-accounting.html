@@ -75,6 +75,12 @@
   .pinhead{position:sticky; top:0; z-index:30; background:var(--page); padding-top:6px;}
 
   .folder-tabs{display:flex; gap:4px; flex-wrap:wrap; padding-left:2px;}
+  /* Months don't wrap - a year of them would stack three deep. Scroll
+     sideways instead, newest first. */
+  .folder-tabs.scroll{flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; padding-bottom:0;}
+  .folder-tabs.scroll::-webkit-scrollbar{height:5px;}
+  .folder-tabs.scroll::-webkit-scrollbar-thumb{background:var(--green-border); border-radius:3px;}
+  .folder-tabs.scroll .ftab{flex:0 0 auto;}
   .ftab{
     display:inline-flex; align-items:center;
     background:var(--green-tint); border:0.5px solid var(--green-border);
@@ -269,7 +275,18 @@ var state = {
   age: "current",
   search: "",
   sortKey: "age",
-  sortDir: "desc"
+  sortDir: "desc",
+
+  // collections
+  months: [],          // [{month,total,count}] newest first
+  month: "",           // selected yyyy-mm
+  payments: [],        // rows for the selected month
+  ytd: 0,
+  colLoaded: false,
+  colLoading: false,
+  colSearch: "",
+  colSortKey: "date",
+  colSortDir: "desc"
 };
 
 /* ---------- JSONP ---------- */
@@ -357,11 +374,34 @@ function cell(n, label, cls){
          '</div>';
 }
 
+function monthLabel(m){
+  if(!m || m.length < 7) return m || "";
+  var names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var y = m.slice(0,4), mi = parseInt(m.slice(5,7), 10) - 1;
+  return (names[mi] || "?") + " " + y;
+}
+
 function renderSummary(){
   var el = document.getElementById("summary");
 
-  if(state.section !== "receivables"){
+  if(state.section === "commissions"){
     el.innerHTML = "";
+    return;
+  }
+
+  if(state.section === "collections"){
+    if(!state.colLoaded){ el.innerHTML = ""; return; }
+
+    var cur  = state.months[0];
+    var prev = state.months[1];
+    var sel  = state.months.filter(function(m){ return m.month === state.month; })[0];
+
+    el.innerHTML = '<div class="score">' +
+      cell(moneyShort(sel ? sel.total : 0), monthLabel(state.month) + " collected", "n-ink") +
+      cell(moneyShort(prev ? prev.total : 0), monthLabel(prev ? prev.month : ""), "n-ink") +
+      cell(moneyShort(state.ytd), "year to date", "n-green") +
+      cell(sel ? sel.count : 0, "payments", "n-ink") +
+    '</div>';
     return;
   }
 
@@ -486,19 +526,90 @@ var ICON_COMMISSION =
   '<path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><path d="M16.5 11.5h5"/><path d="M19 9v5"/>' +
   '<path d="M16.5 18h5"/></svg>';
 
+/* ---------- collections ---------- */
 function renderCollections(){
-  return soonPanel(
-    ICON_COLLECT,
-    "Collections",
-    "What actually came in, month by month. Built on the payment dates now flowing from QuickBooks \u2014 not just which invoices are marked paid, but when the money arrived.",
-    [
-      "\u2022 A tab per month, newest first",
-      "\u2022 Every payment: date, customer, invoice, amount",
-      "\u2022 Collected this month, last month, and year to date",
-      "\u2022 Unapplied credits flagged separately"
-    ],
-    "The Payments data is already pulling nightly. This view is the next thing to build on it."
-  );
+  if(!state.colLoaded){
+    return '<div class="empty-state"><span class="spinner"></span>Loading payments&hellip;</div>';
+  }
+  if(!state.months.length){
+    return '<div class="empty-state">No payments found.</div>';
+  }
+
+  /* one tab per month, newest first, scrolling sideways */
+  var tabs = '<div class="folder-tabs scroll">' + state.months.map(function(m){
+    return '<button class="ftab' + (state.month === m.month ? " sel" : "") + '" ' +
+           'data-month="' + m.month + '">' + monthLabel(m.month) + '</button>';
+  }).join("") + '</div>';
+
+  var rows = state.payments.slice();
+
+  if(state.colSearch){
+    var q = state.colSearch.toLowerCase();
+    rows = rows.filter(function(p){
+      return String(p.customer).toLowerCase().indexOf(q) !== -1 ||
+             String(p.docNumber).toLowerCase().indexOf(q) !== -1;
+    });
+  }
+
+  var dir = state.colSortDir === "asc" ? 1 : -1;
+  rows.sort(function(a,b){
+    var av, bv;
+    switch(state.colSortKey){
+      case "cust":   av = String(a.customer).toLowerCase(); bv = String(b.customer).toLowerCase(); break;
+      case "inv":    av = String(a.docNumber); bv = String(b.docNumber); break;
+      case "amount": av = Number(a.amount)||0; bv = Number(b.amount)||0; break;
+      default:       av = String(a.txnDate); bv = String(b.txnDate);
+    }
+    if(av < bv) return -1 * dir;
+    if(av > bv) return  1 * dir;
+    return 0;
+  });
+
+  var caret = function(k){
+    if(state.colSortKey !== k) return "";
+    return ' <span class="sc">' + (state.colSortDir === "asc" ? "\u25B2" : "\u25BC") + '</span>';
+  };
+
+  var head =
+    '<thead><tr>' +
+      '<th data-csort="date"   style="width:17%">Date'     + caret("date")   + '</th>' +
+      '<th data-csort="cust"   style="width:42%">Customer' + caret("cust")   + '</th>' +
+      '<th data-csort="inv"    style="width:18%">Invoice'  + caret("inv")    + '</th>' +
+      '<th data-csort="amount" style="width:23%" class="num">Amount' + caret("amount") + '</th>' +
+    '</tr></thead>';
+
+  var tbody;
+  if(!rows.length){
+    tbody = '<tbody><tr><td colspan="4" style="text-align:center; padding:26px 8px; color:var(--ink-2);">No payments match.</td></tr></tbody>';
+  } else {
+    tbody = '<tbody>' + rows.map(function(p){
+      /* A payment with no invoice link is a credit or prepayment. Show
+         it plainly rather than hiding it - the money did arrive. */
+      var inv = p.docNumber
+        ? esc(p.docNumber)
+        : '<span class="chip chip-30">unapplied</span>';
+      return '<tr>' +
+        '<td class="muted">' + esc(p.txnDate) + '</td>' +
+        '<td title="' + esc(p.customer) + '">' + esc(p.customer) + '</td>' +
+        '<td class="muted">' + inv + '</td>' +
+        '<td class="num">' + money(p.amount) + '</td>' +
+      '</tr>';
+    }).join("") + '</tbody>';
+  }
+
+  var total = rows.reduce(function(s,p){ return s + (Number(p.amount)||0); }, 0);
+
+  return '<div class="folder">' +
+      '<div class="pinhead" id="pinhead">' +
+        tabs +
+        '<div class="fbar">' +
+          '<div class="fbar-t">' + monthLabel(state.month) +
+            ' <span class="amt">\u00b7 ' + rows.length + ' payments \u00b7 ' + moneyShort(total) + '</span></div>' +
+          '<input class="search" id="colSearch" type="text" placeholder="Search customer or #" value="' + esc(state.colSearch) + '">' +
+        '</div>' +
+      '</div>' +
+      '<div class="folder-lower"><table>' + head + tbody + '</table></div>' +
+    '</div>';
 }
 
 function renderCommissions(){
@@ -520,8 +631,14 @@ function renderCommissions(){
 function renderBody(){
   var el = document.getElementById("body");
 
-  if(state.section === "collections"){ el.innerHTML = renderCollections(); return; }
   if(state.section === "commissions"){ el.innerHTML = renderCommissions(); return; }
+
+  if(state.section === "collections"){
+    el.innerHTML = renderCollections();
+    wireCollections();
+    measurePin();
+    return;
+  }
 
   if(!state.loaded){
     el.innerHTML = '<div class="empty-state"><span class="spinner"></span>Loading invoices&hellip;</div>';
@@ -541,7 +658,7 @@ function measurePin(){
   var h = ph ? ph.getBoundingClientRect().height : 0;
   document.documentElement.style.setProperty("--pinh", Math.round(h) + "px");
 }
-window.addEventListener("resize", function(){ if(state.section === "receivables") measurePin(); });
+window.addEventListener("resize", function(){ if(state.section !== "commissions") measurePin(); });
 
 /* ---------- events ---------- */
 function wireBody(){
@@ -576,11 +693,97 @@ function wireBody(){
   }
 }
 
+function wireCollections(){
+  document.querySelectorAll(".ftab[data-month]").forEach(function(el){
+    el.onclick = function(){
+      var m = el.getAttribute("data-month");
+      if(m === state.month) return;
+      state.month = m;
+      state.colSearch = "";
+      loadCollections(m);
+    };
+  });
+
+  document.querySelectorAll("th[data-csort]").forEach(function(el){
+    el.onclick = function(){
+      var k = el.getAttribute("data-csort");
+      if(state.colSortKey === k){
+        state.colSortDir = state.colSortDir === "asc" ? "desc" : "asc";
+      } else {
+        state.colSortKey = k;
+        state.colSortDir = (k === "cust" || k === "inv") ? "asc" : "desc";
+      }
+      renderBody();
+    };
+  });
+
+  var s = document.getElementById("colSearch");
+  if(s){
+    s.oninput = function(){
+      state.colSearch = s.value;
+      renderBody();
+      var again = document.getElementById("colSearch");
+      if(again){ again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+    };
+  }
+}
+
+/* Fetch one month at a time. The Payments tab holds ~5,700 rows; a month
+   is roughly 80 of them. */
+function loadCollections(month){
+  if(state.colLoading) return;
+  state.colLoading = true;
+
+  var params = { action:"collections", key:KEY };
+  if(month) params.month = month;
+
+  jsonp(params, function(data){
+    state.colLoading = false;
+
+    if(!data || !data.ok){
+      showError((data && data.error) || "Could not load payments.");
+      return;
+    }
+    document.getElementById("banner").className = "banner";
+
+    state.months    = data.months || [];
+    state.ytd       = Number(data.ytd) || 0;
+    state.payments  = data.payments || [];
+    state.colLoaded = true;
+
+    // First visit: no month asked for, so open the newest one.
+    if(!month && state.months.length){
+      state.month = state.months[0].month;
+      state.colLoading = true;
+      jsonp({ action:"collections", key:KEY, month:state.month }, function(d2){
+        state.colLoading = false;
+        if(d2 && d2.ok) state.payments = d2.payments || [];
+        renderSummary();
+        renderBody();
+      });
+      return;
+    }
+
+    state.month = data.month || state.month;
+    renderSummary();
+    renderBody();
+  });
+}
+
 document.querySelectorAll(".sec").forEach(function(el){
   el.onclick = function(){
     state.section = el.getAttribute("data-sec");
     document.querySelectorAll(".sec").forEach(function(x){ x.classList.remove("on"); });
     el.classList.add("on");
+
+    // Payments load on first visit to Collections, not at page load.
+    if(state.section === "collections" && !state.colLoaded && !state.colLoading){
+      renderSummary();
+      renderBody();
+      loadCollections("");
+      return;
+    }
+
     renderSummary();
     renderBody();
   };
