@@ -1,84 +1,101 @@
 /**
- * qbo-pull.js — Read QuickBooks Online data using the saved tokens.
+ * qbo-pull.js - WasteNet QuickBooks Online invoice pull
  *
- * This is the ongoing worker (the browser is never needed again). It:
- *   1. loads qbo-tokens.json,
- *   2. refreshes the access token if it's near expiry (using the
- *      refresh token, silently),
- *   3. runs a couple of test queries and prints a summary.
+ * Reads ALL invoices from the production QuickBooks company, resolves
+ * customer names, and POSTs the result to the WasteNet Accounting
+ * Dashboard Apps Script, which writes them to the "Invoices" tab.
  *
- * For now this only READS and PRINTS - it does not write to the sheet
- * yet (that's the next step once we see real data flowing). Run:
- *     node qbo-pull.js
+ * USAGE
+ *   node qbo-pull.js           full run: fetch + post to the sheet
+ *   node qbo-pull.js --test    fetch only, print a sample, post NOTHING
  *
- * QuickBooks reads are done with the Query endpoint (SQL-like). We pull
- * a few Customers and Invoices to prove the pipe works.
+ * The --test flag is a safety valve: it lets you see exactly what would
+ * be sent without touching the sheet.
+ *
+ * READ-ONLY against QuickBooks. This script never writes to QBO.
  */
 
 require('dotenv').config();
-const fs = require('fs');
-const path = require('path');
-const OAuthClient = require('intuit-oauth');
 
-const TOKENS_PATH = path.join(__dirname, 'qbo-tokens.json');
+var fs = require('fs');
+var path = require('path');
+var https = require('https');
+var OAuthClient = require('intuit-oauth');
 
-function fail(msg) { console.error('ERROR: ' + msg); process.exit(1); }
-function log(msg) { console.log('[' + new Date().toISOString().slice(11, 19) + '] ' + msg); }
+/* ------------------------------------------------------------------ */
+/* Config                                                              */
+/* ------------------------------------------------------------------ */
 
-if (!fs.existsSync(TOKENS_PATH)) fail('qbo-tokens.json not found - run qbo-auth.js first to connect.');
-const tokens = JSON.parse(fs.readFileSync(TOKENS_PATH, 'utf8'));
+var TOKENS_PATH = path.join(__dirname, 'qbo-tokens.json');
 
-const clientId = process.env.QBO_CLIENT_ID;
-const clientSecret = process.env.QBO_CLIENT_SECRET;
-const environment = (tokens.environment || process.env.QBO_ENVIRONMENT || 'sandbox').toLowerCase();
-if (!clientId || !clientSecret) fail('QBO_CLIENT_ID / QBO_CLIENT_SECRET missing from .env');
+var SHEET_ENDPOINT =
+  'https://script.google.com/macros/s/AKfycbwvvAfVChkEJPlgz8c0iRbH23YIrtxM7SGjm5YgNz-kgs43N7hCGtd8nqBewJJOt8mV/exec';
+var SHEET_KEY = 'TRA$H';
 
-const oauthClient = new OAuthClient({
-  clientId: clientId,
-  clientSecret: clientSecret,
+var TEST_MODE = process.argv.indexOf('--test') !== -1;
+
+/* ------------------------------------------------------------------ */
+/* Tokens                                                              */
+/* ------------------------------------------------------------------ */
+
+if (!fs.existsSync(TOKENS_PATH)) {
+  fail('No qbo-tokens.json found. Run: node qbo-auth.js');
+}
+
+var tokens = JSON.parse(fs.readFileSync(TOKENS_PATH, 'utf8'));
+
+var environment = (tokens.environment || process.env.QBO_ENVIRONMENT || 'sandbox').toLowerCase();
+
+var oauthClient = new OAuthClient({
+  clientId: process.env.QBO_CLIENT_ID,
+  clientSecret: process.env.QBO_CLIENT_SECRET,
   environment: environment,
   redirectUri: 'https://developer.intuit.com/v2/OAuth2Playground/RedirectUrl',
+  token: {
+    access_token: tokens.access_token,
+    refresh_token: tokens.refresh_token,
+    token_type: 'bearer',
+    expires_in: 3600,
+    x_refresh_token_expires_in: 8726400,
+    realmId: tokens.realmId
+  }
 });
 
-// Seed the client with the tokens we already have.
-oauthClient.setToken({
-  access_token: tokens.access_token,
-  refresh_token: tokens.refresh_token,
-  realmId: tokens.realmId,
-  token_type: 'bearer',
-  expires_in: Math.max(0, Math.round((tokens.access_expires_at - Date.now()) / 1000)),
-  x_refresh_token_expires_in: Math.max(0, Math.round((tokens.refresh_expires_at - Date.now()) / 1000)),
-});
-
-// The QuickBooks API base differs by environment.
-const API_BASE = environment === 'production'
+var API_BASE = environment === 'production'
   ? 'https://quickbooks.api.intuit.com'
   : 'https://sandbox-quickbooks.api.intuit.com';
 
+/* ------------------------------------------------------------------ */
+/* Token freshness                                                     */
+/* ------------------------------------------------------------------ */
+
 function saveTokens(t) {
-  const record = {
+  var record = {
     access_token: t.access_token,
     refresh_token: t.refresh_token,
     realmId: tokens.realmId,
     environment: environment,
     access_expires_at: Date.now() + (t.expires_in * 1000),
     refresh_expires_at: Date.now() + (t.x_refresh_token_expires_in * 1000),
-    obtained_at: new Date().toISOString(),
+    obtained_at: new Date().toISOString()
   };
   fs.writeFileSync(TOKENS_PATH, JSON.stringify(record, null, 2));
   try { fs.chmodSync(TOKENS_PATH, 0o600); } catch (e) {}
 }
 
 async function ensureFreshToken() {
-  // Refresh if the access token expires within the next 5 minutes.
-  const msLeft = tokens.access_expires_at - Date.now();
+  var msLeft = (tokens.access_expires_at || 0) - Date.now();
+  var minLeft = Math.round(msLeft / 60000);
+
+  // Refresh if under 5 minutes left, so a long run can't expire mid-flight.
   if (msLeft > 5 * 60 * 1000) {
-    log('Access token still valid (~' + Math.round(msLeft / 60000) + ' min left).');
+    log('Access token still valid (~' + minLeft + ' min left).');
     return;
   }
-  log('Access token near/at expiry - refreshing...');
-  const r = await oauthClient.refresh();
-  const t = r.getJson();
+
+  log('Access token expired or expiring. Refreshing...');
+  var r = await oauthClient.refresh();
+  var t = r.getJson();
   saveTokens(t);
   tokens.access_token = t.access_token;
   tokens.refresh_token = t.refresh_token;
@@ -86,50 +103,188 @@ async function ensureFreshToken() {
   log('Refreshed OK.');
 }
 
+/* ------------------------------------------------------------------ */
+/* QuickBooks query                                                    */
+/* ------------------------------------------------------------------ */
+
 async function query(sql) {
-  const url = API_BASE + '/v3/company/' + tokens.realmId +
-              '/query?query=' + encodeURIComponent(sql) + '&minorversion=73';
-  const resp = await oauthClient.makeApiCall({ url: url, method: 'GET',
-    headers: { Accept: 'application/json' } });
-  // The library returns the parsed body on resp.json; older/newer builds
-  // may expose it via getJson() or as a raw string on resp.body/resp.text.
+  var url = API_BASE + '/v3/company/' + tokens.realmId +
+            '/query?query=' + encodeURIComponent(sql) + '&minorversion=73';
+  var resp = await oauthClient.makeApiCall({
+    url: url,
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  });
   if (resp.json) return resp.json;
   if (typeof resp.getJson === 'function') return resp.getJson();
-  const raw = resp.body || resp.text || resp.data;
+  var raw = resp.body || resp.text || resp.data;
   return typeof raw === 'string' ? JSON.parse(raw) : raw;
 }
+
+/**
+ * QuickBooks caps any query at 1000 rows, so we page through with
+ * STARTPOSITION until a short page tells us we've reached the end.
+ */
+async function queryAll(entity, fields) {
+  var PAGE = 1000;
+  var start = 1;
+  var out = [];
+
+  while (true) {
+    var sql = 'SELECT ' + fields + ' FROM ' + entity +
+              ' STARTPOSITION ' + start + ' MAXRESULTS ' + PAGE;
+    var res = await query(sql);
+    var batch = (res.QueryResponse && res.QueryResponse[entity]) || [];
+
+    out = out.concat(batch);
+    log('  fetched ' + out.length + ' ' + entity + '...');
+
+    if (batch.length < PAGE) break;
+    start += PAGE;
+  }
+
+  return out;
+}
+
+/* ------------------------------------------------------------------ */
+/* Post to the sheet                                                   */
+/* ------------------------------------------------------------------ */
+
+function postToSheet(invoices) {
+  return new Promise(function (resolve, reject) {
+    var payload = JSON.stringify({
+      invoices: invoices,
+      pulledAt: new Date().toISOString()
+    });
+
+    var url = new URL(SHEET_ENDPOINT);
+    url.searchParams.set('key', SHEET_KEY);
+
+    var opts = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      }
+    };
+
+    var req = https.request(url, opts, function (res) {
+      // Apps Script answers with a 302 to a googleusercontent URL. Follow it.
+      if (res.statusCode === 302 && res.headers.location) {
+        https.get(res.headers.location, function (r2) {
+          var body = '';
+          r2.on('data', function (c) { body += c; });
+          r2.on('end', function () { resolve(body); });
+        }).on('error', reject);
+        return;
+      }
+      var body = '';
+      res.on('data', function (c) { body += c; });
+      res.on('end', function () { resolve(body); });
+    });
+
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Main                                                                */
+/* ------------------------------------------------------------------ */
 
 (async function main() {
   try {
     await ensureFreshToken();
 
     log('Connected to ' + environment + ' company realmId=' + tokens.realmId);
+    if (TEST_MODE) log('TEST MODE - nothing will be written to the sheet.');
 
-    // --- Test 1: company info (proves auth + realm are right) ---
-    const info = await query('SELECT * FROM CompanyInfo');
-    const company = info.QueryResponse && info.QueryResponse.CompanyInfo && info.QueryResponse.CompanyInfo[0];
-    if (company) log('Company: ' + company.CompanyName);
+    // --- Customers: invoices carry only a customer ref id, so map id -> name
+    log('Fetching customers...');
+    var customers = await queryAll('Customer', 'Id, DisplayName');
+    var nameById = {};
+    customers.forEach(function (c) { nameById[String(c.Id)] = c.DisplayName; });
+    log('Customers: ' + customers.length);
 
-    // --- Test 2: a few customers ---
-    const custs = await query('SELECT Id, DisplayName FROM Customer MAXRESULTS 5');
-    const cList = (custs.QueryResponse && custs.QueryResponse.Customer) || [];
-    log('Customers (showing up to 5 of them):');
-    cList.forEach(function (c) { console.log('    #' + c.Id + '  ' + c.DisplayName); });
+    // --- Invoices
+    log('Fetching invoices...');
+    var raw = await queryAll(
+      'Invoice',
+      'Id, DocNumber, TxnDate, DueDate, TotalAmt, Balance, CustomerRef'
+    );
+    log('Invoices: ' + raw.length);
 
-    // --- Test 3: a few invoices ---
-    const invs = await query('SELECT Id, DocNumber, TxnDate, TotalAmt, Balance FROM Invoice MAXRESULTS 5');
-    const iList = (invs.QueryResponse && invs.QueryResponse.Invoice) || [];
-    log('Invoices (showing up to 5 of them):');
-    iList.forEach(function (i) {
-      const paid = Number(i.Balance) === 0 ? 'PAID' : ('owes ' + i.Balance);
-      console.log('    Inv ' + (i.DocNumber || i.Id) + '  ' + i.TxnDate +
-                  '  total $' + i.TotalAmt + '  [' + paid + ']');
+    var invoices = raw.map(function (i) {
+      var custId = i.CustomerRef && i.CustomerRef.value;
+      return {
+        id:        i.Id,
+        docNumber: i.DocNumber || i.Id,
+        txnDate:   i.TxnDate || '',
+        dueDate:   i.DueDate || '',
+        customer:  nameById[String(custId)] ||
+                   (i.CustomerRef && i.CustomerRef.name) || '',
+        total:     Number(i.TotalAmt) || 0,
+        balance:   Number(i.Balance) || 0
+      };
     });
 
-    log('DONE - QuickBooks read pipe is working.');
+    // Newest first
+    invoices.sort(function (a, b) {
+      return String(b.txnDate).localeCompare(String(a.txnDate));
+    });
+
+    var open = invoices.filter(function (i) { return i.balance !== 0; });
+    var paid = invoices.length - open.length;
+    var owed = open.reduce(function (s, i) { return s + i.balance; }, 0);
+
+    log('');
+    log('  Total invoices: ' + invoices.length);
+    log('  Paid:           ' + paid);
+    log('  Open:           ' + open.length);
+    log('  Outstanding:    $' + owed.toFixed(2));
+    log('');
+
+    log('Sample (5 newest):');
+    invoices.slice(0, 5).forEach(function (i) {
+      var status = i.balance === 0 ? 'PAID' : 'owes ' + i.balance;
+      log('   Inv ' + i.docNumber + '  ' + i.txnDate + '  ' +
+          i.customer + '  $' + i.total + '  [' + status + ']');
+    });
+    log('');
+
+    if (TEST_MODE) {
+      log('TEST MODE - done. Nothing posted. Re-run without --test to write.');
+      return;
+    }
+
+    log('Posting ' + invoices.length + ' invoices to the accounting sheet...');
+    var resp = await postToSheet(invoices);
+    log('Sheet replied: ' + resp);
+    log('DONE.');
+
   } catch (e) {
-    const j = e && e.getJson && (function(){ try { return e.getJson(); } catch(_) { return null; } })();
-    const msg = (j && JSON.stringify(j)) || (e && e.originalMessage) || (e && e.message) || String(e);
+    var j = e && e.getJson && (function () {
+      try { return e.getJson(); } catch (_) { return null; }
+    })();
+    var msg = (j && JSON.stringify(j)) ||
+              (e && e.originalMessage) ||
+              (e && e.message) || String(e);
     fail('Pull failed: ' + msg);
   }
 })();
+
+/* ------------------------------------------------------------------ */
+/* Small helpers                                                       */
+/* ------------------------------------------------------------------ */
+
+function log(msg) {
+  var t = new Date().toTimeString().slice(0, 8);
+  if (msg === '') { console.log(''); return; }
+  console.log('[' + t + '] ' + msg);
+}
+
+function fail(msg) {
+  console.error('ERROR: ' + msg);
+  process.exit(1);
+}
