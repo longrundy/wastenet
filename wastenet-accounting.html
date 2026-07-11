@@ -75,19 +75,33 @@
   .n-red{color:var(--red-dark);}
   .n-green{color:var(--green-dark);}
 
-  /* folder - same pattern as the monitor's hauler folders */
+  /* folder tabs - five tabs sharing one body, file-folder style.
+     The selected tab drops its bottom border and takes the body's
+     background, so it reads as physically attached to the folder. */
   .folder{margin-bottom:22px;}
-  .folder-tab{display:inline-flex; align-items:center; gap:7px; background:var(--green-tint); border:0.5px solid var(--green-border); border-bottom:none; border-radius:10px 10px 0 0; padding:8px 16px 9px; font-size:13px; font-weight:600; color:var(--green-darker); margin-bottom:-1px; position:relative; z-index:2;}
-  .folder-tab .cnt{font-size:11px; color:var(--green-dark); font-weight:400;}
-  .folder-body{border:0.5px solid var(--green-border); border-radius:0 12px 12px 12px; overflow:hidden; background:var(--card);}
+  .folder-tabs{display:flex; gap:4px; flex-wrap:wrap; padding-left:2px;}
+  .ftab{
+    display:inline-flex; align-items:baseline; gap:6px;
+    background:var(--green-tint); border:0.5px solid var(--green-border);
+    border-bottom:none; border-radius:10px 10px 0 0;
+    padding:8px 14px 9px; font-size:12.5px; font-weight:600;
+    color:var(--green-dark); cursor:pointer; font-family:var(--font);
+    white-space:nowrap; position:relative; z-index:1; margin-bottom:-1px;
+    transition:background .12s, color .12s;
+  }
+  .ftab:hover:not(.sel){background:var(--green-border);}
+  .ftab.sel{
+    background:var(--card); color:var(--green-darker);
+    z-index:3; padding-bottom:10px;
+  }
+  .ftab .cnt{font-size:11px; font-weight:400; color:var(--green-dark);}
+  .ftab.sel .cnt{color:var(--ink-2);}
 
-  /* aging bar inside the folder - mirrors the monitor's date bar */
-  .agebar{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 14px; background:var(--green-tint-2); border-bottom:0.5px solid var(--line);}
-  .age-tabs{display:flex; gap:7px; align-items:center; flex-wrap:wrap;}
-  .age-tabs .lbl{font-size:11px; color:var(--green-dark); margin-right:2px;}
-  .age-pill{font-size:12px; font-weight:500; color:var(--green-dark); background:transparent; border:0.5px solid var(--green-border); padding:6px 13px; border-radius:16px; cursor:pointer; transition:all .12s; font-family:var(--font); white-space:nowrap;}
-  .age-pill.sel{color:#fff; background:var(--green); border-color:var(--green);}
-  .age-pill:hover:not(.sel){background:var(--green-tint);}
+  .folder-body{border:0.5px solid var(--green-border); border-radius:0 0 12px 12px; overflow:hidden; background:var(--card); position:relative; z-index:2;}
+
+  .fbar{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 14px; background:var(--green-tint-2); border-bottom:0.5px solid var(--line);}
+  .fbar-t{font-size:12.5px; font-weight:600; color:var(--green-darker);}
+  .fbar-t .amt{font-weight:400; color:var(--green-dark); font-size:11.5px;}
 
   .search{font-size:12px; padding:6px 10px; border:0.5px solid var(--green-border); border-radius:16px; width:170px; outline:none; font-family:var(--font); color:var(--ink); background:var(--card); flex:0 0 auto;}
   .search:focus{border-color:var(--green);}
@@ -222,7 +236,7 @@ function lockOut(msg){
 var state = {
   invoices: [],      // open only
   paidCount: 0,
-  age: "all",
+  age: "current",
   search: "",
   sortKey: "age",
   sortDir: "desc"
@@ -365,20 +379,18 @@ function renderBody(){
     totals[k] += Number(i.balance) || 0;
   });
 
-  /* Aging pills. Same visual language as the monitor's pickup-date
-     tabs: selected is solid green, the rest are outlined. */
-  var pills = '<button class="age-pill' + (state.age === "all" ? " sel" : "") + '" data-age="all">' +
-                'All \u00b7 ' + open.length + '</button>' +
-    BUCKETS.map(function(b){
-      return '<button class="age-pill' + (state.age === b.key ? " sel" : "") + '" data-age="' + b.key + '">' +
-               b.label + ' \u00b7 ' + counts[b.key] + '</button>';
-    }).join("");
+  /* Five folder tabs. The selected one is visually attached to the body
+     below it - same trick as the monitor's hauler folder tab. */
+  var tabs = '<div class="folder-tabs">' + BUCKETS.map(function(b){
+    var sel = state.age === b.key ? " sel" : "";
+    return '<button class="ftab' + sel + '" data-age="' + b.key + '">' +
+             b.label + ' <span class="cnt">' + counts[b.key] + '</span>' +
+           '</button>';
+  }).join("") + '</div>';
 
-  /* filter */
-  var rows = open.slice();
-  if(state.age !== "all"){
-    rows = rows.filter(function(i){ return bucketOf(i) === state.age; });
-  }
+  /* filter to the open tab */
+  var rows = open.filter(function(i){ return bucketOf(i) === state.age; });
+
   if(state.search){
     var q = state.search.toLowerCase();
     rows = rows.filter(function(i){
@@ -419,7 +431,7 @@ function renderBody(){
 
   var tbody;
   if(!rows.length){
-    tbody = '<tbody><tr><td colspan="5" style="text-align:center; padding:26px 8px; color:var(--ink-2);">No invoices match.</td></tr></tbody>';
+    tbody = '<tbody><tr><td colspan="5" style="text-align:center; padding:26px 8px; color:var(--ink-2);">Nothing in this bucket.</td></tr></tbody>';
   } else {
     tbody = '<tbody>' + rows.map(function(i){
       return '<tr>' +
@@ -432,15 +444,16 @@ function renderBody(){
     }).join("") + '</tbody>';
   }
 
+  var cur = BUCKETS.filter(function(b){ return b.key === state.age; })[0];
   var shownOwed = rows.reduce(function(s,i){ return s + (Number(i.balance)||0); }, 0);
 
   document.getElementById("body").innerHTML =
     '<div class="folder">' +
-      '<div><span class="folder-tab">\uD83D\uDCC1 Open invoices ' +
-        '<span class="cnt">' + rows.length + ' \u00b7 ' + moneyShort(shownOwed) + '</span></span></div>' +
+      tabs +
       '<div class="folder-body">' +
-        '<div class="agebar">' +
-          '<div class="age-tabs"><span class="lbl">Aging:</span>' + pills + '</div>' +
+        '<div class="fbar">' +
+          '<div class="fbar-t">' + cur.label +
+            ' <span class="amt">\u00b7 ' + rows.length + ' invoices \u00b7 ' + moneyShort(shownOwed) + '</span></div>' +
           '<input class="search" id="search" type="text" placeholder="Search customer or #" value="' + esc(state.search) + '">' +
         '</div>' +
         '<div class="tablewrap"><table>' + head + tbody + '</table></div>' +
@@ -452,7 +465,7 @@ function renderBody(){
 
 /* ---------- events ---------- */
 function wireBody(){
-  document.querySelectorAll(".age-pill").forEach(function(el){
+  document.querySelectorAll(".ftab").forEach(function(el){
     el.onclick = function(){
       state.age = el.getAttribute("data-age");
       renderBody();
