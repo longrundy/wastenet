@@ -91,7 +91,12 @@ async function query(sql) {
               '/query?query=' + encodeURIComponent(sql) + '&minorversion=73';
   const resp = await oauthClient.makeApiCall({ url: url, method: 'GET',
     headers: { Accept: 'application/json' } });
-  return resp.getJson();
+  // The library returns the parsed body on resp.json; older/newer builds
+  // may expose it via getJson() or as a raw string on resp.body/resp.text.
+  if (resp.json) return resp.json;
+  if (typeof resp.getJson === 'function') return resp.getJson();
+  const raw = resp.body || resp.text || resp.data;
+  return typeof raw === 'string' ? JSON.parse(raw) : raw;
 }
 
 (async function main() {
