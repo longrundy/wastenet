@@ -85,6 +85,20 @@
      fade is on the WRAPPER, not the scroller - on the scroller it would
      slide away with the content and stop meaning anything. It hides
      itself once you reach the end. */
+  /* year row - sits above the month tabs so a couple of years back is
+     two clicks, not a long sideways scroll */
+  .years{display:flex; gap:5px; flex-wrap:wrap; margin-bottom:7px; padding-left:2px; align-items:center;}
+  .years .lbl{font-size:10.5px; color:var(--ink-3); margin-right:2px;}
+  .yr{
+    font-size:11.5px; font-weight:600; font-family:var(--font);
+    padding:3px 10px; border-radius:12px; cursor:pointer; white-space:nowrap;
+    border:0.5px solid var(--line-strong); background:var(--card); color:var(--ink-2);
+    transition:background .12s, color .12s, border-color .12s;
+  }
+  .yr:hover:not(.on){background:var(--panel);}
+  .yr.on{background:var(--green-dark); border-color:var(--green-dark); color:#fff;}
+  .yr .amt{font-weight:400; opacity:0.75; font-size:10.5px; margin-left:3px;}
+
   .tabscroll{position:relative;}
   .tabscroll::after{
     content:""; position:absolute; top:0; right:0; bottom:0; width:44px;
@@ -297,7 +311,8 @@ var state = {
   colLoading: false,
   colSearch: "",
   colSortKey: "date",
-  colSortDir: "desc"
+  colSortDir: "desc",
+  year: ""            // which year's months are on show
 };
 
 /* ---------- JSONP ---------- */
@@ -546,13 +561,40 @@ function renderCollections(){
     return '<div class="empty-state">No payments found.</div>';
   }
 
-  /* one tab per month, newest first, scrolling sideways */
-  var tabs = '<div class="tabscroll" id="tabscroll">' +
-    '<div class="folder-tabs scroll" id="monthTabs">' + state.months.map(function(m){
-      return '<button class="ftab' + (state.month === m.month ? " sel" : "") + '" ' +
-             'data-month="' + m.month + '">' + monthLabel(m.month) + '</button>';
-    }).join("") + '</div>' +
-  '</div>';
+  /* Years first. Sixty months of history is too long a sideways scroll,
+     so pick a year, then a month within it. */
+  var byYear = {};
+  state.months.forEach(function(m){
+    var y = m.month.slice(0,4);
+    if(!byYear[y]) byYear[y] = { total:0, months:[] };
+    byYear[y].total += m.total;
+    byYear[y].months.push(m);
+  });
+
+  var years = Object.keys(byYear).sort().reverse();
+
+  // Default the year to whichever the selected month lives in.
+  if(!state.year || !byYear[state.year]){
+    state.year = (state.month && state.month.slice(0,4)) || years[0];
+  }
+
+  var yearRow = '<div class="years"><span class="lbl">Year:</span>' +
+    years.map(function(y){
+      return '<button class="yr' + (state.year === y ? " on" : "") + '" data-year="' + y + '">' +
+               y + ' <span class="amt">' + moneyShort(byYear[y].total) + '</span>' +
+             '</button>';
+    }).join("") + '</div>';
+
+  /* months within the chosen year, newest first */
+  var shown = byYear[state.year] ? byYear[state.year].months : [];
+
+  var tabs = yearRow +
+    '<div class="tabscroll" id="tabscroll">' +
+      '<div class="folder-tabs scroll" id="monthTabs">' + shown.map(function(m){
+        return '<button class="ftab' + (state.month === m.month ? " sel" : "") + '" ' +
+               'data-month="' + m.month + '">' + monthLabel(m.month) + '</button>';
+      }).join("") + '</div>' +
+    '</div>';
 
   var rows = state.payments.slice();
 
@@ -733,6 +775,17 @@ function wireCollections(){
     }
     syncFade();
   }
+
+  document.querySelectorAll(".yr[data-year]").forEach(function(el){
+    el.onclick = function(){
+      var y = el.getAttribute("data-year");
+      if(y === state.year) return;
+      state.year = y;
+      // Switching year just re-draws the month strip. Nothing is fetched
+      // until a month is actually picked.
+      renderBody();
+    };
+  });
 
   document.querySelectorAll(".ftab[data-month]").forEach(function(el){
     el.onclick = function(){
