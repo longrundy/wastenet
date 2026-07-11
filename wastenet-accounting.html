@@ -75,27 +75,24 @@
   .n-red{color:var(--red-dark);}
   .n-green{color:var(--green-dark);}
 
-  /* aging tabs - selectable, like the monitor's pickup-date tabs */
-  .tabs{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;}
-  .tab{
-    font-size:12px; font-weight:500; font-family:var(--font);
-    color:var(--ink-2); background:var(--card);
-    border:0.5px solid var(--line-strong); border-radius:16px;
-    padding:6px 12px; cursor:pointer; white-space:nowrap;
-    display:inline-flex; align-items:baseline; gap:6px;
-    transition:background .12s, border-color .12s, color .12s;
-  }
-  .tab:hover{background:var(--panel);}
-  .tab.on{background:var(--green); border-color:var(--green); color:#fff;}
-  .tab-n{font-size:11px; opacity:0.75;}
-  .tab.on .tab-n{opacity:0.9;}
+  /* folder - same pattern as the monitor's hauler folders */
+  .folder{margin-bottom:22px;}
+  .folder-tab{display:inline-flex; align-items:center; gap:7px; background:var(--green-tint); border:0.5px solid var(--green-border); border-bottom:none; border-radius:10px 10px 0 0; padding:8px 16px 9px; font-size:13px; font-weight:600; color:var(--green-darker); margin-bottom:-1px; position:relative; z-index:2;}
+  .folder-tab .cnt{font-size:11px; color:var(--green-dark); font-weight:400;}
+  .folder-body{border:0.5px solid var(--green-border); border-radius:0 12px 12px 12px; overflow:hidden; background:var(--card);}
 
-  /* table */
-  .tablecard{border:0.5px solid var(--line); border-radius:14px; background:var(--card); padding:14px 16px 6px;}
-  .tablehead{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;}
-  .tabletitle{font-size:14px; font-weight:600;}
-  .search{font-size:12px; padding:6px 10px; border:0.5px solid var(--line-strong); border-radius:16px; width:170px; outline:none; font-family:var(--font); color:var(--ink); background:var(--card);}
+  /* aging bar inside the folder - mirrors the monitor's date bar */
+  .agebar{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 14px; background:var(--green-tint-2); border-bottom:0.5px solid var(--line);}
+  .age-tabs{display:flex; gap:7px; align-items:center; flex-wrap:wrap;}
+  .age-tabs .lbl{font-size:11px; color:var(--green-dark); margin-right:2px;}
+  .age-pill{font-size:12px; font-weight:500; color:var(--green-dark); background:transparent; border:0.5px solid var(--green-border); padding:6px 13px; border-radius:16px; cursor:pointer; transition:all .12s; font-family:var(--font); white-space:nowrap;}
+  .age-pill.sel{color:#fff; background:var(--green); border-color:var(--green);}
+  .age-pill:hover:not(.sel){background:var(--green-tint);}
+
+  .search{font-size:12px; padding:6px 10px; border:0.5px solid var(--green-border); border-radius:16px; width:170px; outline:none; font-family:var(--font); color:var(--ink); background:var(--card); flex:0 0 auto;}
   .search:focus{border-color:var(--green);}
+
+  .tablewrap{padding:2px 16px 8px;}
 
   table{width:100%; border-collapse:collapse; table-layout:fixed;}
   th{font-size:11px; font-weight:600; color:var(--ink-2); text-align:left; padding:7px 4px; border-bottom:0.5px solid var(--line-strong); cursor:pointer; user-select:none; white-space:nowrap;}
@@ -368,15 +365,14 @@ function renderBody(){
     totals[k] += Number(i.balance) || 0;
   });
 
-  /* tabs: All + each aging bucket */
-  var tabs = '<div class="tabs">' +
-    '<button class="tab' + (state.age === "all" ? " on" : "") + '" data-age="all">' +
-      'All <span class="tab-n">' + open.length + '</span></button>' +
+  /* Aging pills. Same visual language as the monitor's pickup-date
+     tabs: selected is solid green, the rest are outlined. */
+  var pills = '<button class="age-pill' + (state.age === "all" ? " sel" : "") + '" data-age="all">' +
+                'All \u00b7 ' + open.length + '</button>' +
     BUCKETS.map(function(b){
-      return '<button class="tab' + (state.age === b.key ? " on" : "") + '" data-age="' + b.key + '">' +
-               b.label + ' <span class="tab-n">' + counts[b.key] + '</span></button>';
-    }).join("") +
-  '</div>';
+      return '<button class="age-pill' + (state.age === b.key ? " sel" : "") + '" data-age="' + b.key + '">' +
+               b.label + ' \u00b7 ' + counts[b.key] + '</button>';
+    }).join("");
 
   /* filter */
   var rows = open.slice();
@@ -436,29 +432,27 @@ function renderBody(){
     }).join("") + '</tbody>';
   }
 
-  var label = state.age === "all"
-    ? "Open invoices"
-    : BUCKETS.filter(function(b){ return b.key === state.age; })[0].label;
+  var shownOwed = rows.reduce(function(s,i){ return s + (Number(i.balance)||0); }, 0);
 
-  var owed = rows.reduce(function(s,i){ return s + (Number(i.balance)||0); }, 0);
-
-  var table =
-    '<div class="tablecard">' +
-      '<div class="tablehead">' +
-        '<div class="tabletitle">' + label +
-          ' <span style="color:var(--ink-3); font-weight:400;">\u00b7 ' + moneyShort(owed) + '</span></div>' +
-        '<input class="search" id="search" type="text" placeholder="Search customer or #" value="' + esc(state.search) + '">' +
+  document.getElementById("body").innerHTML =
+    '<div class="folder">' +
+      '<div><span class="folder-tab">\uD83D\uDCC1 Open invoices ' +
+        '<span class="cnt">' + rows.length + ' \u00b7 ' + moneyShort(shownOwed) + '</span></span></div>' +
+      '<div class="folder-body">' +
+        '<div class="agebar">' +
+          '<div class="age-tabs"><span class="lbl">Aging:</span>' + pills + '</div>' +
+          '<input class="search" id="search" type="text" placeholder="Search customer or #" value="' + esc(state.search) + '">' +
+        '</div>' +
+        '<div class="tablewrap"><table>' + head + tbody + '</table></div>' +
       '</div>' +
-      '<table>' + head + tbody + '</table>' +
     '</div>';
 
-  document.getElementById("body").innerHTML = tabs + table;
   wireBody();
 }
 
 /* ---------- events ---------- */
 function wireBody(){
-  document.querySelectorAll(".tab").forEach(function(el){
+  document.querySelectorAll(".age-pill").forEach(function(el){
     el.onclick = function(){
       state.age = el.getAttribute("data-age");
       renderBody();
