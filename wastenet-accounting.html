@@ -169,18 +169,50 @@
   /* agent payout rows */
   .agrow{border-bottom:0.5px solid var(--line);}
   .agrow:last-child{border-bottom:none;}
+
+  /* An OPEN agent becomes a bounded card. Without this the detail table
+     runs straight into the next agent's row, and the eye reads the next
+     agent's payout as if it belonged to the expanded one - on a page
+     about money, that is a misreading worth designing out. */
+  .agrow.open{
+    border:0.5px solid var(--green-border);
+    border-radius:10px;
+    background:var(--green-tint-2);
+    margin:8px 0 12px;
+    box-shadow:0 1px 6px rgba(0,0,0,0.04);
+  }
+  .agrow.open + .agrow{border-top:none;}
+
   .aghead{display:flex; align-items:center; gap:10px; padding:11px 4px; cursor:pointer;}
   .aghead:hover{background:var(--panel);}
+  .agrow.open .aghead{
+    padding:11px 12px;
+    background:transparent;
+    border-bottom:0.5px solid var(--green-border);
+    border-radius:10px 10px 0 0;
+  }
+  .agrow.open .aghead:hover{background:rgba(255,255,255,0.4);}
+
   .agcaret{font-size:9px; color:var(--ink-3); width:10px; flex:0 0 auto; transition:transform .12s;}
-  .agrow.open .agcaret{transform:rotate(90deg);}
+  .agrow.open .agcaret{transform:rotate(90deg); color:var(--green-dark);}
   .agname{font-size:13.5px; font-weight:600; flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .agrow.open .agname{color:var(--green-darker);}
   .agshare{font-size:10.5px; color:var(--ink-3); background:var(--panel); border-radius:10px; padding:2px 7px; flex:0 0 auto;}
+  .agrow.open .agshare{background:var(--card);}
   .agmeta{font-size:11px; color:var(--ink-2); flex:0 0 auto; text-align:right; white-space:nowrap;}
   .agpay{font-size:15px; font-weight:600; color:var(--green-dark); flex:0 0 auto; text-align:right; min-width:88px;}
 
-  .agdetail{display:none; padding:2px 0 12px 22px;}
-  .agrow.open .agdetail{display:block;}
-  .agmath{font-size:11.5px; color:var(--ink-2); background:var(--green-tint-2); border:0.5px solid var(--green-border); border-radius:8px; padding:8px 11px; margin-bottom:9px; line-height:1.7;}
+  .agdetail{display:none;}
+  .agrow.open .agdetail{
+    display:block;
+    padding:11px 12px 4px;
+    background:var(--card);
+    border-radius:0 0 10px 10px;
+  }
+  /* the detail table sits on white, so it needs its own quiet frame */
+  .agrow.open .agdetail table{margin-top:2px;}
+  .agrow.open .agdetail thead th{background:var(--card); position:static;}
+  .agmath{font-size:11.5px; color:var(--ink-2); background:var(--panel); border:0.5px solid var(--line); border-radius:8px; padding:9px 12px; margin-bottom:10px; line-height:1.7;}
   .agmath b{color:var(--ink); font-weight:600;}
 
   .agflag{background:var(--amber-tint); border:0.5px solid var(--amber); color:var(--amber-dark); border-radius:8px; padding:8px 11px; font-size:11.5px; margin-bottom:9px;}
