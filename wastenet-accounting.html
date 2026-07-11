@@ -725,9 +725,9 @@ function renderAgents(){
         (oneRate
           ? '<br>\u00d7 <b>' + Math.round(a.rates[0] * 100) + '%</b> share' +
             ' = <b>$' + fmt(a.payout) + '</b>'
-          : '<br>paid at <b>' + (a.rates || []).map(function(r){
-              return Math.round(r * 100) + '%';
-            }).join(' and <b>') + '</b> depending on the account' +
+          : '<br>paid at ' + (a.rates || []).map(function(r){
+              return '<b>' + Math.round(r * 100) + '%</b>';
+            }).join(' and ') + ' depending on the account' +
             ' \u2014 total <b>$' + fmt(a.payout) + '</b>') +
         '</div>';
 
