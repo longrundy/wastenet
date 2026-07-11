@@ -159,6 +159,12 @@
   .num{text-align:right;}
   .muted{color:var(--ink-2);}
 
+  /* invoice numbers link straight into QuickBooks */
+  .ilink{color:var(--green-dark); text-decoration:none; border-bottom:1px dotted var(--green-border);}
+  .ilink:hover{color:var(--green-darker); border-bottom-color:var(--green); background:var(--green-tint-2);}
+  .agflag .ilink{color:var(--amber-dark); border-bottom-color:var(--amber);}
+  .agflag .ilink:hover{background:rgba(255,255,255,0.5);}
+
   .chip{display:inline-block; padding:2px 8px; border-radius:11px; font-size:10.5px; font-weight:600; white-space:nowrap;}
   .chip-cur{background:var(--green-tint); color:var(--green-darker);}
   .chip-30{background:var(--amber-tint); color:var(--amber-dark);}
@@ -399,7 +405,7 @@ function agMonthData(){
           agent: a.agent, name: a.name, share: a.share,
           rateSet: {},
           collected: 0, monitoring: 0, boxes: 0, fees: 0, payout: 0,
-          review: 0, invoices: [], months: []
+          review: 0, reviewList: [], invoices: [], months: []
         };
       }
       (a.rates || [a.share]).forEach(function(r){ acc[a.agent].rateSet[r] = true; });
@@ -410,6 +416,7 @@ function agMonthData(){
       t.fees       += a.fees;
       t.payout     += a.payout;
       t.review     += a.review;
+      if(a.reviewList) t.reviewList = t.reviewList.concat(a.reviewList);
       // In the year view the useful breakdown is by month, not a list of
       // several hundred invoices.
       t.months.push({
@@ -492,6 +499,21 @@ function moneyShort(n){
 function esc(s){
   return String(s == null ? "" : s)
     .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+/* QuickBooks opens an invoice by its INTERNAL id, not the number a human
+   reads. The pull stores both, so an invoice number on this page can be a
+   link to the real thing. Without an id we just print the number - never a
+   dead link. */
+var QBO_INVOICE = "https://qbo.intuit.com/app/invoice?txnId=";
+
+function invLink(doc, qboId, cls){
+  var text = esc(doc);
+  if(!doc) return "";
+  if(!qboId) return text;
+  return '<a class="ilink' + (cls ? " " + cls : "") + '" target="_blank" rel="noopener" ' +
+         'href="' + QBO_INVOICE + encodeURIComponent(qboId) + '" ' +
+         'title="Open invoice ' + text + ' in QuickBooks">' + text + '</a>';
 }
 
 /* Days past due. Zero or negative = not yet due. */
@@ -657,7 +679,7 @@ function renderReceivables(){
   } else {
     tbody = '<tbody>' + rows.map(function(i){
       return '<tr>' +
-        '<td class="muted">' + esc(i.docNumber) + '</td>' +
+        '<td>' + invLink(i.docNumber, i.qboId) + '</td>' +
         '<td title="' + esc(i.customer) + '">' + esc(i.customer) + '</td>' +
         '<td class="muted">' + esc(i.dueDate || "\u2014") + '</td>' +
         '<td class="num">' + money(i.balance) + '</td>' +
@@ -763,11 +785,26 @@ function renderAgents(){
             ' \u2014 total <b>$' + fmt(a.payout) + '</b>') +
         '</div>';
 
-      var flag = a.review
-        ? '<div class="agflag">' + a.review + ' invoice(s) here contain a line the engine ' +
-          'judged to be a one-time fee from its price rather than its wording. ' +
-          'They earn no commission. Worth a look if this figure seems light.</div>'
-        : '';
+      /* Name the invoices. "2 invoices contain a flagged line" is a dead
+         end; "inv 6018 (Jun 2026), inv 5962 (Mar 2026)" can be looked up. */
+      var flag = '';
+      if(a.review){
+        var rl = (a.reviewList || []).slice();
+        rl.sort(function(x,y){ return String(y.date).localeCompare(String(x.date)); });
+
+        var listed = rl.slice(0, 6).map(function(r){
+          return 'inv ' + invLink(r.doc, r.qboId) + ' \u00b7 ' + esc(r.date) +
+                 ' \u00b7 ' + esc(String(r.customer).slice(0, 28));
+        }).join('<br>');
+
+        flag = '<div class="agflag">' +
+          '<b>' + a.review + ' invoice(s) here contain a line the engine judged to be a ' +
+          'one-time fee from its price rather than its wording.</b> Those lines earn no ' +
+          'commission. Worth a look if this figure seems light.<br><br>' +
+          listed +
+          (rl.length > 6 ? '<br>\u2026and ' + (rl.length - 6) + ' more' : '') +
+          '</div>';
+      }
 
       /* Year view: a month-by-month breakdown is what's useful.
          Month view: the individual invoices behind the number. */
@@ -802,7 +839,7 @@ function renderAgents(){
               '<td class="muted">' + esc(i.date) + '</td>' +
               '<td title="' + esc(i.customer) + '">' + esc(i.customer) +
                 (i.partial ? ' <span class="chip chip-30">' + i.partial + '% paid</span>' : '') + '</td>' +
-              '<td class="muted">' + esc(i.doc) + '</td>' +
+              '<td>' + invLink(i.doc, i.qboId) + '</td>' +
               '<td class="num">' + fmtN(i.boxes) + '</td>' +
               '<td class="num">$' + fmt(i.monitoring) + '</td>' +
               '<td class="num muted">' + Math.round((i.share || 0) * 100) + '%</td>' +
@@ -1019,12 +1056,12 @@ function renderCollections(){
       /* No invoice link = a credit or prepayment. Shown plainly rather
          than hidden - the money did arrive. */
       var inv = p.docNumber
-        ? esc(p.docNumber)
+        ? invLink(p.docNumber, p.qboId)
         : '<span class="chip chip-30">unapplied</span>';
       return '<tr>' +
         '<td class="muted">' + esc(p.txnDate) + '</td>' +
         '<td title="' + esc(p.customer) + '">' + esc(p.customer) + '</td>' +
-        '<td class="muted">' + inv + '</td>' +
+        '<td>' + inv + '</td>' +
         '<td class="num">' + money(p.amount) + '</td>' +
       '</tr>';
     }).join("") + '</tbody>';

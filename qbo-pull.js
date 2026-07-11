@@ -434,6 +434,9 @@ function postToSheet(invoices, payments) {
       if (c.excluded.length) allExcluded = allExcluded.concat(c.excluded);
 
       return {
+        // The INTERNAL QuickBooks id, not the invoice number. It is what
+        // qbo.intuit.com/app/invoice?txnId= needs, so keeping it is what
+        // lets the dashboard link straight to the real invoice.
         id:         i.Id,
         docNumber:  doc,
         txnDate:    i.TxnDate || '',
