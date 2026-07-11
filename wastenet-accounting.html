@@ -237,8 +237,8 @@
 
     <div class="sections" id="sections">
       <button class="sec on" data-sec="receivables">Receivables</button>
-      <button class="sec" data-sec="collections">Collections</button>
-      <button class="sec" data-sec="commissions">Commissions</button>
+      <button class="sec" data-sec="payments">Payments</button>
+      <button class="sec" data-sec="agents">Agents</button>
     </div>
 
     <div id="summary"></div>
@@ -258,8 +258,8 @@
 
    Three sections, three different jobs:
      Receivables  - who owes us (open invoices, by aging bucket)
-     Collections  - what actually came in, by month   [coming]
-     Commissions  - what we owe the six agents        [coming]
+     Payments     - what actually came in, by month
+     Agents       - what the six agents are owed      [coming]
 
    Reads the `receivables` action, which returns ONLY the open
    invoices plus the counts the scorecard needs. The Invoices tab
@@ -422,12 +422,12 @@ function monthShort(m){
 function renderSummary(){
   var el = document.getElementById("summary");
 
-  if(state.section === "commissions"){
+  if(state.section === "agents"){
     el.innerHTML = "";
     return;
   }
 
-  if(state.section === "collections"){
+  if(state.section === "payments"){
     if(!state.colLoaded){ el.innerHTML = ""; return; }
 
     var cur  = state.months[0];
@@ -564,7 +564,23 @@ var ICON_COMMISSION =
   '<path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><path d="M16.5 11.5h5"/><path d="M19 9v5"/>' +
   '<path d="M16.5 18h5"/></svg>';
 
-/* ---------- collections ---------- */
+/* ---------- agents (coming soon) ---------- */
+function renderAgents(){
+  return soonPanel(
+    ICON_COMMISSION,
+    "Agent Payouts",
+    "What the six agents are owed for a given month. An agent earns on the month a client\u2019s money actually landed \u2014 so this reads payments, not billings.",
+    [
+      "\u2022 Pick a month, get each agent\u2019s payout",
+      "\u2022 (collected revenue \u2212 boxes \u00d7 fee) \u00d7 share",
+      "\u2022 Expand an agent to see the invoices behind the number",
+      "\u2022 House accounts excluded automatically"
+    ],
+    "Waiting on box counts in the Agent Map tab, and on three payout rules to confirm with Dave."
+  );
+}
+
+/* ---------- payments ---------- */
 function renderCollections(){
   if(!state.colLoaded){
     return '<div class="empty-state"><span class="spinner"></span>Loading payments&hellip;</div>';
@@ -669,9 +685,9 @@ function renderCollections(){
 function renderBody(){
   var el = document.getElementById("body");
 
-  if(state.section === "commissions"){ el.innerHTML = renderCommissions(); return; }
+  if(state.section === "agents"){ el.innerHTML = renderAgents(); return; }
 
-  if(state.section === "collections"){
+  if(state.section === "payments"){
     el.innerHTML = renderCollections();
     wireCollections();
     measurePin();
@@ -696,7 +712,7 @@ function measurePin(){
   var h = ph ? ph.getBoundingClientRect().height : 0;
   document.documentElement.style.setProperty("--pinh", Math.round(h) + "px");
 }
-window.addEventListener("resize", function(){ if(state.section !== "commissions") measurePin(); });
+window.addEventListener("resize", function(){ if(state.section !== "agents") measurePin(); });
 
 /* ---------- events ---------- */
 function wireBody(){
@@ -840,7 +856,7 @@ document.querySelectorAll(".sec").forEach(function(el){
     el.classList.add("on");
 
     // Payments load on first visit to Collections, not at page load.
-    if(state.section === "collections" && !state.colLoaded && !state.colLoading){
+    if(state.section === "payments" && !state.colLoaded && !state.colLoading){
       renderSummary();
       renderBody();
       loadCollections("");
