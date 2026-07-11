@@ -85,21 +85,18 @@
      fade is on the WRAPPER, not the scroller - on the scroller it would
      slide away with the content and stop meaning anything. It hides
      itself once you reach the end. */
-  /* year row - sits above the month tabs so a couple of years back is
-     two clicks, not a long sideways scroll */
-  .years{display:flex; gap:5px; flex-wrap:wrap; margin-bottom:7px; padding-left:2px; align-items:center;}
-  .years .lbl{font-size:10.5px; color:var(--ink-3); margin-right:2px;}
-  .yr{
-    font-size:11.5px; font-weight:600; font-family:var(--font);
-    padding:3px 10px; border-radius:12px; cursor:pointer; white-space:nowrap;
-    border:0.5px solid var(--line-strong); background:var(--card); color:var(--ink-2);
-    transition:background .12s, color .12s, border-color .12s;
+  /* year picker - lives in the green bar next to search */
+  .yrsel{
+    font-size:11.5px; font-family:var(--font); font-weight:600;
+    color:var(--green-dark); background:var(--card);
+    border:0.5px solid var(--green-border); border-radius:14px;
+    padding:5px 8px; cursor:pointer; outline:none; flex:0 0 auto;
   }
-  .yr:hover:not(.on){background:var(--panel);}
-  .yr.on{background:var(--green-dark); border-color:var(--green-dark); color:#fff;}
-  .yr .amt{font-weight:400; opacity:0.75; font-size:10.5px; margin-left:3px;}
+  .yrsel:focus{border-color:var(--green);}
 
-  .tabscroll{position:relative;}
+  .fbar-right{display:flex; align-items:center; gap:7px; flex:0 0 auto;}
+
+  .tabscroll{position:relative;}  .tabscroll{position:relative;}
   .tabscroll::after{
     content:""; position:absolute; top:0; right:0; bottom:0; width:44px;
     pointer-events:none; opacity:1; transition:opacity .15s;
@@ -312,7 +309,9 @@ var state = {
   colSearch: "",
   colSortKey: "date",
   colSortDir: "desc",
-  year: ""            // which year's months are on show
+  year: "",           // which year is loaded
+  years: [],          // [{year,total}] newest first
+  payByYear: {}       // year -> payment rows, so month switching is free
 };
 
 /* ---------- JSONP ---------- */
@@ -561,42 +560,19 @@ function renderCollections(){
     return '<div class="empty-state">No payments found.</div>';
   }
 
-  /* Years first. Sixty months of history is too long a sideways scroll,
-     so pick a year, then a month within it. */
-  var byYear = {};
-  state.months.forEach(function(m){
-    var y = m.month.slice(0,4);
-    if(!byYear[y]) byYear[y] = { total:0, months:[] };
-    byYear[y].total += m.total;
-    byYear[y].months.push(m);
+  /* months in the loaded year, newest first */
+  var shown = state.months.filter(function(m){ return m.month.slice(0,4) === state.year; });
+
+  var tabs = '<div class="folder-tabs">' + shown.map(function(m){
+    return '<button class="ftab' + (state.month === m.month ? " sel" : "") + '" ' +
+           'data-month="' + m.month + '">' + monthLabel(m.month) + '</button>';
+  }).join("") + '</div>';
+
+  /* Payments for the loaded year are already here - slice by month with
+     no round trip. */
+  var rows = (state.payByYear[state.year] || []).filter(function(p){
+    return String(p.txnDate).slice(0,7) === state.month;
   });
-
-  var years = Object.keys(byYear).sort().reverse();
-
-  // Default the year to whichever the selected month lives in.
-  if(!state.year || !byYear[state.year]){
-    state.year = (state.month && state.month.slice(0,4)) || years[0];
-  }
-
-  var yearRow = '<div class="years"><span class="lbl">Year:</span>' +
-    years.map(function(y){
-      return '<button class="yr' + (state.year === y ? " on" : "") + '" data-year="' + y + '">' +
-               y + ' <span class="amt">' + moneyShort(byYear[y].total) + '</span>' +
-             '</button>';
-    }).join("") + '</div>';
-
-  /* months within the chosen year, newest first */
-  var shown = byYear[state.year] ? byYear[state.year].months : [];
-
-  var tabs = yearRow +
-    '<div class="tabscroll" id="tabscroll">' +
-      '<div class="folder-tabs scroll" id="monthTabs">' + shown.map(function(m){
-        return '<button class="ftab' + (state.month === m.month ? " sel" : "") + '" ' +
-               'data-month="' + m.month + '">' + monthLabel(m.month) + '</button>';
-      }).join("") + '</div>' +
-    '</div>';
-
-  var rows = state.payments.slice();
 
   if(state.colSearch){
     var q = state.colSearch.toLowerCase();
@@ -635,11 +611,11 @@ function renderCollections(){
 
   var tbody;
   if(!rows.length){
-    tbody = '<tbody><tr><td colspan="4" style="text-align:center; padding:26px 8px; color:var(--ink-2);">No payments match.</td></tr></tbody>';
+    tbody = '<tbody><tr><td colspan="4" style="text-align:center; padding:26px 8px; color:var(--ink-2);">No payments in this month.</td></tr></tbody>';
   } else {
     tbody = '<tbody>' + rows.map(function(p){
-      /* A payment with no invoice link is a credit or prepayment. Show
-         it plainly rather than hiding it - the money did arrive. */
+      /* No invoice link = a credit or prepayment. Shown plainly rather
+         than hidden - the money did arrive. */
       var inv = p.docNumber
         ? esc(p.docNumber)
         : '<span class="chip chip-30">unapplied</span>';
@@ -654,32 +630,25 @@ function renderCollections(){
 
   var total = rows.reduce(function(s,p){ return s + (Number(p.amount)||0); }, 0);
 
+  var yrOpts = state.years.map(function(y){
+    return '<option value="' + y.year + '"' + (state.year === y.year ? " selected" : "") + '>' +
+             y.year + '</option>';
+  }).join("");
+
   return '<div class="folder">' +
       '<div class="pinhead" id="pinhead">' +
         tabs +
         '<div class="fbar">' +
           '<div class="fbar-t">' + monthLabel(state.month) +
             ' <span class="amt">\u00b7 ' + rows.length + ' payments \u00b7 ' + moneyShort(total) + '</span></div>' +
-          '<input class="search" id="colSearch" type="text" placeholder="Search customer or #" value="' + esc(state.colSearch) + '">' +
+          '<div class="fbar-right">' +
+            '<select class="yrsel" id="yrSel" aria-label="Year">' + yrOpts + '</select>' +
+            '<input class="search" id="colSearch" type="text" placeholder="Search customer or #" value="' + esc(state.colSearch) + '">' +
+          '</div>' +
         '</div>' +
       '</div>' +
       '<div class="folder-lower"><table>' + head + tbody + '</table></div>' +
     '</div>';
-}
-
-function renderCommissions(){
-  return soonPanel(
-    ICON_COMMISSION,
-    "Agent Commissions",
-    "What the six agents are owed for a given month. An agent earns on the month a client\u2019s money actually landed \u2014 so this reads collections, not billings.",
-    [
-      "\u2022 Pick a month, get each agent\u2019s payout",
-      "\u2022 (collected revenue \u2212 boxes \u00d7 fee) \u00d7 share",
-      "\u2022 Expand an agent to see the invoices behind the number",
-      "\u2022 House accounts excluded automatically"
-    ],
-    "Waiting on box counts in the Agent Map tab, and on three commission rules to confirm with Dave."
-  );
 }
 
 /* ---------- body ---------- */
@@ -749,51 +718,39 @@ function wireBody(){
 }
 
 function wireCollections(){
-  var strip = document.getElementById("monthTabs");
-  var wrap  = document.getElementById("tabscroll");
+  var yr = document.getElementById("yrSel");
+  if(yr){
+    yr.onchange = function(){
+      var y = yr.value;
+      if(y === state.year) return;
 
-  if(strip && wrap){
-    var syncFade = function(){
-      var atEnd = strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 2;
-      wrap.classList.toggle("at-end", atEnd);
-    };
-    strip.addEventListener("scroll", syncFade, { passive:true });
+      state.year = y;
+      state.colSearch = "";
 
-    // A vertical wheel over the strip should move it sideways - otherwise
-    // there's no way to reach older months without a horizontal trackpad.
-    strip.addEventListener("wheel", function(e){
-      if(Math.abs(e.deltaY) > Math.abs(e.deltaX)){
-        strip.scrollLeft += e.deltaY;
-        e.preventDefault();
+      // Default to the newest month in that year.
+      var inYear = state.months.filter(function(m){ return m.month.slice(0,4) === y; });
+      state.month = inYear.length ? inYear[0].month : "";
+
+      // Already fetched this year? Then nothing to wait for.
+      if(state.payByYear[y]){
+        renderSummary();
+        renderBody();
+      } else {
+        loadCollections(y);
       }
-    }, { passive:false });
-
-    // Bring the selected month into view (it may be months back).
-    var sel = strip.querySelector(".ftab.sel");
-    if(sel && sel.offsetLeft + sel.offsetWidth > strip.clientWidth){
-      strip.scrollLeft = sel.offsetLeft - 12;
-    }
-    syncFade();
+    };
   }
 
-  document.querySelectorAll(".yr[data-year]").forEach(function(el){
-    el.onclick = function(){
-      var y = el.getAttribute("data-year");
-      if(y === state.year) return;
-      state.year = y;
-      // Switching year just re-draws the month strip. Nothing is fetched
-      // until a month is actually picked.
-      renderBody();
-    };
-  });
-
+  /* Month switching is a client-side filter - the whole year is already
+     loaded, so no round trip. */
   document.querySelectorAll(".ftab[data-month]").forEach(function(el){
     el.onclick = function(){
       var m = el.getAttribute("data-month");
       if(m === state.month) return;
       state.month = m;
       state.colSearch = "";
-      loadCollections(m);
+      renderSummary();
+      renderBody();
     };
   });
 
@@ -821,14 +778,19 @@ function wireCollections(){
   }
 }
 
-/* Fetch one month at a time. The Payments tab holds ~5,700 rows; a month
-   is roughly 80 of them. */
-function loadCollections(month){
+/* Fetch a whole year (~700 rows). Months are then switched on the
+   client with no further requests. */
+function loadCollections(year){
   if(state.colLoading) return;
   state.colLoading = true;
 
+  if(state.colLoaded){
+    document.getElementById("body").innerHTML =
+      '<div class="empty-state"><span class="spinner"></span>Loading ' + (year || "") + '&hellip;</div>';
+  }
+
   var params = { action:"collections", key:KEY };
-  if(month) params.month = month;
+  if(year) params.year = year;
 
   jsonp(params, function(data){
     state.colLoading = false;
@@ -839,14 +801,19 @@ function loadCollections(month){
     }
     document.getElementById("banner").className = "banner";
 
-    state.months    = data.months || [];
-    state.ytd       = Number(data.ytd) || 0;
-    state.payments  = data.payments || [];
-    state.month     = data.month || state.month;
-    state.colLoaded = true;
+    state.months = data.months || [];
+    state.years  = data.years  || [];
+    state.ytd    = Number(data.ytd) || 0;
+    state.year   = data.year || state.year;
+    state.payByYear[state.year] = data.payments || [];
 
-    // One round trip. The server picks the newest month when none is
-    // asked for and returns its rows in the same response.
+    // Land on the newest month of the loaded year.
+    var inYear = state.months.filter(function(m){ return m.month.slice(0,4) === state.year; });
+    if(!state.month || state.month.slice(0,4) !== state.year){
+      state.month = inYear.length ? inYear[0].month : "";
+    }
+
+    state.colLoaded = true;
     renderSummary();
     renderBody();
   });
