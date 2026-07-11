@@ -90,14 +90,39 @@ var CELLULAR_FEE = 25;
    books comes close to 3x its own customer's norm. */
 var OUTLIER_FACTOR = 3;
 
-/* Words that mark a line as a one-time fee. Drawn from the real
-   descriptions in the books, not invented. */
+/* Words that mark a line as a one-time fee.
+ *
+ * Every entry here is checked against the real descriptions in the books.
+ * A word that is merely plausible is a liability: a bare 'board' - meant
+ * to catch "Replacement board" - also matches "Yoplait CARDBOARD", which
+ * is an ordinary monitoring line for a cardboard compactor. That silently
+ * excluded $225 of real revenue and cost an agent his commission, with no
+ * flag raised, because the description rule used to run without reporting
+ * what it caught.
+ *
+ * In a waste business, half the vocabulary of the trade is a substring of
+ * something else. So: prefer whole phrases over fragments, and never add
+ * a word without checking what else it hits.
+ *
+ * 'lost' earns its place from a real line - "Lost New Monitor (Box ID#
+ * 615)" - which no other wording would have caught.
+ */
 var CHARGE_WORDS = [
-  'replacement', 'replace', 'new box', 'box charge', 'install',
-  'installation', 'setup', 'set up', 'set-up', 'purchase', 'repair',
-  'sensor', 'board', 'shipping', 'freight', 'deposit',
+  'replacement', 'replace',
+  'new box', 'box charge', 'new monitor', 'lost',
+  'install', 'installation',
+  'setup', 'set up', 'set-up',
+  'purchase', 'repair',
+  'shipping', 'freight', 'deposit',
   'one time', 'one-time', 'onetime'
 ];
+
+/* Words that look like charges but must NOT count on their own.
+   'board'  -> cardboard.  'sensor' -> a sensor can be monitored, not just
+   replaced. These only mark a charge when they sit beside charge wording,
+   which the list above already covers ("Sensor replacement", "Replacement
+   board"). Kept here as a note to whoever is tempted to add them back. */
+// DO NOT ADD: 'board', 'sensor', 'monitor' (bare), 'equipment'
 
 /* ------------------------------------------------------------------ */
 /* Tokens                                                              */
@@ -264,7 +289,8 @@ function classifyInvoice(inv, usualRate) {
   var boxes = 0;
   var monitoring = 0;
   var charges = 0;
-  var flags = [];
+  var flags = [];      // excluded by RATE - inferred, needs a human
+  var excluded = [];   // excluded by WORD or RATE - everything left out
 
   (inv.Line || []).forEach(function (ln) {
     var det = ln.SalesItemLineDetail;
@@ -275,9 +301,22 @@ function classifyInvoice(inv, usualRate) {
     var qty  = det.Qty == null ? 1 : (Number(det.Qty) || 0);
     var desc = ln.Description || '';
 
+    // Header lines: no price, no quantity, zero amount. Kim puts one at
+    // the top of some invoices ("Monthly compactor Monitoring (Yoplait)")
+    // and the billable line follows. Not a box, not a charge - skip it.
+    if (rate == null && det.Qty == null && amt === 0) return;
+
     // 1. Said outright.
     if (looksLikeCharge(desc)) {
       charges += amt;
+      excluded.push({
+        doc: inv.DocNumber || inv.Id,
+        customer: (inv.CustomerRef && inv.CustomerRef.name) || '',
+        rate: rate,
+        amount: amt,
+        desc: desc.slice(0, 60),
+        by: 'WORD'
+      });
       return;
     }
 
@@ -285,14 +324,18 @@ function classifyInvoice(inv, usualRate) {
     //    normally pays for a box. Inferred, so it gets flagged.
     if (usual && rate != null && rate > usual * OUTLIER_FACTOR) {
       charges += amt;
-      flags.push({
+      var f = {
         doc: inv.DocNumber || inv.Id,
         customer: (inv.CustomerRef && inv.CustomerRef.name) || '',
         rate: rate,
         usual: usual,
+        amount: amt,
         desc: desc.slice(0, 60),
+        by: 'RATE',
         why: 'rate ' + (rate / usual).toFixed(1) + 'x this customer\'s usual $' + usual
-      });
+      };
+      flags.push(f);
+      excluded.push(f);
       return;
     }
 
@@ -301,7 +344,8 @@ function classifyInvoice(inv, usualRate) {
     monitoring += amt;
   });
 
-  return { boxes: boxes, monitoring: monitoring, charges: charges, flags: flags };
+  return { boxes: boxes, monitoring: monitoring, charges: charges,
+           flags: flags, excluded: excluded };
 }
 
 /* ------------------------------------------------------------------ */
@@ -374,7 +418,8 @@ function postToSheet(invoices, payments) {
 
     /* --- classify --- */
     var docById = {};
-    var allFlags = [];
+    var allFlags = [];      // rate-inferred only
+    var allExcluded = [];   // EVERY line left out, by any rule
     var totalBoxes = 0, totalCharges = 0;
 
     var invoices = rawInv.map(function (i) {
@@ -386,6 +431,7 @@ function postToSheet(invoices, payments) {
       totalBoxes += c.boxes;
       totalCharges += c.charges;
       if (c.flags.length) allFlags = allFlags.concat(c.flags);
+      if (c.excluded.length) allExcluded = allExcluded.concat(c.excluded);
 
       return {
         id:         i.Id,
@@ -407,7 +453,37 @@ function postToSheet(invoices, payments) {
       return String(b.txnDate).localeCompare(String(a.txnDate));
     });
 
-    /* --- flagged lines: inferred, not stated. Always shown. --- */
+    /* --- EVERY excluded line, grouped by the wording that caught it.
+           This is the audit that was missing. The "Yoplait Cardboard"
+           bug hid here for exactly as long as this block didn't exist:
+           a real monitoring line, silently dropped, no flag, no warning.
+           If a group below is not obviously a one-time fee, the word
+           list is wrong and someone is being underpaid. --- */
+    var byWord = allExcluded.filter(function (e) { return e.by === 'WORD'; });
+    if (byWord.length) {
+      log('');
+      log('=== ' + byWord.length + ' LINE(S) EXCLUDED BECAUSE OF THEIR WORDING ===');
+      log('    Read these. Anything here that is really monitoring means an');
+      log('    agent loses commission on it, silently.');
+      log('');
+
+      var wg = {};
+      byWord.forEach(function (e) {
+        var k = e.desc.replace(/[#0-9]+/g, 'N').slice(0, 44);
+        if (!wg[k]) wg[k] = { n: 0, amt: 0, ex: e };
+        wg[k].n++;
+        wg[k].amt += e.amount;
+      });
+      Object.keys(wg).sort(function (a, b) { return wg[b].n - wg[a].n; })
+        .forEach(function (k) {
+          var g = wg[k];
+          log('    x' + pad(String(g.n), 4) + '$' + pad(g.amt.toFixed(2), 11) +
+              pad(g.ex.customer.slice(0, 20), 21) + '"' + g.ex.desc + '"');
+        });
+      log('');
+    }
+
+    /* --- flagged lines: inferred from price, not stated. --- */
     if (allFlags.length) {
       log('');
       log('=== ' + allFlags.length + ' LINE(S) TREATED AS ONE-TIME CHARGES BY RATE, NOT BY LABEL ===');
