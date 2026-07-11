@@ -414,14 +414,40 @@ function postToSheet(invoices, payments) {
       log('    Nobody wrote "replacement" on these. They were excluded because the');
       log('    price is far off what that customer normally pays for a box.');
       log('');
-      allFlags.slice(0, 40).forEach(function (f) {
-        log('    inv ' + pad(String(f.doc), 6) + ' ' + pad(f.customer.slice(0, 20), 21) +
-            ' $' + pad(String(f.rate), 8) + f.why);
-        if (f.desc) log('              "' + f.desc + '"');
+      // Grouped, so the whole flagged set can be checked at a glance.
+      // A truncated list is no use for an audit - the one line that
+      // matters is always the one that got cut off.
+      var groups = {};
+      allFlags.forEach(function (f) {
+        var k = f.customer + ' @ $' + f.rate;
+        if (!groups[k]) groups[k] = { n: 0, usual: f.usual, docs: {} };
+        groups[k].n++;
+        groups[k].docs[f.doc] = true;
       });
-      if (allFlags.length > 40) log('    ... and ' + (allFlags.length - 40) + ' more');
+
+      log('    GROUPED (all ' + allFlags.length + ' flagged lines):');
+      Object.keys(groups).sort(function (a, b) {
+        return groups[b].n - groups[a].n;
+      }).forEach(function (k) {
+        var g = groups[k];
+        log('      ' + pad(String(g.n) + ' lines', 12) + pad(k, 34) +
+            ' usual $' + pad(String(g.usual), 8) +
+            Object.keys(g.docs).length + ' invoice(s)');
+      });
       log('');
-      log('    If any of those are real monitoring, an agent is being underpaid.');
+
+      if (REVIEW_MODE) {
+        log('    DETAIL:');
+        allFlags.forEach(function (f) {
+          log('      inv ' + pad(String(f.doc), 6) + ' ' + pad(f.customer.slice(0, 20), 21) +
+              ' $' + pad(String(f.rate), 8) + f.why);
+          if (f.desc) log('                "' + f.desc + '"');
+        });
+        log('');
+      }
+
+      log('    Every group above is EXCLUDED from box counts and commission.');
+      log('    If any of them is real monitoring, an agent is being underpaid.');
       log('');
     } else {
       log('No inferred charges - every one-time fee was labelled. Good.');
