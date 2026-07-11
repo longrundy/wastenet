@@ -338,14 +338,21 @@ var state = {
 
   // agents
   agMonth: "",
+  agYear: "",
   agMonths: [],
-  agAgents: [],
-  agUnmapped: [],
-  agPartials: 0,
+  agYears: [],
+  agByYear: {},       // year -> { "yyyy-mm": {agents, unmapped} }
   agLoaded: false,
   agLoading: false,
   agOpen: {}          // which agent rows are expanded
 };
+
+/* Whatever is loaded for the selected month. Month switching is a lookup,
+   not a request - the whole year is already here. */
+function agMonthData(){
+  var y = state.agByYear[state.agYear];
+  return (y && y[state.agMonth]) || { agents: [], unmapped: [] };
+}
 
 /* ---------- JSONP ---------- */
 function jsonp(params, cb){
@@ -452,12 +459,13 @@ function renderSummary(){
 
   if(state.section === "agents"){
     if(!state.agLoaded){ el.innerHTML = ""; return; }
-    var tot = state.agAgents.reduce(function(s,a){ return s + a.payout; }, 0);
-    var box = state.agAgents.reduce(function(s,a){ return s + a.boxes; }, 0);
-    var col = state.agAgents.reduce(function(s,a){ return s + a.collected; }, 0);
+    var ags = agMonthData().agents;
+    var tot = ags.reduce(function(s,a){ return s + a.payout; }, 0);
+    var box = ags.reduce(function(s,a){ return s + a.boxes; }, 0);
+    var col = ags.reduce(function(s,a){ return s + a.collected; }, 0);
     el.innerHTML = '<div class="score">' +
       cell("$" + fmt(tot), monthLabel(state.agMonth) + " payouts", "n-green") +
-      cell(state.agAgents.length, "agents", "n-ink") +
+      cell(ags.length, "agents", "n-ink") +
       cell(fmtN(box), "boxes", "n-ink") +
       cell("$" + fmt(col), "collected", "n-ink") +
     '</div>';
@@ -610,12 +618,12 @@ function renderAgents(){
     return '<div class="empty-state">No payments found.</div>';
   }
 
-  var years = {};
-  state.agMonths.forEach(function(m){ years[m.slice(0,4)] = true; });
-  var yrList = Object.keys(years).filter(function(y){ return y >= "2020"; }).sort().reverse();
-
-  var yr = state.agMonth.slice(0,4);
+  var yrList = state.agYears;
+  var yr = state.agYear;
   var inYear = state.agMonths.filter(function(m){ return m.slice(0,4) === yr; });
+
+  var md = agMonthData();
+  var agents = md.agents;
 
   var tabs = '<div class="folder-tabs">' + inYear.map(function(m){
     return '<button class="ftab' + (state.agMonth === m ? " sel" : "") + '" ' +
@@ -626,13 +634,13 @@ function renderAgents(){
     return '<option value="' + y + '"' + (yr === y ? " selected" : "") + '>' + y + '</option>';
   }).join("");
 
-  var total = state.agAgents.reduce(function(s,a){ return s + a.payout; }, 0);
+  var total = agents.reduce(function(s,a){ return s + a.payout; }, 0);
 
   var body;
-  if(!state.agAgents.length){
+  if(!agents.length){
     body = '<div class="empty-state">No commissionable payments in ' + monthLabel(state.agMonth) + '.</div>';
   } else {
-    body = state.agAgents.map(function(a){
+    body = agents.map(function(a){
       var open = state.agOpen[a.agent] ? " open" : "";
 
       /* The arithmetic, shown rather than asserted. If a number looks
@@ -691,13 +699,13 @@ function renderAgents(){
   /* Payments from customers who map to no agent. Left unsaid, this is
      somebody's commission quietly going missing. */
   var orphan = '';
-  if(state.agUnmapped && state.agUnmapped.length){
+  if(md.unmapped && md.unmapped.length){
     orphan = '<div class="agflag" style="margin-top:14px;">' +
-      '<b>' + state.agUnmapped.length + ' customer(s) paid this month but map to no agent.</b><br>' +
-      state.agUnmapped.slice(0,8).map(function(u){
+      '<b>' + md.unmapped.length + ' customer(s) paid this month but map to no agent.</b><br>' +
+      md.unmapped.slice(0,8).map(function(u){
         return esc(u.customer) + ' \u2014 $' + fmt(u.amount);
       }).join('<br>') +
-      (state.agUnmapped.length > 8 ? '<br>\u2026and ' + (state.agUnmapped.length - 8) + ' more' : '') +
+      (md.unmapped.length > 8 ? '<br>\u2026and ' + (md.unmapped.length - 8) + ' more' : '') +
       '<br><br>If any of these belong to an agent, add them to the Agent Map tab.' +
       '</div>';
   }
@@ -708,7 +716,7 @@ function renderAgents(){
         '<div class="fbar">' +
           '<select class="yrsel" id="agYr" aria-label="Year">' + yrOpts + '</select>' +
           '<div class="fbar-t">' + monthLabel(state.agMonth) +
-            ' <span class="amt">\u00b7 ' + state.agAgents.length + ' agents \u00b7 $' +
+            ' <span class="amt">\u00b7 ' + agents.length + ' agents \u00b7 $' +
             fmt(total) + ' total</span></div>' +
         '</div>' +
       '</div>' +
@@ -724,11 +732,13 @@ function fmtN(n){
   return n % 1 === 0 ? String(n) : n.toFixed(1);
 }
 
-function loadPayouts(month){
+/* Fetch a whole year. ~600 commissionable payments - months are then
+   switched on the client with no further requests. */
+function loadPayouts(year){
   if(state.agLoading) return;
   state.agLoading = true;
 
-  jsonp({ action:"payouts", key:KEY, month: month || "" }, function(data){
+  jsonp({ action:"payouts", key:KEY, year: year || "" }, function(data){
     state.agLoading = false;
     if(!data || !data.ok){
       showError((data && data.error) || "Could not work out payouts.");
@@ -736,17 +746,16 @@ function loadPayouts(month){
     }
     document.getElementById("banner").className = "banner";
 
-    state.agMonths   = data.months || [];
-    state.agAgents   = data.agents || [];
-    state.agUnmapped = data.unmapped || [];
-    state.agPartials = data.partials || 0;
-    state.agMonth    = data.month || (state.agMonths.length ? state.agMonths[0] : "");
-    state.agLoaded   = true;
+    state.agMonths = data.months || [];
+    state.agYears  = data.years  || [];
+    state.agYear   = data.year   || state.agYear;
+    state.agByYear[state.agYear] = data.byMonth || {};
+    state.agLoaded = true;
 
-    // First visit: the server has no month, so land on the newest.
-    if(!month && state.agMonth && !state.agAgents.length && state.agMonths.length){
-      loadPayouts(state.agMonths[0]);
-      return;
+    // Land on the newest month that actually has payments in this year.
+    var inYear = state.agMonths.filter(function(m){ return m.slice(0,4) === state.agYear; });
+    if(!state.agMonth || state.agMonth.slice(0,4) !== state.agYear){
+      state.agMonth = inYear.length ? inYear[0] : "";
     }
 
     renderSummary();
@@ -755,26 +764,38 @@ function loadPayouts(month){
 }
 
 function wireAgents(){
+  /* The whole year is loaded, so switching months is a lookup. No spinner,
+     no request. */
   document.querySelectorAll(".ftab[data-agmonth]").forEach(function(el){
     el.onclick = function(){
       var m = el.getAttribute("data-agmonth");
       if(m === state.agMonth) return;
       state.agMonth = m;
       state.agOpen = {};
-      document.getElementById("body").innerHTML =
-        '<div class="empty-state"><span class="spinner"></span>Working out payouts&hellip;</div>';
-      loadPayouts(m);
+      renderSummary();
+      renderBody();
     };
   });
 
   var yr = document.getElementById("agYr");
   if(yr){
     yr.onchange = function(){
-      var inYear = state.agMonths.filter(function(m){ return m.slice(0,4) === yr.value; });
-      if(!inYear.length) return;
-      state.agMonth = inYear[0];
+      var y = yr.value;
+      if(y === state.agYear) return;
+      state.agYear = y;
+      state.agMonth = "";
       state.agOpen = {};
-      loadPayouts(state.agMonth);
+
+      if(state.agByYear[y]){          // already fetched - nothing to wait for
+        var inYear = state.agMonths.filter(function(m){ return m.slice(0,4) === y; });
+        state.agMonth = inYear.length ? inYear[0] : "";
+        renderSummary();
+        renderBody();
+      } else {
+        document.getElementById("body").innerHTML =
+          '<div class="empty-state"><span class="spinner"></span>Working out ' + y + '&hellip;</div>';
+        loadPayouts(y);
+      }
     };
   }
 
