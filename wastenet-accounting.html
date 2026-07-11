@@ -387,7 +387,9 @@ function agMonthData(){
     });
 
     (y[m].unmapped || []).forEach(function(u){
-      orphans[u.customer] = (orphans[u.customer] || 0) + u.amount;
+      if(!orphans[u.customer]) orphans[u.customer] = { amount: 0, months: [] };
+      orphans[u.customer].amount += u.amount;
+      orphans[u.customer].months.push(m);
     });
   });
 
@@ -403,7 +405,11 @@ function agMonthData(){
   }).sort(function(a,b){ return b.payout - a.payout; });
 
   var unmapped = Object.keys(orphans).map(function(c){
-    return { customer: c, amount: Math.round(orphans[c] * 100) / 100 };
+    return {
+      customer: c,
+      amount: Math.round(orphans[c].amount * 100) / 100,
+      months: orphans[c].months.sort().reverse()
+    };
   }).sort(function(a,b){ return b.amount - a.amount; });
 
   return { agents: agents, unmapped: unmapped, isYear: true };
@@ -776,10 +782,20 @@ function renderAgents(){
      somebody's commission quietly going missing. */
   var orphan = '';
   if(md.unmapped && md.unmapped.length){
+    var when = state.agMonth ? monthLabel(state.agMonth) : yr;
+
     orphan = '<div class="agflag" style="margin-top:14px;">' +
-      '<b>' + md.unmapped.length + ' customer(s) paid this month but map to no agent.</b><br>' +
+      '<b>' + md.unmapped.length + ' customer(s) paid in ' + when +
+        ' but map to no agent.</b><br>' +
       md.unmapped.slice(0,8).map(function(u){
-        return esc(u.customer) + ' \u2014 $' + fmt(u.amount);
+        // In the year view, say which months - otherwise "$2,200 in 2025"
+        // leaves you hunting through twelve tabs for it.
+        var ms = (u.months && u.months.length)
+          ? ' <span style="opacity:.75">(' +
+              u.months.slice(0,4).map(monthShort).join(', ') +
+              (u.months.length > 4 ? ', +' + (u.months.length - 4) : '') + ')</span>'
+          : '';
+        return esc(u.customer) + ' \u2014 $' + fmt(u.amount) + ms;
       }).join('<br>') +
       (md.unmapped.length > 8 ? '<br>\u2026and ' + (md.unmapped.length - 8) + ' more' : '') +
       '<br><br>If any of these belong to an agent, add them to the Agent Map tab.' +
