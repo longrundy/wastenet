@@ -85,16 +85,20 @@
      fade is on the WRAPPER, not the scroller - on the scroller it would
      slide away with the content and stop meaning anything. It hides
      itself once you reach the end. */
-  /* year picker - lives in the green bar next to search */
+  /* year picker - first thing in the green bar */
   .yrsel{
-    font-size:11.5px; font-family:var(--font); font-weight:600;
+    font-size:12px; font-family:var(--font); font-weight:600;
     color:var(--green-dark); background:var(--card);
-    border:0.5px solid var(--green-border); border-radius:14px;
-    padding:5px 8px; cursor:pointer; outline:none; flex:0 0 auto;
+    border:0.5px solid var(--green-border); border-radius:15px;
+    padding:6px 26px 6px 12px; cursor:pointer; outline:none; flex:0 0 auto;
+    /* the native arrow sits flush against the text in a pill this small,
+       so draw our own and give it room */
+    appearance:none; -webkit-appearance:none; -moz-appearance:none;
+    background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='6' viewBox='0 0 9 6'%3E%3Cpath d='M1 1l3.5 3.5L8 1' stroke='%233B6D11' stroke-width='1.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-position:right 10px center;
   }
   .yrsel:focus{border-color:var(--green);}
-
-  .fbar-right{display:flex; align-items:center; gap:7px; flex:0 0 auto;}
 
   .tabscroll{position:relative;}  .tabscroll{position:relative;}
   .tabscroll::after{
@@ -125,7 +129,7 @@
     border-bottom:0.5px solid var(--line);
     position:relative; z-index:2;
   }
-  .fbar-t{font-size:12.5px; font-weight:600; color:var(--green-darker); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .fbar-t{font-size:12.5px; font-weight:600; color:var(--green-darker); min-width:0; flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .fbar-t .amt{font-weight:400; color:var(--green-dark); font-size:11.5px;}
 
   .search{font-size:11.5px; padding:5px 10px; border:0.5px solid var(--green-border); border-radius:14px; width:165px; outline:none; font-family:var(--font); color:var(--ink); background:var(--card); flex:0 0 auto;}
@@ -399,11 +403,19 @@ function cell(n, label, cls){
          '</div>';
 }
 
+var MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
 function monthLabel(m){
   if(!m || m.length < 7) return m || "";
-  var names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  var y = m.slice(0,4), mi = parseInt(m.slice(5,7), 10) - 1;
-  return (names[mi] || "?") + " " + y;
+  var mi = parseInt(m.slice(5,7), 10) - 1;
+  return (MONTH_NAMES[mi] || "?") + " " + m.slice(0,4);
+}
+
+/* Tabs show the month alone - the year is right there in the dropdown,
+   and dropping it lets all twelve sit on one row. */
+function monthShort(m){
+  if(!m || m.length < 7) return m || "";
+  return MONTH_NAMES[parseInt(m.slice(5,7), 10) - 1] || "?";
 }
 
 function renderSummary(){
@@ -565,7 +577,7 @@ function renderCollections(){
 
   var tabs = '<div class="folder-tabs">' + shown.map(function(m){
     return '<button class="ftab' + (state.month === m.month ? " sel" : "") + '" ' +
-           'data-month="' + m.month + '">' + monthLabel(m.month) + '</button>';
+           'data-month="' + m.month + '">' + monthShort(m.month) + '</button>';
   }).join("") + '</div>';
 
   /* Payments for the loaded year are already here - slice by month with
@@ -639,12 +651,10 @@ function renderCollections(){
       '<div class="pinhead" id="pinhead">' +
         tabs +
         '<div class="fbar">' +
+          '<select class="yrsel" id="yrSel" aria-label="Year">' + yrOpts + '</select>' +
           '<div class="fbar-t">' + monthLabel(state.month) +
             ' <span class="amt">\u00b7 ' + rows.length + ' payments \u00b7 ' + moneyShort(total) + '</span></div>' +
-          '<div class="fbar-right">' +
-            '<select class="yrsel" id="yrSel" aria-label="Year">' + yrOpts + '</select>' +
-            '<input class="search" id="colSearch" type="text" placeholder="Search customer or #" value="' + esc(state.colSearch) + '">' +
-          '</div>' +
+          '<input class="search" id="colSearch" type="text" placeholder="Search customer or #" value="' + esc(state.colSearch) + '">' +
         '</div>' +
       '</div>' +
       '<div class="folder-lower"><table>' + head + tbody + '</table></div>' +
