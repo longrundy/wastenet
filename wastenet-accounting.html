@@ -90,7 +90,8 @@
     font-size:12px; font-family:var(--font); font-weight:600;
     color:var(--green-dark); background:var(--card);
     border:0.5px solid var(--green-border); border-radius:15px;
-    padding:6px 26px 6px 12px; cursor:pointer; outline:none; flex:0 0 auto;
+    padding:6px 28px 6px 13px; cursor:pointer; outline:none; flex:0 0 auto;
+    max-width:190px;
     /* the native arrow sits flush against the text in a pill this small,
        so draw our own and give it room */
     appearance:none; -webkit-appearance:none; -moz-appearance:none;
@@ -642,9 +643,12 @@ function renderCollections(){
 
   var total = rows.reduce(function(s,p){ return s + (Number(p.amount)||0); }, 0);
 
+  /* Each option carries what that year collected, so the totals are
+     visible in the list itself - and the closed pill shows the selected
+     year's total without costing another line of chrome. */
   var yrOpts = state.years.map(function(y){
     return '<option value="' + y.year + '"' + (state.year === y.year ? " selected" : "") + '>' +
-             y.year + '</option>';
+             y.year + '  \u00b7  ' + moneyShort(y.total) + '</option>';
   }).join("");
 
   return '<div class="folder">' +
