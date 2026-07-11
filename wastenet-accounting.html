@@ -348,10 +348,65 @@ var state = {
 };
 
 /* Whatever is loaded for the selected month. Month switching is a lookup,
-   not a request - the whole year is already here. */
+   not a request - the whole year is already here.
+
+   agMonth === "" means the YEAR view: every month in the loaded year,
+   rolled up per agent. */
 function agMonthData(){
-  var y = state.agByYear[state.agYear];
-  return (y && y[state.agMonth]) || { agents: [], unmapped: [] };
+  var y = state.agByYear[state.agYear] || {};
+
+  if(state.agMonth) return y[state.agMonth] || { agents: [], unmapped: [] };
+
+  /* --- roll the whole year up --- */
+  var acc = {}, orphans = {};
+
+  Object.keys(y).sort().forEach(function(m){
+    (y[m].agents || []).forEach(function(a){
+      if(!acc[a.agent]){
+        acc[a.agent] = {
+          agent: a.agent, name: a.name, share: a.share,
+          collected: 0, monitoring: 0, boxes: 0, fees: 0, payout: 0,
+          review: 0, invoices: [], months: []
+        };
+      }
+      var t = acc[a.agent];
+      t.collected  += a.collected;
+      t.monitoring += a.monitoring;
+      t.boxes      += a.boxes;
+      t.fees       += a.fees;
+      t.payout     += a.payout;
+      t.review     += a.review;
+      // In the year view the useful breakdown is by month, not a list of
+      // several hundred invoices.
+      t.months.push({
+        month: m,
+        payout: a.payout,
+        boxes: a.boxes,
+        invoices: a.invoices.length
+      });
+    });
+
+    (y[m].unmapped || []).forEach(function(u){
+      orphans[u.customer] = (orphans[u.customer] || 0) + u.amount;
+    });
+  });
+
+  var agents = Object.keys(acc).map(function(k){
+    var a = acc[k];
+    a.collected  = Math.round(a.collected * 100) / 100;
+    a.monitoring = Math.round(a.monitoring * 100) / 100;
+    a.fees       = Math.round(a.fees * 100) / 100;
+    a.payout     = Math.round(a.payout * 100) / 100;
+    a.boxes      = Math.round(a.boxes * 100) / 100;
+    a.months.reverse();   // newest first
+    return a;
+  }).sort(function(a,b){ return b.payout - a.payout; });
+
+  var unmapped = Object.keys(orphans).map(function(c){
+    return { customer: c, amount: Math.round(orphans[c] * 100) / 100 };
+  }).sort(function(a,b){ return b.amount - a.amount; });
+
+  return { agents: agents, unmapped: unmapped, isYear: true };
 }
 
 /* ---------- JSONP ---------- */
@@ -464,7 +519,7 @@ function renderSummary(){
     var box = ags.reduce(function(s,a){ return s + a.boxes; }, 0);
     var col = ags.reduce(function(s,a){ return s + a.collected; }, 0);
     el.innerHTML = '<div class="score">' +
-      cell("$" + fmt(tot), monthLabel(state.agMonth) + " payouts", "n-green") +
+      cell("$" + fmt(tot), (state.agMonth ? monthLabel(state.agMonth) : state.agYear) + " payouts", "n-green") +
       cell(ags.length, "agents", "n-ink") +
       cell(fmtN(box), "boxes", "n-ink") +
       cell("$" + fmt(col), "collected", "n-ink") +
@@ -625,10 +680,13 @@ function renderAgents(){
   var md = agMonthData();
   var agents = md.agents;
 
-  var tabs = '<div class="folder-tabs">' + inYear.map(function(m){
-    return '<button class="ftab' + (state.agMonth === m ? " sel" : "") + '" ' +
-           'data-agmonth="' + m + '">' + monthShort(m) + '</button>';
-  }).join("") + '</div>';
+  var tabs = '<div class="folder-tabs">' +
+    '<button class="ftab' + (state.agMonth === "" ? " sel" : "") + '" data-agmonth="">' +
+      yr + '</button>' +
+    inYear.map(function(m){
+      return '<button class="ftab' + (state.agMonth === m ? " sel" : "") + '" ' +
+             'data-agmonth="' + m + '">' + monthShort(m) + '</button>';
+    }).join("") + '</div>';
 
   var yrOpts = yrList.map(function(y){
     return '<option value="' + y + '"' + (yr === y ? " selected" : "") + '>' + y + '</option>';
@@ -638,7 +696,7 @@ function renderAgents(){
 
   var body;
   if(!agents.length){
-    body = '<div class="empty-state">No commissionable payments in ' + monthLabel(state.agMonth) + '.</div>';
+    body = '<div class="empty-state">No commissionable payments in ' + (state.agMonth ? monthLabel(state.agMonth) : yr) + '.</div>';
   } else {
     body = agents.map(function(a){
       var open = state.agOpen[a.agent] ? " open" : "";
@@ -660,17 +718,45 @@ function renderAgents(){
           'They earn no commission. Worth a look if this figure seems light.</div>'
         : '';
 
-      var rows = a.invoices.map(function(i){
-        return '<tr>' +
-          '<td class="muted">' + esc(i.date) + '</td>' +
-          '<td title="' + esc(i.customer) + '">' + esc(i.customer) +
-            (i.partial ? ' <span class="chip chip-30">' + i.partial + '% paid</span>' : '') + '</td>' +
-          '<td class="muted">' + esc(i.doc) + '</td>' +
-          '<td class="num">' + fmtN(i.boxes) + '</td>' +
-          '<td class="num">$' + fmt(i.monitoring) + '</td>' +
-          '<td class="num">$' + fmt(i.payout) + '</td>' +
-        '</tr>';
-      }).join("");
+      /* Year view: a month-by-month breakdown is what's useful.
+         Month view: the individual invoices behind the number. */
+      var table;
+      if(md.isYear){
+        table = '<table><thead><tr>' +
+            '<th style="width:34%">Month</th>' +
+            '<th style="width:22%" class="num">Boxes</th>' +
+            '<th style="width:22%" class="num">Invoices</th>' +
+            '<th style="width:22%" class="num">Payout</th>' +
+          '</tr></thead><tbody>' +
+          a.months.map(function(m){
+            return '<tr>' +
+              '<td>' + monthLabel(m.month) + '</td>' +
+              '<td class="num">' + fmtN(m.boxes) + '</td>' +
+              '<td class="num muted">' + m.invoices + '</td>' +
+              '<td class="num">$' + fmt(m.payout) + '</td>' +
+            '</tr>';
+          }).join("") + '</tbody></table>';
+      } else {
+        table = '<table><thead><tr>' +
+            '<th style="width:15%">Date</th>' +
+            '<th style="width:34%">Customer</th>' +
+            '<th style="width:12%">Invoice</th>' +
+            '<th style="width:11%" class="num">Boxes</th>' +
+            '<th style="width:14%" class="num">Monitoring</th>' +
+            '<th style="width:14%" class="num">Payout</th>' +
+          '</tr></thead><tbody>' +
+          a.invoices.map(function(i){
+            return '<tr>' +
+              '<td class="muted">' + esc(i.date) + '</td>' +
+              '<td title="' + esc(i.customer) + '">' + esc(i.customer) +
+                (i.partial ? ' <span class="chip chip-30">' + i.partial + '% paid</span>' : '') + '</td>' +
+              '<td class="muted">' + esc(i.doc) + '</td>' +
+              '<td class="num">' + fmtN(i.boxes) + '</td>' +
+              '<td class="num">$' + fmt(i.monitoring) + '</td>' +
+              '<td class="num">$' + fmt(i.payout) + '</td>' +
+            '</tr>';
+          }).join("") + '</tbody></table>';
+      }
 
       return '<div class="agrow' + open + '" data-agent="' + a.agent + '">' +
           '<div class="aghead">' +
@@ -678,20 +764,10 @@ function renderAgents(){
             '<span class="agname">' + esc(a.name) + '</span>' +
             '<span class="agshare">' + Math.round(a.share * 100) + '%</span>' +
             '<span class="agmeta">' + fmtN(a.boxes) + ' boxes \u00b7 ' +
-              a.invoices.length + ' inv</span>' +
+              (md.isYear ? a.months.length + ' mo' : a.invoices.length + ' inv') + '</span>' +
             '<span class="agpay">$' + fmt(a.payout) + '</span>' +
           '</div>' +
-          '<div class="agdetail">' +
-            math + flag +
-            '<table><thead><tr>' +
-              '<th style="width:15%">Date</th>' +
-              '<th style="width:34%">Customer</th>' +
-              '<th style="width:12%">Invoice</th>' +
-              '<th style="width:11%" class="num">Boxes</th>' +
-              '<th style="width:14%" class="num">Monitoring</th>' +
-              '<th style="width:14%" class="num">Payout</th>' +
-            '</tr></thead><tbody>' + rows + '</tbody></table>' +
-          '</div>' +
+          '<div class="agdetail">' + math + flag + table + '</div>' +
         '</div>';
     }).join("");
   }
@@ -715,7 +791,7 @@ function renderAgents(){
         tabs +
         '<div class="fbar">' +
           '<select class="yrsel" id="agYr" aria-label="Year">' + yrOpts + '</select>' +
-          '<div class="fbar-t">' + monthLabel(state.agMonth) +
+          '<div class="fbar-t">' + (state.agMonth ? monthLabel(state.agMonth) : yr + ' \u2014 full year') +
             ' <span class="amt">\u00b7 ' + agents.length + ' agents \u00b7 $' +
             fmt(total) + ' total</span></div>' +
         '</div>' +
@@ -753,10 +829,9 @@ function loadPayouts(year){
     state.agLoaded = true;
 
     // Land on the newest month that actually has payments in this year.
-    var inYear = state.agMonths.filter(function(m){ return m.slice(0,4) === state.agYear; });
-    if(!state.agMonth || state.agMonth.slice(0,4) !== state.agYear){
-      state.agMonth = inYear.length ? inYear[0] : "";
-    }
+    // Land on the full-year view. It answers "what did each agent make
+    // this year" without a click, and the months are one tap away.
+    state.agMonth = "";
 
     renderSummary();
     renderBody();
@@ -768,7 +843,7 @@ function wireAgents(){
      no request. */
   document.querySelectorAll(".ftab[data-agmonth]").forEach(function(el){
     el.onclick = function(){
-      var m = el.getAttribute("data-agmonth");
+      var m = el.getAttribute("data-agmonth");   // "" = the year view
       if(m === state.agMonth) return;
       state.agMonth = m;
       state.agOpen = {};
@@ -783,12 +858,10 @@ function wireAgents(){
       var y = yr.value;
       if(y === state.agYear) return;
       state.agYear = y;
-      state.agMonth = "";
+      state.agMonth = "";      // show the new year's full-year view
       state.agOpen = {};
 
       if(state.agByYear[y]){          // already fetched - nothing to wait for
-        var inYear = state.agMonths.filter(function(m){ return m.slice(0,4) === y; });
-        state.agMonth = inYear.length ? inYear[0] : "";
         renderSummary();
         renderBody();
       } else {
