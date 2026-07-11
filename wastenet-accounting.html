@@ -77,10 +77,21 @@
   .folder-tabs{display:flex; gap:4px; flex-wrap:wrap; padding-left:2px;}
   /* Months don't wrap - a year of them would stack three deep. Scroll
      sideways instead, newest first. */
-  .folder-tabs.scroll{flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; padding-bottom:0;}
-  .folder-tabs.scroll::-webkit-scrollbar{height:5px;}
-  .folder-tabs.scroll::-webkit-scrollbar-thumb{background:var(--green-border); border-radius:3px;}
+  .folder-tabs.scroll{flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; scrollbar-width:none; padding-bottom:0;}
+  .folder-tabs.scroll::-webkit-scrollbar{display:none;}
   .folder-tabs.scroll .ftab{flex:0 0 auto;}
+
+  /* There are years of months, so the tab strip scrolls sideways. The
+     fade is on the WRAPPER, not the scroller - on the scroller it would
+     slide away with the content and stop meaning anything. It hides
+     itself once you reach the end. */
+  .tabscroll{position:relative;}
+  .tabscroll::after{
+    content:""; position:absolute; top:0; right:0; bottom:0; width:44px;
+    pointer-events:none; opacity:1; transition:opacity .15s;
+    background:linear-gradient(to right, rgba(250,251,248,0), var(--page) 72%);
+  }
+  .tabscroll.at-end::after{opacity:0;}
   .ftab{
     display:inline-flex; align-items:center;
     background:var(--green-tint); border:0.5px solid var(--green-border);
@@ -536,10 +547,12 @@ function renderCollections(){
   }
 
   /* one tab per month, newest first, scrolling sideways */
-  var tabs = '<div class="folder-tabs scroll">' + state.months.map(function(m){
-    return '<button class="ftab' + (state.month === m.month ? " sel" : "") + '" ' +
-           'data-month="' + m.month + '">' + monthLabel(m.month) + '</button>';
-  }).join("") + '</div>';
+  var tabs = '<div class="tabscroll" id="tabscroll">' +
+    '<div class="folder-tabs scroll" id="monthTabs">' + state.months.map(function(m){
+      return '<button class="ftab' + (state.month === m.month ? " sel" : "") + '" ' +
+             'data-month="' + m.month + '">' + monthLabel(m.month) + '</button>';
+    }).join("") + '</div>' +
+  '</div>';
 
   var rows = state.payments.slice();
 
@@ -694,6 +707,33 @@ function wireBody(){
 }
 
 function wireCollections(){
+  var strip = document.getElementById("monthTabs");
+  var wrap  = document.getElementById("tabscroll");
+
+  if(strip && wrap){
+    var syncFade = function(){
+      var atEnd = strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 2;
+      wrap.classList.toggle("at-end", atEnd);
+    };
+    strip.addEventListener("scroll", syncFade, { passive:true });
+
+    // A vertical wheel over the strip should move it sideways - otherwise
+    // there's no way to reach older months without a horizontal trackpad.
+    strip.addEventListener("wheel", function(e){
+      if(Math.abs(e.deltaY) > Math.abs(e.deltaX)){
+        strip.scrollLeft += e.deltaY;
+        e.preventDefault();
+      }
+    }, { passive:false });
+
+    // Bring the selected month into view (it may be months back).
+    var sel = strip.querySelector(".ftab.sel");
+    if(sel && sel.offsetLeft + sel.offsetWidth > strip.clientWidth){
+      strip.scrollLeft = sel.offsetLeft - 12;
+    }
+    syncFade();
+  }
+
   document.querySelectorAll(".ftab[data-month]").forEach(function(el){
     el.onclick = function(){
       var m = el.getAttribute("data-month");
@@ -749,22 +789,11 @@ function loadCollections(month){
     state.months    = data.months || [];
     state.ytd       = Number(data.ytd) || 0;
     state.payments  = data.payments || [];
+    state.month     = data.month || state.month;
     state.colLoaded = true;
 
-    // First visit: no month asked for, so open the newest one.
-    if(!month && state.months.length){
-      state.month = state.months[0].month;
-      state.colLoading = true;
-      jsonp({ action:"collections", key:KEY, month:state.month }, function(d2){
-        state.colLoading = false;
-        if(d2 && d2.ok) state.payments = d2.payments || [];
-        renderSummary();
-        renderBody();
-      });
-      return;
-    }
-
-    state.month = data.month || state.month;
+    // One round trip. The server picks the newest month when none is
+    // asked for and returns its rows in the same response.
     renderSummary();
     renderBody();
   });
