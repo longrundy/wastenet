@@ -106,6 +106,17 @@
   .spinner{display:inline-block; width:13px; height:13px; border:2px solid var(--line-strong); border-top-color:var(--green); border-radius:50%; animation:spin .7s linear infinite; margin-right:7px; vertical-align:-2px;}
   @keyframes spin{to{transform:rotate(360deg);}}
 
+  /* lock screen */
+  .lock{position:fixed; inset:0; z-index:100; background:var(--page); display:flex; align-items:center; justify-content:center; padding:20px;}
+  .lock.hide{display:none;}
+  .lock-card{width:min(360px,100%); background:var(--card); border:0.5px solid var(--line-strong); border-radius:12px; padding:24px; text-align:center; box-shadow:0 3px 14px rgba(0,0,0,0.07);}
+  .lock-brand{font-size:17px; font-weight:800; letter-spacing:0.04em; color:var(--green); margin-bottom:4px;}
+  .lock-sub{font-size:13px; color:var(--ink-2); margin-bottom:16px;}
+  .lock-in{width:100%; box-sizing:border-box; padding:10px 12px; font-size:15px; border:1px solid var(--line-strong); border-radius:6px; font-family:var(--font); color:var(--ink); outline:none;}
+  .lock-in:focus{border-color:var(--green);}
+  .lock-btn{width:100%; margin-top:12px; padding:11px; font-size:14px; font-weight:600; border-radius:6px; border:none; cursor:pointer; background:var(--green); color:#fff; font-family:var(--font);}
+  .lock-err{margin-top:12px; padding:8px 10px; background:var(--red-tint); border:0.5px solid var(--red); border-radius:6px; color:var(--red-dark); font-size:12.5px; font-weight:600;}
+
   .foot{text-align:center; font-size:11px; color:var(--ink-3); margin-top:28px; line-height:1.6;}
 
   @media (max-width:560px){
@@ -117,6 +128,16 @@
 </style>
 </head>
 <body>
+<div class="lock" id="lock">
+  <div class="lock-card">
+    <div class="lock-brand">WASTENET</div>
+    <div class="lock-sub">Enter the access code to continue.</div>
+    <input class="lock-in" id="lockIn" type="password" placeholder="Access code" autofocus>
+    <button class="lock-btn" id="lockBtn">Unlock</button>
+    <div class="lock-err" id="lockErr" style="display:none;"></div>
+  </div>
+</div>
+
 <div class="wrap">
 
   <div class="topcard">
@@ -161,7 +182,29 @@
    ============================================================ */
 
 var API = "https://script.google.com/macros/s/AKfycbwvvAfVChkEJPlgz8c0iRbH23YIrtxM7SGjm5YgNz-kgs43N7hCGtd8nqBewJJOt8mV/exec";
-var KEY = "TRA$H";
+/* Access code. NOT hardcoded - this file's source is public on GitHub,
+   so a baked-in key would protect nothing. Entered on the lock screen,
+   held in sessionStorage for the tab session, sent with every request
+   for the Apps Script to check server-side. Shares the same session
+   entry as index.html and the monitor page. */
+var KEY = (function(){
+  try { return sessionStorage.getItem("wastenet_dashboard_key") || ""; }
+  catch(e){ return ""; }
+})();
+
+function lockOut(msg){
+  try { sessionStorage.removeItem("wastenet_dashboard_key"); } catch(e){}
+  KEY = "";
+  var lock = document.getElementById("lock");
+  var err  = document.getElementById("lockErr");
+  if(lock) lock.classList.remove("hide");
+  if(err){
+    if(msg){ err.textContent = msg; err.style.display = "block"; }
+    else { err.style.display = "none"; }
+  }
+  var inp = document.getElementById("lockIn");
+  if(inp){ inp.value = ""; inp.focus(); }
+}
 var MONITOR_URL = "wastenet-monitor.html";
 
 var state = {
@@ -185,7 +228,14 @@ function jsonp(params, cb){
     try{ delete window[name]; }catch(e){ window[name] = undefined; }
     if(s && s.parentNode) s.parentNode.removeChild(s);
   }
-  window[name] = function(data){ cleanup(); cb(data); };
+  window[name] = function(data){
+    cleanup();
+    if(data && data.authRequired){
+      lockOut("That access code was not accepted. Please try again.");
+      return;
+    }
+    cb(data);
+  };
   var qs = Object.keys(params).map(function(k){
     return encodeURIComponent(k)+"="+encodeURIComponent(params[k]);
   }).join("&");
@@ -471,7 +521,33 @@ document.getElementById("goMonitor").onclick = function(){
 
 document.getElementById("refreshBtn").onclick = function(){ load(); };
 
-load();
+/* ---------- lock screen ---------- */
+(function(){
+  var lock    = document.getElementById("lock");
+  var lockIn  = document.getElementById("lockIn");
+  var lockBtn = document.getElementById("lockBtn");
+
+  function unlock(){
+    var v = (lockIn.value || "").trim();
+    if(!v) return;
+    try { sessionStorage.setItem("wastenet_dashboard_key", v); } catch(e){}
+    KEY = v;
+    lock.classList.add("hide");
+    document.getElementById("lockErr").style.display = "none";
+    load();
+  }
+
+  lockBtn.onclick = unlock;
+  lockIn.onkeydown = function(e){ if(e.key === "Enter") unlock(); };
+
+  // Already unlocked earlier this session? Go straight in.
+  if(KEY){
+    lock.classList.add("hide");
+    load();
+  } else {
+    lockIn.focus();
+  }
+})();
 </script>
 </body>
 </html>
