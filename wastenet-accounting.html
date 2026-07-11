@@ -166,7 +166,25 @@
   .chip-90{background:var(--red-tint); color:var(--red-dark);}
   .chip-90p{background:var(--red-tint); color:var(--red-darker);}
 
-  /* coming soon */
+  /* agent payout rows */
+  .agrow{border-bottom:0.5px solid var(--line);}
+  .agrow:last-child{border-bottom:none;}
+  .aghead{display:flex; align-items:center; gap:10px; padding:11px 4px; cursor:pointer;}
+  .aghead:hover{background:var(--panel);}
+  .agcaret{font-size:9px; color:var(--ink-3); width:10px; flex:0 0 auto; transition:transform .12s;}
+  .agrow.open .agcaret{transform:rotate(90deg);}
+  .agname{font-size:13.5px; font-weight:600; flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .agshare{font-size:10.5px; color:var(--ink-3); background:var(--panel); border-radius:10px; padding:2px 7px; flex:0 0 auto;}
+  .agmeta{font-size:11px; color:var(--ink-2); flex:0 0 auto; text-align:right; white-space:nowrap;}
+  .agpay{font-size:15px; font-weight:600; color:var(--green-dark); flex:0 0 auto; text-align:right; min-width:88px;}
+
+  .agdetail{display:none; padding:2px 0 12px 22px;}
+  .agrow.open .agdetail{display:block;}
+  .agmath{font-size:11.5px; color:var(--ink-2); background:var(--green-tint-2); border:0.5px solid var(--green-border); border-radius:8px; padding:8px 11px; margin-bottom:9px; line-height:1.7;}
+  .agmath b{color:var(--ink); font-weight:600;}
+
+  .agflag{background:var(--amber-tint); border:0.5px solid var(--amber); color:var(--amber-dark); border-radius:8px; padding:8px 11px; font-size:11.5px; margin-bottom:9px;}
+
   .soon{border:0.5px solid var(--line); border-radius:14px; background:var(--card); padding:30px 26px; text-align:center;}
   .soon-disc{width:52px; height:52px; border-radius:50%; margin:0 auto 14px; background:var(--green-tint); border:1px solid var(--green-border); display:flex; align-items:center; justify-content:center; color:var(--green-dark);}
   .soon-disc svg{width:24px; height:24px;}
@@ -316,7 +334,17 @@ var state = {
   colSortDir: "desc",
   year: "",           // which year is loaded
   years: [],          // [{year,total}] newest first
-  payByYear: {}       // year -> payment rows, so month switching is free
+  payByYear: {},      // year -> payment rows, so month switching is free
+
+  // agents
+  agMonth: "",
+  agMonths: [],
+  agAgents: [],
+  agUnmapped: [],
+  agPartials: 0,
+  agLoaded: false,
+  agLoading: false,
+  agOpen: {}          // which agent rows are expanded
 };
 
 /* ---------- JSONP ---------- */
@@ -423,7 +451,16 @@ function renderSummary(){
   var el = document.getElementById("summary");
 
   if(state.section === "agents"){
-    el.innerHTML = "";
+    if(!state.agLoaded){ el.innerHTML = ""; return; }
+    var tot = state.agAgents.reduce(function(s,a){ return s + a.payout; }, 0);
+    var box = state.agAgents.reduce(function(s,a){ return s + a.boxes; }, 0);
+    var col = state.agAgents.reduce(function(s,a){ return s + a.collected; }, 0);
+    el.innerHTML = '<div class="score">' +
+      cell("$" + fmt(tot), monthLabel(state.agMonth) + " payouts", "n-green") +
+      cell(state.agAgents.length, "agents", "n-ink") +
+      cell(fmtN(box), "boxes", "n-ink") +
+      cell("$" + fmt(col), "collected", "n-ink") +
+    '</div>';
     return;
   }
 
@@ -564,20 +601,192 @@ var ICON_COMMISSION =
   '<path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><path d="M16.5 11.5h5"/><path d="M19 9v5"/>' +
   '<path d="M16.5 18h5"/></svg>';
 
-/* ---------- agents (coming soon) ---------- */
+/* ---------- agents ---------- */
 function renderAgents(){
-  return soonPanel(
-    ICON_COMMISSION,
-    "Agent Payouts",
-    "What the six agents are owed for a given month. An agent earns on the month a client\u2019s money actually landed \u2014 so this reads payments, not billings.",
-    [
-      "\u2022 Pick a month, get each agent\u2019s payout",
-      "\u2022 (collected revenue \u2212 boxes \u00d7 fee) \u00d7 share",
-      "\u2022 Expand an agent to see the invoices behind the number",
-      "\u2022 House accounts excluded automatically"
-    ],
-    "Waiting on box counts in the Agent Map tab, and on three payout rules to confirm with Dave."
-  );
+  if(!state.agLoaded){
+    return '<div class="empty-state"><span class="spinner"></span>Working out payouts&hellip;</div>';
+  }
+  if(!state.agMonths.length){
+    return '<div class="empty-state">No payments found.</div>';
+  }
+
+  var years = {};
+  state.agMonths.forEach(function(m){ years[m.slice(0,4)] = true; });
+  var yrList = Object.keys(years).filter(function(y){ return y >= "2020"; }).sort().reverse();
+
+  var yr = state.agMonth.slice(0,4);
+  var inYear = state.agMonths.filter(function(m){ return m.slice(0,4) === yr; });
+
+  var tabs = '<div class="folder-tabs">' + inYear.map(function(m){
+    return '<button class="ftab' + (state.agMonth === m ? " sel" : "") + '" ' +
+           'data-agmonth="' + m + '">' + monthShort(m) + '</button>';
+  }).join("") + '</div>';
+
+  var yrOpts = yrList.map(function(y){
+    return '<option value="' + y + '"' + (yr === y ? " selected" : "") + '>' + y + '</option>';
+  }).join("");
+
+  var total = state.agAgents.reduce(function(s,a){ return s + a.payout; }, 0);
+
+  var body;
+  if(!state.agAgents.length){
+    body = '<div class="empty-state">No commissionable payments in ' + monthLabel(state.agMonth) + '.</div>';
+  } else {
+    body = state.agAgents.map(function(a){
+      var open = state.agOpen[a.agent] ? " open" : "";
+
+      /* The arithmetic, shown rather than asserted. If a number looks
+         wrong, the working is right there to check it against. */
+      var math = '<div class="agmath">' +
+        '<b>$' + fmt(a.monitoring) + '</b> monitoring collected' +
+        ' \u2212 <b>$' + fmt(a.fees) + '</b> cellular fees (' +
+        fmtN(a.boxes) + ' boxes \u00d7 $25)' +
+        ' = <b>$' + fmt(a.monitoring - a.fees) + '</b>' +
+        '<br>\u00d7 <b>' + Math.round(a.share * 100) + '%</b> share' +
+        ' = <b>$' + fmt(a.payout) + '</b>' +
+        '</div>';
+
+      var flag = a.review
+        ? '<div class="agflag">' + a.review + ' invoice(s) here contain a line the engine ' +
+          'judged to be a one-time fee from its price rather than its wording. ' +
+          'They earn no commission. Worth a look if this figure seems light.</div>'
+        : '';
+
+      var rows = a.invoices.map(function(i){
+        return '<tr>' +
+          '<td class="muted">' + esc(i.date) + '</td>' +
+          '<td title="' + esc(i.customer) + '">' + esc(i.customer) +
+            (i.partial ? ' <span class="chip chip-30">' + i.partial + '% paid</span>' : '') + '</td>' +
+          '<td class="muted">' + esc(i.doc) + '</td>' +
+          '<td class="num">' + fmtN(i.boxes) + '</td>' +
+          '<td class="num">$' + fmt(i.monitoring) + '</td>' +
+          '<td class="num">$' + fmt(i.payout) + '</td>' +
+        '</tr>';
+      }).join("");
+
+      return '<div class="agrow' + open + '" data-agent="' + a.agent + '">' +
+          '<div class="aghead">' +
+            '<span class="agcaret">\u25B6</span>' +
+            '<span class="agname">' + esc(a.name) + '</span>' +
+            '<span class="agshare">' + Math.round(a.share * 100) + '%</span>' +
+            '<span class="agmeta">' + fmtN(a.boxes) + ' boxes \u00b7 ' +
+              a.invoices.length + ' inv</span>' +
+            '<span class="agpay">$' + fmt(a.payout) + '</span>' +
+          '</div>' +
+          '<div class="agdetail">' +
+            math + flag +
+            '<table><thead><tr>' +
+              '<th style="width:15%">Date</th>' +
+              '<th style="width:34%">Customer</th>' +
+              '<th style="width:12%">Invoice</th>' +
+              '<th style="width:11%" class="num">Boxes</th>' +
+              '<th style="width:14%" class="num">Monitoring</th>' +
+              '<th style="width:14%" class="num">Payout</th>' +
+            '</tr></thead><tbody>' + rows + '</tbody></table>' +
+          '</div>' +
+        '</div>';
+    }).join("");
+  }
+
+  /* Payments from customers who map to no agent. Left unsaid, this is
+     somebody's commission quietly going missing. */
+  var orphan = '';
+  if(state.agUnmapped && state.agUnmapped.length){
+    orphan = '<div class="agflag" style="margin-top:14px;">' +
+      '<b>' + state.agUnmapped.length + ' customer(s) paid this month but map to no agent.</b><br>' +
+      state.agUnmapped.slice(0,8).map(function(u){
+        return esc(u.customer) + ' \u2014 $' + fmt(u.amount);
+      }).join('<br>') +
+      (state.agUnmapped.length > 8 ? '<br>\u2026and ' + (state.agUnmapped.length - 8) + ' more' : '') +
+      '<br><br>If any of these belong to an agent, add them to the Agent Map tab.' +
+      '</div>';
+  }
+
+  return '<div class="folder">' +
+      '<div class="pinhead" id="pinhead">' +
+        tabs +
+        '<div class="fbar">' +
+          '<select class="yrsel" id="agYr" aria-label="Year">' + yrOpts + '</select>' +
+          '<div class="fbar-t">' + monthLabel(state.agMonth) +
+            ' <span class="amt">\u00b7 ' + state.agAgents.length + ' agents \u00b7 $' +
+            fmt(total) + ' total</span></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="folder-lower" style="padding:4px 16px 8px;">' + body + '</div>' +
+    '</div>' + orphan;
+}
+
+function fmt(n){
+  return (Number(n)||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function fmtN(n){
+  n = Number(n)||0;
+  return n % 1 === 0 ? String(n) : n.toFixed(1);
+}
+
+function loadPayouts(month){
+  if(state.agLoading) return;
+  state.agLoading = true;
+
+  jsonp({ action:"payouts", key:KEY, month: month || "" }, function(data){
+    state.agLoading = false;
+    if(!data || !data.ok){
+      showError((data && data.error) || "Could not work out payouts.");
+      return;
+    }
+    document.getElementById("banner").className = "banner";
+
+    state.agMonths   = data.months || [];
+    state.agAgents   = data.agents || [];
+    state.agUnmapped = data.unmapped || [];
+    state.agPartials = data.partials || 0;
+    state.agMonth    = data.month || (state.agMonths.length ? state.agMonths[0] : "");
+    state.agLoaded   = true;
+
+    // First visit: the server has no month, so land on the newest.
+    if(!month && state.agMonth && !state.agAgents.length && state.agMonths.length){
+      loadPayouts(state.agMonths[0]);
+      return;
+    }
+
+    renderSummary();
+    renderBody();
+  });
+}
+
+function wireAgents(){
+  document.querySelectorAll(".ftab[data-agmonth]").forEach(function(el){
+    el.onclick = function(){
+      var m = el.getAttribute("data-agmonth");
+      if(m === state.agMonth) return;
+      state.agMonth = m;
+      state.agOpen = {};
+      document.getElementById("body").innerHTML =
+        '<div class="empty-state"><span class="spinner"></span>Working out payouts&hellip;</div>';
+      loadPayouts(m);
+    };
+  });
+
+  var yr = document.getElementById("agYr");
+  if(yr){
+    yr.onchange = function(){
+      var inYear = state.agMonths.filter(function(m){ return m.slice(0,4) === yr.value; });
+      if(!inYear.length) return;
+      state.agMonth = inYear[0];
+      state.agOpen = {};
+      loadPayouts(state.agMonth);
+    };
+  }
+
+  document.querySelectorAll(".agrow").forEach(function(el){
+    var head = el.querySelector(".aghead");
+    if(!head) return;
+    head.onclick = function(){
+      var k = el.getAttribute("data-agent");
+      state.agOpen[k] = !state.agOpen[k];
+      el.classList.toggle("open");
+    };
+  });
 }
 
 /* ---------- payments ---------- */
@@ -685,7 +894,12 @@ function renderCollections(){
 function renderBody(){
   var el = document.getElementById("body");
 
-  if(state.section === "agents"){ el.innerHTML = renderAgents(); return; }
+  if(state.section === "agents"){
+    el.innerHTML = renderAgents();
+    wireAgents();
+    measurePin();
+    return;
+  }
 
   if(state.section === "payments"){
     el.innerHTML = renderCollections();
@@ -860,6 +1074,13 @@ document.querySelectorAll(".sec").forEach(function(el){
       renderSummary();
       renderBody();
       loadCollections("");
+      return;
+    }
+
+    if(state.section === "agents" && !state.agLoaded && !state.agLoading){
+      renderSummary();
+      renderBody();
+      loadPayouts("");
       return;
     }
 
