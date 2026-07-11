@@ -239,6 +239,39 @@
   .spinner{display:inline-block; width:13px; height:13px; border:2px solid var(--line-strong); border-top-color:var(--green); border-radius:50%; animation:spin .7s linear infinite; margin-right:7px; vertical-align:-2px;}
   @keyframes spin{to{transform:rotate(360deg);}}
 
+  /* invoice panel - the invoice itself, no QuickBooks login required */
+  .ivbg{position:fixed; inset:0; z-index:150; background:rgba(26,29,26,0.42); display:none; align-items:flex-start; justify-content:center; padding:36px 16px; overflow-y:auto;}
+  .ivbg.show{display:flex;}
+  .ivcard{width:min(720px,100%); background:var(--card); border-radius:14px; box-shadow:0 12px 44px rgba(0,0,0,0.22); overflow:hidden;}
+
+  .ivhead{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:15px 18px; background:var(--green-tint-2); border-bottom:0.5px solid var(--green-border);}
+  .ivtitle{font-size:15px; font-weight:600; color:var(--green-darker);}
+  .ivsub{font-size:12px; color:var(--ink-2); margin-top:3px;}
+  .ivclose{background:transparent; border:none; font-size:19px; color:var(--ink-3); cursor:pointer; line-height:1; padding:2px 5px; font-family:var(--font);}
+  .ivclose:hover{color:var(--ink);}
+
+  .ivbody{padding:14px 18px 18px; max-height:66vh; overflow-y:auto;}
+
+  .ivsum{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:13px;}
+  .ivstat{flex:1; min-width:96px; border:0.5px solid var(--line); border-radius:9px; padding:8px 10px;}
+  .ivstat-n{font-size:15px; font-weight:600;}
+  .ivstat-l{font-size:10px; color:var(--ink-2); margin-top:1px;}
+
+  .ivtable{width:100%; border-collapse:collapse; table-layout:auto;}
+  .ivtable th{font-size:10.5px; font-weight:600; color:var(--ink-2); text-align:left; padding:6px 6px; border-bottom:0.5px solid var(--line-strong); white-space:nowrap; position:static; background:var(--card);}
+  .ivtable td{padding:8px 6px; border-bottom:0.5px solid var(--line); font-size:12.5px; vertical-align:top; white-space:normal;}
+  .ivtable tr.charge td{background:var(--red-tint);}
+  .ivtable tr.header-line td{background:var(--panel); color:var(--ink-2); font-style:italic;}
+
+  .ivkind{display:inline-block; font-size:10px; font-weight:600; padding:2px 7px; border-radius:10px; white-space:nowrap;}
+  .k-box{background:var(--green-tint); color:var(--green-darker);}
+  .k-charge{background:var(--red-tint); color:var(--red-dark);}
+  .k-header{background:var(--panel); color:var(--ink-3);}
+  .ivwhy{font-size:10.5px; color:var(--red-dark); margin-top:2px;}
+
+  .ivpaid{margin-top:13px; font-size:12px; color:var(--ink-2); background:var(--green-tint-2); border:0.5px solid var(--green-border); border-radius:9px; padding:9px 12px;}
+  .ivnote{margin-top:11px; font-size:11.5px; color:var(--ink-3); line-height:1.6;}
+
   /* lock */
   .lock{position:fixed; inset:0; z-index:200; background:var(--page); display:flex; align-items:center; justify-content:center; padding:20px;}
   .lock.hide{display:none;}
@@ -259,6 +292,19 @@
 </style>
 </head>
 <body>
+
+<div class="ivbg" id="ivbg">
+  <div class="ivcard" id="ivcard">
+    <div class="ivhead">
+      <div>
+        <div class="ivtitle" id="ivtitle">Invoice</div>
+        <div class="ivsub" id="ivsub"></div>
+      </div>
+      <button class="ivclose" id="ivclose" aria-label="Close">&times;</button>
+    </div>
+    <div class="ivbody" id="ivbody"></div>
+  </div>
+</div>
 
 <div class="lock" id="lock">
   <div class="lock-card">
@@ -501,20 +547,134 @@ function esc(s){
     .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
-/* QuickBooks opens an invoice by its INTERNAL id, not the number a human
-   reads. The pull stores both, so an invoice number on this page can be a
-   link to the real thing. Without an id we just print the number - never a
-   dead link. */
-var QBO_INVOICE = "https://qbo.intuit.com/app/invoice?txnId=";
-
+/* Clicking an invoice number opens the invoice HERE, not in QuickBooks.
+ *
+ * The obvious thing was to link to qbo.intuit.com - but Dave pays the
+ * agents and has never had a QuickBooks login, so that link sends him to a
+ * sign-in page he can't get past. Worse than no link.
+ *
+ * So we render it ourselves from the stored lines. Which is better anyway:
+ * we can show WHICH line was excluded from his payout, and why. That is the
+ * question he would actually be asking. */
 function invLink(doc, qboId, cls){
-  var text = esc(doc);
   if(!doc) return "";
-  if(!qboId) return text;
-  return '<a class="ilink' + (cls ? " " + cls : "") + '" target="_blank" rel="noopener" ' +
-         'href="' + QBO_INVOICE + encodeURIComponent(qboId) + '" ' +
-         'title="Open invoice ' + text + ' in QuickBooks">' + text + '</a>';
+  var text = esc(doc);
+  return '<a class="ilink' + (cls ? " " + cls : "") + '" href="#" ' +
+         'data-invoice="' + text + '" ' +
+         'title="View invoice ' + text + '">' + text + '</a>';
 }
+
+/* ---------- invoice panel ---------- */
+var ivCache = {};
+
+function openInvoice(doc){
+  var bg = document.getElementById("ivbg");
+  document.getElementById("ivtitle").textContent = "Invoice " + doc;
+  document.getElementById("ivsub").textContent = "";
+  document.getElementById("ivbody").innerHTML =
+    '<div class="empty-state"><span class="spinner"></span>Loading invoice&hellip;</div>';
+  bg.classList.add("show");
+
+  if(ivCache[doc]){ paintInvoice(ivCache[doc]); return; }
+
+  jsonp({ action:"invoice", key:KEY, doc:doc }, function(data){
+    if(!data || !data.ok){
+      document.getElementById("ivbody").innerHTML =
+        '<div class="empty-state">' + esc((data && data.error) || "Could not load that invoice.") + '</div>';
+      return;
+    }
+    ivCache[doc] = data;
+    paintInvoice(data);
+  });
+}
+
+function paintInvoice(d){
+  var h = d.invoice || {};
+  var lines = d.lines || [];
+
+  document.getElementById("ivtitle").textContent =
+    "Invoice " + (h.docNumber || "") + " \u00b7 " + (h.customer || "");
+  document.getElementById("ivsub").textContent =
+    (h.txnDate ? "Dated " + h.txnDate : "") +
+    (h.dueDate ? " \u00b7 due " + h.dueDate : "") +
+    (h.status ? " \u00b7 " + h.status : "");
+
+  var stats = '<div class="ivsum">' +
+    '<div class="ivstat"><div class="ivstat-n">$' + fmt(h.total) + '</div>' +
+      '<div class="ivstat-l">invoice total</div></div>' +
+    '<div class="ivstat"><div class="ivstat-n">' + fmtN(h.boxes) + '</div>' +
+      '<div class="ivstat-l">boxes</div></div>' +
+    '<div class="ivstat"><div class="ivstat-n" style="color:var(--green-dark)">$' + fmt(h.monitoring) + '</div>' +
+      '<div class="ivstat-l">monitoring</div></div>' +
+    (h.charges
+      ? '<div class="ivstat"><div class="ivstat-n" style="color:var(--red-dark)">$' + fmt(h.charges) + '</div>' +
+        '<div class="ivstat-l">one-time fees</div></div>'
+      : '') +
+  '</div>';
+
+  var rows = lines.map(function(l){
+    var cls = l.kind === 'CHARGE' ? ' class="charge"'
+            : l.kind === 'HEADER' ? ' class="header-line"' : '';
+    var kind = l.kind === 'CHARGE' ? '<span class="ivkind k-charge">one-time</span>'
+             : l.kind === 'HEADER' ? '<span class="ivkind k-header">heading</span>'
+             : '<span class="ivkind k-box">box</span>';
+    return '<tr' + cls + '>' +
+      '<td style="width:46%">' + esc(l.desc) +
+        (l.why ? '<div class="ivwhy">excluded \u2014 ' + esc(l.why) + '</div>' : '') + '</td>' +
+      '<td class="num" style="width:8%">' + (l.qty == null ? '\u2014' : fmtN(l.qty)) + '</td>' +
+      '<td class="num" style="width:13%">' + (l.rate == null ? '\u2014' : '$' + fmt(l.rate)) + '</td>' +
+      '<td class="num" style="width:14%">$' + fmt(l.amount) + '</td>' +
+      '<td style="width:19%">' + kind + '</td>' +
+    '</tr>';
+  }).join("");
+
+  var table = '<table class="ivtable"><thead><tr>' +
+      '<th>Description</th><th class="num">Qty</th><th class="num">Rate</th>' +
+      '<th class="num">Amount</th><th>Counted as</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table>';
+
+  var paid = "";
+  if(d.payments && d.payments.length){
+    var tot = d.payments.reduce(function(s,p){ return s + p.amount; }, 0);
+    paid = '<div class="ivpaid"><b>Paid:</b> ' +
+      d.payments.map(function(p){
+        return '$' + fmt(p.amount) + ' on ' + esc(p.date);
+      }).join(' \u00b7 ') +
+      (d.payments.length > 1 ? ' &nbsp;\u2014 total $' + fmt(tot) : '') +
+      '</div>';
+  } else {
+    paid = '<div class="ivpaid" style="background:var(--panel); border-color:var(--line); color:var(--ink-2);">' +
+           'No payment recorded against this invoice yet.</div>';
+  }
+
+  var note = h.charges
+    ? '<div class="ivnote">Rows shaded red are one-time fees \u2014 a new box, a ' +
+      'replacement, a lost monitor. They are excluded from the box count and earn ' +
+      'no commission. Everything else is a monitored box.</div>'
+    : '';
+
+  document.getElementById("ivbody").innerHTML = stats + table + paid + note;
+}
+
+(function(){
+  var bg = document.getElementById("ivbg");
+
+  // Any invoice number, anywhere on the page, opens the panel.
+  document.addEventListener("click", function(e){
+    var a = e.target.closest && e.target.closest("[data-invoice]");
+    if(a){
+      e.preventDefault();
+      openInvoice(a.getAttribute("data-invoice"));
+      return;
+    }
+    if(e.target === bg) bg.classList.remove("show");
+  });
+
+  document.getElementById("ivclose").onclick = function(){ bg.classList.remove("show"); };
+  document.addEventListener("keydown", function(e){
+    if(e.key === "Escape") bg.classList.remove("show");
+  });
+})();
 
 /* Days past due. Zero or negative = not yet due. */
 function daysOverdue(inv){

@@ -84,6 +84,17 @@ var REVIEW_MODE = process.argv.indexOf('--review') !== -1;
 /* The cellular fee deducted from every box before the split. */
 var CELLULAR_FEE = 25;
 
+/* Invoice LINES are stored from this year on.
+ *
+ * They exist so the dashboard can render an invoice without sending anyone
+ * to QuickBooks - Dave pays the agents and has never had a QBO login, so a
+ * link to Intuit's sign-in page is worse than useless to him.
+ *
+ * Payouts only go back to 2025, so lines before that would be dead weight:
+ * ~40,000 rows nobody can reach. A rolling window keeps the sheet bounded
+ * by choice rather than letting it grow by accident. */
+var LINES_FROM = '2025-01-01';
+
 /* A line whose rate is this many times its customer's usual box rate is
    treated as a one-time charge even if nobody labelled it. Costco: usual
    $90, replacements $1,000 - a factor of 11. Nothing legitimate in the
@@ -291,6 +302,7 @@ function classifyInvoice(inv, usualRate) {
   var charges = 0;
   var flags = [];      // excluded by RATE - inferred, needs a human
   var excluded = [];   // excluded by WORD or RATE - everything left out
+  var lines = [];      // every line, with what we decided about it
 
   (inv.Line || []).forEach(function (ln) {
     var det = ln.SalesItemLineDetail;
@@ -304,11 +316,18 @@ function classifyInvoice(inv, usualRate) {
     // Header lines: no price, no quantity, zero amount. Kim puts one at
     // the top of some invoices ("Monthly compactor Monitoring (Yoplait)")
     // and the billable line follows. Not a box, not a charge - skip it.
-    if (rate == null && det.Qty == null && amt === 0) return;
+    if (rate == null && det.Qty == null && amt === 0) {
+      lines.push({ desc: desc, qty: null, rate: null, amount: amt, kind: 'HEADER' });
+      return;
+    }
 
     // 1. Said outright.
     if (looksLikeCharge(desc)) {
       charges += amt;
+      lines.push({
+        desc: desc, qty: qty, rate: rate, amount: amt,
+        kind: 'CHARGE', why: 'wording'
+      });
       excluded.push({
         doc: inv.DocNumber || inv.Id,
         customer: (inv.CustomerRef && inv.CustomerRef.name) || '',
@@ -324,6 +343,11 @@ function classifyInvoice(inv, usualRate) {
     //    normally pays for a box. Inferred, so it gets flagged.
     if (usual && rate != null && rate > usual * OUTLIER_FACTOR) {
       charges += amt;
+      lines.push({
+        desc: desc, qty: qty, rate: rate, amount: amt,
+        kind: 'CHARGE',
+        why: 'price - ' + (rate / usual).toFixed(1) + 'x the usual $' + usual
+      });
       var f = {
         doc: inv.DocNumber || inv.Id,
         customer: (inv.CustomerRef && inv.CustomerRef.name) || '',
@@ -342,21 +366,23 @@ function classifyInvoice(inv, usualRate) {
     // 3. A box.
     boxes += qty;
     monitoring += amt;
+    lines.push({ desc: desc, qty: qty, rate: rate, amount: amt, kind: 'BOX' });
   });
 
   return { boxes: boxes, monitoring: monitoring, charges: charges,
-           flags: flags, excluded: excluded };
+           flags: flags, excluded: excluded, lines: lines };
 }
 
 /* ------------------------------------------------------------------ */
 /* Post                                                                */
 /* ------------------------------------------------------------------ */
 
-function postToSheet(invoices, payments) {
+function postToSheet(invoices, payments, lines) {
   return new Promise(function (resolve, reject) {
     var payload = JSON.stringify({
       invoices: invoices,
       payments: payments,
+      lines: lines,
       pulledAt: new Date().toISOString()
     });
 
@@ -420,6 +446,7 @@ function postToSheet(invoices, payments) {
     var docById = {};
     var allFlags = [];      // rate-inferred only
     var allExcluded = [];   // EVERY line left out, by any rule
+    var allLines = [];      // line detail, recent invoices only
     var totalBoxes = 0, totalCharges = 0;
 
     var invoices = rawInv.map(function (i) {
@@ -432,6 +459,22 @@ function postToSheet(invoices, payments) {
       totalCharges += c.charges;
       if (c.flags.length) allFlags = allFlags.concat(c.flags);
       if (c.excluded.length) allExcluded = allExcluded.concat(c.excluded);
+
+      // Line detail, but only for invoices a payout could actually reach.
+      if ((i.TxnDate || '') >= LINES_FROM) {
+        c.lines.forEach(function (ln, n) {
+          allLines.push({
+            doc:    doc,
+            n:      n + 1,
+            desc:   String(ln.desc || '').slice(0, 120),
+            qty:    ln.qty,
+            rate:   ln.rate,
+            amount: round2(ln.amount),
+            kind:   ln.kind,
+            why:    ln.why || ''
+          });
+        });
+      }
 
       return {
         // The INTERNAL QuickBooks id, not the invoice number. It is what
@@ -594,6 +637,7 @@ function postToSheet(invoices, payments) {
     log('  Flagged:         ' + allFlags.length + ' line(s)');
     log('  Payment rows:    ' + payments.length + '  ($' + collected.toFixed(2) + ' collected)');
     log('    unapplied:     ' + unapplied);
+    log('  Line items:      ' + allLines.length + '  (' + LINES_FROM.slice(0, 4) + ' onward)');
     log('');
 
     log('Newest invoices:');
@@ -611,8 +655,9 @@ function postToSheet(invoices, payments) {
       return;
     }
 
-    log('Posting ' + invoices.length + ' invoices and ' + payments.length + ' payment rows...');
-    var resp = await postToSheet(invoices, payments);
+    log('Posting ' + invoices.length + ' invoices, ' + payments.length +
+        ' payment rows and ' + allLines.length + ' line items...');
+    var resp = await postToSheet(invoices, payments, allLines);
     log('Sheet replied: ' + resp);
     log('DONE.');
 
