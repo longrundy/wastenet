@@ -365,10 +365,12 @@ function agMonthData(){
       if(!acc[a.agent]){
         acc[a.agent] = {
           agent: a.agent, name: a.name, share: a.share,
+          rateSet: {},
           collected: 0, monitoring: 0, boxes: 0, fees: 0, payout: 0,
           review: 0, invoices: [], months: []
         };
       }
+      (a.rates || [a.share]).forEach(function(r){ acc[a.agent].rateSet[r] = true; });
       var t = acc[a.agent];
       t.collected  += a.collected;
       t.monitoring += a.monitoring;
@@ -395,6 +397,7 @@ function agMonthData(){
 
   var agents = Object.keys(acc).map(function(k){
     var a = acc[k];
+    a.rates = Object.keys(a.rateSet).map(Number).sort();
     a.collected  = Math.round(a.collected * 100) / 100;
     a.monitoring = Math.round(a.monitoring * 100) / 100;
     a.fees       = Math.round(a.fees * 100) / 100;
@@ -709,13 +712,23 @@ function renderAgents(){
 
       /* The arithmetic, shown rather than asserted. If a number looks
          wrong, the working is right there to check it against. */
+      /* With one rate the arithmetic can be stated outright. With two -
+         Bob Bell has Costco at 25% and Hilton at 50% - a single "x 25%"
+         would be a lie, so the per-invoice rates below do the talking. */
+      var oneRate = (a.rates && a.rates.length === 1);
+
       var math = '<div class="agmath">' +
         '<b>$' + fmt(a.monitoring) + '</b> monitoring collected' +
         ' \u2212 <b>$' + fmt(a.fees) + '</b> cellular fees (' +
         fmtN(a.boxes) + ' boxes \u00d7 $25)' +
         ' = <b>$' + fmt(a.monitoring - a.fees) + '</b>' +
-        '<br>\u00d7 <b>' + Math.round(a.share * 100) + '%</b> share' +
-        ' = <b>$' + fmt(a.payout) + '</b>' +
+        (oneRate
+          ? '<br>\u00d7 <b>' + Math.round(a.rates[0] * 100) + '%</b> share' +
+            ' = <b>$' + fmt(a.payout) + '</b>'
+          : '<br>paid at <b>' + (a.rates || []).map(function(r){
+              return Math.round(r * 100) + '%';
+            }).join(' and <b>') + '</b> depending on the account' +
+            ' \u2014 total <b>$' + fmt(a.payout) + '</b>') +
         '</div>';
 
       var flag = a.review
@@ -744,11 +757,12 @@ function renderAgents(){
           }).join("") + '</tbody></table>';
       } else {
         table = '<table><thead><tr>' +
-            '<th style="width:15%">Date</th>' +
-            '<th style="width:34%">Customer</th>' +
-            '<th style="width:12%">Invoice</th>' +
-            '<th style="width:11%" class="num">Boxes</th>' +
+            '<th style="width:14%">Date</th>' +
+            '<th style="width:31%">Customer</th>' +
+            '<th style="width:11%">Invoice</th>' +
+            '<th style="width:10%" class="num">Boxes</th>' +
             '<th style="width:14%" class="num">Monitoring</th>' +
+            '<th style="width:8%" class="num">Rate</th>' +
             '<th style="width:14%" class="num">Payout</th>' +
           '</tr></thead><tbody>' +
           a.invoices.map(function(i){
@@ -759,6 +773,7 @@ function renderAgents(){
               '<td class="muted">' + esc(i.doc) + '</td>' +
               '<td class="num">' + fmtN(i.boxes) + '</td>' +
               '<td class="num">$' + fmt(i.monitoring) + '</td>' +
+              '<td class="num muted">' + Math.round((i.share || 0) * 100) + '%</td>' +
               '<td class="num">$' + fmt(i.payout) + '</td>' +
             '</tr>';
           }).join("") + '</tbody></table>';
@@ -768,7 +783,7 @@ function renderAgents(){
           '<div class="aghead">' +
             '<span class="agcaret">\u25B6</span>' +
             '<span class="agname">' + esc(a.name) + '</span>' +
-            '<span class="agshare">' + Math.round(a.share * 100) + '%</span>' +
+            '<span class="agshare">' + shareLabel(a) + '</span>' +
             '<span class="agmeta">' + fmtN(a.boxes) + ' boxes \u00b7 ' +
               (md.isYear ? a.months.length + ' mo' : a.invoices.length + ' inv') + '</span>' +
             '<span class="agpay">$' + fmt(a.payout) + '</span>' +
@@ -822,6 +837,13 @@ function fmt(n){
 function fmtN(n){
   n = Number(n)||0;
   return n % 1 === 0 ? String(n) : n.toFixed(1);
+}
+
+/* An agent may be paid at more than one rate - the exception lives on the
+   account, not the person. Show every rate rather than picking one. */
+function shareLabel(a){
+  var r = (a.rates && a.rates.length) ? a.rates : [a.share];
+  return r.map(function(x){ return Math.round(x * 100) + '%'; }).join(' / ');
 }
 
 /* Fetch a whole year. ~600 commissionable payments - months are then
