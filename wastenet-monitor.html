@@ -254,6 +254,28 @@
   .empty-state{text-align:center; padding:60px 20px; color:var(--ink-2);}
   .empty-state .big{font-size:16px; font-weight:500; color:var(--ink); margin-bottom:6px;}
 
+  /* view switcher - swaps between Box Monitor and Accounting */
+  .viewnav{position:relative; flex:0 0 auto;}
+  .view-label{font-size:13px; color:var(--ink-2); background:transparent; border:none; padding:2px 4px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; font-family:var(--font);}
+  .view-label:hover{color:var(--ink);}
+  .view-caret{font-size:9px; color:var(--ink-3);}
+  .view-drop{position:absolute; top:100%; left:0; margin-top:6px; background:var(--card); border:0.5px solid var(--line-strong); border-radius:10px; box-shadow:0 4px 14px rgba(0,0,0,0.10); min-width:190px; z-index:60; display:none; overflow:hidden;}
+  .view-drop.open{display:block;}
+  .view-opt{display:block; width:100%; text-align:left; padding:9px 14px; font-size:13px; color:var(--ink); background:transparent; border:none; cursor:pointer; font-family:var(--font);}
+  .view-opt:hover{background:var(--panel);}
+  .view-opt.cur{color:var(--green-dark); font-weight:600; background:var(--green-tint-2);}
+
+  /* lock screen */
+  .lock{position:fixed; inset:0; z-index:100; background:var(--page); display:flex; align-items:center; justify-content:center; padding:20px;}
+  .lock.hide{display:none;}
+  .lock-card{width:min(360px,100%); background:var(--card); border:0.5px solid var(--line-strong); border-radius:12px; padding:24px; text-align:center; box-shadow:0 3px 14px rgba(0,0,0,0.07);}
+  .lock-brand{font-size:17px; font-weight:800; letter-spacing:0.04em; color:var(--green); margin-bottom:4px;}
+  .lock-sub{font-size:13px; color:var(--ink-2); margin-bottom:16px;}
+  .lock-in{width:100%; box-sizing:border-box; padding:10px 12px; font-size:15px; border:1px solid var(--line-strong); border-radius:6px; font-family:var(--font); color:var(--ink); outline:none;}
+  .lock-in:focus{border-color:var(--green);}
+  .lock-btn{width:100%; margin-top:12px; padding:11px; font-size:14px; font-weight:600; border-radius:6px; border:none; cursor:pointer; background:var(--green); color:#fff; font-family:var(--font);}
+  .lock-err{margin-top:12px; padding:8px 10px; background:var(--red-tint); border:0.5px solid var(--red); border-radius:6px; color:var(--red-dark); font-size:12.5px; font-weight:600;}
+
   .foot{text-align:center; font-size:11px; color:var(--ink-3); margin-top:24px; line-height:1.7;}
   .spinner{display:inline-block; width:16px;height:16px;border:2px solid var(--green-border);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-3px;margin-right:6px;}
   @keyframes spin{to{transform:rotate(360deg);}}
@@ -283,6 +305,15 @@
 </style>
 </head>
 <body>
+<div class="lock" id="lock">
+  <div class="lock-card">
+    <div class="lock-brand">WASTENET</div>
+    <div class="lock-sub">Enter the access code to continue.</div>
+    <input class="lock-in" id="lockIn" type="password" placeholder="Access code" autofocus>
+    <button class="lock-btn" id="lockBtn">Unlock</button>
+    <div class="lock-err" id="lockErr" style="display:none;"></div>
+  </div>
+</div>
 <div class="slimbar" id="slimbar"><div class="slimbar-inner" id="slimbarInner"></div></div>
 <div class="wrap">
 
@@ -291,7 +322,13 @@
       <div class="brand">
         <div class="brand-name">WASTENET</div>
         <div class="brand-div"></div>
-        <div class="brand-tool">Box Monitor Dashboard</div>
+        <div class="viewnav">
+          <button class="view-label" id="viewBtn">Box Monitor Dashboard <span class="view-caret">&#9662;</span></button>
+          <div class="view-drop" id="viewDrop">
+            <button class="view-opt cur">Box Monitor Dashboard</button>
+            <button class="view-opt" id="goAccounting">Accounting Dashboard</button>
+          </div>
+        </div>
       </div>
       <div class="header-right">
         <div class="header-tools" id="headerTools"></div>
@@ -328,7 +365,30 @@
    ============================================================ */
 
 var API = "https://script.google.com/macros/s/AKfycbwc3siwl0OTP2O5WzNZCDn4cj3MDVRfcVxJW0TZtoPnAKLwhYSwmW_m1h7ib6Yf_Dvk9w/exec";
-var KEY = "TRA$H";
+/* Access code. NOT hardcoded - this file's source is public on GitHub,
+   so a baked-in key would protect nothing. The code is entered on the
+   lock screen, held in sessionStorage for the tab session, and sent with
+   every request for the Apps Script to check server-side. Shares the
+   same sessionStorage entry as index.html and the accounting page, so
+   unlocking once covers all three for the session. */
+var KEY = (function(){
+  try { return sessionStorage.getItem("wastenet_dashboard_key") || ""; }
+  catch(e){ return ""; }
+})();
+
+function lockOut(msg){
+  try { sessionStorage.removeItem("wastenet_dashboard_key"); } catch(e){}
+  KEY = "";
+  var lock = document.getElementById("lock");
+  var err  = document.getElementById("lockErr");
+  if(lock) lock.classList.remove("hide");
+  if(err){
+    if(msg){ err.textContent = msg; err.style.display = "block"; }
+    else { err.style.display = "none"; }
+  }
+  var inp = document.getElementById("lockIn");
+  if(inp){ inp.value = ""; inp.focus(); }
+}
 
 var state = { rows: [], scanTitle: "", openId: null, dateSel: {}, staleOpen: false, view: "action",
   tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, staffNotesById: {}, staffNotesUpdById: {}, emptyMarkedById: {}, notesOpenId: null, schedTab: null, clearTab: null };
@@ -342,7 +402,14 @@ function jsonp(params, cb){
     try{ delete window[name]; }catch(e){ window[name] = undefined; }
     if(s && s.parentNode) s.parentNode.removeChild(s);
   }
-  window[name] = function(data){ cleanup(); cb(data); };
+  window[name] = function(data){
+    cleanup();
+    if(data && data.authRequired){
+      lockOut("That access code was not accepted. Please try again.");
+      return;
+    }
+    cb(data);
+  };
   var qs = Object.keys(params).map(function(k){ return encodeURIComponent(k)+"="+encodeURIComponent(params[k]); }).join("&");
   var s = document.createElement("script");
   s.src = API + "?" + qs + "&callback=" + name;
@@ -1759,7 +1826,42 @@ document.addEventListener("click", function(){
   }
 })();
 
-load();
+/* ---------- lock screen + view nav ---------- */
+(function(){
+  var lock    = document.getElementById("lock");
+  var lockIn  = document.getElementById("lockIn");
+  var lockBtn = document.getElementById("lockBtn");
+
+  function unlock(){
+    var v = (lockIn.value || "").trim();
+    if(!v) return;
+    try { sessionStorage.setItem("wastenet_dashboard_key", v); } catch(e){}
+    KEY = v;
+    lock.classList.add("hide");
+    document.getElementById("lockErr").style.display = "none";
+    load();
+  }
+
+  lockBtn.onclick = unlock;
+  lockIn.onkeydown = function(e){ if(e.key === "Enter") unlock(); };
+
+  var viewBtn  = document.getElementById("viewBtn");
+  var viewDrop = document.getElementById("viewDrop");
+  if(viewBtn && viewDrop){
+    viewBtn.onclick = function(e){ e.stopPropagation(); viewDrop.classList.toggle("open"); };
+    document.addEventListener("click", function(){ viewDrop.classList.remove("open"); });
+    var go = document.getElementById("goAccounting");
+    if(go) go.onclick = function(){ window.location.href = "wastenet-accounting.html"; };
+  }
+
+  // Already unlocked earlier this session? Go straight in.
+  if(KEY){
+    lock.classList.add("hide");
+    load();
+  } else {
+    lockIn.focus();
+  }
+})();
 </script>
 </body>
 </html>
