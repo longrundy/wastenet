@@ -340,6 +340,7 @@
     <div class="sections" id="sections">
       <button class="sec on" data-sec="receivables">Receivables</button>
       <button class="sec" data-sec="payments">Payments</button>
+      <button class="sec" data-sec="billing">Billing</button>
       <button class="sec" data-sec="agents">Agents</button>
     </div>
 
@@ -428,7 +429,16 @@ var state = {
   agByYear: {},       // year -> { "yyyy-mm": {agents, unmapped} }
   agLoaded: false,
   agLoading: false,
-  agOpen: {}          // which agent rows are expanded
+  agOpen: {},         // which agent rows are expanded
+
+  // billing
+  bMonth: "",
+  bRows: [],
+  bStart: 0,
+  bName: "",
+  bFilter: "all",
+  bLoaded: false,
+  bLoading: false
 };
 
 /* Whatever is loaded for the selected month. Month switching is a lookup,
@@ -734,6 +744,20 @@ function monthShort(m){
 
 function renderSummary(){
   var el = document.getElementById("summary");
+
+  if(state.section === "billing"){
+    if(!state.bLoaded){ el.innerHTML = ""; return; }
+    var un = state.bRows.filter(function(r){ return r.unpaid; });
+    var bx = state.bRows.filter(function(r){ return r.boxChange; });
+    var tot = state.bRows.reduce(function(s,r){ return s + (r.amount || 0); }, 0);
+    el.innerHTML = '<div class="score">' +
+      cell(state.bRows.length, "to invoice", "n-ink") +
+      cell("$" + fmt(tot), "to bill", "n-ink") +
+      cell(un.length, "unpaid last month", un.length ? "n-red" : "n-green") +
+      cell(bx.length, "box count moved", "n-ink") +
+    '</div>';
+    return;
+  }
 
   if(state.section === "agents"){
     if(!state.agLoaded){ el.innerHTML = ""; return; }
@@ -1251,9 +1275,163 @@ function renderCollections(){
     '</div>';
 }
 
+/* ---------- billing ---------- */
+/* Kim's invoice log, drafted.
+ *
+ * She currently opens last month's tab, reads down it, and retypes it -
+ * checking each customer in QuickBooks to see whether they paid. Almost
+ * none of that needs a human: the invoice numbers run in sequence, the
+ * amounts are unchanged 96% of the time, and the billing month follows a
+ * per-customer rule that held for 18 straight months.
+ *
+ * What she cannot see at a glance, and what this exists to show her:
+ * who has not paid, and whose box count moved. */
+function renderBilling(){
+  if(!state.bLoaded){
+    return '<div class="empty-state"><span class="spinner"></span>Drafting the log&hellip;</div>';
+  }
+  if(!state.bRows.length){
+    return '<div class="empty-state">Nothing to bill. Is the Billing Map seeded?</div>';
+  }
+
+  var unpaid = state.bRows.filter(function(r){ return r.unpaid; });
+  var boxed  = state.bRows.filter(function(r){ return r.boxChange; });
+
+  var rows = state.bRows;
+  if(state.bFilter === "unpaid") rows = unpaid;
+  if(state.bFilter === "boxes")  rows = boxed;
+
+  var body = rows.map(function(r){
+    var cls = r.unpaid ? " class=\"unpaid\"" : (r.boxChange ? " class=\"flagged\"" : "");
+
+    var warn = "";
+    if(r.unpaid){
+      warn += '<div class="bwarn pay">Invoice ' + esc(r.lastDoc) + ' still owes $' +
+              fmt(r.unpaidAmt) + ' \u2014 send a reminder, don\'t carry it forward</div>';
+    }
+    if(r.boxChange){
+      warn += '<div class="bwarn box">Boxes went ' + r.boxChange.from + ' \u2192 ' +
+              r.boxChange.to + ' \u2014 check the amount</div>';
+    }
+    if(r.neverBilled){
+      warn += '<div class="bwarn box">Never billed \u2014 no history to copy</div>';
+    }
+
+    return '<tr' + cls + '>' +
+      '<td><span class="bname">' + esc(r.shorthand) + '</span>' +
+        '<span class="bqbo">' + esc(r.customer) + '</span>' + warn + '</td>' +
+      '<td>' + r.invoiceNo + '</td>' +
+      '<td>' + esc(r.serviceMonth) +
+        (r.quarterly ? '<br><span class="bqbo">quarterly</span>' : '') + '</td>' +
+      '<td class="num">' + (r.amount == null ? '\u2014' : '$' + fmt(r.amount)) +
+        (r.boxes ? '<span class="bqbo">' + r.boxes + ' box' + (r.boxes>1?'es':'') + '</span>' : '') + '</td>' +
+      '<td><span class="bdeliv">' + esc(r.delivery) + '</span></td>' +
+      '<td>' + (r.lastDoc ? invLink(r.lastDoc, "") : '\u2014') +
+        (r.lastDate ? '<span class="bqbo">' + esc(r.lastDate) + '</span>' : '') + '</td>' +
+    '</tr>';
+  }).join("");
+
+  var chips =
+    '<button class="bchip' + (state.bFilter==="all"?" on":"") + '" data-bf="all">' +
+      'All \u00b7 ' + state.bRows.length + '</button>' +
+    '<button class="bchip' + (state.bFilter==="unpaid"?" on":"") + '" data-bf="unpaid">' +
+      'Unpaid \u00b7 ' + unpaid.length + '</button>' +
+    '<button class="bchip' + (state.bFilter==="boxes"?" on":"") + '" data-bf="boxes">' +
+      'Box changed \u00b7 ' + boxed.length + '</button>';
+
+  return '<div class="folder">' +
+      '<div class="pinhead" id="pinhead">' +
+        '<div class="folder-tabs"><button class="ftab sel">' + esc(state.bName) + '</button></div>' +
+        '<div class="fbar">' +
+          '<div class="bfilter">' + chips + '</div>' +
+          '<div class="fbar-right" style="display:flex; gap:7px; align-items:center;">' +
+            '<span class="bqbo">from #' + state.bStart + '</span>' +
+            '<button class="bcopy" id="bcopy">Copy for the log</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="folder-lower" style="padding:2px 14px 8px;">' +
+        '<table class="btable"><thead><tr>' +
+          '<th style="width:31%">Name</th>' +
+          '<th style="width:10%">Invoice #</th>' +
+          '<th style="width:17%">Month</th>' +
+          '<th style="width:15%" class="num">Amount</th>' +
+          '<th style="width:11%">Send</th>' +
+          '<th style="width:16%">Last invoice</th>' +
+        '</tr></thead><tbody>' + body + '</tbody></table>' +
+      '</div>' +
+    '</div>';
+}
+
+function loadBilling(month){
+  if(state.bLoading) return;
+  state.bLoading = true;
+
+  jsonp({ action:"billing", key:KEY, month: month || "" }, function(data){
+    state.bLoading = false;
+    if(!data || !data.ok){
+      showError((data && data.error) || "Could not draft the log.");
+      return;
+    }
+    document.getElementById("banner").className = "banner";
+    state.bRows   = data.rows || [];
+    state.bStart  = data.startNumber || 0;
+    state.bMonth  = data.month || "";
+    state.bName   = data.monthName || "";
+    state.bLoaded = true;
+    renderSummary();
+    renderBody();
+  });
+}
+
+function wireBilling(){
+  document.querySelectorAll("[data-bf]").forEach(function(el){
+    el.onclick = function(){
+      state.bFilter = el.getAttribute("data-bf");
+      renderBody();
+    };
+  });
+
+  var c = document.getElementById("bcopy");
+  if(c){
+    c.onclick = function(){
+      /* Tab-separated, so it pastes straight into her spreadsheet columns:
+         Name | Invoice # | Month | Amount | Notes */
+      var rows = state.bRows;
+      if(state.bFilter === "unpaid") rows = rows.filter(function(r){ return r.unpaid; });
+      if(state.bFilter === "boxes")  rows = rows.filter(function(r){ return r.boxChange; });
+
+      var text = rows.map(function(r){
+        return [
+          r.shorthand,
+          r.invoiceNo,
+          r.serviceMonth,
+          r.amount == null ? "" : r.amount,
+          r.delivery
+        ].join("\t");
+      }).join("\n");
+
+      navigator.clipboard.writeText(text).then(function(){
+        c.textContent = "Copied \u2713";
+        setTimeout(function(){ c.textContent = "Copy for the log"; }, 1800);
+      }, function(){
+        c.textContent = "Couldn't copy";
+        setTimeout(function(){ c.textContent = "Copy for the log"; }, 1800);
+      });
+    };
+  }
+}
+
 /* ---------- body ---------- */
 function renderBody(){
   var el = document.getElementById("body");
+
+  if(state.section === "billing"){
+    el.innerHTML = renderBilling();
+    wireBilling();
+    measurePin();
+    return;
+  }
 
   if(state.section === "agents"){
     el.innerHTML = renderAgents();
@@ -1442,6 +1620,13 @@ document.querySelectorAll(".sec").forEach(function(el){
       renderSummary();
       renderBody();
       loadPayouts("");
+      return;
+    }
+
+    if(state.section === "billing" && !state.bLoaded && !state.bLoading){
+      renderSummary();
+      renderBody();
+      loadBilling("");
       return;
     }
 
