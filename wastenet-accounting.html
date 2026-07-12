@@ -272,6 +272,37 @@
   .ivpaid{margin-top:13px; font-size:12px; color:var(--ink-2); background:var(--green-tint-2); border:0.5px solid var(--green-border); border-radius:9px; padding:9px 12px;}
   .ivnote{margin-top:11px; font-size:11.5px; color:var(--ink-3); line-height:1.6;}
 
+  /* billing draft */
+  .bfilter{display:flex; gap:6px; align-items:center; flex-wrap:wrap;}
+  .bchip{font-size:11px; font-family:var(--font); padding:4px 10px; border-radius:13px; cursor:pointer;
+         border:0.5px solid var(--green-border); background:var(--card); color:var(--green-dark); white-space:nowrap;}
+  .bchip.on{background:var(--green); border-color:var(--green); color:#fff;}
+  .bchip:hover:not(.on){background:var(--green-tint);}
+
+  .btable{width:100%; border-collapse:collapse; table-layout:fixed;}
+  .btable th{font-size:10.5px; font-weight:600; color:var(--ink-2); text-align:left; padding:7px 5px;
+             border-bottom:0.5px solid var(--line-strong); position:sticky; top:var(--pinh);
+             background:var(--card); z-index:5; white-space:nowrap;}
+  .btable td{padding:9px 5px; border-bottom:0.5px solid var(--line); font-size:12.5px; vertical-align:top;}
+  .btable tr:hover td{background:var(--panel);}
+  .btable tr.flagged td{background:var(--amber-tint);}
+  .btable tr.unpaid td{background:var(--red-tint);}
+
+  .bname{font-weight:600; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  /* the QuickBooks name, the box count, the date - all secondary lines that
+     must sit UNDER their heading, never run into it */
+  .bsub{font-size:10.5px; color:var(--ink-3); display:block; margin-top:2px; line-height:1.35;
+        overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .bwarn{font-size:10.5px; margin-top:4px; font-weight:600; line-height:1.4; white-space:normal;}
+  .bwarn.pay{color:var(--red-dark);}
+  .bwarn.box{color:var(--amber-dark);}
+  .bdeliv{font-size:10.5px; color:var(--ink-2); background:var(--panel); border-radius:9px; padding:2px 7px; white-space:nowrap;}
+  .binv{font-weight:600; color:var(--green-dark);}
+
+  .bcopy{font-size:11.5px; font-family:var(--font); padding:5px 11px; border-radius:14px; cursor:pointer;
+         border:0.5px solid var(--green); background:var(--green); color:#fff; white-space:nowrap;}
+  .bcopy:hover{background:var(--green-dark); border-color:var(--green-dark);}
+
   /* lock */
   .lock{position:fixed; inset:0; z-index:200; background:var(--page); display:flex; align-items:center; justify-content:center; padding:20px;}
   .lock.hide{display:none;}
@@ -552,6 +583,16 @@ function moneyShort(n){
   n = Number(n) || 0;
   return "$" + Math.round(n).toLocaleString("en-US");
 }
+/* Dates on this page read MM/DD/YYYY. The sheet stores yyyy-MM-dd because
+   that sorts correctly as text; humans read the other one. */
+function usDate(s){
+  s = String(s || "");
+  if(s.length < 10) return s;
+  var y = s.slice(0,4), m = s.slice(5,7), d = s.slice(8,10);
+  if(!/^\d{4}$/.test(y)) return s;
+  return m + "/" + d + "/" + y;
+}
+
 function esc(s){
   return String(s == null ? "" : s)
     .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
@@ -605,8 +646,8 @@ function paintInvoice(d){
   document.getElementById("ivtitle").textContent =
     "Invoice " + (h.docNumber || "") + " \u00b7 " + (h.customer || "");
   document.getElementById("ivsub").textContent =
-    (h.txnDate ? "Dated " + h.txnDate : "") +
-    (h.dueDate ? " \u00b7 due " + h.dueDate : "") +
+    (h.txnDate ? "Dated " + usDate(h.txnDate) : "") +
+    (h.dueDate ? " \u00b7 due " + usDate(h.dueDate) : "") +
     (h.status ? " \u00b7 " + h.status : "");
 
   var stats = '<div class="ivsum">' +
@@ -648,7 +689,7 @@ function paintInvoice(d){
     var tot = d.payments.reduce(function(s,p){ return s + p.amount; }, 0);
     paid = '<div class="ivpaid"><b>Paid:</b> ' +
       d.payments.map(function(p){
-        return '$' + fmt(p.amount) + ' on ' + esc(p.date);
+        return '$' + fmt(p.amount) + ' on ' + esc(usDate(p.date));
       }).join(' \u00b7 ') +
       (d.payments.length > 1 ? ' &nbsp;\u2014 total $' + fmt(tot) : '') +
       '</div>';
@@ -865,7 +906,7 @@ function renderReceivables(){
       return '<tr>' +
         '<td>' + invLink(i.docNumber, i.qboId) + '</td>' +
         '<td title="' + esc(i.customer) + '">' + esc(i.customer) + '</td>' +
-        '<td class="muted">' + esc(i.dueDate || "\u2014") + '</td>' +
+        '<td class="muted">' + (i.dueDate ? esc(usDate(i.dueDate)) : "\u2014") + '</td>' +
         '<td class="num">' + money(i.balance) + '</td>' +
         '<td class="num">' + chipFor(i) + '</td>' +
       '</tr>';
@@ -977,7 +1018,7 @@ function renderAgents(){
         rl.sort(function(x,y){ return String(y.date).localeCompare(String(x.date)); });
 
         var listed = rl.slice(0, 6).map(function(r){
-          return 'inv ' + invLink(r.doc, r.qboId) + ' \u00b7 ' + esc(r.date) +
+          return 'inv ' + invLink(r.doc, r.qboId) + ' \u00b7 ' + esc(usDate(r.date)) +
                  ' \u00b7 ' + esc(String(r.customer).slice(0, 28));
         }).join('<br>');
 
@@ -1020,7 +1061,7 @@ function renderAgents(){
           '</tr></thead><tbody>' +
           a.invoices.map(function(i){
             return '<tr>' +
-              '<td class="muted">' + esc(i.date) + '</td>' +
+              '<td class="muted">' + esc(usDate(i.date)) + '</td>' +
               '<td title="' + esc(i.customer) + '">' + esc(i.customer) +
                 (i.partial ? ' <span class="chip chip-30">' + i.partial + '% paid</span>' : '') + '</td>' +
               '<td>' + invLink(i.doc, i.qboId) + '</td>' +
@@ -1243,7 +1284,7 @@ function renderCollections(){
         ? invLink(p.docNumber, p.qboId)
         : '<span class="chip chip-30">unapplied</span>';
       return '<tr>' +
-        '<td class="muted">' + esc(p.txnDate) + '</td>' +
+        '<td class="muted">' + esc(usDate(p.txnDate)) + '</td>' +
         '<td title="' + esc(p.customer) + '">' + esc(p.customer) + '</td>' +
         '<td>' + inv + '</td>' +
         '<td class="num">' + money(p.amount) + '</td>' +
@@ -1318,16 +1359,23 @@ function renderBilling(){
     }
 
     return '<tr' + cls + '>' +
-      '<td><span class="bname">' + esc(r.shorthand) + '</span>' +
-        '<span class="bqbo">' + esc(r.customer) + '</span>' + warn + '</td>' +
-      '<td>' + r.invoiceNo + '</td>' +
+      '<td>' +
+        '<span class="bname" title="' + esc(r.shorthand) + '">' + esc(r.shorthand) + '</span>' +
+        '<span class="bsub" title="' + esc(r.customer) + '">' + esc(r.customer) + '</span>' +
+        warn +
+      '</td>' +
+      '<td><span class="binv">' + r.invoiceNo + '</span></td>' +
       '<td>' + esc(r.serviceMonth) +
-        (r.quarterly ? '<br><span class="bqbo">quarterly</span>' : '') + '</td>' +
-      '<td class="num">' + (r.amount == null ? '\u2014' : '$' + fmt(r.amount)) +
-        (r.boxes ? '<span class="bqbo">' + r.boxes + ' box' + (r.boxes>1?'es':'') + '</span>' : '') + '</td>' +
+        (r.quarterly ? '<span class="bsub">quarterly</span>' : '') + '</td>' +
+      '<td class="num">' +
+        (r.amount == null ? '\u2014' : '$' + fmt(r.amount)) +
+        (r.boxes ? '<span class="bsub">' + r.boxes + ' box' + (r.boxes > 1 ? 'es' : '') + '</span>' : '') +
+      '</td>' +
       '<td><span class="bdeliv">' + esc(r.delivery) + '</span></td>' +
-      '<td>' + (r.lastDoc ? invLink(r.lastDoc, "") : '\u2014') +
-        (r.lastDate ? '<span class="bqbo">' + esc(r.lastDate) + '</span>' : '') + '</td>' +
+      '<td>' +
+        (r.lastDoc ? invLink(r.lastDoc, "") : '\u2014') +
+        (r.lastDate ? '<span class="bsub">' + esc(usDate(r.lastDate)) + '</span>' : '') +
+      '</td>' +
     '</tr>';
   }).join("");
 
@@ -1345,18 +1393,18 @@ function renderBilling(){
         '<div class="fbar">' +
           '<div class="bfilter">' + chips + '</div>' +
           '<div class="fbar-right" style="display:flex; gap:7px; align-items:center;">' +
-            '<span class="bqbo">from #' + state.bStart + '</span>' +
+            '<span class="bsub" style="display:inline;">from #' + state.bStart + '</span>' +
             '<button class="bcopy" id="bcopy">Copy for the log</button>' +
           '</div>' +
         '</div>' +
       '</div>' +
       '<div class="folder-lower" style="padding:2px 14px 8px;">' +
         '<table class="btable"><thead><tr>' +
-          '<th style="width:31%">Name</th>' +
+          '<th style="width:34%">Name</th>' +
           '<th style="width:10%">Invoice #</th>' +
-          '<th style="width:17%">Month</th>' +
+          '<th style="width:16%">Month</th>' +
           '<th style="width:15%" class="num">Amount</th>' +
-          '<th style="width:11%">Send</th>' +
+          '<th style="width:9%">Send</th>' +
           '<th style="width:16%">Last invoice</th>' +
         '</tr></thead><tbody>' + body + '</tbody></table>' +
       '</div>' +
