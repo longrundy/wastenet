@@ -1436,7 +1436,12 @@ function renderBilling(){
             (r.customer ? '<span class="bsub">' + esc(r.customer) + '</span>' : '') +
             warn +
           '</td>' +
-          '<td><span class="binv">' + esc(r.invoiceNo) + '</span></td>' +
+          /* A logged invoice exists in QuickBooks, so it opens. A drafted one
+             does not exist yet - it will once the billing is done - so it
+             stays plain text rather than becoming a link to nothing. */
+          '<td>' + (hist
+            ? '<span class="binv">' + invLink(r.invoiceNo, "x") + '</span>'
+            : '<span class="binv">' + esc(r.invoiceNo) + '</span>') + '</td>' +
           '<td>' + esc(r.serviceMonth) +
             (r.quarterly ? '<span class="bsub">quarterly</span>' : '') + '</td>' +
           '<td class="num">' +
@@ -1448,10 +1453,20 @@ function renderBilling(){
       }).join("") + '</tbody></table>';
   }
 
-  var right = hist
-    ? ''
-    : '<span class="bsub" style="display:inline;">invoices ' + state.bDraft.startNumber +
-      '\u2013' + (state.bDraft.startNumber + all.length - 1) + '</span>';
+  /* The invoice range, for a past month as much as a drafted one. A record
+     should say what it covers. */
+  var right = '';
+  if(hist){
+    var ns = all.map(function(r){ return Number(r.invoiceNo) || 0; })
+                .filter(Boolean).sort(function(a,b){ return a - b; });
+    if(ns.length){
+      right = '<span class="bsub" style="display:inline;">invoices ' +
+              ns[0] + '\u2013' + ns[ns.length - 1] + '</span>';
+    }
+  } else if(state.bDraft){
+    right = '<span class="bsub" style="display:inline;">invoices ' + state.bDraft.startNumber +
+            '\u2013' + (state.bDraft.startNumber + all.length - 1) + '</span>';
+  }
 
   return '<div class="folder">' +
       '<div class="pinhead" id="pinhead">' +
