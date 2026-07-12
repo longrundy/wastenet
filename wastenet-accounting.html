@@ -468,6 +468,9 @@ var state = {
   bStart: 0,
   bName: "",
   bFilter: "all",
+  bHistory: false,
+  bMonths: [],        // months she has already logged
+  bYear: "",
   bLoaded: false,
   bLoading: false
 };
@@ -788,9 +791,22 @@ function renderSummary(){
 
   if(state.section === "billing"){
     if(!state.bLoaded){ el.innerHTML = ""; return; }
+    var tot = state.bRows.reduce(function(s,r){ return s + (r.amount || 0); }, 0);
+
+    if(state.bHistory){
+      var nums = state.bRows.map(function(r){ return Number(r.invoiceNo) || 0; })
+                            .filter(Boolean).sort(function(a,b){ return a-b; });
+      el.innerHTML = '<div class="score">' +
+        cell(state.bRows.length, "invoices", "n-ink") +
+        cell("$" + fmt(tot), "billed", "n-ink") +
+        cell(nums.length ? nums[0] : "\u2014", "first #", "n-ink") +
+        cell(nums.length ? nums[nums.length-1] : "\u2014", "last #", "n-ink") +
+      '</div>';
+      return;
+    }
+
     var un = state.bRows.filter(function(r){ return r.unpaid; });
     var bx = state.bRows.filter(function(r){ return r.boxChange; });
-    var tot = state.bRows.reduce(function(s,r){ return s + (r.amount || 0); }, 0);
     el.innerHTML = '<div class="score">' +
       cell(state.bRows.length, "to invoice", "n-ink") +
       cell("$" + fmt(tot), "to bill", "n-ink") +
@@ -1361,7 +1377,7 @@ function renderBilling(){
     return '<tr' + cls + '>' +
       '<td>' +
         '<span class="bname" title="' + esc(r.shorthand) + '">' + esc(r.shorthand) + '</span>' +
-        '<span class="bsub" title="' + esc(r.customer) + '">' + esc(r.customer) + '</span>' +
+        (r.customer ? '<span class="bsub" title="' + esc(r.customer) + '">' + esc(r.customer) + '</span>' : '') +
         warn +
       '</td>' +
       '<td><span class="binv">' + r.invoiceNo + '</span></td>' +
@@ -1371,31 +1387,58 @@ function renderBilling(){
         (r.amount == null ? '\u2014' : '$' + fmt(r.amount)) +
         (r.boxes ? '<span class="bsub">' + r.boxes + ' box' + (r.boxes > 1 ? 'es' : '') + '</span>' : '') +
       '</td>' +
-      '<td><span class="bdeliv">' + esc(r.delivery) + '</span></td>' +
+      '<td>' + (r.delivery
+        ? '<span class="bdeliv">' + esc(String(r.delivery).slice(0, 30)) + '</span>'
+        : '') + '</td>' +
       '<td>' +
-        (r.lastDoc ? invLink(r.lastDoc, "") : '\u2014') +
+        (r.lastDoc ? invLink(r.lastDoc, "") : (state.bHistory ? '' : '\u2014')) +
         (r.lastDate ? '<span class="bsub">' + esc(usDate(r.lastDate)) + '</span>' : '') +
       '</td>' +
     '</tr>';
   }).join("");
 
-  var chips =
-    '<button class="bchip' + (state.bFilter==="all"?" on":"") + '" data-bf="all">' +
-      'All \u00b7 ' + state.bRows.length + '</button>' +
-    '<button class="bchip' + (state.bFilter==="unpaid"?" on":"") + '" data-bf="unpaid">' +
-      'Unpaid \u00b7 ' + unpaid.length + '</button>' +
-    '<button class="bchip' + (state.bFilter==="boxes"?" on":"") + '" data-bf="boxes">' +
-      'Box changed \u00b7 ' + boxed.length + '</button>';
+  /* A past month is a record of what she billed. There is nothing to warn
+     about and nothing to filter - it already happened. */
+  var chips = state.bHistory
+    ? '<span class="bsub" style="display:inline; color:var(--green-dark);">' +
+        state.bRows.length + ' invoices \u00b7 as she billed them</span>'
+    : '<button class="bchip' + (state.bFilter==="all"?" on":"") + '" data-bf="all">' +
+        'All \u00b7 ' + state.bRows.length + '</button>' +
+      '<button class="bchip' + (state.bFilter==="unpaid"?" on":"") + '" data-bf="unpaid">' +
+        'Unpaid \u00b7 ' + unpaid.length + '</button>' +
+      '<button class="bchip' + (state.bFilter==="boxes"?" on":"") + '" data-bf="boxes">' +
+        'Box changed \u00b7 ' + boxed.length + '</button>';
+
+  /* Twelve month tabs, always - a year has twelve months whether or not
+     she has done them yet. The ones with no log are simply empty. */
+  var yr = state.bYear || String(new Date().getFullYear());
+  var tabs = '<div class="folder-tabs">' + MONTH_NAMES.map(function(nm, i){
+    var ym = yr + "-" + (i < 9 ? "0" : "") + (i + 1);
+    var done = state.bMonths.indexOf(ym) !== -1;
+    return '<button class="ftab' + (state.bMonth === ym ? " sel" : "") + '" ' +
+           'data-bmonth="' + ym + '"' +
+           (done ? '' : ' style="opacity:.55"') + '>' + nm + '</button>';
+  }).join("") + '</div>';
+
+  var years = {};
+  state.bMonths.forEach(function(m){ years[m.slice(0,4)] = true; });
+  years[String(new Date().getFullYear())] = true;
+  var yrOpts = Object.keys(years).sort().reverse().map(function(y){
+    return '<option value="' + y + '"' + (yr === y ? " selected" : "") + '>' + y + '</option>';
+  }).join("");
+
+  var right = state.bHistory
+    ? '<span class="bsub" style="display:inline;">as billed</span>'
+    : '<span class="bsub" style="display:inline;">from #' + state.bStart + '</span>' +
+      '<button class="bcopy" id="bcopy">Copy for the log</button>';
 
   return '<div class="folder">' +
       '<div class="pinhead" id="pinhead">' +
-        '<div class="folder-tabs"><button class="ftab sel">' + esc(state.bName) + '</button></div>' +
+        tabs +
         '<div class="fbar">' +
+          '<select class="yrsel" id="bYr" aria-label="Year">' + yrOpts + '</select>' +
           '<div class="bfilter">' + chips + '</div>' +
-          '<div class="fbar-right" style="display:flex; gap:7px; align-items:center;">' +
-            '<span class="bsub" style="display:inline;">from #' + state.bStart + '</span>' +
-            '<button class="bcopy" id="bcopy">Copy for the log</button>' +
-          '</div>' +
+          '<div class="fbar-right" style="display:flex; gap:7px; align-items:center;">' + right + '</div>' +
         '</div>' +
       '</div>' +
       '<div class="folder-lower" style="padding:2px 14px 8px;">' +
@@ -1404,8 +1447,8 @@ function renderBilling(){
           '<th style="width:10%">Invoice #</th>' +
           '<th style="width:16%">Month</th>' +
           '<th style="width:15%" class="num">Amount</th>' +
-          '<th style="width:9%">Send</th>' +
-          '<th style="width:16%">Last invoice</th>' +
+          '<th style="width:9%">' + (state.bHistory ? 'Notes' : 'Send') + '</th>' +
+          '<th style="width:16%">' + (state.bHistory ? '' : 'Last invoice') + '</th>' +
         '</tr></thead><tbody>' + body + '</tbody></table>' +
       '</div>' +
     '</div>';
@@ -1422,17 +1465,43 @@ function loadBilling(month){
       return;
     }
     document.getElementById("banner").className = "banner";
-    state.bRows   = data.rows || [];
-    state.bStart  = data.startNumber || 0;
-    state.bMonth  = data.month || "";
-    state.bName   = data.monthName || "";
-    state.bLoaded = true;
+    state.bRows    = data.rows || [];
+    state.bStart   = data.startNumber || 0;
+    state.bMonth   = data.month || "";
+    state.bName    = data.monthName || "";
+    state.bHistory = !!data.history;
+    state.bMonths  = data.logMonths || state.bMonths;
+    if(state.bMonth) state.bYear = state.bMonth.slice(0,4);
+    state.bLoaded  = true;
+    state.bFilter  = "all";
     renderSummary();
     renderBody();
   });
 }
 
 function wireBilling(){
+  document.querySelectorAll(".ftab[data-bmonth]").forEach(function(el){
+    el.onclick = function(){
+      var m = el.getAttribute("data-bmonth");
+      if(m === state.bMonth) return;
+      document.getElementById("body").innerHTML =
+        '<div class="empty-state"><span class="spinner"></span>Loading&hellip;</div>';
+      loadBilling(m);
+    };
+  });
+
+  var yr = document.getElementById("bYr");
+  if(yr){
+    yr.onchange = function(){
+      state.bYear = yr.value;
+      // Land on the same month number in the year she picked.
+      var mm = state.bMonth ? state.bMonth.slice(5,7) : "01";
+      document.getElementById("body").innerHTML =
+        '<div class="empty-state"><span class="spinner"></span>Loading&hellip;</div>';
+      loadBilling(state.bYear + "-" + mm);
+    };
+  }
+
   document.querySelectorAll("[data-bf]").forEach(function(el){
     el.onclick = function(){
       state.bFilter = el.getAttribute("data-bf");
