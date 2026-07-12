@@ -316,14 +316,18 @@
   .bedit.saving{border-color:var(--amber); background:var(--amber-tint);}
   .bedit.saved{border-color:var(--green); background:var(--green-tint-2);}
 
-  .bfee{width:82px; font-family:var(--font); font-size:11.5px; text-align:right; color:var(--ink);
+  /* The one-time fee gets its own line. Squeezed in beside the amount, its
+     label had nowhere to go and was clipped to a single letter. */
+  .bfeewrap{margin-top:6px; display:flex; align-items:center; gap:3px; justify-content:flex-end;}
+  .bfeelbl{font-size:11px; color:var(--ink-3); flex:0 0 auto;}
+  .bfee{width:72px; font-family:var(--font); font-size:11.5px; text-align:right; color:var(--ink);
         background:var(--card); border:0.5px solid var(--line-strong); border-radius:6px;
-        padding:4px 6px; outline:none;}
-  .bfee:focus{border-color:var(--green);}
+        padding:4px 6px; outline:none; flex:0 0 auto;}
+  .bfee:focus{border-color:var(--green); background:#fff;}
   .bfee.saved{border-color:var(--green); background:var(--green-tint-2);}
-  .bfeewrap{margin-top:4px; display:flex; align-items:center; gap:4px; justify-content:flex-end;}
-  .bfeelbl{font-size:9.5px; color:var(--ink-3);}
-  .bbase{font-size:10px; color:var(--ink-3);}
+  .bfee.saving{border-color:var(--amber); background:var(--amber-tint);}
+  .bfeehint{font-size:9.5px; color:var(--ink-3); text-align:right; margin-top:2px;}
+  .bbase{font-size:10px; color:var(--green-dark); font-weight:600; text-align:right; margin-top:3px;}
   .binv{font-weight:600; color:var(--green-dark);}
 
   /* lock */
@@ -1432,9 +1436,9 @@ function renderBilling(){
         '<th style="width:24%">Name</th>' +
         '<th style="width:9%">Invoice #</th>' +
         '<th style="width:15%">Month</th>' +
-        '<th style="width:13%" class="num">Amount</th>' +
-        '<th style="width:10%">Send</th>' +
-        '<th style="width:29%">Notes</th>' +
+        '<th style="width:15%" class="num">Amount</th>' +
+        '<th style="width:9%">Send</th>' +
+        '<th style="width:28%">Notes</th>' +
       '</tr></thead><tbody>' +
       rows.map(function(r){
         var cls = r.unpaid ? ' class="unpaid"' : (r.boxChange ? ' class="flagged"' : '');
@@ -1491,12 +1495,15 @@ function renderBilling(){
                has to be typed. */
             (hist ? '' :
               '<div class="bfeewrap">' +
-                '<span class="bfeelbl">+fee</span>' +
+                '<span class="bfeelbl">+ $</span>' +
                 '<input class="bfee" type="number" step="1" min="0" ' +
                   'data-fee="' + esc(r.shorthand) + '" ' +
-                  'value="' + (r.fee ? r.fee : '') + '" placeholder="0">' +
+                  'value="' + (r.fee ? r.fee : '') + '" placeholder="0" ' +
+                  'title="One-time fee \u2014 a replacement monitor, say">' +
               '</div>' +
-              (r.fee ? '<div class="bbase">$' + fmt(r.baseAmount) + ' + $' + fmt(r.fee) + '</div>' : '')) +
+              (r.fee
+                ? '<div class="bbase">$' + fmt(r.baseAmount) + ' + $' + fmt(r.fee) + '</div>'
+                : '<div class="bfeehint">one-time fee</div>')) +
           '</td>' +
           '<td>' + deliv + '</td>' +
           '<td>' + (hist
