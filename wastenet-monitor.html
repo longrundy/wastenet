@@ -657,7 +657,7 @@ function humanHours(h){
 function modelOf(r){
   var pct = toNum(r["Max Pct"]);
   // Sanity guard: a real fill percent is roughly 0–150 (allowing some
-  // overflow for genuinely over-full boxes). David's out-of-band service
+  // overflow for genuinely over-full boxes). Out-of-band service
   // codes (e.g. 1556070) live in the weight table's Percent Full cell, not
   // in Max Pct — but if any such value ever leaked into Max Pct, treat it
   // as "no valid fill reading" so the row falls through to its real trigger
@@ -698,7 +698,7 @@ function modelOf(r){
     monitorReason: String(r["Monitor Reason Code"]||"").trim(),
     monitorPrevSentinel: String(r["Monitor Prev Sentinel"]||"").toUpperCase()==="YES" || r["Monitor Prev Sentinel"]===true,
     // Needs Marking Empty (scanner v4.13): box physically emptied (drop-to-low
-    // + no red X) but David hasn't recorded it. Takes precedence over service -
+    // + no red X) but it hasn't been recorded. Takes precedence over service -
     // a just-emptied box needs recording, not a pickup.
     needsEmpty: String(r["Needs Marking Empty"]||"").toUpperCase()==="YES" || r["Needs Marking Empty"]===true
   };
@@ -721,7 +721,7 @@ function stepsHtml(b){
 /* ---------- suggested-pickup chip (schedule-service rows only) ----------
    Trails after the Scheduled › Notified › Confirmed block so those three stay
    anchored. Shows the same suggestedPickupFor() value as the detail panel — the
-   date Dave types into the portal. Empty string when the box has no usable
+   date typed into the portal. Empty string when the box has no usable
    rule, so it simply doesn't render. Suppression on "Notified" happens once
    that write-back exists (Phase 2); until then it shows for every action box. */
 function suggestedChipHtml(b){
@@ -880,7 +880,7 @@ function detailHtml(b){
     '<span style="color:var(--green-dark); font-weight:600;">'+esc(sug.label)+'</span>'+
     '<span style="color:var(--ink-3); margin-left:7px;">per '+esc(sug.rule)+'</span></span></div>';
   if(b.notes) rows += '<div class="drow"><span class="dk">Notes</span><span class="dv">'+esc(b.notes)+'</span></div>';
-  // WN Staff Notes (Dave/Herb/Myrna) from the daily Box Management pull,
+  // WN Staff Notes from the daily Box Management pull,
   // behind an (i) toggle so the panel stays compact - troubleshooting
   // reference, not daily-glance. Only rendered when the box actually has
   // a staff note. The note text is monospace with preserved line breaks
@@ -891,7 +891,7 @@ function detailHtml(b){
     // Tidy the CES text for display only (the stored note is untouched):
     // collapse any run of 2+ blank lines down to a single blank line, drop
     // trailing spaces on each line, and trim leading/trailing blank lines -
-    // David often leaves big vertical gaps in the CES field that would
+    // The CES field often contains big vertical gaps that would
     // otherwise make this block needlessly tall.
     staffNote = String(staffNote)
       .replace(/[ \t]+(\r?\n)/g, '$1')   // strip trailing spaces per line
@@ -902,7 +902,7 @@ function detailHtml(b){
     rows += '<div class="drow"><span class="dk">WN Staff Notes</span><span class="dv">'+
       '<button type="button" class="notes-toggle'+(noteOpen?' open':'')+'" data-notes="'+esc(b.id)+'" '+
       'aria-label="'+(noteOpen?'Hide':'Show')+' WN staff notes" '+
-      'title="'+(noteOpen?'Hide':'Show')+' notes from Dave, Herb, and staff">&#8505;</button>'+
+      'title="'+(noteOpen?'Hide':'Show')+' staff notes">&#8505;</button>'+
       (noteOpen ? '' : '<span style="color:var(--ink-3); margin-left:8px; font-size:12px;">click to view</span>')+
       (noteOpen ? '<div class="staff-note">'+esc(staffNote)+
         (nu ? '<div class="staff-note-upd">updated '+esc(nu)+'</div>' : '')+
@@ -996,10 +996,10 @@ function isMonitorDown(b){ return b.monitorDown === true; }
 // every service-oriented bucket - a just-emptied box needs recording, not a
 // pickup. Ranks just below hands-off (which is "do nothing at all").
 function isNeedsEmpty(b){ return b.needsEmpty === true; }
-// HANDS-OFF: boxes Dave does nothing for, per his directive - they go to No
+// HANDS-OFF: boxes nobody services, per standing instruction - they go to No
 // Action no matter what the reading says. Keyed on the EXACT Column K text
 // (case-insensitive, whitespace-collapsed - NOT a prefix), because other
-// "Never Schedule -" notes exist where Dave DOES still watch the box, and
+// "Never Schedule -" notes exist where the box IS still watched, and
 // those must keep behaving normally. Column K arrives via the days_cycles
 // endpoint (the box's Set Schedule value), fetched live from Master Box List,
 // so changing a box's status is a one-cell edit - no code, no scan.
@@ -1481,7 +1481,7 @@ function needsEmptyRowHtml(b){
     detailHtml(b);
 }
 
-/* a hands-off row: Dave does nothing for these, so lead with a muted
+/* a hands-off row: nothing is done for these, so lead with a muted
    "no action" reason rather than the fill bar (which may be a real Myrna
    reading or a phantom on the not-monitoring boxes). Gray, quiet. */
 function handsOffRowHtml(b){
