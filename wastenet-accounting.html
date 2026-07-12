@@ -296,7 +296,14 @@
   .bwarn{font-size:10.5px; margin-top:4px; font-weight:600; line-height:1.4; white-space:normal;}
   .bwarn.pay{color:var(--red-dark);}
   .bwarn.box{color:var(--amber-dark);}
-  .bdeliv{font-size:10.5px; color:var(--ink-2); background:var(--panel); border-radius:9px; padding:2px 7px; white-space:nowrap;}
+  /* Delivery is its own thing now - not a scrap buried in a note. */
+  .bdeliv{font-size:10.5px; font-weight:600; border-radius:9px; padding:3px 9px; white-space:nowrap;
+          display:inline-block; text-decoration:none;}
+  .d-email{background:var(--green-tint); color:var(--green-darker);}
+  .d-portal{background:var(--amber-tint); color:var(--amber-dark);
+            border:0.5px solid var(--amber); cursor:pointer;}
+  .d-portal:hover{background:var(--amber); color:#fff;}
+  .d-mail{background:var(--panel); color:var(--ink-2);}
   /* Notes get read - a URL or an instruction is useless truncated. They wrap. */
   .bnote{font-size:11.5px; color:var(--ink-2); line-height:1.5; white-space:normal; word-break:break-word;}
   .binv{font-weight:600; color:var(--green-dark);}
@@ -1404,11 +1411,12 @@ function renderBilling(){
     body = '<div class="empty-state">Nothing logged for this month.</div>';
   } else {
     body = '<table class="btable"><thead><tr>' +
-        '<th style="width:26%">Name</th>' +
-        '<th style="width:10%">Invoice #</th>' +
-        '<th style="width:16%">Month</th>' +
-        '<th style="width:14%" class="num">Amount</th>' +
-        '<th style="width:34%">Notes</th>' +
+        '<th style="width:24%">Name</th>' +
+        '<th style="width:9%">Invoice #</th>' +
+        '<th style="width:15%">Month</th>' +
+        '<th style="width:13%" class="num">Amount</th>' +
+        '<th style="width:11%">Delivery</th>' +
+        '<th style="width:28%">Notes</th>' +
       '</tr></thead><tbody>' +
       rows.map(function(r){
         var cls = r.unpaid ? ' class="unpaid"' : (r.boxChange ? ' class="flagged"' : '');
@@ -1426,9 +1434,22 @@ function renderBilling(){
           warn += '<div class="bwarn box">Never billed \u2014 no history to copy</div>';
         }
 
-        /* Notes are read, not glanced at - a URL or an instruction is no use
-           truncated. They wrap. */
-        var note = hist ? (r.notes || "") : (r.delivery || "");
+        /* Delivery has its own column now. A portal is the one that costs
+           real time to find, so it carries its link. */
+        var d = (r.delivery || "email").toLowerCase();
+        var deliv;
+        if(d === "portal" && r.portalUrl){
+          deliv = '<a class="bdeliv d-portal" href="' + esc(r.portalUrl) + '" ' +
+                  'target="_blank" rel="noopener" title="' + esc(r.portalUrl) + '">portal \u2197</a>';
+        } else if(d === "portal"){
+          deliv = '<span class="bdeliv d-portal" style="cursor:default;">portal</span>';
+        } else if(d === "mail"){
+          deliv = '<span class="bdeliv d-mail">mail</span>';
+        } else {
+          deliv = '<span class="bdeliv d-email">email</span>';
+        }
+
+        var note = r.notes || "";
 
         return '<tr' + cls + '>' +
           '<td>' +
@@ -1448,6 +1469,7 @@ function renderBilling(){
             (r.amount == null ? '\u2014' : '$' + fmt(r.amount)) +
             (r.boxes ? '<span class="bsub">' + r.boxes + ' box' + (r.boxes > 1 ? 'es' : '') + '</span>' : '') +
           '</td>' +
+          '<td>' + deliv + '</td>' +
           '<td class="bnote">' + esc(note) + '</td>' +
         '</tr>';
       }).join("") + '</tbody></table>';
