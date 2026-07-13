@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-monitor · build 2026-07-09-nodemo · chip + mobile + demo removed -->
+<!-- wastenet-monitor · build 2026-07-12-a · view dropdown matches the accounting dashboard -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -255,10 +255,22 @@
   .empty-state .big{font-size:16px; font-weight:500; color:var(--ink); margin-bottom:6px;}
 
   /* view switcher - swaps between Box Monitor and Accounting */
+  /* A bare word with a 9px grey arrow next to it does not read as a control.
+     It reads as a label that happens to have a speck beside it. Give it the
+     chrome of the thing it actually is: a button that opens a menu. Kept
+     identical to the Accounting dashboard - two dashboards that swap between
+     each other should not offer two different-looking ways to do it. */
   .viewnav{position:relative; flex:0 0 auto;}
-  .view-label{font-size:13px; color:var(--ink-2); background:transparent; border:none; padding:2px 4px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; font-family:var(--font);}
-  .view-label:hover{color:var(--ink);}
-  .view-caret{font-size:9px; color:var(--ink-3);}
+  .view-label{font-size:12.5px; font-weight:500; color:var(--ink); font-family:var(--font);
+              background:var(--card); border:0.5px solid var(--line-strong);
+              padding:4px 8px 4px 11px; border-radius:14px; cursor:pointer;
+              display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
+              transition:background .12s, border-color .12s;}
+  .view-label:hover{background:var(--panel); border-color:var(--ink-3);}
+  .view-label.open{background:var(--green-tint); border-color:var(--green-border); color:var(--green-darker);}
+  .view-caret{font-size:11px; color:var(--ink-2); transition:transform .14s ease;}
+  .view-label:hover .view-caret{color:var(--ink);}
+  .view-label.open .view-caret{transform:rotate(180deg); color:var(--green-dark);}
   .view-drop{position:absolute; top:100%; left:0; margin-top:6px; background:var(--card); border:0.5px solid var(--line-strong); border-radius:10px; box-shadow:0 4px 14px rgba(0,0,0,0.10); min-width:190px; z-index:60; display:none; overflow:hidden;}
   .view-drop.open{display:block;}
   .view-opt{display:block; width:100%; text-align:left; padding:9px 14px; font-size:13px; color:var(--ink); background:transparent; border:none; cursor:pointer; font-family:var(--font);}
@@ -1844,8 +1856,18 @@ document.addEventListener("click", function(){
   var viewBtn  = document.getElementById("viewBtn");
   var viewDrop = document.getElementById("viewDrop");
   if(viewBtn && viewDrop){
-    viewBtn.onclick = function(e){ e.stopPropagation(); viewDrop.classList.toggle("open"); };
-    document.addEventListener("click", function(){ viewDrop.classList.remove("open"); });
+    /* The BUTTON carries .open too, not just the menu - that is what lets the
+       caret flip and the control show it is holding something open. */
+    viewBtn.onclick = function(e){
+      e.stopPropagation();
+      var open = !viewDrop.classList.contains("open");
+      viewDrop.classList.toggle("open", open);
+      viewBtn.classList.toggle("open", open);
+    };
+    document.addEventListener("click", function(){
+      viewDrop.classList.remove("open");
+      viewBtn.classList.remove("open");
+    });
     var go = document.getElementById("goAccounting");
     if(go) go.onclick = function(){ window.location.href = "wastenet-accounting.html"; };
   }
