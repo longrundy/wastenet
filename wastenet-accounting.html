@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-accounting · build 2026-07-13-b · Deposits: reconcile the Frost statement against open invoices -->
+<!-- wastenet-accounting · build 2026-07-13-c · Deposits reconcile against recorded payments, not just open invoices -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -126,6 +126,61 @@
   .n-ink{color:var(--ink);}
   .n-red{color:var(--red-dark);}
   .n-green{color:var(--green-dark);}
+
+  /* ---- deposits: the Frost statement, against the invoices ---- */
+  .dz{border:1px dashed var(--line-strong); border-radius:var(--r-card); padding:28px 20px;
+      text-align:center; background:var(--panel); transition:border-color .12s, background .12s;}
+  .dz.over{border-color:var(--green); background:var(--green-tint-2);}
+  .dz-t{font-size:14px; font-weight:600; margin-bottom:5px;}
+  .dz-d{font-size:12px; color:var(--ink-2); line-height:1.6; max-width:420px; margin:0 auto;}
+  .dpaste{width:100%; margin-top:12px; padding:9px 11px;
+          font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+          font-size:11px; border:0.5px solid var(--line-strong); border-radius:var(--r-input);
+          resize:vertical; outline:none; color:var(--ink); background:var(--card);}
+  .dpaste:focus{border-color:var(--green);}
+  .dnote{margin-top:16px; padding:10px 13px; background:var(--green-tint-2);
+         border:0.5px solid var(--green-border); border-radius:var(--r-ctl);
+         font-size:11.5px; color:var(--green-darker); line-height:1.6;}
+
+  .drow{padding:11px 4px; border-bottom:0.5px solid var(--line);}
+  .drow:last-child{border-bottom:none;}
+  /* A deposit needing nothing should not compete for attention with one that
+     does. It stays on the page - it happened - but it recedes. */
+  .drow.quiet{opacity:0.5;}
+  .drow.quiet:hover{opacity:1;}
+  .dmain{display:flex; align-items:center; gap:10px;}
+  .dc-date{width:74px; flex:0 0 74px; font-size:11.5px; color:var(--ink-2); white-space:nowrap;}
+  .ddesc{flex:1; min-width:0; font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .damt{width:96px; flex:0 0 96px; text-align:right; font-size:13.5px; font-weight:600;}
+  .dtag{width:112px; flex:0 0 112px; text-align:right;}
+  .dwho{font-size:11.5px; color:var(--ink-2); margin-top:5px; padding-left:84px;}
+  .dwhy{font-size:11.5px; color:var(--ink-2); line-height:1.6; margin-top:6px; margin-left:84px;
+        padding:7px 10px; background:var(--panel); border-radius:var(--r-ctl);}
+
+  /* Already recorded. The receipt, not just the assertion - which payment,
+     keyed when. A confirmation you cannot check is just a claim. */
+  .ddone{margin-top:6px; margin-left:84px; padding:7px 11px; display:flex; flex-wrap:wrap;
+         align-items:center; gap:4px 10px;
+         background:var(--green-tint-2); border:0.5px solid var(--green-border);
+         border-radius:var(--r-ctl);}
+  .dd-t{font-size:11px; font-weight:700; color:var(--green-darker); flex:0 0 auto; min-width:74px;}
+
+  .dcands{margin-top:7px; padding-left:84px; display:flex; flex-direction:column; gap:5px;}
+  .dhint{font-size:11px; color:var(--amber-dark); margin-bottom:2px; line-height:1.5;}
+  /* Each candidate is a whole answer, so it is one button - you take it or you
+     do not. Ticking invoices one at a time would invite a combination that adds
+     up to nothing. */
+  .dcand{display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; width:100%; text-align:left;
+         padding:8px 11px; border:0.5px solid var(--line-strong); border-radius:var(--r-ctl);
+         background:var(--card); cursor:pointer; font-family:var(--font);
+         transition:background .12s, border-color .12s;}
+  .dcand:hover{border-color:var(--green); background:var(--green-tint-2);}
+  .dcand.on{border-color:var(--green); background:var(--green-tint);}
+  .dc-sum{font-size:12.5px; font-weight:700; color:var(--green-darker); flex:0 0 auto;
+          min-width:74px;}
+  .dc-inv{font-size:11.5px; color:var(--ink-2); white-space:nowrap;}
+  .dc-inv b{color:var(--green-dark);}
+  .dc-amt{color:var(--ink-3);}
 
   /* ---- folder: five tabs, one body. Tabs + bar pin on scroll. ---- */
   .folder{margin-bottom:20px;}
@@ -1667,6 +1722,18 @@ function findCombos(invoices, targetCents, opts) {
   suffix[inv.length] = 0;
   for (var i = inv.length - 1; i >= 0; i--) suffix[i] = suffix[i + 1] + inv[i].cents;
 
+  /* Nearly every invoice is a round number of dollars. So a deposit of
+     $1,875.70 CANNOT be made of round invoices - the 70 cents has to come
+     from somewhere, and only an odd-cent invoice can supply it. If nothing
+     left in the list has cents on it, and we still owe cents, this branch
+     is dead. That one rule collapses the search enormously: it was what
+     turned eight plausible-looking answers into one. */
+  var oddAhead = new Array(inv.length + 1);
+  oddAhead[inv.length] = false;
+  for (var k = inv.length - 1; k >= 0; k--) {
+    oddAhead[k] = oddAhead[k + 1] || (inv[k].cents % 100 !== 0);
+  }
+
   var hits = [];
   var chosen = [];
 
@@ -1675,6 +1742,7 @@ function findCombos(invoices, targetCents, opts) {
     if (hits.length >= maxHits) return;
     if (i >= inv.length || chosen.length >= maxN) return;
     if (remaining < 0 || suffix[i] < remaining) return;   // cannot reach it
+    if (remaining % 100 !== 0 && !oddAhead[i]) return;    // cents unreachable
 
     for (var j = i; j < inv.length; j++) {
       if (hits.length >= maxHits) return;
@@ -1726,88 +1794,195 @@ function scoreCombo(combo, depositDate) {
 /* ------------------------------------------------------------------
    The whole job.
    ------------------------------------------------------------------ */
-function matchDeposits(deposits, openInvoices, payerMap) {
-  var byCustomer = {};
-  openInvoices.forEach(function (v) {
-    var c = String(v.customer || '');
-    (byCustomer[c] = byCustomer[c] || []).push(v);
+/* ------------------------------------------------------------------
+   Six answers that are really two.
+
+   Pillsbury has two open invoices at $675. Yoplait has two at $225. So a
+   search for combinations that sum to $1,875.70 dutifully enumerates every
+   permutation of which duplicate got picked - four "answers" that name the
+   same four customers paying the same four amounts.
+
+   That is not four answers. It is one answer with a footnote. What Kim needs
+   to decide is WHO PAID; which of a customer's two identical invoices to
+   apply it to is a separate and much smaller question, and one she can
+   settle by looking at the invoice dates.
+
+   So collapse combinations that differ only in which interchangeable invoice
+   was chosen, and carry the alternatives along as a footnote.
+   ------------------------------------------------------------------ */
+function collapseCombos(combos) {
+  var groups = {};
+
+  combos.forEach(function (c) {
+    /* Count how many invoices each (customer, amount) pair contributes. WNJ
+       can settle TWO $325 invoices in one deposit, and an earlier version of
+       this keyed the slot on customer+amount alone - which merged the two
+       into one and quietly lost $325. A collapse that loses money is worse
+       than no collapse at all. The COUNT is part of the identity. */
+    var tally = {};
+    c.forEach(function (v) {
+      var slot = v.customer + '|' + v.cents;
+      if (!tally[slot]) tally[slot] = { customer: v.customer, cents: v.cents, docs: [] };
+      tally[slot].docs.push(v.docNumber);
+    });
+
+    var sig = Object.keys(tally).map(function (s) {
+      return s + '|x' + tally[s].docs.length;
+    }).sort().join('||');
+
+    if (!groups[sig]) groups[sig] = { slots: {}, order: [] };
+    var g = groups[sig];
+
+    Object.keys(tally).forEach(function (s) {
+      var t = tally[s];
+      if (!g.slots[s]) {
+        g.slots[s] = { customer: t.customer, cents: t.cents, n: t.docs.length, docs: [] };
+        g.order.push(s);
+      }
+      /* every invoice id seen in this slot across all permutations - the
+         choices Kim still has to make, gathered rather than multiplied out */
+      t.docs.forEach(function (dn) {
+        if (g.slots[s].docs.indexOf(dn) === -1) g.slots[s].docs.push(dn);
+      });
+    });
   });
 
-  /* Who could possibly be inside an anonymous lump: the cheque payers, plus
-     the two "mixed" customers who mostly use the pay-link but have been
-     known to key one by hand. NOT the ACH payers - they get named - and
-     definitely not the pay-link crowd, whose invoices Intuit already
-     closed. */
-  var checkPool = [];
-  payerMap.forEach(function (p) {
-    if (p.channel !== 'check' && p.channel !== 'mixed') return;
-    (byCustomer[p.customer] || []).forEach(function (v) { checkPool.push(v); });
+  return Object.keys(groups).map(function (k) {
+    var g = groups[k];
+    var parts = g.order.map(function (s) {
+      var p = g.slots[s];
+      p.docs.sort();
+      return p;
+    });
+    return {
+      parts: parts,
+      /* n invoices of that amount, not one - this is the line that was wrong */
+      total: parts.reduce(function (s, p) { return s + p.cents * p.n; }, 0),
+      /* more invoice ids than slots to fill = a choice remains */
+      ambiguous: parts.some(function (p) { return p.docs.length > p.n; })
+    };
   });
+}
+
+function matchDeposits(deposits, openInvoices, payments, payerMap) {
+  payments = payments || [];
+
+  var openByCustomer = {};
+  openInvoices.forEach(function (v) {
+    (openByCustomer[String(v.customer || '')] = openByCustomer[String(v.customer || '')] || []).push(v);
+  });
+
+  var payByCustomer = {};
+  payments.forEach(function (p) {
+    (payByCustomer[String(p.customer || '')] = payByCustomer[String(p.customer || '')] || []).push(p);
+  });
+
+  /* Who could be inside an anonymous lump: the cheque payers, plus the two
+     who mostly use the pay-link but have been known to key one by hand. NOT
+     the ACH payers - they get named - and not the pay-link crowd, whose
+     invoices Intuit already closed. */
+  var checkCustomers = payerMap
+    .filter(function (p) { return p.channel === 'check' || p.channel === 'mixed'; })
+    .map(function (p) { return p.customer; });
+
+  var poolFrom = function (index, names) {
+    var out = [];
+    names.forEach(function (n) { (index[n] || []).forEach(function (v) { out.push(v); }); });
+    return out;
+  };
+
+  /* A payment keyed on the 20th is not settling a deposit that landed on the
+     2nd. Ten days either way covers a cheque sitting in a drawer. */
+  var near = function (list, date, days) {
+    if (!date) return list;
+    var t = new Date(date).getTime();
+    return list.filter(function (p) {
+      if (!p.date) return true;
+      return Math.abs(new Date(p.date).getTime() - t) <= days * 86400000;
+    });
+  };
 
   return deposits.map(function (d) {
     var target = cents(d.amount);
 
-    /* ---- 1. the pay-link. Already done, and unmatchable by design. ---- */
+    /* ---- 1. the pay-link. Intuit already closed those invoices. ---- */
     if (isPaylinkDeposit(d.desc)) {
       return {
-        deposit: d, kind: 'paylink', candidates: [],
-        why: 'QuickBooks Payments. Intuit batched several customers into this ' +
-             'one deposit and marked each invoice paid when the customer paid. ' +
-             'Nothing to do - and it will never equal a single invoice.'
+        deposit: d, kind: 'paylink', candidates: [], recorded: null,
+        why: 'QuickBooks Payments. Intuit batched several customers into this one ' +
+             'deposit and marked each invoice paid when the customer paid. Nothing ' +
+             'to do - and it will never equal a single invoice.'
       };
     }
 
-    /* ---- 2. an ACH. The bank tells us who. ---- */
+    /* ---- 2. money you moved between your own accounts. ---- */
+    if (/^(FROM|TO) ACCOUNT\b/i.test(d.desc) || /fund transfer/i.test(d.type || '')) {
+      return {
+        deposit: d, kind: 'internal', candidates: [], recorded: null,
+        why: 'Moved from another Frost account. Not a customer payment.'
+      };
+    }
+
     var payers = payersFor(d.desc, payerMap);
-    if (payers.length) {
-      var names = payers.map(function (p) { return p.customer; });
-      var pool = [];
-      names.forEach(function (n) {
-        (byCustomer[n] || []).forEach(function (v) { pool.push(v); });
+    var isAch  = payers.length > 0;
+    var names  = isAch ? payers.map(function (p) { return p.customer; }) : checkCustomers;
+
+    if (!isAch && d.desc) {
+      return {
+        deposit: d, kind: 'unknown', candidates: [], recorded: null,
+        why: 'The statement names a payer nobody recognises. If this is a customer, ' +
+             'add the name to the Payer Map tab and it will be matched from here on.'
+      };
+    }
+
+    /* ---- 3. IS IT ALREADY RECORDED?
+             The question the bank statement was consulted to answer. Look for
+             payments Kim keyed around this date that add up to this deposit. ---- */
+    var payPool = near(poolFrom(payByCustomer, names), d.date, 10)
+      .map(function (p) {
+        return { docNumber: p.docNumber, customer: p.customer, date: p.date,
+                 cents: cents(p.amount), amount: p.amount };
       });
-      pool = issuedBy(pool, d.date);
 
-      var combos = findCombos(pool, target, { maxN: 8, maxHits: 6 });
-      combos.sort(function (a, b) { return scoreCombo(a, d.date) - scoreCombo(b, d.date); });
-
+    var done = findCombos(payPool, target, { maxN: 8, maxHits: 4 });
+    if (done.length) {
+      done.sort(function (a, b) { return scoreCombo(a, d.date) - scoreCombo(b, d.date); });
       return {
-        deposit: d, kind: 'ach', customer: names.join(' / '),
-        aliasNote: payers[0].note || '',
-        candidates: combos,
-        why: combos.length ? '' :
-          'The bank names ' + names.join(' / ') + ', but no combination of their ' +
-          'open invoices adds up to this. Either it was already recorded, or it ' +
-          'pays something not on the open list.'
+        deposit: d, kind: isAch ? 'ach' : 'check',
+        customer: isAch ? names.join(' / ') : '',
+        aliasNote: isAch ? (payers[0].note || '') : '',
+        recorded: done[0],
+        candidates: [],
+        why: ''
       };
     }
 
-    /* ---- 3. an anonymous lump. Arithmetic is all we have. ---- */
-    if (!d.desc) {
-      var pool2 = issuedBy(checkPool, d.date);
-      var combos2 = findCombos(pool2, target, { maxN: 6, maxHits: 8 });
-      combos2.sort(function (a, b) { return scoreCombo(a, d.date) - scoreCombo(b, d.date); });
+    /* ---- 4. Not recorded. NOW propose what it probably pays. ---- */
+    var invPool = poolFrom(openByCustomer, names)
+      .filter(function (v) { return !v.txnDate || !d.date || v.txnDate <= d.date; })
+      .map(function (v) {
+        return { docNumber: v.docNumber, customer: v.customer, txnDate: v.txnDate,
+                 cents: cents(v.balance), amount: v.balance };
+      })
+      .filter(function (v) { return v.cents > 0; });
 
-      return {
-        deposit: d, kind: 'check', candidates: combos2,
-        why: combos2.length ? '' :
-          'A cheque deposit with no name on it, and no combination of the cheque ' +
-          'payers\' open invoices adds up to it. Worth opening by hand.'
-      };
-    }
+    var raw = findCombos(invPool, target, { maxN: 6, maxHits: 24 });
+    raw.sort(function (a, b) { return scoreCombo(a, d.date) - scoreCombo(b, d.date); });
+    var combos = collapseCombos(raw);
 
-    /* ---- 4. money moved between your own Frost accounts. ---- */
-    if (/^(FROM|TO) ACCOUNT\b/i.test(d.desc) || /fund transfer/i.test(d.type)) {
-      return {
-        deposit: d, kind: 'internal', candidates: [],
-        why: 'Moved from another Frost account. Not a customer payment - nothing to record.'
-      };
-    }
-
-    /* ---- 5. named, but by nobody we know. ---- */
     return {
-      deposit: d, kind: 'unknown', candidates: [],
-      why: 'The statement names a payer nobody recognises. If this is a customer, ' +
-           'add the name to the Payer Map tab and it will be matched from now on.'
+      deposit: d, kind: isAch ? 'ach' : 'check',
+      customer: isAch ? names.join(' / ') : '',
+      aliasNote: isAch ? (payers[0].note || '') : '',
+      recorded: null,
+      candidates: combos,
+      why: combos.length ? '' :
+        (isAch
+          ? 'The bank names ' + names.join(' / ') + ', but no payment was recorded ' +
+            'near this date and no open invoice of theirs adds up to it. Worth a look.'
+          : 'A cheque deposit with no name on it. No payment was recorded near this ' +
+            'date, and no combination of the cheque payers\' open invoices adds up to ' +
+            'it. Worth opening by hand.')
     };
   });
 }
@@ -2329,19 +2504,27 @@ function renderDeposits(){
   }
 
   var all = state.dMatched;
-  var counts = { todo:0, ach:0, check:0, paylink:0, internal:0, unknown:0, stuck:0 };
-  all.forEach(function(r){
-    counts[r.kind]++;
-    if(r.kind === "ach" || r.kind === "check"){
-      counts.todo++;
-      if(!r.candidates.length) counts.stuck++;
-    }
-  });
+  var isWork = function(r){
+    return (r.kind === "ach" || r.kind === "check") && !r.recorded && r.candidates.length;
+  };
+  var isStuck = function(r){
+    return ((r.kind === "ach" || r.kind === "check") && !r.recorded && !r.candidates.length)
+           || r.kind === "unknown";
+  };
+  var isDone = function(r){
+    return r.kind === "paylink" || r.kind === "internal" || !!r.recorded;
+  };
+
+  var counts = {
+    todo:  all.filter(isWork).length,
+    stuck: all.filter(isStuck).length,
+    done:  all.filter(isDone).length
+  };
 
   var rows = all;
-  if(state.dFilter === "todo")    rows = all.filter(function(r){ return r.kind==="ach" || r.kind==="check"; });
-  if(state.dFilter === "stuck")   rows = all.filter(function(r){ return (r.kind==="ach"||r.kind==="check") && !r.candidates.length; });
-  if(state.dFilter === "done")    rows = all.filter(function(r){ return r.kind==="paylink" || r.kind==="internal"; });
+  if(state.dFilter === "todo")  rows = all.filter(isWork);
+  if(state.dFilter === "stuck") rows = all.filter(isStuck);
+  if(state.dFilter === "done")  rows = all.filter(isDone);
 
   var chip = function(k, label, n){
     return '<button class="bchip' + (state.dFilter===k?" on":"") + '" data-df="' + k + '">' +
@@ -2356,38 +2539,59 @@ function renderDeposits(){
     var picked = state.dPick[k];
 
     var tag, why = r.why || "";
-    if(r.kind === "paylink")  tag = '<span class="chip chip-cur">pay-link \u00b7 done</span>';
-    else if(r.kind === "internal") tag = '<span class="chip chip-60">internal</span>';
-    else if(r.kind === "unknown")  tag = '<span class="chip chip-90">unknown payer</span>';
-    else if(!r.candidates.length)  tag = '<span class="chip chip-90">no match</span>';
-    else if(r.candidates.length === 1) tag = '<span class="chip chip-cur">1 answer</span>';
+    if(r.kind === "paylink")        tag = '<span class="chip chip-cur">pay-link \u00b7 done</span>';
+    else if(r.kind === "internal")  tag = '<span class="chip chip-60">internal</span>';
+    else if(r.kind === "unknown")   tag = '<span class="chip chip-90">unknown payer</span>';
+    else if(r.recorded)             tag = '<span class="chip chip-cur">recorded \u2713</span>';
+    else if(!r.candidates.length)   tag = '<span class="chip chip-90">unexplained</span>';
+    else if(r.candidates.length === 1) tag = '<span class="chip chip-30">record this</span>';
     else tag = '<span class="chip chip-30">' + r.candidates.length + ' possible</span>';
+
+    /* Already recorded. Show the receipt - the payments Kim keyed, and when -
+       so the confirmation can be believed rather than merely asserted. */
+    var done = "";
+    if(r.recorded){
+      done = '<div class="ddone">' +
+        '<span class="dd-t">Already recorded</span>' +
+        r.recorded.map(function(p){
+          return '<span class="dc-inv"><b>#' + esc(p.docNumber) + '</b> $' +
+                 fmt(p.amount) + ' <span class="dc-amt">keyed ' + esc(usDate(p.date)) +
+                 '</span></span>';
+        }).join('') +
+      '</div>';
+    }
 
     /* The candidates. One is an answer; several is a question. Say which. */
     var cands = "";
     if(r.candidates.length){
       cands = '<div class="dcands">' +
         (r.candidates.length > 1
-          ? '<div class="dhint">More than one combination adds up. Pick the right one \u2014 ' +
-            'the dashboard cannot know which cheques were in the envelope.</div>'
+          ? '<div class="dhint">More than one set of customers adds up to this. ' +
+            'Pick the right one \u2014 the dashboard cannot know which cheques were ' +
+            'in the envelope.</div>'
           : '') +
         r.candidates.map(function(c, i){
-          var sum = c.reduce(function(s,v){ return s + v.cents; }, 0) / 100;
           var on = (picked === i) || (r.candidates.length === 1);
           return '<button class="dcand' + (on ? " on" : "") + '" ' +
               'data-dpick="' + esc(k) + '" data-di="' + i + '">' +
-              '<span class="dc-sum">$' + fmt(sum) + '</span>' +
-              c.map(function(v){
-                return '<span class="dc-inv">' +
-                  '<b>#' + esc(v.docNumber) + '</b> ' + esc(v.customer) +
-                  ' <span class="dc-amt">$' + fmt(v.cents / 100) + '</span></span>';
+              '<span class="dc-sum">$' + fmt(c.total / 100) + '</span>' +
+              c.parts.map(function(p){
+                /* More invoice ids than slots means a choice remains - two
+                   identical invoices for the same customer, and only their
+                   dates can say which one this cheque settled. */
+                var ids = (p.docs.length > p.n)
+                  ? '<b>#' + p.docs.join(' or #') + '</b>'
+                  : '<b>#' + p.docs.join(' + #') + '</b>';
+                return '<span class="dc-inv">' + ids + ' ' + esc(p.customer) +
+                  ' <span class="dc-amt">' + (p.n > 1 ? p.n + ' \u00d7 ' : '') +
+                  '$' + fmt(p.cents / 100) + '</span></span>';
               }).join('') +
             '</button>';
         }).join("") +
       '</div>';
     }
 
-    return '<div class="drow' + (r.kind==="paylink"||r.kind==="internal" ? " quiet" : "") + '">' +
+    return '<div class="drow' + (isDone(r) ? " quiet" : "") + '">' +
         '<div class="dmain">' +
           '<span class="dc-date">' + esc(usDate(d.date)) + '</span>' +
           '<span class="ddesc">' + (d.desc ? esc(d.desc) :
@@ -2399,6 +2603,7 @@ function renderDeposits(){
            (r.aliasNote ? ' \u2014 <span style="color:var(--ink-3)">' + esc(r.aliasNote) + '</span>' : '') +
            '</div>' : '') +
         (why ? '<div class="dwhy">' + esc(why) + '</div>' : '') +
+        done +
         cands +
       '</div>';
   }).join("");
@@ -2412,8 +2617,8 @@ function renderDeposits(){
             '<span class="amt">\u00b7 ' + moneyShort(total) + ' shown</span></div>' +
           '<div class="bfilter">' +
             chip("todo",  "To record", counts.todo) +
-            chip("stuck", "Stuck",     counts.stuck) +
-            chip("done",  "No action", counts.paylink + counts.internal) +
+            chip("stuck", "Unexplained", counts.stuck) +
+            chip("done",  "Nothing to do", counts.done) +
             chip("all",   "All",       all.length) +
           '</div>' +
           '<button class="btn" id="dReset">Start over</button>' +
@@ -2429,23 +2634,30 @@ function wireDeposits(){
     if(p.error){ alert(p.error); return; }
     if(!p.rows.length){ alert("No deposits found in that file - only money going out."); return; }
 
-    /* Only OPEN invoices can be paid. state.invoices is exactly that - the
-       receivables endpoint returns open ones only. */
-    var open = (state.invoices || []).map(function(i){
-      return {
-        docNumber: i.docNumber,
-        customer:  i.customer,
-        cents:     cents(i.balance),
-        amount:    i.balance,
-        txnDate:   i.txnDate
-      };
-    }).filter(function(v){ return v.cents > 0; });
+    /* The statement has to be reconciled against the PAYMENTS Kim already
+       keyed, not only against open invoices. A deposit she dealt with months
+       ago has closed its invoice - searching open invoices for it finds
+       nothing and says "no match", which is alarming and wrong. Fetch the
+       payments recorded around these dates and ask the real question first:
+       has this already been handled? */
+    var dates = p.rows.map(function(r){ return r.date; }).sort();
+    var from = dates[0], to = dates[dates.length - 1];
 
-    state.dRows    = p.rows;
-    state.dMatched = matchDeposits(p.rows, open, state.dPayers);
-    state.dPick    = {};
-    state.dFilter  = "todo";
-    renderBody();
+    document.getElementById("body").innerHTML =
+      '<div class="empty-state"><span class="spinner"></span>Reading the books&hellip;</div>';
+
+    jsonp({ action:"reconcile", key:KEY, from:from, to:to }, function(data){
+      if(!data || !data.ok){
+        alert("Couldn't read the payments: " + ((data && data.error) || "no reply"));
+        state.dRows = []; renderBody(); return;
+      }
+
+      state.dRows    = p.rows;
+      state.dMatched = matchDeposits(p.rows, data.open || [], data.payments || [], state.dPayers);
+      state.dPick    = {};
+      state.dFilter  = "todo";
+      renderBody();
+    });
   };
 
   var fileBtn = document.getElementById("dPickFile");
