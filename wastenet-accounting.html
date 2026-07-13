@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-accounting · build 2026-07-13-c · Deposits reconcile against recorded payments, not just open invoices -->
+<!-- wastenet-accounting · build 2026-07-13-d · Deposits: wider payment search; refuses to guess -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -1936,9 +1936,18 @@ function matchDeposits(deposits, openInvoices, payments, payerMap) {
     }
 
     /* ---- 3. IS IT ALREADY RECORDED?
-             The question the bank statement was consulted to answer. Look for
-             payments Kim keyed around this date that add up to this deposit. ---- */
-    var payPool = near(poolFrom(payByCustomer, names), d.date, 10)
+             The question the bank statement was consulted to answer.
+
+             For an ACH the bank named the payer, so only their payments can be
+             in it. For a CHEQUE deposit it must be every payment near the date,
+             not just the twenty customers we believe write cheques - an
+             envelope can hold a cheque from anyone, and an ACH payer who posts
+             one in December does not stop being an ACH payer. Narrowing this
+             search was a real bug: it meant a deposit Kim HAD recorded came
+             back "not recorded", and the tool then went off inventing
+             combinations of unpaid invoices to explain money that was never
+             missing. ---- */
+    var payPool = near(isAch ? poolFrom(payByCustomer, names) : payments, d.date, 10)
       .map(function (p) {
         return { docNumber: p.docNumber, customer: p.customer, date: p.date,
                  cents: cents(p.amount), amount: p.amount };
@@ -1966,9 +1975,33 @@ function matchDeposits(deposits, openInvoices, payments, payerMap) {
       })
       .filter(function (v) { return v.cents > 0; });
 
-    var raw = findCombos(invPool, target, { maxN: 6, maxHits: 24 });
+    var raw = findCombos(invPool, target, { maxN: 6, maxHits: 60 });
     raw.sort(function (a, b) { return scoreCombo(a, d.date) - scoreCombo(b, d.date); });
     var combos = collapseCombos(raw);
+
+    /* Arithmetic will always find SOMETHING. With 139 open invoices, most of
+       them small round numbers, there is always a way to make $1,850 - and
+       showing eighteen of them is not eighteen answers, it is a failure
+       dressed up as a menu. Someone will pick one because it is on the screen,
+       and mark the wrong invoice paid.
+
+       Past a handful, the honest thing is to say the search cannot separate
+       them, and hand the question back. */
+    var TOO_MANY = 4;
+    if (combos.length > TOO_MANY) {
+      return {
+        deposit: d, kind: isAch ? 'ach' : 'check',
+        customer: isAch ? names.join(' / ') : '',
+        aliasNote: isAch ? (payers[0].note || '') : '',
+        recorded: null,
+        candidates: [],
+        tooMany: combos.length,
+        why: combos.length + ' different sets of invoices add up to this exactly, ' +
+             'and nothing in the data can tell them apart. Any one of them would be ' +
+             'a guess. If this deposit really has not been recorded, the deposit ' +
+             'slip is the only thing that can settle it.'
+      };
+    }
 
     return {
       deposit: d, kind: isAch ? 'ach' : 'check',
@@ -2543,6 +2576,7 @@ function renderDeposits(){
     else if(r.kind === "internal")  tag = '<span class="chip chip-60">internal</span>';
     else if(r.kind === "unknown")   tag = '<span class="chip chip-90">unknown payer</span>';
     else if(r.recorded)             tag = '<span class="chip chip-cur">recorded \u2713</span>';
+    else if(r.tooMany)              tag = '<span class="chip chip-60">can\'t tell</span>';
     else if(!r.candidates.length)   tag = '<span class="chip chip-90">unexplained</span>';
     else if(r.candidates.length === 1) tag = '<span class="chip chip-30">record this</span>';
     else tag = '<span class="chip chip-30">' + r.candidates.length + ' possible</span>';
