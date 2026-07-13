@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-accounting · build 2026-07-13-a · top margin matched to the monitor -->
+<!-- wastenet-accounting · build 2026-07-13-b · Deposits: reconcile the Frost statement against open invoices -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -508,6 +508,7 @@
       <button class="sec" data-sec="payments">Payments</button>
       <button class="sec" data-sec="billing">Billing</button>
       <button class="sec" data-sec="agents">Agents</button>
+      <button class="sec" data-sec="deposits">Deposits</button>
     </div>
     <button class="btn" id="slimRefreshBtn" aria-label="Refresh">&#8635;</button>
   </div>
@@ -539,6 +540,7 @@
       <button class="sec" data-sec="payments">Payments</button>
       <button class="sec" data-sec="billing">Billing</button>
       <button class="sec" data-sec="agents">Agents</button>
+      <button class="sec" data-sec="deposits">Deposits</button>
     </div>
 
     <!-- Zero-height. When this crosses the top of the screen the slim bar
@@ -632,6 +634,15 @@ var state = {
   agLoaded: false,
   agLoading: false,
   agOpen: {},         // which agent rows are expanded
+
+  // deposits - reconciling the Frost statement against open invoices
+  dRaw: "",           // the pasted / dropped CSV
+  dRows: [],          // parsed deposits
+  dMatched: [],       // each deposit + its candidate invoice combinations
+  dPayers: [],        // the Payer Map, from the sheet
+  dPayersLoaded: false,
+  dPick: {},          // deposit key -> which candidate the human chose
+  dFilter: "todo",
 
   // billing
   bMonth: "",
@@ -1514,6 +1525,293 @@ function renderCollections(){
     '</div>';
 }
 
+/* ==================================================================
+   DEPOSIT MATCHER
+
+   Given a Frost statement and the list of open invoices, work out which
+   invoices each deposit paid.
+
+   Three kinds of deposit, three completely different answers:
+
+     INTUIT   - the pay-link. Intuit batches several customers' money into
+                one deposit, so it will never equal any single invoice, and
+                QuickBooks marked those invoices paid the moment the
+                customer clicked Pay. NOTHING TO DO. Trying to match one is
+                a guaranteed waste of an afternoon.
+
+     NAMED    - an ACH. The statement names the payer, so we know the
+                customer. All that is left is which of their invoices it
+                covers - usually one, sometimes several.
+
+     ANONYMOUS- a cheque deposit. Several cheques on one slip, recorded by
+                the bank as a single lump with NO NAMES. Nothing identifies
+                the payer. The only way back is arithmetic: which open
+                invoices add up to exactly this number?
+
+   The arithmetic only works because we know WHO PAYS BY CHEQUE. Searching
+   every open invoice for a combination summing to $1,850 returns a fistful
+   of answers, most of them wrong. Searching only the twenty customers who
+   actually write cheques usually returns one.
+   ================================================================== */
+
+/* Amounts are money. Compare them as integer cents, never as floats -
+   0.1 + 0.2 !== 0.3, and a rounding error here means a deposit silently
+   fails to match anything. */
+function cents(n) { return Math.round((Number(n) || 0) * 100); }
+
+function parseFrostCsv(text) {
+  var lines = String(text || '').split(/\r?\n/).filter(function (l) { return l.trim(); });
+  if (!lines.length) return { rows: [], error: 'The file is empty.' };
+
+  var head = splitCsvLine(lines[0]).map(function (h) { return h.trim().toLowerCase(); });
+  var iDate = head.indexOf('transaction date');
+  var iType = head.indexOf('type');
+  var iDesc = head.indexOf('description');
+  var iAmt  = head.indexOf('amount');
+
+  if (iDate === -1 || iAmt === -1) {
+    return { rows: [], error: 'That does not look like a Frost export - no Transaction Date / Amount columns.' };
+  }
+
+  var rows = [];
+  for (var i = 1; i < lines.length; i++) {
+    var c = splitCsvLine(lines[i]);
+    if (c.length <= iAmt) continue;
+
+    var amt = Number(String(c[iAmt]).replace(/[$,\s]/g, ''));
+    if (!isFinite(amt) || amt <= 0) continue;   // money OUT is not our business
+
+    var d = String(c[iDate]).trim();            // MM/DD/YYYY
+    var m = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    var iso = m ? (m[3] + '-' + pad2(m[1]) + '-' + pad2(m[2])) : d;
+
+    rows.push({
+      date:   iso,
+      type:   String(c[iType] || '').trim(),
+      desc:   String(c[iDesc] || '').trim(),
+      amount: amt
+    });
+  }
+  rows.sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
+  return { rows: rows, error: '' };
+}
+
+function pad2(n) { n = String(n); return n.length < 2 ? '0' + n : n; }
+
+/* A CSV field can contain a comma inside quotes - "Nabors Property, LLC" -
+   so the line cannot simply be split on commas. */
+function splitCsvLine(line) {
+  var out = [], cur = '', q = false;
+  for (var i = 0; i < line.length; i++) {
+    var ch = line[i];
+    if (ch === '"') {
+      if (q && line[i + 1] === '"') { cur += '"'; i++; }
+      else q = !q;
+    } else if (ch === ',' && !q) {
+      out.push(cur); cur = '';
+    } else cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
+/* ------------------------------------------------------------------
+   Which customer does the bank mean?
+
+   Frost truncates the payer to about 16 characters and then bolts its own
+   reference numbers on the end - "GULF STATES TOYO AP PAYMENT 0008000137".
+   So this matches on the FRONT of the string, not the whole of it, and not
+   on the QuickBooks name (which the bank has never heard of).
+   ------------------------------------------------------------------ */
+function payersFor(desc, payerMap) {
+  var d = String(desc || '').trim().toUpperCase();
+  if (!d) return [];
+
+  var hits = [];
+  payerMap.forEach(function (p) {
+    if (!p.bankName) return;
+    if (d.indexOf(p.bankName.toUpperCase()) === 0) hits.push(p);
+  });
+
+  /* Longest bank name wins, so a specific rule beats a general one. */
+  hits.sort(function (a, b) { return b.bankName.length - a.bankName.length; });
+  if (!hits.length) return [];
+
+  var best = hits[0].bankName.toUpperCase();
+  return hits.filter(function (p) { return p.bankName.toUpperCase() === best; });
+}
+
+function isPaylinkDeposit(desc) {
+  return /^INTUIT\b/i.test(String(desc || '').trim());
+}
+
+/* ------------------------------------------------------------------
+   Which invoices add up to this?
+
+   Depth-first over the candidate invoices, biggest first, pruning any
+   branch whose remaining invoices cannot possibly reach the target. Capped
+   at maxN invoices and maxHits answers, because a deposit is a handful of
+   cheques, not thirty, and because an unbounded search over fifty invoices
+   is 2^50 branches and would hang the browser.
+   ------------------------------------------------------------------ */
+function findCombos(invoices, targetCents, opts) {
+  opts = opts || {};
+  var maxN    = opts.maxN    || 6;
+  var maxHits = opts.maxHits || 8;
+
+  var inv = invoices.slice().sort(function (a, b) { return b.cents - a.cents; });
+
+  /* suffix[i] = everything from i onwards, so we can bail the moment the
+     rest of the list cannot reach the target. */
+  var suffix = new Array(inv.length + 1);
+  suffix[inv.length] = 0;
+  for (var i = inv.length - 1; i >= 0; i--) suffix[i] = suffix[i + 1] + inv[i].cents;
+
+  var hits = [];
+  var chosen = [];
+
+  function walk(i, remaining) {
+    if (remaining === 0) { hits.push(chosen.slice()); return; }
+    if (hits.length >= maxHits) return;
+    if (i >= inv.length || chosen.length >= maxN) return;
+    if (remaining < 0 || suffix[i] < remaining) return;   // cannot reach it
+
+    for (var j = i; j < inv.length; j++) {
+      if (hits.length >= maxHits) return;
+      if (inv[j].cents > remaining) continue;             // too big, try smaller
+      if (suffix[j] < remaining) return;                  // nothing left is enough
+      chosen.push(inv[j]);
+      walk(j + 1, remaining - inv[j].cents);
+      chosen.pop();
+    }
+  }
+
+  walk(0, targetCents);
+  return hits;
+}
+
+/* A deposit made on the 10th cannot be paying an invoice raised on the
+   20th. Anything issued after the money landed is not a candidate. */
+function issuedBy(invoices, date) {
+  if (!date) return invoices;
+  return invoices.filter(function (v) { return !v.txnDate || v.txnDate <= date; });
+}
+
+/* ------------------------------------------------------------------
+   Rank the answers.
+
+   Several combinations can sum to the same number. Fewer invoices is more
+   likely than more. One customer paying their whole balance is more likely
+   than four customers coincidentally adding up. And an invoice that has
+   been sitting there for two months is a likelier thing to be paid than
+   one raised last Tuesday.
+   ------------------------------------------------------------------ */
+function scoreCombo(combo, depositDate) {
+  var custs = {};
+  combo.forEach(function (v) { custs[v.customer] = true; });
+  var nCust = Object.keys(custs).length;
+
+  var age = 0;
+  combo.forEach(function (v) {
+    if (v.txnDate && depositDate) {
+      age += Math.max(0, (new Date(depositDate) - new Date(v.txnDate)) / 86400000);
+    }
+  });
+  age = combo.length ? age / combo.length : 0;
+
+  /* Lower is better. */
+  return combo.length * 10 + nCust * 6 - Math.min(age, 90) / 30;
+}
+
+/* ------------------------------------------------------------------
+   The whole job.
+   ------------------------------------------------------------------ */
+function matchDeposits(deposits, openInvoices, payerMap) {
+  var byCustomer = {};
+  openInvoices.forEach(function (v) {
+    var c = String(v.customer || '');
+    (byCustomer[c] = byCustomer[c] || []).push(v);
+  });
+
+  /* Who could possibly be inside an anonymous lump: the cheque payers, plus
+     the two "mixed" customers who mostly use the pay-link but have been
+     known to key one by hand. NOT the ACH payers - they get named - and
+     definitely not the pay-link crowd, whose invoices Intuit already
+     closed. */
+  var checkPool = [];
+  payerMap.forEach(function (p) {
+    if (p.channel !== 'check' && p.channel !== 'mixed') return;
+    (byCustomer[p.customer] || []).forEach(function (v) { checkPool.push(v); });
+  });
+
+  return deposits.map(function (d) {
+    var target = cents(d.amount);
+
+    /* ---- 1. the pay-link. Already done, and unmatchable by design. ---- */
+    if (isPaylinkDeposit(d.desc)) {
+      return {
+        deposit: d, kind: 'paylink', candidates: [],
+        why: 'QuickBooks Payments. Intuit batched several customers into this ' +
+             'one deposit and marked each invoice paid when the customer paid. ' +
+             'Nothing to do - and it will never equal a single invoice.'
+      };
+    }
+
+    /* ---- 2. an ACH. The bank tells us who. ---- */
+    var payers = payersFor(d.desc, payerMap);
+    if (payers.length) {
+      var names = payers.map(function (p) { return p.customer; });
+      var pool = [];
+      names.forEach(function (n) {
+        (byCustomer[n] || []).forEach(function (v) { pool.push(v); });
+      });
+      pool = issuedBy(pool, d.date);
+
+      var combos = findCombos(pool, target, { maxN: 8, maxHits: 6 });
+      combos.sort(function (a, b) { return scoreCombo(a, d.date) - scoreCombo(b, d.date); });
+
+      return {
+        deposit: d, kind: 'ach', customer: names.join(' / '),
+        aliasNote: payers[0].note || '',
+        candidates: combos,
+        why: combos.length ? '' :
+          'The bank names ' + names.join(' / ') + ', but no combination of their ' +
+          'open invoices adds up to this. Either it was already recorded, or it ' +
+          'pays something not on the open list.'
+      };
+    }
+
+    /* ---- 3. an anonymous lump. Arithmetic is all we have. ---- */
+    if (!d.desc) {
+      var pool2 = issuedBy(checkPool, d.date);
+      var combos2 = findCombos(pool2, target, { maxN: 6, maxHits: 8 });
+      combos2.sort(function (a, b) { return scoreCombo(a, d.date) - scoreCombo(b, d.date); });
+
+      return {
+        deposit: d, kind: 'check', candidates: combos2,
+        why: combos2.length ? '' :
+          'A cheque deposit with no name on it, and no combination of the cheque ' +
+          'payers\' open invoices adds up to it. Worth opening by hand.'
+      };
+    }
+
+    /* ---- 4. money moved between your own Frost accounts. ---- */
+    if (/^(FROM|TO) ACCOUNT\b/i.test(d.desc) || /fund transfer/i.test(d.type)) {
+      return {
+        deposit: d, kind: 'internal', candidates: [],
+        why: 'Moved from another Frost account. Not a customer payment - nothing to record.'
+      };
+    }
+
+    /* ---- 5. named, but by nobody we know. ---- */
+    return {
+      deposit: d, kind: 'unknown', candidates: [],
+      why: 'The statement names a payer nobody recognises. If this is a customer, ' +
+           'add the name to the Payer Map tab and it will be matched from now on.'
+    };
+  });
+}
+
 /* ---------- billing ---------- */
 /* The invoice log.
  *
@@ -1990,6 +2288,233 @@ function wireBilling(){
   });
 }
 
+/* ---------- deposits ---------- */
+
+/* The Frost statement, reconciled against the open invoices.
+ *
+ * This page NEVER writes to QuickBooks. It works out which invoices a
+ * deposit paid and says so; Kim records the payment herself, in QBO, where
+ * it belongs. The dashboard is doing the arithmetic nobody wants to do by
+ * hand - not taking over the books.
+ */
+
+function depKey(d){ return d.date + "|" + d.amount + "|" + (d.desc || ""); }
+
+function renderDeposits(){
+  if(!state.loaded){
+    return '<div class="empty-state"><span class="spinner"></span>Loading invoices&hellip;</div>';
+  }
+
+  /* Nothing pasted yet - explain the job, then get out of the way. */
+  if(!state.dRows.length){
+    return '<div class="folder"><div class="folder-lower" style="padding:30px 22px;">' +
+      '<div class="dz" id="dropZone">' +
+        '<div class="dz-t">Drop the Frost CSV here</div>' +
+        '<div class="dz-d">Or paste it below. Export from Frost Connect \u2014 ' +
+          'account activity, CSV. Money going out is ignored.</div>' +
+        '<input type="file" id="dFile" accept=".csv,text/csv" style="display:none;">' +
+        '<button class="btn" id="dPickFile" style="margin-top:14px;">Choose a file</button>' +
+      '</div>' +
+      '<textarea class="dpaste" id="dPaste" rows="5" ' +
+        'placeholder="\u2026or paste the CSV text here"></textarea>' +
+      '<div style="text-align:right; margin-top:9px;">' +
+        '<button class="btn" id="dGo">Match deposits</button>' +
+      '</div>' +
+      '<div class="dnote">' +
+        '<b>Nothing here touches QuickBooks.</b> This works out which open invoices ' +
+        'each deposit paid and shows you. Recording the payment stays a human ' +
+        'decision, made in QuickBooks.' +
+      '</div>' +
+    '</div></div>';
+  }
+
+  var all = state.dMatched;
+  var counts = { todo:0, ach:0, check:0, paylink:0, internal:0, unknown:0, stuck:0 };
+  all.forEach(function(r){
+    counts[r.kind]++;
+    if(r.kind === "ach" || r.kind === "check"){
+      counts.todo++;
+      if(!r.candidates.length) counts.stuck++;
+    }
+  });
+
+  var rows = all;
+  if(state.dFilter === "todo")    rows = all.filter(function(r){ return r.kind==="ach" || r.kind==="check"; });
+  if(state.dFilter === "stuck")   rows = all.filter(function(r){ return (r.kind==="ach"||r.kind==="check") && !r.candidates.length; });
+  if(state.dFilter === "done")    rows = all.filter(function(r){ return r.kind==="paylink" || r.kind==="internal"; });
+
+  var chip = function(k, label, n){
+    return '<button class="bchip' + (state.dFilter===k?" on":"") + '" data-df="' + k + '">' +
+           label + ' \u00b7 ' + n + '</button>';
+  };
+
+  var total = rows.reduce(function(s,r){ return s + r.deposit.amount; }, 0);
+
+  var body = rows.map(function(r){
+    var d = r.deposit;
+    var k = depKey(d);
+    var picked = state.dPick[k];
+
+    var tag, why = r.why || "";
+    if(r.kind === "paylink")  tag = '<span class="chip chip-cur">pay-link \u00b7 done</span>';
+    else if(r.kind === "internal") tag = '<span class="chip chip-60">internal</span>';
+    else if(r.kind === "unknown")  tag = '<span class="chip chip-90">unknown payer</span>';
+    else if(!r.candidates.length)  tag = '<span class="chip chip-90">no match</span>';
+    else if(r.candidates.length === 1) tag = '<span class="chip chip-cur">1 answer</span>';
+    else tag = '<span class="chip chip-30">' + r.candidates.length + ' possible</span>';
+
+    /* The candidates. One is an answer; several is a question. Say which. */
+    var cands = "";
+    if(r.candidates.length){
+      cands = '<div class="dcands">' +
+        (r.candidates.length > 1
+          ? '<div class="dhint">More than one combination adds up. Pick the right one \u2014 ' +
+            'the dashboard cannot know which cheques were in the envelope.</div>'
+          : '') +
+        r.candidates.map(function(c, i){
+          var sum = c.reduce(function(s,v){ return s + v.cents; }, 0) / 100;
+          var on = (picked === i) || (r.candidates.length === 1);
+          return '<button class="dcand' + (on ? " on" : "") + '" ' +
+              'data-dpick="' + esc(k) + '" data-di="' + i + '">' +
+              '<span class="dc-sum">$' + fmt(sum) + '</span>' +
+              c.map(function(v){
+                return '<span class="dc-inv">' +
+                  '<b>#' + esc(v.docNumber) + '</b> ' + esc(v.customer) +
+                  ' <span class="dc-amt">$' + fmt(v.cents / 100) + '</span></span>';
+              }).join('') +
+            '</button>';
+        }).join("") +
+      '</div>';
+    }
+
+    return '<div class="drow' + (r.kind==="paylink"||r.kind==="internal" ? " quiet" : "") + '">' +
+        '<div class="dmain">' +
+          '<span class="dc-date">' + esc(usDate(d.date)) + '</span>' +
+          '<span class="ddesc">' + (d.desc ? esc(d.desc) :
+            '<i style="color:var(--ink-3)">no description \u2014 cheque deposit</i>') + '</span>' +
+          '<span class="damt">$' + fmt(d.amount) + '</span>' +
+          '<span class="dtag">' + tag + '</span>' +
+        '</div>' +
+        (r.customer ? '<div class="dwho">Bank names <b>' + esc(r.customer) + '</b>' +
+           (r.aliasNote ? ' \u2014 <span style="color:var(--ink-3)">' + esc(r.aliasNote) + '</span>' : '') +
+           '</div>' : '') +
+        (why ? '<div class="dwhy">' + esc(why) + '</div>' : '') +
+        cands +
+      '</div>';
+  }).join("");
+
+  if(!rows.length) body = '<div class="empty-state">Nothing in this bucket.</div>';
+
+  return '<div class="folder">' +
+      '<div class="pinhead" id="pinhead">' +
+        '<div class="fbar">' +
+          '<div class="fbar-t">' + all.length + ' deposits ' +
+            '<span class="amt">\u00b7 ' + moneyShort(total) + ' shown</span></div>' +
+          '<div class="bfilter">' +
+            chip("todo",  "To record", counts.todo) +
+            chip("stuck", "Stuck",     counts.stuck) +
+            chip("done",  "No action", counts.paylink + counts.internal) +
+            chip("all",   "All",       all.length) +
+          '</div>' +
+          '<button class="btn" id="dReset">Start over</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="folder-lower" style="padding:10px 14px 8px;">' + body + '</div>' +
+    '</div>';
+}
+
+function wireDeposits(){
+  var go = function(text){
+    var p = parseFrostCsv(text);
+    if(p.error){ alert(p.error); return; }
+    if(!p.rows.length){ alert("No deposits found in that file - only money going out."); return; }
+
+    /* Only OPEN invoices can be paid. state.invoices is exactly that - the
+       receivables endpoint returns open ones only. */
+    var open = (state.invoices || []).map(function(i){
+      return {
+        docNumber: i.docNumber,
+        customer:  i.customer,
+        cents:     cents(i.balance),
+        amount:    i.balance,
+        txnDate:   i.txnDate
+      };
+    }).filter(function(v){ return v.cents > 0; });
+
+    state.dRows    = p.rows;
+    state.dMatched = matchDeposits(p.rows, open, state.dPayers);
+    state.dPick    = {};
+    state.dFilter  = "todo";
+    renderBody();
+  };
+
+  var fileBtn = document.getElementById("dPickFile");
+  var file    = document.getElementById("dFile");
+  if(fileBtn && file){
+    fileBtn.onclick = function(){ file.click(); };
+    file.onchange = function(){
+      var f = file.files && file.files[0];
+      if(!f) return;
+      var fr = new FileReader();
+      fr.onload = function(){ go(String(fr.result || "")); };
+      fr.readAsText(f);
+    };
+  }
+
+  var zone = document.getElementById("dropZone");
+  if(zone){
+    zone.ondragover = function(e){ e.preventDefault(); zone.classList.add("over"); };
+    zone.ondragleave = function(){ zone.classList.remove("over"); };
+    zone.ondrop = function(e){
+      e.preventDefault();
+      zone.classList.remove("over");
+      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if(!f) return;
+      var fr = new FileReader();
+      fr.onload = function(){ go(String(fr.result || "")); };
+      fr.readAsText(f);
+    };
+  }
+
+  var goBtn = document.getElementById("dGo");
+  var paste = document.getElementById("dPaste");
+  if(goBtn && paste) goBtn.onclick = function(){ go(paste.value); };
+
+  var reset = document.getElementById("dReset");
+  if(reset) reset.onclick = function(){
+    state.dRows = []; state.dMatched = []; state.dPick = {};
+    renderBody();
+  };
+
+  document.querySelectorAll("[data-df]").forEach(function(el){
+    el.onclick = function(){ state.dFilter = el.getAttribute("data-df"); renderBody(); };
+  });
+
+  /* Choosing between two combinations that both add up. The dashboard has
+     done all it can here - it cannot know which cheques were in the
+     envelope, and it should not pretend to. */
+  document.querySelectorAll("[data-dpick]").forEach(function(el){
+    el.onclick = function(){
+      var k = el.getAttribute("data-dpick");
+      var i = Number(el.getAttribute("data-di"));
+      state.dPick[k] = (state.dPick[k] === i) ? null : i;
+      renderBody();
+    };
+  });
+}
+
+/* The Payer Map lives in the sheet, so it can be corrected without a
+   deploy - a new customer, a new bank alias, a customer who switches from
+   cheque to ACH. */
+function loadPayers(){
+  if(state.dPayersLoaded) return;
+  jsonp({ action:"payers", key:KEY }, function(data){
+    state.dPayers = (data && data.payers) || [];
+    state.dPayersLoaded = true;
+    if(state.section === "deposits") renderBody();
+  });
+}
+
 /* ---------- body ---------- */
 function renderBody(){
   var el = document.getElementById("body");
@@ -2004,6 +2529,13 @@ function renderBody(){
   if(state.section === "agents"){
     el.innerHTML = renderAgents();
     wireAgents();
+    measurePin();
+    return;
+  }
+
+  if(state.section === "deposits"){
+    el.innerHTML = renderDeposits();
+    wireDeposits();
     measurePin();
     return;
   }
@@ -2249,6 +2781,12 @@ document.querySelectorAll(".sec").forEach(function(el){
       renderBody();
       loadBilling("");
       return;
+    }
+
+    /* Deposits needs two things: the open invoices (already loaded with
+       Receivables) and the Payer Map, which is fetched once. */
+    if(state.section === "deposits" && !state.dPayersLoaded){
+      loadPayers();
     }
 
     renderSummary();
