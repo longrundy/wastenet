@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-accounting · build 2026-07-12-d · fixed slim bar; section switcher survives the scroll -->
+<!-- wastenet-accounting · build 2026-07-12-e · shared shape tokens with the monitor -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -17,6 +17,25 @@
     --card:#FFFFFF; --panel:#F6F7F3; --page:#FAFBF8;
     --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     --pinh:0px; --slimh:0px;
+
+    /* ---- SHAPE ----
+       Chrome is rectangular, tokens are round.
+       Anything that FRAMES content - a toolbar control, a card, a menu, an
+       inner panel - is a rectangle. Anything that IS a small piece of
+       content - a status you read, a filter you toggle - is a pill.
+       That one line decides every future case without another audit.
+
+       These six values are identical in wastenet-monitor.html. The two
+       dashboards do different jobs; they should not look like they were
+       drawn by different people. Before this there were SEVEN radii doing
+       four jobs, and the same control was 14px on one dashboard and 8px on
+       the other. */
+    --r-input:6px;    /* text fields */
+    --r-ctl:8px;      /* buttons, selects, dropdown triggers, search, inner panels */
+    --r-menu:10px;    /* popovers */
+    --r-card:12px;    /* containers, cards, list wrappers */
+    --r-pill:999px;   /* status chips and filter toggles */
+    --h-ctl:30px;     /* every toolbar control is this tall */
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -34,7 +53,7 @@
      old design pinned the month tabs at top:0 and let the section
      switcher scroll off entirely, which meant that halfway down a list
      you could no longer get to Payments without scrolling back up. */
-  .topcard{border:0.5px solid var(--line); border-radius:12px; background:var(--card); padding:10px 14px 12px; margin-bottom:14px;}
+  .topcard{border:0.5px solid var(--line); border-radius:var(--r-card); background:var(--card); padding:10px 14px 12px; margin-bottom:14px;}
 
   .slimbar{position:fixed; left:0; right:0; top:0; z-index:60; background:var(--card);
            border-bottom:0.5px solid var(--line-strong); box-shadow:0 3px 12px rgba(0,0,0,0.10);
@@ -59,7 +78,7 @@
   .brand-div{width:1px; height:14px; background:var(--line-strong); flex:0 0 auto;}
   .header-right{display:flex; align-items:center; gap:8px; flex:0 0 auto;}
   .stamp{font-size:10.5px; color:var(--ink-3); white-space:nowrap;}
-  .btn{font-size:12px; color:var(--ink); background:var(--card); border:0.5px solid var(--line-strong); padding:4px 9px; border-radius:14px; cursor:pointer; font-family:var(--font); transition:background .12s;}
+  .btn{font-size:12px; color:var(--ink); background:var(--card); border:0.5px solid var(--line-strong); height:var(--h-ctl); padding:0 11px; border-radius:var(--r-ctl); cursor:pointer; font-family:var(--font); display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box; transition:background .12s;}
   .btn:hover{background:var(--panel);}
 
   /* A bare word with a 9px grey arrow next to it does not read as a control.
@@ -68,15 +87,16 @@
   .viewnav{position:relative; flex:0 0 auto;}
   .view-label{font-size:12.5px; font-weight:500; color:var(--ink); font-family:var(--font);
               background:var(--card); border:0.5px solid var(--line-strong);
-              padding:4px 8px 4px 11px; border-radius:14px; cursor:pointer;
-              display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
+              height:var(--h-ctl); padding:0 9px 0 11px; border-radius:var(--r-ctl);
+              cursor:pointer; display:inline-flex; align-items:center; gap:6px;
+              white-space:nowrap; box-sizing:border-box;
               transition:background .12s, border-color .12s;}
   .view-label:hover{background:var(--panel); border-color:var(--ink-3);}
   .view-label.open{background:var(--green-tint); border-color:var(--green-border); color:var(--green-darker);}
   .view-caret{font-size:11px; color:var(--ink-2); transition:transform .14s ease;}
   .view-label:hover .view-caret{color:var(--ink);}
   .view-label.open .view-caret{transform:rotate(180deg); color:var(--green-dark);}
-  .view-drop{position:absolute; top:100%; left:0; margin-top:6px; background:var(--card); border:0.5px solid var(--line-strong); border-radius:10px; box-shadow:0 4px 14px rgba(0,0,0,0.10); min-width:190px; z-index:80; display:none; overflow:hidden;}
+  .view-drop{position:absolute; top:100%; left:0; margin-top:6px; background:var(--card); border:0.5px solid var(--line-strong); border-radius:var(--r-menu); box-shadow:0 4px 14px rgba(0,0,0,0.10); min-width:190px; z-index:80; display:none; overflow:hidden;}
   .view-drop.open{display:block;}
   .view-opt{display:block; width:100%; text-align:left; padding:9px 14px; font-size:13px; color:var(--ink); background:transparent; border:none; cursor:pointer; font-family:var(--font);}
   .view-opt:hover{background:var(--panel);}
@@ -86,7 +106,7 @@
   .sections{display:flex; gap:6px; margin-bottom:11px; flex-wrap:wrap;}
   .sec{
     font-size:12px; font-weight:500; font-family:var(--font);
-    padding:5px 13px; border-radius:15px; cursor:pointer; white-space:nowrap;
+    padding:5px 13px; border-radius:var(--r-pill); cursor:pointer; white-space:nowrap;
     border:0.5px solid var(--line-strong); background:var(--card); color:var(--ink-2);
     transition:background .12s, color .12s, border-color .12s;
   }
@@ -94,7 +114,7 @@
   .sec.on{background:var(--green); border-color:var(--green); color:#fff;}
 
   /* compact scorecard - one strip, four figures */
-  .score{display:flex; border:0.5px solid var(--line); border-radius:10px; overflow:hidden;}
+  .score{display:flex; border:0.5px solid var(--line); border-radius:var(--r-card); overflow:hidden;}
   .score-cell{flex:1; min-width:0; padding:8px 6px; text-align:center; border-right:0.5px solid var(--line);}
   .score-cell:last-child{border-right:none;}
   .score-n{font-size:17px; font-weight:600; letter-spacing:-0.01em; line-height:1.2;}
@@ -127,10 +147,11 @@
   .yrsel{
     font-size:12px; font-family:var(--font); font-weight:600;
     color:var(--green-dark); background:var(--card);
-    border:0.5px solid var(--green-border); border-radius:15px;
-    padding:6px 28px 6px 13px; cursor:pointer; outline:none; flex:0 0 auto;
+    border:0.5px solid var(--green-border); border-radius:var(--r-ctl);
+    height:var(--h-ctl); box-sizing:border-box;
+    padding:0 28px 0 13px; cursor:pointer; outline:none; flex:0 0 auto;
     max-width:190px;
-    /* the native arrow sits flush against the text in a pill this small,
+    /* the native arrow sits flush against the text in a control this small,
        so draw our own and give it room */
     appearance:none; -webkit-appearance:none; -moz-appearance:none;
     background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='6' viewBox='0 0 9 6'%3E%3Cpath d='M1 1l3.5 3.5L8 1' stroke='%233B6D11' stroke-width='1.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -149,7 +170,7 @@
   .ftab{
     display:inline-flex; align-items:center;
     background:var(--green-tint); border:0.5px solid var(--green-border);
-    border-bottom:none; border-radius:9px 9px 0 0;
+    border-bottom:none; border-radius:var(--r-menu) var(--r-menu) 0 0;
     padding:7px 13px 8px; font-size:12px; font-weight:600;
     color:var(--green-dark); cursor:pointer; font-family:var(--font);
     white-space:nowrap; position:relative; z-index:1; margin-bottom:-1px;
@@ -171,14 +192,14 @@
   .fbar-t{font-size:12.5px; font-weight:600; color:var(--green-darker); min-width:0; flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .fbar-t .amt{font-weight:400; color:var(--green-dark); font-size:11.5px;}
 
-  .search{font-size:11.5px; padding:5px 10px; border:0.5px solid var(--green-border); border-radius:14px; width:165px; outline:none; font-family:var(--font); color:var(--ink); background:var(--card); flex:0 0 auto;}
+  .search{font-size:11.5px; height:var(--h-ctl); padding:0 10px; border:0.5px solid var(--green-border); border-radius:var(--r-ctl); width:165px; outline:none; font-family:var(--font); color:var(--ink); background:var(--card); flex:0 0 auto; box-sizing:border-box;}
   .search:focus{border-color:var(--green);}
 
   .folder-lower{
     border-left:0.5px solid var(--green-border);
     border-right:0.5px solid var(--green-border);
     border-bottom:0.5px solid var(--green-border);
-    border-radius:0 0 12px 12px;
+    border-radius:0 0 var(--r-card) var(--r-card);
     background:var(--card); padding:0 16px 6px;
   }
 
@@ -203,7 +224,7 @@
   .agflag .ilink{color:var(--amber-dark); border-bottom-color:var(--amber);}
   .agflag .ilink:hover{background:rgba(255,255,255,0.5);}
 
-  .chip{display:inline-block; padding:2px 8px; border-radius:11px; font-size:10.5px; font-weight:600; white-space:nowrap;}
+  .chip{display:inline-block; padding:2px 8px; border-radius:var(--r-pill); font-size:10.5px; font-weight:600; white-space:nowrap;}
   .chip-cur{background:var(--green-tint); color:var(--green-darker);}
   .chip-30{background:var(--amber-tint); color:var(--amber-dark);}
   .chip-60{background:var(--coral-tint); color:var(--coral-dark);}
@@ -220,7 +241,7 @@
      about money, that is a misreading worth designing out. */
   .agrow.open{
     border:0.5px solid var(--green-border);
-    border-radius:10px;
+    border-radius:var(--r-card);
     background:var(--green-tint-2);
     margin:8px 0 12px;
     box-shadow:0 1px 6px rgba(0,0,0,0.04);
@@ -233,7 +254,7 @@
     padding:11px 12px;
     background:transparent;
     border-bottom:0.5px solid var(--green-border);
-    border-radius:10px 10px 0 0;
+    border-radius:var(--r-card) var(--r-card) 0 0;
   }
   .agrow.open .aghead:hover{background:rgba(255,255,255,0.4);}
 
@@ -241,7 +262,7 @@
   .agrow.open .agcaret{transform:rotate(90deg); color:var(--green-dark);}
   .agname{font-size:13.5px; font-weight:600; flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .agrow.open .agname{color:var(--green-darker);}
-  .agshare{font-size:10.5px; color:var(--ink-3); background:var(--panel); border-radius:10px; padding:2px 7px; flex:0 0 auto;}
+  .agshare{font-size:10.5px; color:var(--ink-3); background:var(--panel); border-radius:var(--r-pill); padding:2px 7px; flex:0 0 auto;}
   .agrow.open .agshare{background:var(--card);}
   .agmeta{font-size:11px; color:var(--ink-2); flex:0 0 auto; text-align:right; white-space:nowrap;}
   .agpay{font-size:15px; font-weight:600; color:var(--green-dark); flex:0 0 auto; text-align:right; min-width:88px;}
@@ -251,28 +272,28 @@
     display:block;
     padding:11px 12px 4px;
     background:var(--card);
-    border-radius:0 0 10px 10px;
+    border-radius:0 0 var(--r-card) var(--r-card);
   }
   /* the detail table sits on white, so it needs its own quiet frame */
   .agrow.open .agdetail table{margin-top:2px;}
   .agrow.open .agdetail thead th{background:var(--card); position:static;}
-  .agmath{font-size:11.5px; color:var(--ink-2); background:var(--panel); border:0.5px solid var(--line); border-radius:8px; padding:9px 12px; margin-bottom:10px; line-height:1.7;}
+  .agmath{font-size:11.5px; color:var(--ink-2); background:var(--panel); border:0.5px solid var(--line); border-radius:var(--r-ctl); padding:9px 12px; margin-bottom:10px; line-height:1.7;}
   .agmath b{color:var(--ink); font-weight:600;}
 
-  .agflag{background:var(--amber-tint); border:0.5px solid var(--amber); color:var(--amber-dark); border-radius:8px; padding:8px 11px; font-size:11.5px; margin-bottom:9px;}
+  .agflag{background:var(--amber-tint); border:0.5px solid var(--amber); color:var(--amber-dark); border-radius:var(--r-ctl); padding:8px 11px; font-size:11.5px; margin-bottom:9px;}
 
-  .soon{border:0.5px solid var(--line); border-radius:14px; background:var(--card); padding:30px 26px; text-align:center;}
+  .soon{border:0.5px solid var(--line); border-radius:var(--r-card); background:var(--card); padding:30px 26px; text-align:center;}
   .soon-disc{width:52px; height:52px; border-radius:50%; margin:0 auto 14px; background:var(--green-tint); border:1px solid var(--green-border); display:flex; align-items:center; justify-content:center; color:var(--green-dark);}
   .soon-disc svg{width:24px; height:24px;}
   .soon-t{font-size:15px; font-weight:600; margin-bottom:5px;}
-  .soon-tag{display:inline-block; font-size:10.5px; font-weight:600; color:var(--amber-dark); background:var(--amber-tint); padding:2px 9px; border-radius:11px; margin-bottom:12px;}
+  .soon-tag{display:inline-block; font-size:10.5px; font-weight:600; color:var(--amber-dark); background:var(--amber-tint); padding:2px 9px; border-radius:var(--r-pill); margin-bottom:12px;}
   .soon-d{font-size:13px; color:var(--ink-2); line-height:1.6; max-width:440px; margin:0 auto 16px;}
   .soon-list{text-align:left; max-width:390px; margin:0 auto; font-size:12.5px; color:var(--ink-2); line-height:1.9;}
   .soon-list li{margin:0;}
   .soon-note{margin-top:16px; font-size:11.5px; color:var(--ink-3); font-style:italic;}
 
   .empty-state{text-align:center; padding:36px 16px; color:var(--ink-2); font-size:13px;}
-  .banner{display:none; border-radius:10px; padding:10px 14px; font-size:13px; margin-bottom:14px;}
+  .banner{display:none; border-radius:var(--r-card); padding:10px 14px; font-size:13px; margin-bottom:14px;}
   .banner.show{display:block; background:var(--red-tint); color:var(--red-darker); border:0.5px solid var(--red);}
   .spinner{display:inline-block; width:13px; height:13px; border:2px solid var(--line-strong); border-top-color:var(--green); border-radius:50%; animation:spin .7s linear infinite; margin-right:7px; vertical-align:-2px;}
   @keyframes spin{to{transform:rotate(360deg);}}
@@ -280,7 +301,7 @@
   /* invoice panel - the invoice itself, no QuickBooks login required */
   .ivbg{position:fixed; inset:0; z-index:150; background:rgba(26,29,26,0.42); display:none; align-items:flex-start; justify-content:center; padding:36px 16px; overflow-y:auto;}
   .ivbg.show{display:flex;}
-  .ivcard{width:min(720px,100%); background:var(--card); border-radius:14px; box-shadow:0 12px 44px rgba(0,0,0,0.22); overflow:hidden;}
+  .ivcard{width:min(720px,100%); background:var(--card); border-radius:var(--r-card); box-shadow:0 12px 44px rgba(0,0,0,0.22); overflow:hidden;}
 
   .ivhead{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:15px 18px; background:var(--green-tint-2); border-bottom:0.5px solid var(--green-border);}
   .ivtitle{font-size:15px; font-weight:600; color:var(--green-darker);}
@@ -291,7 +312,7 @@
   .ivbody{padding:14px 18px 18px; max-height:66vh; overflow-y:auto;}
 
   .ivsum{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:13px;}
-  .ivstat{flex:1; min-width:96px; border:0.5px solid var(--line); border-radius:9px; padding:8px 10px;}
+  .ivstat{flex:1; min-width:96px; border:0.5px solid var(--line); border-radius:var(--r-pill); padding:8px 10px;}
   .ivstat-n{font-size:15px; font-weight:600;}
   .ivstat-l{font-size:10px; color:var(--ink-2); margin-top:1px;}
 
@@ -301,18 +322,18 @@
   .ivtable tr.charge td{background:var(--red-tint);}
   .ivtable tr.header-line td{background:var(--panel); color:var(--ink-2); font-style:italic;}
 
-  .ivkind{display:inline-block; font-size:10px; font-weight:600; padding:2px 7px; border-radius:10px; white-space:nowrap;}
+  .ivkind{display:inline-block; font-size:10px; font-weight:600; padding:2px 7px; border-radius:var(--r-pill); white-space:nowrap;}
   .k-box{background:var(--green-tint); color:var(--green-darker);}
   .k-charge{background:var(--red-tint); color:var(--red-dark);}
   .k-header{background:var(--panel); color:var(--ink-3);}
   .ivwhy{font-size:10.5px; color:var(--red-dark); margin-top:2px;}
 
-  .ivpaid{margin-top:13px; font-size:12px; color:var(--ink-2); background:var(--green-tint-2); border:0.5px solid var(--green-border); border-radius:9px; padding:9px 12px;}
+  .ivpaid{margin-top:13px; font-size:12px; color:var(--ink-2); background:var(--green-tint-2); border:0.5px solid var(--green-border); border-radius:var(--r-pill); padding:9px 12px;}
   .ivnote{margin-top:11px; font-size:11.5px; color:var(--ink-3); line-height:1.6;}
 
   /* billing draft */
   .bfilter{display:flex; gap:6px; align-items:center; flex-wrap:wrap;}
-  .bchip{font-size:11px; font-family:var(--font); padding:4px 10px; border-radius:13px; cursor:pointer;
+  .bchip{font-size:11px; font-family:var(--font); padding:4px 10px; border-radius:var(--r-pill); cursor:pointer;
          border:0.5px solid var(--green-border); background:var(--card); color:var(--green-dark); white-space:nowrap;}
   .bchip.on{background:var(--green); border-color:var(--green); color:#fff;}
   .bchip:hover:not(.on){background:var(--green-tint);}
@@ -354,7 +375,7 @@
   /* Said once, in the panel, to the person who opened it - rather than
      shouted on every one of fifty rows. */
   .bwhy{font-size:11.5px; color:var(--ink-2); background:var(--panel);
-        border:0.5px solid var(--line); border-radius:8px; padding:9px 12px;
+        border:0.5px solid var(--line); border-radius:var(--r-ctl); padding:9px 12px;
         margin-bottom:10px; line-height:1.7;}
   .bwhy b{color:var(--ink); font-weight:600;}
   .bwhy.pay{background:var(--red-tint); border-color:var(--red); color:var(--red-darker);}
@@ -371,7 +392,7 @@
   .bxlbl.in{color:var(--ink-3);}
 
   /* Delivery is its own thing - not a scrap buried in a note. */
-  .bdeliv{font-size:10.5px; font-weight:600; border-radius:11px; padding:2px 8px; white-space:nowrap;
+  .bdeliv{font-size:10.5px; font-weight:600; border-radius:var(--r-pill); padding:2px 8px; white-space:nowrap;
           display:inline-block; text-decoration:none;}
   .d-email{background:var(--green-tint); color:var(--green-darker);}
   .d-portal{background:var(--amber-tint); color:var(--amber-dark);
@@ -385,13 +406,13 @@
      missing from the list looks like a mistake. */
   .bskip{margin:0 0 10px; padding:9px 12px; font-size:11.5px; line-height:1.6;
          background:var(--panel); border:0.5px solid var(--line-strong);
-         border-radius:9px; color:var(--ink-2);}
+         border-radius:var(--r-ctl); color:var(--ink-2);}
   .bskip b{color:var(--ink);}
 
   /* Editable, but only for the month being billed. A past month is a record
      and stays read-only. */
   .bedit{width:100%; font-family:var(--font); font-size:11.5px; color:var(--ink);
-         background:var(--card); border:0.5px solid var(--line-strong); border-radius:6px;
+         background:var(--card); border:0.5px solid var(--line-strong); border-radius:var(--r-input);
          padding:5px 7px; outline:none; resize:vertical; min-height:30px; line-height:1.45;}
   .bedit:focus{border-color:var(--green); background:#fff;}
   .bedit.saving{border-color:var(--amber); background:var(--amber-tint);}
@@ -400,7 +421,7 @@
   /* The one-time fee - a replacement monitor, say - now lives in the row
      that opens, beside the note it almost always needs explaining. */
   .bfee{width:76px; font-family:var(--font); font-size:11.5px; text-align:right; color:var(--ink);
-        background:var(--card); border:0.5px solid var(--line-strong); border-radius:6px;
+        background:var(--card); border:0.5px solid var(--line-strong); border-radius:var(--r-input);
         padding:4px 6px; outline:none; flex:0 0 auto;}
   .bfee:focus{border-color:var(--green); background:#fff;}
   .bfee.saved{border-color:var(--green); background:var(--green-tint-2);}
@@ -410,7 +431,7 @@
      tinted like the thing it is - outbound - rather than looking like the
      internal note sitting directly beneath it. */
   .bfdesc{flex:1; min-width:0; font-family:var(--font); font-size:11.5px; color:var(--ink);
-          background:var(--card); border:0.5px solid var(--amber); border-radius:6px;
+          background:var(--card); border:0.5px solid var(--amber); border-radius:var(--r-input);
           padding:5px 7px; outline:none;}
   .bfdesc:focus{border-color:var(--amber-dark); background:#fff;}
   .bfdesc.saved{border-color:var(--green); background:var(--green-tint-2);}
@@ -424,13 +445,13 @@
   /* lock */
   .lock{position:fixed; inset:0; z-index:200; background:var(--page); display:flex; align-items:center; justify-content:center; padding:20px;}
   .lock.hide{display:none;}
-  .lock-card{width:min(360px,100%); background:var(--card); border:0.5px solid var(--line-strong); border-radius:12px; padding:24px; text-align:center; box-shadow:0 3px 14px rgba(0,0,0,0.07);}
+  .lock-card{width:min(360px,100%); background:var(--card); border:0.5px solid var(--line-strong); border-radius:var(--r-card); padding:24px; text-align:center; box-shadow:0 3px 14px rgba(0,0,0,0.07);}
   .lock-brand{font-size:17px; font-weight:800; letter-spacing:0.04em; color:var(--green); margin-bottom:4px;}
   .lock-sub{font-size:13px; color:var(--ink-2); margin-bottom:16px;}
-  .lock-in{width:100%; padding:10px 12px; font-size:15px; border:1px solid var(--line-strong); border-radius:6px; font-family:var(--font); color:var(--ink); outline:none;}
+  .lock-in{width:100%; padding:10px 12px; font-size:15px; border:1px solid var(--line-strong); border-radius:var(--r-input); font-family:var(--font); color:var(--ink); outline:none;}
   .lock-in:focus{border-color:var(--green);}
-  .lock-btn{width:100%; margin-top:12px; padding:11px; font-size:14px; font-weight:600; border-radius:6px; border:none; cursor:pointer; background:var(--green); color:#fff; font-family:var(--font);}
-  .lock-err{margin-top:12px; padding:8px 10px; background:var(--red-tint); border:0.5px solid var(--red); border-radius:6px; color:var(--red-dark); font-size:12.5px; font-weight:600;}
+  .lock-btn{width:100%; margin-top:12px; padding:11px; font-size:14px; font-weight:600; border-radius:var(--r-input); border:none; cursor:pointer; background:var(--green); color:#fff; font-family:var(--font);}
+  .lock-err{margin-top:12px; padding:8px 10px; background:var(--red-tint); border:0.5px solid var(--red); border-radius:var(--r-input); color:var(--red-dark); font-size:12.5px; font-weight:600;}
 
   @media (max-width:560px){
     .search{width:104px;}
