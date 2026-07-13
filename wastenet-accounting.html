@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-accounting · build 2026-07-13-f · (i) explains every section, from logic.js -->
+<!-- wastenet-accounting · build 2026-07-13-g · Contacts in the view menu -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -634,6 +634,7 @@
           <div class="view-drop" id="viewDrop">
             <button class="view-opt" id="goMonitor">Box Monitor Dashboard</button>
             <button class="view-opt cur">Accounting Dashboard</button>
+            <button class="view-opt" id="goContacts">Contacts</button>
           </div>
         </div>
       </div>
@@ -3212,6 +3213,10 @@ wireViewNav(document.getElementById("slimViewBtn"), document.getElementById("sli
 document.addEventListener("click", closeAllViewNavs);
 
 document.getElementById("goMonitor").onclick     = function(){ window.location.href = MONITOR_URL; };
+/* Contacts is a company directory, not a feature of either dashboard - so it is
+   a destination in this menu, reachable from both, and lives in neither. */
+var _gc = document.getElementById("goContacts");
+if(_gc) _gc.onclick = function(){ window.location.href = "contacts.html"; };
 document.getElementById("slimGoMonitor").onclick = function(){ window.location.href = MONITOR_URL; };
 document.getElementById("refreshBtn").onclick     = function(){ load(); };
 document.getElementById("slimRefreshBtn").onclick = function(){ load(); };
