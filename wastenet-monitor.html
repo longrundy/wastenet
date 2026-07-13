@@ -599,7 +599,7 @@ function lockOut(msg){
 }
 
 var state = { rows: [], scanTitle: "", openId: null, staleOpen: false, view: "action",
-  tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, staffNotesById: {}, staffNotesUpdById: {}, emptyMarkedById: {}, notesOpenId: null, schedTab: null, clearTab: null };
+  tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, staffNotesById: {}, staffNotesUpdById: {}, emptyMarkedById: {}, ledgerById: {}, notesOpenId: null, schedTab: null, clearTab: null };
 
 /* ---------- JSONP ---------- */
 function jsonp(params, cb){
@@ -712,6 +712,35 @@ function shortDay(v){
   var mo=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   return days[d.getDay()]+" "+mo[d.getMonth()]+" "+d.getDate();
 }
+/* ------------------------------------------------------------------
+   ONE DATE, TWO SPELLINGS
+
+   The ledger writes a pickup date as the plain string "2026-07-16".
+   Sch Date is a real date cell, and arrives from Apps Script as
+   "2026-07-16T04:00:00.000Z" - midnight Eastern, expressed in UTC.
+
+   They are the same day. Compared as strings they are not equal, and
+   compared as Dates they are STILL a trap: new Date("2026-07-16")
+   parses as midnight UTC, and asking a browser in Eastern what day
+   that is gets you the 15th. A check mark that goes dark overnight,
+   for boxes nobody touched, in some timezones and not others.
+
+   So both spellings are reduced to yyyy-MM-dd before they ever meet:
+   an ISO-looking string is cut at the day and never parsed at all,
+   and anything else is parsed once and read back in local time.
+   ------------------------------------------------------------------ */
+function toYmd(v){
+  if(!v) return "";
+  var s = String(v).trim();
+  var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return m[1]+"-"+m[2]+"-"+m[3];          // already a day. Don't touch it.
+  var d = new Date(s);
+  if(isNaN(d.getTime())) return "";
+  var mo = String(d.getMonth()+1); if(mo.length < 2) mo = "0"+mo;
+  var dy = String(d.getDate());    if(dy.length < 2) dy = "0"+dy;
+  return d.getFullYear()+"-"+mo+"-"+dy;
+}
+
 function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 
 
@@ -998,18 +1027,39 @@ function modelOf(r){
   };
 }
 
-/* ---------- checklist steps (dormant — derived from existing columns) ---------- */
+/* ---------- checklist steps ----------------------------------------
+   NOT "has this box ever been emailed". That question is useless: a box
+   notified in May is not notified now, and a mark that only ever goes
+   forward is a mark that lies by the second week.
+
+   The question is whether the box was notified about THE PICKUP IT IS
+   WAITING FOR. So the ledger records the date we told them, and a mark
+   lights only while that date is still the date on the box. Move the
+   pickup and the two stop matching, so the marks go dark on their own -
+   which is correct, because a new date means the hauler and the site
+   both have to be told again. Nobody has to remember to clear anything.
+
+   BOTH sides must be non-empty, not merely equal. A box with no Sch Date
+   and no sends compares blank against blank, and blank equals blank -
+   which would light every mark on every box nobody has ever touched.
+
+   Confirmed is not ours to compute. A hauler clicks the link in their
+   email, the Apps Script writes Cnfrmd, and we read what they said. */
 function stepsHtml(b){
-  // Scheduled = Sch Date present; Confirmed = Cnfrmd true; Notified has no
-  // column yet so it always renders "to do" in Phase 1.
-  var scheduled = !!b.schDate;
-  var confirmed = b.confirmed;
+  var told      = state.ledgerById[b.id] || {};
+  var onBox     = toYmd(b.schDate);
+  var lit       = function(sentDate){ return !!onBox && !!sentDate && toYmd(sentDate) === onBox; };
+
+  var scheduled = lit(told.sent);       // REQUEST SENT       - hauler, or staff who will phone
+  var notified  = lit(told.notified);   // CUSTOMER NOTIFIED  - the site was told
+  var confirmed = b.confirmed;          // the hauler said yes, in their own words
+
   function step(done, label){
     if(done) return '<span class="step done"><span class="chk">✓</span><span class="lbl-txt">'+label+'</span></span>';
     return '<span class="step todo"><span class="box"></span><span class="lbl-txt">'+label+'</span></span>';
   }
   var sep = '<span class="step-sep">›</span>';
-  return '<span class="steps">'+ step(scheduled,"Scheduled")+sep+ step(false,"Notified")+sep+ step(confirmed,"Confirmed") +'</span>';
+  return '<span class="steps">'+ step(scheduled,"Scheduled")+sep+ step(notified,"Notified")+sep+ step(confirmed,"Confirmed") +'</span>';
 }
 
 /* ---------- suggested-pickup chip (schedule-service rows only) ----------
@@ -1982,6 +2032,30 @@ function load(){
   fetchTabList();
   fetchSetSchedule();
   fetchEmptyMarked();
+  fetchLedgerMarks();
+}
+
+// Fetch what we have told people, per box: the pickup date the service
+// request claimed, and the pickup date the customer notice claimed. The
+// Apps Script reports those two facts and stops - whether a check mark is
+// LIT is decided here, in stepsHtml, against the Sch Date sitting on the
+// box right now. Same separation the scanner keeps: the sheet reports, the
+// dashboard interprets.
+//
+// Non-fatal on failure, and the failure is honest: the map stays empty, so
+// every mark reads "not done". That is exactly what the dashboard showed
+// yesterday, and it is the safe direction to fail in - a mark that is dark
+// when it should be green costs somebody a second email, where a mark that
+// is green when it should be dark costs a customer their pickup.
+function fetchLedgerMarks(){
+  jsonp({ action:"ledger_marks", key:KEY }, function(data){
+    if(data && data.ok && data.marks){
+      var m = {};
+      Object.keys(data.marks).forEach(function(id){ m[normBoxId(id)] = data.marks[id]; });
+      state.ledgerById = m;
+      render();
+    }
+  });
 }
 
 // Fetch the set of boxes manually flagged "marked empty in CES" so the
