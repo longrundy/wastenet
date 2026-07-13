@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<!-- wastenet how-it-works · build 2026-07-13-a · the method behind the madness -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WasteNet — How this works</title>
+<style>
+  :root{
+    --green:#5CAA16; --green-dark:#3B6D11; --green-darker:#27500A;
+    --green-tint:#EAF3DE; --green-tint-2:#F4FAEC; --green-border:#C0DD97;
+    --amber:#EF9F27; --amber-dark:#854F0B;
+    --red:#E24B4A; --red-dark:#A32D2D; --red-darker:#791F1F; --red-tint:#FCEBEB;
+    --ink:#1A1D1A; --ink-2:#525A60; --ink-3:#8A8F8A;
+    --line:#E4E7E0; --line-strong:#CFD4CA;
+    --card:#FFFFFF; --panel:#F6F7F3; --page:#FAFBF8;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+
+    /* ---- SHAPE ----
+       Chrome is rectangular, tokens are round.
+       Anything that FRAMES content - a control, a card, a menu, an inner
+       panel - is a rectangle. Anything that IS a small piece of content -
+       a status you read, a filter you toggle - is a pill.
+
+       These six values are identical in wastenet-monitor.html and
+       wastenet-accounting.html. This page had the right NUMBERS but was not
+       on the system, which is a different thing: it looked correct and would
+       have drifted the first time anything moved. The picker cards were the
+       proof - 14px, where every other card in the product is 12px. */
+    --r-input:6px;    /* text fields */
+    --r-ctl:8px;      /* buttons, selects, dropdown triggers, search, inner panels */
+    --r-menu:10px;    /* popovers */
+    --r-card:12px;    /* containers, cards, list wrappers */
+    --r-pill:999px;   /* status chips and filter toggles */
+    --h-ctl:30px;     /* every toolbar control is this tall */
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0; padding:0;}
+  body{font-family:var(--font); background:var(--page); color:var(--ink);
+       font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:820px; margin:0 auto; padding:20px 16px 80px;}
+
+  .topcard{background:var(--card); border:0.5px solid var(--line-strong);
+           border-radius:var(--r-card); padding:14px 16px; margin-bottom:18px;
+           display:flex; align-items:center; gap:10px;}
+  .brand{font-size:14px; font-weight:800; color:var(--green); letter-spacing:.04em;}
+  .bar{width:1px; height:14px; background:var(--line-strong);}
+  .here{font-size:12.5px; font-weight:500;}
+  .spacer{flex:1;}
+  .back{font-size:12px; font-weight:500; color:var(--ink); text-decoration:none;
+        height:var(--h-ctl); padding:0 11px; border:0.5px solid var(--line-strong);
+        border-radius:var(--r-ctl); display:inline-flex; align-items:center;}
+  .back:hover{background:var(--panel);}
+
+  .lede{background:var(--card); border:0.5px solid var(--line-strong);
+        border-radius:var(--r-card); padding:22px 24px; margin-bottom:22px;}
+  .lede h1{font-size:21px; margin:0 0 10px; font-weight:600;}
+  .lede p{font-size:13.5px; line-height:1.7; color:var(--ink-2); margin:0 0 10px;}
+  .lede p:last-child{margin-bottom:0;}
+  .lede b{color:var(--ink);}
+
+  .sec-h{font-size:11px; font-weight:600; color:var(--ink-3); letter-spacing:.06em;
+         text-transform:uppercase; margin:26px 0 10px 2px;}
+
+  .card{background:var(--card); border:0.5px solid var(--line-strong);
+        border-radius:var(--r-card); padding:20px 24px; margin-bottom:12px;}
+  .lg-head{border-bottom:0.5px solid var(--line); padding-bottom:12px; margin-bottom:13px;}
+  .lg-title{font-size:16px; font-weight:600; margin-bottom:4px;}
+  .lg-short{font-size:13px; color:var(--ink-2);}
+  .lg-body p{font-size:13.5px; line-height:1.65; margin:0 0 11px;}
+  .lg-list{margin:0 0 11px; padding-left:18px;}
+  .lg-list li{font-size:13.5px; line-height:1.6; margin-bottom:7px;}
+  .lg-list b{color:var(--green-darker);}
+  .lg-src{margin-top:12px; padding:10px 13px; background:var(--panel);
+          border-radius:var(--r-ctl); font-size:11.5px; line-height:1.6; color:var(--ink-2);}
+
+  .warn{background:var(--green-tint-2); border:0.5px solid var(--green-border);
+        border-radius:var(--r-card); padding:16px 20px; margin-bottom:22px;
+        font-size:12.5px; line-height:1.7; color:var(--green-darker);}
+  .warn b{color:var(--green-darker);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topcard">
+    <span class="brand">WASTENET</span>
+    <span class="bar"></span>
+    <span class="here">How this works</span>
+    <span class="spacer"></span>
+    <a class="back" href="index.html">&larr; Back</a>
+  </div>
+
+  <div class="lede">
+    <h1>The method behind the madness</h1>
+    <p>Every number on both dashboards is worked out by a rule. This page is
+       where the rules are written down &mdash; in plain terms, not in code.</p>
+    <p>It is <b>the same text</b> you get from the small <i>i</i> beside any figure
+       on either dashboard. Not a copy of it: the same text, from the same file.
+       There is only one explanation, so it cannot say one thing here and something
+       else there.</p>
+    <p>If anything on this page does not match what the dashboard actually does,
+       <b>the page is wrong</b> &mdash; and it should be reported, not worked around.</p>
+  </div>
+
+  <div class="warn">
+    <b>One thing worth understanding before anything else.</b><br>
+    You will notice this page almost never gives you a number. It does not say
+    &ldquo;we flag a box at 80% full&rdquo;. It says we flag a box when it reaches
+    <i>its own trigger</i>, and then the dashboard shows you what that trigger actually
+    is, today, for that box.<br><br>
+    That is deliberate. A number written down here becomes a <b>lie</b> the day
+    somebody changes it in the engine &mdash; and it lies with the authority of being
+    printed inside the tool, which a new person will believe over the code.
+    A number that was never written down cannot go stale.
+  </div>
+
+  <div class="sec-h">Box Monitor &mdash; the six buckets</div>
+  <div id="monitor"></div>
+
+  <div class="sec-h">Accounting Dashboard</div>
+  <div id="accounting"></div>
+
+</div>
+
+<!-- ONE copy of the explanations, shared by all three pages. Not inlined -
+     an inlined copy is a copy, and copies drift. This is the whole point. -->
+<script src="logic.js?v=2026-07-13-a"></script>
+<script>
+
+/* The page is BUILT from the same object the (i) popovers use. Nobody types the
+   explanation twice, so nobody can update one and forget the other. */
+var MONITOR   = ['action','needsempty','monitor','stale','scheduled','clear'];
+var ACCOUNTING = ['receivables','payments','deposits','billing','agents'];
+
+var render = function(ids, el){
+  document.getElementById(el).innerHTML = ids.map(function(k){
+    return '<div class="card">' + logicPanelHtml(k, null) + '</div>';
+  }).join('');
+};
+render(MONITOR, 'monitor');
+render(ACCOUNTING, 'accounting');
+</script>
+</body>
+</html>

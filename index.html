@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet index · build 2026-07-12-a · front door, on the shared shape system -->
+<!-- wastenet index · build 2026-07-13-a · third door: How this works -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -58,6 +58,14 @@
   /* choices */
   .picker{display:none;}
   .picker.show{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px;}
+  /* The guide spans both columns and sits under them. It is a reference, not a
+     place you go to work - so it should not compete with the two doors above it. */
+  .pick.guide{grid-column:1 / -1; flex-direction:row; align-items:center;
+              text-align:left; gap:16px; padding:16px 20px;}
+  .pick.guide .disc{width:38px; height:38px; margin:0; flex:0 0 auto;}
+  .pick.guide .disc svg{width:19px; height:19px;}
+  .pick.guide .pick-t{margin-bottom:2px;}
+  .pick.guide .pick-d{max-width:none;}
 
   .pick{
     display:block; text-align:center; text-decoration:none; cursor:pointer;
@@ -130,6 +138,22 @@
       </div>
       <div class="pick-t">Accounting</div>
       <div class="pick-d">Receivables, invoice aging, and agent commissions.</div>
+    </a>
+
+    <a class="pick guide" href="how-it-works.html">
+      <div class="disc">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 11v5.5"/>
+          <circle cx="12" cy="7.8" r="0.9" fill="currentColor" stroke="none"/>
+        </svg>
+      </div>
+      <div>
+        <div class="pick-t">How this works</div>
+        <div class="pick-d">Every rule behind every number, in plain terms. The same
+          text you get from the small <i>i</i> on either dashboard.</div>
+      </div>
     </a>
 
   </div>

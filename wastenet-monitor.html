@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-monitor · build 2026-07-13-a · batch only when >1 box per hauler; matched top margin -->
+<!-- wastenet-monitor · build 2026-07-13-b · (i) explains every bucket, from logic.js -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -45,6 +45,50 @@
      distances from the top of the window - 20px here, 16px there - which is
      the sort of thing you cannot unsee once you have switched between them
      twice. */
+  /* ---- the (i): "why is this number what it is?" ----
+     It sits OUTSIDE the clickable half. Asking why a bucket holds nine boxes
+     should not also switch you to that bucket - that is not what you asked. */
+  .score-half{position:relative;}
+  .lg-i{position:absolute; top:5px; right:6px; width:15px; height:15px; padding:0;
+        border:0.5px solid var(--line-strong); border-radius:var(--r-pill);
+        background:var(--card); color:var(--ink-3); cursor:pointer;
+        font-family:Georgia,'Times New Roman',serif; font-style:italic;
+        font-size:10px; line-height:1; display:flex; align-items:center;
+        justify-content:center; opacity:0; transition:opacity .12s, color .12s, border-color .12s;}
+  .score-half:hover .lg-i, .lg-i:focus{opacity:1;}
+  .lg-i:hover{color:var(--green-dark); border-color:var(--green);}
+  .score-hit{cursor:pointer;}
+
+  .lg-modal{position:fixed; inset:0; z-index:200; display:none;
+            background:rgba(20,24,20,0.34); padding:24px; overflow-y:auto;}
+  .lg-modal.show{display:block;}
+  .lg-card{max-width:640px; margin:40px auto; background:var(--card);
+           border:0.5px solid var(--line-strong); border-radius:var(--r-card);
+           box-shadow:0 8px 40px rgba(0,0,0,0.14); padding:26px 28px 20px; position:relative;}
+  .lg-x{position:absolute; top:12px; right:14px; width:26px; height:26px; padding:0;
+        border:none; background:transparent; color:var(--ink-3); font-size:20px;
+        line-height:1; cursor:pointer; border-radius:var(--r-ctl);}
+  .lg-x:hover{background:var(--panel); color:var(--ink);}
+  .lg-head{border-bottom:0.5px solid var(--line); padding-bottom:13px; margin-bottom:14px;}
+  .lg-title{font-size:17px; font-weight:600; margin-bottom:4px;}
+  .lg-short{font-size:13px; color:var(--ink-2);}
+  .lg-body p{font-size:13.5px; line-height:1.65; margin:0 0 11px;}
+  .lg-list{margin:0 0 11px; padding-left:18px;}
+  .lg-list li{font-size:13.5px; line-height:1.6; margin-bottom:7px;}
+  .lg-list b{color:var(--green-darker);}
+  /* The live figures. Tinted, because they are the one part of this panel that
+     is NOT prose - they are read out of the scan in front of you, and they are
+     the reason the explanation cannot quietly go out of date. */
+  .lg-live{margin:14px 0 0; padding:11px 13px; background:var(--green-tint-2);
+           border:0.5px solid var(--green-border); border-radius:var(--r-ctl);
+           font-size:12.5px; line-height:1.65; color:var(--green-darker);}
+  .lg-src{margin-top:12px; padding:10px 13px; background:var(--panel);
+          border-radius:var(--r-ctl); font-size:11.5px; line-height:1.6; color:var(--ink-2);}
+  .lg-foot{margin-top:14px; padding-top:12px; border-top:0.5px solid var(--line);
+           font-size:11.5px; line-height:1.6; color:var(--ink-3);}
+  .lg-foot a{color:var(--green-dark); font-weight:600; text-decoration:none; white-space:nowrap;}
+  .lg-foot a:hover{text-decoration:underline;}
+
   .wrap{max-width:820px; margin:0 auto; padding:20px 16px 80px;}
 
   /* header bar (Option A) */
@@ -363,6 +407,21 @@
   </div>
 </div>
 <div class="slimbar" id="slimbar"><div class="slimbar-inner" id="slimbarInner"></div></div>
+<!-- The (i) panel. The SAME content appears on the accounting dashboard and
+     on how-it-works.html - all three read logic.js, so there is one copy of the
+     explanation and it cannot drift out of step with itself. -->
+<div class="lg-modal" id="logicModal">
+  <div class="lg-card">
+    <button class="lg-x" id="logicClose" aria-label="Close">&times;</button>
+    <div id="logicBody"></div>
+    <div class="lg-foot">
+      If this does not match what the dashboard actually does, then the
+      explanation is wrong and should be reported &mdash; not worked around.
+      <a href="how-it-works.html">The full guide &rarr;</a>
+    </div>
+  </div>
+</div>
+
 <div class="wrap">
 
   <div class="topcard" id="topcard">
@@ -400,6 +459,9 @@
 
 </div>
 
+<!-- ONE copy of the explanations, shared by all three pages. Not inlined -
+     an inlined copy is a copy, and copies drift. This is the whole point. -->
+<script src="logic.js?v=2026-07-13-a"></script>
 <script>
 /* ============================================================
    WasteNet Box Monitor — Phase 1 monitoring view
@@ -550,6 +612,88 @@ function shortDay(v){
 }
 function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 
+
+
+/* ------------------------------------------------------------------
+   The numbers in an explanation must never be written down.
+
+   "We flag a box at 80%" becomes a lie the day somebody changes it to
+   75%, and it lies from INSIDE the tool, where a new person will trust
+   it over the code. So the prose describes the SHAPE of the rule, and
+   every figure is read out of the scan sitting in front of you right
+   now. A number that was never written down cannot go stale.
+   ------------------------------------------------------------------ */
+function liveNoteFor(key){
+  var rows = state.rows || [];
+  if(!rows.length) return "";
+  var inBucket = function(k){ return rows.filter(function(b){ return bucketOf(b) === k; }); };
+
+  if(key === "action"){
+    var a = inBucket("action");
+    if(!a.length) return "<b>Right now:</b> no box is over its trigger.";
+    var trigs = a.map(function(b){ return b.trig; }).filter(function(t){ return t != null; });
+    var note = "<b>Right now:</b> " + a.length + " box" + (a.length>1?"es":"") + " over trigger.";
+    if(trigs.length){
+      note += " Their triggers run from <b>" + Math.min.apply(null,trigs) + "%</b> to <b>" +
+              Math.max.apply(null,trigs) + "%</b> \u2014 each read from CES in this scan, " +
+              "not set by us: ";
+      note += a.slice(0,4).map(function(b){
+        return "#" + esc(b.id) + " is at " + (b.pct==null?"\u2014":b.pct+"%") +
+               " against its own trigger of " + b.trig;
+      }).join("; ") + (a.length>4 ? "; \u2026" : "") + ".";
+    }
+    return note;
+  }
+
+  if(key === "stale"){
+    var st = inBucket("stale");
+    if(!st.length) return "<b>Right now:</b> every box is cycling.";
+    var hrs = st.map(function(b){ return b.lastCycle; }).filter(function(h){ return h != null; });
+    var worst = hrs.length ? Math.max.apply(null, hrs) : null;
+    return "<b>Right now:</b> " + st.length + " stale. The threshold is <b>168 hours</b> \u2014 " +
+      "seven days without a single cycle" +
+      (worst ? "; the quietest has not cycled in <b>" + Math.round(worst) + " hours</b>, which is " +
+        Math.round(worst/24) + " days" : "") + ".";
+  }
+
+  if(key === "monitor"){
+    var md = inBucket("monitor");
+    return "<b>Right now:</b> " + md.length + " monitor" + (md.length===1?"":"s") +
+      " returning CES's <b>75000</b> sentinel \u2014 the value that means \u201cno reading\u201d. " +
+      "It is not a fill level. Nobody knows how full these boxes are.";
+  }
+
+  if(key === "scheduled"){
+    var sc = inBucket("scheduled");
+    var missed = sc.filter(isMissed);
+    return "<b>Right now:</b> " + sc.length + " with a pickup booked in CES" +
+      (missed.length ? ", of which <b>" + missed.length + "</b> " + (missed.length===1?"is":"are") +
+        " past the promised date and still not emptied. The hauler said they would come, and did not." : "") + ".";
+  }
+
+  if(key === "clear"){
+    var cl = inBucket("clear");
+    var inact = cl.filter(function(b){ return b.need === "N/A"; });
+    return "<b>Right now:</b> " + (cl.length - inact.length) + " active and below trigger, " +
+      inact.length + " inactive (CES has them marked N/A).";
+  }
+
+  if(key === "needsempty"){
+    var ne = inBucket("needsempty");
+    if(!ne.length) return "<b>Right now:</b> nothing waiting to be marked.";
+    return "<b>Right now:</b> " + ne.length + " emptied but not yet marked in CES. Until they are, " +
+      "CES keeps counting days and cycles from the WRONG pickup date \u2014 so they will start " +
+      "asking to be serviced again when they do not need it.";
+  }
+  return "";
+}
+
+function openLogic(key){
+  document.getElementById("logicBody").innerHTML = logicPanelHtml(key, liveNoteFor(key));
+  document.getElementById("logicModal").classList.add("show");
+}
+function closeLogic(){ document.getElementById("logicModal").classList.remove("show"); }
+document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeLogic(); });
 
 /* ---------- suggested pickup date ----------
    Ported VERBATIM from the ops dashboard (index.html) so the two views can
@@ -1131,10 +1275,17 @@ function render(){
   // behavior is unchanged.
   var half = function(key, color, darkColor, tintBg, n, label){
     var on = state.view===key;
-    return '<div class="score-half'+(on?' on':'')+'" data-view="'+key+'"'+
+    /* The (i) is a sibling of the clickable area, not inside it - otherwise
+       asking WHY a bucket has nine boxes in it would also switch you to that
+       bucket, which is not what you asked for. */
+    return '<div class="score-half'+(on?' on':'')+'"'+
       (on?' style="box-shadow:inset 0 -2px 0 0 '+color+';"':'')+'>'+
-      '<div class="score-half-n" style="color:'+(on?darkColor:color)+';">'+n+'</div>'+
-      '<div class="score-half-l">'+label+'</div>'+
+      '<button class="lg-i" data-logic="'+key+'" title="How is this worked out?" '+
+        'aria-label="How is this worked out?">i</button>'+
+      '<div class="score-hit" data-view="'+key+'">'+
+        '<div class="score-half-n" style="color:'+(on?darkColor:color)+';">'+n+'</div>'+
+        '<div class="score-half-l">'+label+'</div>'+
+      '</div>'+
     '</div>';
   };
   var group = function(caption, inner){
@@ -1359,7 +1510,23 @@ function render(){
 }
 
 function wireScorecard(){
-  document.querySelectorAll('.score-tab, .score-seg, .score-half').forEach(function(el){
+  /* The (i) is a sibling of the clickable area, not a child of it. Asking WHY a
+     bucket holds nine boxes should not also switch you into that bucket. */
+  document.querySelectorAll("[data-logic]").forEach(function(el){
+    el.addEventListener("click", function(e){
+      e.stopPropagation();
+      openLogic(el.getAttribute("data-logic"));
+    });
+  });
+  var lgX = document.getElementById("logicClose");
+  if(lgX) lgX.onclick = closeLogic;
+  var lgM = document.getElementById("logicModal");
+  if(lgM) lgM.onclick = function(e){ if(e.target === lgM) closeLogic(); };
+
+  /* The big scorecard carries data-view on .score-hit (so the (i) can sit beside
+     it); the slim bar still carries it on .score-half. Select on the ATTRIBUTE
+     rather than the class, and both keep working. */
+  document.querySelectorAll('.score-tab, .score-seg, .score-half[data-view], .score-hit').forEach(function(el){
     el.addEventListener("click", function(){
       state.view = el.getAttribute("data-view");
       state.openId = null;
