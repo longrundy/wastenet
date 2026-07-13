@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-accounting · build 2026-07-13-g · Contacts in the view menu -->
+<!-- wastenet-accounting · build 2026-07-13-h · Contacts in the nav cluster -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -85,6 +85,17 @@
            font-size:11.5px; line-height:1.6; color:var(--ink-3);}
   .lg-foot a{color:var(--green-dark); font-weight:600; text-decoration:none; white-space:nowrap;}
   .lg-foot a:hover{text-decoration:underline;}
+
+  /* The header has two sides and they mean different things. LEFT is where you
+     are - brand, view menu, and now Contacts. RIGHT is tools that act on what
+     you are looking at - search, date, refresh. Contacts was on the right, next
+     to the search box, which is exactly why it read as "search contacts". */
+  .navlink{font-size:12.5px; font-weight:500; color:var(--ink); text-decoration:none;
+           height:var(--h-ctl); padding:0 11px; border:0.5px solid var(--line-strong);
+           border-radius:var(--r-ctl); display:inline-flex; align-items:center;
+           white-space:nowrap; transition:background .12s, border-color .12s, color .12s;}
+  .navlink:hover{background:var(--green-tint); border-color:var(--green-border);
+                 color:var(--green-darker);}
 
   .wrap{max-width:820px; margin:0 auto; padding:20px 16px 80px;}
 
@@ -596,6 +607,7 @@
           <button class="view-opt cur">Accounting Dashboard</button>
         </div>
       </div>
+      <a class="navlink" href="contacts.html">Contacts</a>
     </div>
     <div class="sections">
       <button class="sec on" data-sec="receivables">Receivables</button>
@@ -634,9 +646,9 @@
           <div class="view-drop" id="viewDrop">
             <button class="view-opt" id="goMonitor">Box Monitor Dashboard</button>
             <button class="view-opt cur">Accounting Dashboard</button>
-            <button class="view-opt" id="goContacts">Contacts</button>
           </div>
         </div>
+        <a class="navlink" href="contacts.html" title="Every hauler, customer and staff address">Contacts</a>
       </div>
       <div class="header-right">
         <span class="stamp" id="stamp">Loading&hellip;</span>
@@ -3213,10 +3225,7 @@ wireViewNav(document.getElementById("slimViewBtn"), document.getElementById("sli
 document.addEventListener("click", closeAllViewNavs);
 
 document.getElementById("goMonitor").onclick     = function(){ window.location.href = MONITOR_URL; };
-/* Contacts is a company directory, not a feature of either dashboard - so it is
-   a destination in this menu, reachable from both, and lives in neither. */
-var _gc = document.getElementById("goContacts");
-if(_gc) _gc.onclick = function(){ window.location.href = "contacts.html"; };
+
 document.getElementById("slimGoMonitor").onclick = function(){ window.location.href = MONITOR_URL; };
 document.getElementById("refreshBtn").onclick     = function(){ load(); };
 document.getElementById("slimRefreshBtn").onclick = function(){ load(); };

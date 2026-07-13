@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-monitor · build 2026-07-13-e · 478 boxes; Contacts moved to its own page -->
+<!-- wastenet-monitor · build 2026-07-13-f · Contacts is navigation, not a tool -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -178,6 +178,17 @@
              cursor:pointer; font-family:var(--font);}
   .cbox-more:hover{background:var(--green-tint-2); color:var(--green-darker);}
   .cd-act{margin-top:10px;}
+
+  /* The header has two sides and they mean different things. LEFT is where you
+     are - brand, view menu, and now Contacts. RIGHT is tools that act on what
+     you are looking at - search, date, refresh. Contacts was on the right, next
+     to the search box, which is exactly why it read as "search contacts". */
+  .navlink{font-size:12.5px; font-weight:500; color:var(--ink); text-decoration:none;
+           height:var(--h-ctl); padding:0 11px; border:0.5px solid var(--line-strong);
+           border-radius:var(--r-ctl); display:inline-flex; align-items:center;
+           white-space:nowrap; transition:background .12s, border-color .12s, color .12s;}
+  .navlink:hover{background:var(--green-tint); border-color:var(--green-border);
+                 color:var(--green-darker);}
 
   .wrap{max-width:820px; margin:0 auto; padding:20px 16px 80px;}
 
@@ -524,9 +535,9 @@
           <div class="view-drop" id="viewDrop">
             <button class="view-opt cur">Box Monitor Dashboard</button>
             <button class="view-opt" id="goAccounting">Accounting Dashboard</button>
-            <button class="view-opt" id="goContacts">Contacts</button>
           </div>
         </div>
+        <a class="navlink" href="contacts.html" title="Every hauler, customer and staff address">Contacts</a>
       </div>
       <div class="header-right">
         <div class="header-tools" id="headerTools"></div>
@@ -1421,7 +1432,10 @@ function render(){
   document.getElementById("slimbarInner").innerHTML =
     '<div class="header-bar">'+
       '<div class="brand"><div class="brand-name">WASTENET</div><div class="brand-div"></div>'+
-        '<div class="brand-tool">Box Monitor Dashboard</div></div>'+
+        '<div class="brand-tool">Box Monitor Dashboard</div>'+
+        /* The slim bar is what you actually look at once you have scrolled, which
+           is most of the time. Nav that disappears when you scroll is not nav. */
+        '<a class="navlink" href="contacts.html">Contacts</a></div>'+
       '<div class="header-right">'+
         (state.searchOpen
           ? '<div class="search-box"><i class="search-ico">⌕</i><input type="text" id="slimSearchInput" placeholder="Search box #, site, hauler…" value="'+esc(state.search)+'" autocomplete="off"><button class="search-x" id="slimSearchClose" aria-label="Close search">×</button></div>'
@@ -2196,9 +2210,6 @@ document.addEventListener("click", function(){
       viewDrop.classList.remove("open");
       viewBtn.classList.remove("open");
     });
-    var gc = document.getElementById("goContacts");
-    if(gc) gc.onclick = function(){ location.href = "contacts.html"; };
-
     var go = document.getElementById("goAccounting");
     if(go) go.onclick = function(){ window.location.href = "wastenet-accounting.html"; };
   }
