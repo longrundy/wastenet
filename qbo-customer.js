@@ -9,6 +9,13 @@
  *   node qbo-customer.js "Costco Inc" 2026-01-01 2026-07-01
  *   node qbo-customer.js "International Paper"
  *   node qbo-customer.js --list                 every customer name
+ *   node qbo-customer.js --amount 275           who gets billed exactly $275?
+ *
+ * That last one settles an argument the bank started. Frost shows an ACH payer
+ * called "IP ARDMORE" sending $275 four times. International Paper's ledger
+ * says every invoice is $225 and every one was paid in full - so the $275 is
+ * somebody else's money, and the Payer Map has been putting it in the wrong
+ * account. Asking QuickBooks who is billed $275 answers it in one line.
  *
  * WHY THIS EXISTS
  *
@@ -127,6 +134,39 @@ function cents(n) { return Math.round((Number(n) || 0) * 100); }
     await ensureFreshToken();
 
     var args = process.argv.slice(2);
+
+    /* Who is billed exactly this? A bank deposit whose amount matches no
+       invoice of the customer the bank appears to name usually means the bank
+       is naming someone else. */
+    if (args[0] === '--amount' && args[1]) {
+      var want = cents(args[1]);
+      var since = args[2] || '2026-01-01';
+      console.log('Invoices raised for exactly ' + money(Number(args[1])) + ' since ' + since + '...\n');
+
+      var hits = (await queryAll('Invoice', "TxnDate >= '" + since + "'"))
+        .filter(function (i) { return cents(i.TotalAmt) === want; });
+
+      if (!hits.length) { console.log('   Nobody. No invoice was raised for that amount.'); return; }
+
+      var byCust = {};
+      hits.forEach(function (i) {
+        var c = (i.CustomerRef && i.CustomerRef.name) || '(none)';
+        if (!byCust[c]) byCust[c] = [];
+        byCust[c].push({ doc: i.DocNumber || i.Id, date: i.TxnDate, bal: Number(i.Balance) || 0 });
+      });
+
+      Object.keys(byCust).sort().forEach(function (c) {
+        var list = byCust[c];
+        console.log('   ' + pad(c, 40) + list.length + ' invoice(s)');
+        list.sort(function (a, b) { return a.date < b.date ? -1 : 1; })
+            .forEach(function (v) {
+          console.log('      ' + pad(v.date, 12) + pad('#' + v.doc, 8) +
+                      (v.bal > 0 ? 'OPEN  ' + money(v.bal) + ' still owed' : 'paid'));
+        });
+      });
+      console.log('\n' + hits.length + ' invoice(s) across ' + Object.keys(byCust).length + ' customer(s).');
+      return;
+    }
 
     if (args[0] === '--list') {
       var all = await queryAll('Customer');
