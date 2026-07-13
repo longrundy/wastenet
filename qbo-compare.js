@@ -119,16 +119,25 @@ function show(label, inv) {
 
   console.log('');
   console.log('  --- ' + lines.length + ' line item(s) ---');
-  lines.slice(0, 12).forEach(function (l, i) {
+  lines.slice(0, 8).forEach(function (l, i) {
     var d = l.SalesItemLineDetail || {};
     console.log('   ' + String(i + 1).padStart(3) + '. $' +
                 String(l.Amount || 0).padEnd(10) +
                 'qty=' + String(d.Qty == null ? '-' : d.Qty).padEnd(5) +
                 'rate=' + String(d.UnitPrice == null ? '-' : d.UnitPrice).padEnd(8) +
                 'item=' + ((d.ItemRef && d.ItemRef.name) || '-'));
-    console.log('        "' + String(l.Description || '').slice(0, 78) + '"');
+
+    /* THE FIELD THAT MATTERS.
+     *
+     * The service month lives here. My first pass printed the description,
+     * the quantity, the rate and the item - everything EXCEPT the one field
+     * I had been told to look at. */
+    console.log('        ServiceDate:  ' + (d.ServiceDate || '(EMPTY)'));
+
+    // Full description, untruncated - the month may be in here too.
+    console.log('        Description:  "' + String(l.Description || '') + '"');
   });
-  if (lines.length > 12) console.log('   ... and ' + (lines.length - 12) + ' more');
+  if (lines.length > 8) console.log('   ... and ' + (lines.length - 8) + ' more');
 }
 
 (async function () {
