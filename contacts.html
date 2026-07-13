@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet contacts · build 2026-07-13-a · the address book, its own page -->
+<!-- wastenet contacts · build 2026-07-13-c · company names, correctable -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -123,7 +123,17 @@
   .cd-head{display:flex; align-items:center; gap:8px; padding:7px 14px;
            background:var(--green-tint-2); border-bottom:0.5px solid var(--green-border);
            border-top:0.5px solid var(--green-border);}
-  .cd-dom{font-size:12px; font-weight:600; color:var(--green-darker);}
+  .cd-pen{width:17px; height:17px; padding:0; flex:0 0 auto; margin-left:1px;
+          border:none; background:transparent; color:var(--green-dark);
+          font-size:11px; line-height:1; cursor:pointer; border-radius:var(--r-input);
+          opacity:0; transition:opacity .12s, background .12s;}
+  .cd-head:hover .cd-pen{opacity:0.7;}
+  .cd-pen:hover{opacity:1; background:var(--green-tint);}
+  .cd-co{font-size:12.5px; font-weight:600; color:var(--green-darker);}
+  /* The domain stays visible under the company name. companyOf() GUESSES where
+     the words break in "acedisposal" - so the thing it guessed from stays on
+     screen, and a wrong guess is visibly a wrong guess rather than a quiet lie. */
+  .cd-dom{font-size:11px; color:var(--green-dark); opacity:0.75;}
   .cd-n{font-size:11px; color:var(--green-dark);}
   .crow{border-bottom:0.5px solid var(--line);}
   .crow:last-child{border-bottom:none;}
@@ -207,7 +217,9 @@ var KEY = (function(){
    either dashboard, rather than wedged into the monitor's header where the
    search box next to it made it look like you were searching contacts. */
 var state = { rows: [], cDir: [], cLoaded: false, cSearch: "", cRole: "all",
-              cOpen: null, cShowAll: null, cRaw: null };
+              cOpen: null, cShowAll: null, cRaw: null,
+              /* corrections a person typed. They outrank the guess. */
+              cNames: {} };
 
 function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 
@@ -263,6 +275,89 @@ function jsonp(params, cb){
       was re-rendered and the input destroyed along with it. The header is
       now rendered ONCE; only the list beneath it redraws.
    ================================================================== */
+
+/* ------------------------------------------------------------------
+   A COMPANY NAME OUT OF A DOMAIN
+
+   "acedisposal.com" should read "Ace Disposal", not "acedisposal.com".
+   But there is no dot between "ace" and "disposal" - so where the words
+   break has to be GUESSED, and a guess dressed up as a fact is how
+   IP ARDMORE got filed under International Paper this morning.
+
+   So this is three things, in order:
+
+     1. OVERRIDES  - the ones we actually know. Always right.
+     2. a split on a list of words that really do end company names
+        in this industry (disposal, carting, waste, services...).
+        Gets most of the rest.
+     3. failing both, just capitalise it and leave it alone.
+
+   And the real domain stays on screen underneath, in small type. If a
+   split comes out wrong you can SEE that it is wrong, which is the whole
+   difference between a guess and a lie.
+   ------------------------------------------------------------------ */
+
+var COMPANY_OVERRIDES = {
+  "wastenetinc":       "WasteNet",
+  "baycare":           "BayCare",
+  "fccenvironmental":  "FCC Environmental",
+  "costco":            "Costco",
+  "raleys":            "Raley's",
+  "usps":              "USPS",
+  "gm":                "GM",
+  "spx":               "SPX",
+  "lpf":               "LPF",
+  "wm":                "Waste Management",
+  "republicservices":  "Republic Services",
+  "gflenv":            "GFL Environmental",
+  "divert360":         "Divert360",
+  "houstonzoo":        "Houston Zoo"
+};
+
+/* Words that genuinely END a company name in this trade. Order matters:
+   longest first, so "environmental" is tried before "mental" could be. */
+var TAIL_WORDS = [
+  "environmental","transportation","sanitation","management","industries",
+  "solutions","recycling","logistics","resources","properties","enterprises",
+  "hospital","services","products","disposal","container","holdings",
+  "hauling","medical","carting","company","systems","service","haulers",
+  "county","health","realty","hotels","group","waste","foods","corp",
+  "care","city","zoo","inc","llc"
+];
+
+function companyOf(domain){
+  var d = String(domain || "").toLowerCase();
+  var base = d.split(".")[0];
+  if(!base) return domain;
+
+  /* Highest authority: somebody typed it into the sheet. A guess you cannot
+     correct is just a lie with better manners. */
+  if(state.cNames && state.cNames[d]) return state.cNames[d];
+
+  if(COMPANY_OVERRIDES[base]) return COMPANY_OVERRIDES[base];
+
+  var cap = function(w){ return w.charAt(0).toUpperCase() + w.slice(1); };
+
+  /* Peel known words off the END, repeatedly. "bakersfieldcity" -> city,
+     leaving "bakersfield". */
+  var tail = [], head = base;
+  var peeled = true;
+  while(peeled && head.length > 2){
+    peeled = false;
+    for(var i = 0; i < TAIL_WORDS.length; i++){
+      var w = TAIL_WORDS[i];
+      if(head.length > w.length && head.slice(-w.length) === w){
+        tail.unshift(cap(w));
+        head = head.slice(0, -w.length);
+        peeled = true;
+        break;
+      }
+    }
+  }
+
+  if(!tail.length) return cap(base);          // nothing to split on
+  return cap(head) + " " + tail.join(" ");
+}
 
 function splitEmails(cell){
   return String(cell || '')
@@ -360,6 +455,8 @@ function contactsListHtml(){
     if(!q) return true;
     if(c.email.toLowerCase().indexOf(q) !== -1) return true;
     if(c.haulers.some(function(h){ return h.toLowerCase().indexOf(q) !== -1; })) return true;
+    /* typing "ace disposal" should find acedisposal.com */
+    if(companyOf(c.domain).toLowerCase().indexOf(q) !== -1) return true;
     if(c.boxes.some(function(b){ return String(b) === q; })) return true;   // "716" finds everyone on box 716
     return false;
   });
@@ -381,8 +478,17 @@ function contactsListHtml(){
 
   return '<div class="plain-list">' + order.map(function(dom){
     var list = groups[dom];
+    var known = !!(state.cNames && state.cNames[dom]);
     return '<div class="cd-head">' +
+        '<span class="cd-co">' + esc(companyOf(dom)) + "</span>" +
+        '<button class="cd-pen" data-cco="' + esc(dom) + '" title="' +
+          (known ? "Change this company name" : "This name was worked out from the domain. Fix it if it is wrong.") +
+          '">\u270e</button>' +
+        /* The domain stays on screen. companyOf() GUESSES where the words break
+           in "acedisposal" - so what it guessed FROM stays visible, and a wrong
+           guess is visibly a wrong guess rather than a quiet lie. */
         '<span class="cd-dom">' + esc(dom) + "</span>" +
+        '<span class="cspacer"></span>' +
         '<span class="cd-n">' + list.length + "</span>" +
       "</div>" +
       list.map(contactRowHtml).join("");
@@ -490,7 +596,6 @@ function contactAddHtml(){
     "</div>";
 }
 
-
 function renderContactsAll(){
   var el = document.getElementById("list");
   el.innerHTML = contactsHeaderHtml();
@@ -584,6 +689,24 @@ function wireContactsList(){
       renderContactsList();
     };
   });
+  document.querySelectorAll("[data-cco]").forEach(function(el){
+    el.onclick = function(e){
+      e.stopPropagation();
+      var dom = el.getAttribute("data-cco");
+      var now = companyOf(dom);
+      var to = prompt(
+        "What is this company actually called?\n\n" + dom +
+        "\n\nThe dashboard worked out \"" + now + "\" from the domain, which is a " +
+        "guess. Whatever you type here is kept in the sheet and used from now on.",
+        now);
+      if(to === null) return;
+      to = to.trim();
+      if(!to || to === now) return;
+      contactWrite({ op:"company", domain:dom, to:to, email:"n/a@n/a" },
+        dom + " will be shown as \"" + to + "\".");
+    };
+  });
+
   document.querySelectorAll("[data-cmore]").forEach(function(el){
     el.onclick = function(e){
       e.stopPropagation();
@@ -643,11 +766,14 @@ function load(){
         haulCode: String(r["Haul Code"] || "").trim() || "\u2014"
       };
     });
-    jsonp({ action:"master_contacts", key:KEY }, function(data){
-      state.cRaw = (data && data.contacts) || {};
-      state.cDir = buildDirectory(state.cRaw, state.rows);
-      state.cLoaded = true;
-      renderContactsAll();
+    jsonp({ action:"company_names", key:KEY }, function(cn){
+      state.cNames = (cn && cn.names) || {};
+      jsonp({ action:"master_contacts", key:KEY }, function(data){
+        state.cRaw = (data && data.contacts) || {};
+        state.cDir = buildDirectory(state.cRaw, state.rows);
+        state.cLoaded = true;
+        renderContactsAll();
+      });
     });
   });
 }
