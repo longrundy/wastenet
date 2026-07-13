@@ -142,10 +142,15 @@ function show(label, inv) {
 
 (async function () {
   try {
-    var a = process.argv[2];
-    var b = process.argv[3];
+    var args = process.argv.slice(2);
+    var raw = args.indexOf('--raw') !== -1;
+    args = args.filter(function (x) { return x !== '--raw'; });
+
+    var a = args[0];
+    var b = args[1];
     if (!a) {
-      console.error('usage: node qbo-compare.js <untouched-invoice#> [corrected-invoice#]');
+      console.error('usage: node qbo-compare.js <invoice#> [invoice#] [--raw]');
+      console.error('  --raw  print the ENTIRE invoice as QuickBooks returns it');
       process.exit(1);
     }
 
@@ -154,6 +159,26 @@ function show(label, inv) {
     var r1 = await query("SELECT * FROM Invoice WHERE DocNumber = '" + a + "'");
     var i1 = (r1.QueryResponse && r1.QueryResponse.Invoice && r1.QueryResponse.Invoice[0]);
     if (!i1) { console.error('No invoice ' + a); process.exit(1); }
+
+    /* --raw exists because a script only ever shows the fields its author
+       thought to print. The settings say Service Date is on; my output says
+       it is empty. One of those is wrong, and the way to find out is to stop
+       interpreting and show everything. */
+    if (raw) {
+      console.log('=== INVOICE ' + a + ' - EVERY FIELD, AS QUICKBOOKS RETURNS IT ===');
+      console.log(JSON.stringify(i1, null, 2));
+      if (b) {
+        var r2r = await query("SELECT * FROM Invoice WHERE DocNumber = '" + b + "'");
+        var i2r = (r2r.QueryResponse && r2r.QueryResponse.Invoice && r2r.QueryResponse.Invoice[0]);
+        if (i2r) {
+          console.log('');
+          console.log('=== INVOICE ' + b + ' - EVERY FIELD ===');
+          console.log(JSON.stringify(i2r, null, 2));
+        }
+      }
+      return;
+    }
+
     show('AS QUICKBOOKS GENERATED IT (untouched)', i1);
 
     if (b) {
