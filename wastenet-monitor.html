@@ -1043,16 +1043,28 @@ function modelOf(r){
    and no sends compares blank against blank, and blank equals blank -
    which would light every mark on every box nobody has ever touched.
 
-   Confirmed is not ours to compute. A hauler clicks the link in their
-   email, the Apps Script writes Cnfrmd, and we read what they said. */
+   Confirmed is date-gated too, and it took seeing it wrong to know why.
+   Read off the Cnfrmd column alone, a rescheduled box showed
+
+       Scheduled [ ]  Notified [ ]  Confirmed [x]
+
+   - a hauler had agreed to a pickup that nobody had requested and nobody
+   had announced. Glance at that on a busy morning and it reads as "this
+   one is handled". It is not. A green mark asserting something false is
+   worse than a dark one, so a hauler's click now records the date they
+   were looking at, and Confirmed is held to the same test as the rest.
+
+   The cost of that: a Cnfrmd ticked by hand on the sheet carries no date,
+   so it will not light here. That is the intended direction. Every green
+   mark on this row is backed by a date somebody actually stated. */
 function stepsHtml(b){
   var told      = state.ledgerById[b.id] || {};
   var onBox     = toYmd(b.schDate);
-  var lit       = function(sentDate){ return !!onBox && !!sentDate && toYmd(sentDate) === onBox; };
+  var lit       = function(d){ return !!onBox && !!d && toYmd(d) === onBox; };
 
   var scheduled = lit(told.sent);       // REQUEST SENT       - hauler, or staff who will phone
   var notified  = lit(told.notified);   // CUSTOMER NOTIFIED  - the site was told
-  var confirmed = b.confirmed;          // the hauler said yes, in their own words
+  var confirmed = lit(told.confirmed);  // CONFIRMED (link)   - the hauler agreed to THIS date
 
   function step(done, label){
     if(done) return '<span class="step done"><span class="chk">✓</span><span class="lbl-txt">'+label+'</span></span>';
