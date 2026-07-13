@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-accounting · build 2026-07-12-b · billing cards; fee description; internal note -->
+<!-- wastenet-accounting · build 2026-07-12-c · billing adopts the agents/receivables row idiom -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -279,69 +279,61 @@
   .bchip.on{background:var(--green); border-color:var(--green); color:#fff;}
   .bchip:hover:not(.on){background:var(--green-tint);}
 
-  /* A row is a CARD, not a table row. Stacked red table rows bled into one
-     another - three unpaid customers in a row read as one continuous slab
-     with no visible boundary. So the fill comes off entirely: the card
-     separates by gap and border, and red goes to the ALERT, which is the
-     thing that actually carries the meaning. */
-  .bcards{display:flex; flex-direction:column; gap:7px;}
-  .bcard{background:var(--card); border:0.5px solid var(--line-strong); border-radius:10px;
-         padding:9px 12px;}
-  .bcard:hover{border-color:var(--ink-3);}
-  .bcard.unpaid{border-color:var(--red);}
-  .bcard.boxchg{border-color:var(--amber);}
+  /* A billing row is an AGENT ROW. Not a card - the Agents page already
+     solved "a row that opens to hold more", and inventing a second answer
+     to the same question is what made this page look like it came from a
+     different product. So .agrow / .aghead / .agdetail are reused whole,
+     and only the columns are new.
+     The flags reuse .chip too, which is what Receivables already speaks:
+     a red chip means money that is late. */
+  .bc-inv{width:56px; flex:0 0 56px; font-weight:600; color:var(--green-dark); font-size:12px;}
+  .bc-mon{width:66px; flex:0 0 66px; font-size:11.5px; color:var(--ink-2); white-space:nowrap;}
+  .bc-amt{width:104px; flex:0 0 104px; text-align:right; font-size:13px; font-weight:600; white-space:nowrap;}
+  .bc-amt .bx{font-size:11px; font-weight:400; color:var(--ink-3);}
+  .bc-del{width:56px; flex:0 0 56px; text-align:center;}
+  .bc-flag{width:110px; flex:0 0 110px; text-align:right;}
 
-  .bmain{display:flex; align-items:center; gap:9px;}
-  .bcell-name{flex:1; min-width:0;}
-  .bcell-inv{width:58px; flex:0 0 58px;}
-  .bcell-mon{width:74px; flex:0 0 74px; font-size:11.5px; color:var(--ink-2);}
-  .bcell-amt{width:100px; flex:0 0 100px; text-align:right;}
-  .bcell-del{width:60px; flex:0 0 60px; text-align:center;}
-  .bcell-tog{width:30px; flex:0 0 30px; text-align:right;}
+  /* The QuickBooks name earns its place only when it differs from the one
+     Kim actually says out loud. On one line now, not two - the row is a
+     row. */
+  .bname{font-size:13.5px; font-weight:600; flex:1 1 auto; min-width:0;
+         overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .bname .dba{font-weight:400; font-size:11px; color:var(--ink-3); margin-left:7px;}
 
-  /* Column labels, aligned to the card's columns rather than a table grid. */
-  .bhead{display:flex; align-items:center; gap:9px; padding:6px 12px;
-         border-bottom:0.5px solid var(--line-strong); margin-bottom:7px;
+  /* Column labels. Sortable, like Receivables and Payments. */
+  .bhead{display:flex; align-items:center; gap:10px; padding:7px 4px;
+         border-bottom:0.5px solid var(--line-strong);
          font-size:10.5px; font-weight:600; color:var(--ink-2); white-space:nowrap;
          position:sticky; top:var(--pinh); background:var(--card); z-index:5;}
+  /* The header reuses the row's column classes so the two line up exactly -
+     but those classes carry the ROW's type sizes, which would render the
+     labels at 13.5px. Pull them back to header type. */
+  .bhead .bname, .bhead .bc-inv, .bhead .bc-amt, .bhead .bc-mon{
+    font-size:10.5px; font-weight:600; color:var(--ink-2);}
+  .bhead [data-bsort]{cursor:pointer;}
+  .bhead [data-bsort]:hover{color:var(--ink);}
 
-  .bamt{font-size:13px; font-weight:600;}
+  /* Said once, in the panel, to the person who opened it - rather than
+     shouted on every one of fifty rows. */
+  .bwhy{font-size:11.5px; color:var(--ink-2); background:var(--panel);
+        border:0.5px solid var(--line); border-radius:8px; padding:9px 12px;
+        margin-bottom:10px; line-height:1.7;}
+  .bwhy b{color:var(--ink); font-weight:600;}
+  .bwhy.pay{background:var(--red-tint); border-color:var(--red); color:var(--red-darker);}
+  .bwhy.pay b{color:var(--red-darker);}
+  .bwhy.box{background:var(--amber-tint); border-color:var(--amber); color:var(--amber-dark);}
+  .bwhy.box b{color:var(--amber-dark);}
 
-  /* The fee and the note are blank on nearly every row. Paying ~50px of
-     height for an empty field on all 53 customers is what made the month
-     unscannable. They collapse - and open on their own when they have
-     something in them. */
-  .btog{width:26px; height:26px; padding:0; border-radius:7px; cursor:pointer; line-height:1;
-        border:0.5px solid var(--line-strong); background:var(--card); color:var(--ink-3);
-        font-family:var(--font); font-size:13px;}
-  .btog:hover{background:var(--panel); color:var(--ink);}
-  .btog.on{background:var(--green-tint); border-color:var(--green-border); color:var(--green-dark);}
-  .bextra{display:none; flex-direction:column; gap:6px; margin-top:8px; padding-top:8px;
-          border-top:0.5px solid var(--line);}
-  .bextra.open{display:flex;}
-  .bxline{display:flex; align-items:center; gap:8px;}
-  .bxlbl{font-size:10.5px; color:var(--ink-3); flex:0 0 auto; white-space:nowrap;}
+  .bxline{display:flex; align-items:center; gap:8px; margin-bottom:7px;}
+  .bxline:last-child{margin-bottom:0;}
   /* The two fields are NOT the same kind of thing, so they do not look the
      same. One is written for the customer; the other is written about them. */
+  .bxlbl{font-size:10.5px; flex:0 0 auto; white-space:nowrap; width:86px;}
   .bxlbl.out{color:var(--amber-dark); font-weight:600;}
   .bxlbl.in{color:var(--ink-3);}
 
-  .bname{font-weight:600; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  /* the QuickBooks name, the box count, the date - all secondary lines that
-     must sit UNDER their heading, never run into it */
-  .bsub{font-size:10.5px; color:var(--ink-3); display:block; margin-top:2px; line-height:1.35;
-        overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  /* Contained, so the alert is a thing sitting ON the card rather than a
-     wash covering it. "Send a reminder, don't carry it forward" said the
-     same thing on every flagged row - once read, it is noise. The invoice
-     number and the amount are the information. */
-  .bwarns{display:flex; flex-wrap:wrap; gap:5px; margin-top:6px;}
-  .bwarn{font-size:10.5px; font-weight:600; line-height:1.3; white-space:nowrap;
-         padding:3px 8px; border-radius:7px; display:inline-block;}
-  .bwarn.pay{color:var(--red-dark); background:var(--red-tint);}
-  .bwarn.box{color:var(--amber-dark); background:var(--amber-tint);}
-  /* Delivery is its own thing now - not a scrap buried in a note. */
-  .bdeliv{font-size:10.5px; font-weight:600; border-radius:9px; padding:3px 9px; white-space:nowrap;
+  /* Delivery is its own thing - not a scrap buried in a note. */
+  .bdeliv{font-size:10.5px; font-weight:600; border-radius:11px; padding:2px 8px; white-space:nowrap;
           display:inline-block; text-decoration:none;}
   .d-email{background:var(--green-tint); color:var(--green-darker);}
   .d-portal{background:var(--amber-tint); color:var(--amber-dark);
@@ -443,7 +435,7 @@
         <div class="brand-name">WASTENET</div>
         <div class="brand-div"></div>
         <div class="viewnav">
-          <button class="view-label" id="viewBtn">Accounting <span class="view-caret">&#9662;</span></button>
+          <button class="view-label" id="viewBtn">Accounting Dashboard <span class="view-caret">&#9662;</span></button>
           <div class="view-drop" id="viewDrop">
             <button class="view-opt" id="goMonitor">Box Monitor Dashboard</button>
             <button class="view-opt cur">Accounting Dashboard</button>
@@ -557,6 +549,10 @@ var state = {
   bName: "",
   bFilter: "all",
   bHistory: false,
+  bSearch: "",        // the only one of the four pages that lacked one
+  bSortKey: "name",
+  bSortDir: "asc",
+  bOpen: {},          // which billing rows are expanded - same idea as agOpen
   bMonths: [],        // months already logged
   bYear: "",
   bByYear: {},        // year -> { "yyyy-mm": rows }  - loaded once, switched free
@@ -1447,6 +1443,16 @@ function bMonthRows(){
   return { rows: [], history: true };
 }
 
+/* One row, by the name the log calls them. Wanted because a click on a
+   header has to know whether there is anything behind it to open. */
+function bRowByName(name){
+  var rows = bMonthRows().rows || [];
+  for(var i = 0; i < rows.length; i++){
+    if(rows[i].shorthand === name) return rows[i];
+  }
+  return null;
+}
+
 function renderBilling(){
   if(!state.bLoaded){
     return '<div class="empty-state"><span class="spinner"></span>Loading the log&hellip;</div>';
@@ -1480,15 +1486,56 @@ function renderBilling(){
     if(state.bFilter === "boxes")  rows = boxed;
   }
 
-  var chips = hist
-    ? '<span class="bsub" style="display:inline; color:var(--green-dark);">' +
-        all.length + ' invoices \u00b7 as billed</span>'
-    : '<button class="bchip' + (state.bFilter==="all"?" on":"") + '" data-bf="all">' +
-        'All \u00b7 ' + all.length + '</button>' +
-      '<button class="bchip' + (state.bFilter==="unpaid"?" on":"") + '" data-bf="unpaid">' +
-        'Unpaid \u00b7 ' + unpaid.length + '</button>' +
-      '<button class="bchip' + (state.bFilter==="boxes"?" on":"") + '" data-bf="boxes">' +
-        'Box changed \u00b7 ' + boxed.length + '</button>';
+  /* Billing was the only one of the four pages with no search box - and the
+     only one with 53 rows. Finding Gaylord meant scrolling for it. */
+  if(state.bSearch){
+    var q = state.bSearch.toLowerCase();
+    rows = rows.filter(function(r){
+      return String(r.shorthand).toLowerCase().indexOf(q) !== -1 ||
+             String(r.customer || "").toLowerCase().indexOf(q) !== -1 ||
+             String(r.invoiceNo).toLowerCase().indexOf(q) !== -1;
+    });
+  }
+
+  /* Sorting the flag column is what makes the filter chips optional: one
+     click and every unpaid customer sits together at the top. */
+  var rank = function(r){
+    if(r.unpaid) return 3;
+    if(r.neverBilled) return 2;
+    if(r.boxChange) return 1;
+    return 0;
+  };
+  var dir = state.bSortDir === "asc" ? 1 : -1;
+  rows = rows.slice().sort(function(a, b){
+    var av, bv;
+    switch(state.bSortKey){
+      case "inv":    av = Number(a.invoiceNo) || 0;  bv = Number(b.invoiceNo) || 0;  break;
+      case "amount": av = Number(a.amount) || 0;     bv = Number(b.amount) || 0;     break;
+      case "flag":   av = rank(a);                   bv = rank(b);                   break;
+      default:       av = String(a.shorthand).toLowerCase();
+                     bv = String(b.shorthand).toLowerCase();
+    }
+    if(av < bv) return -1 * dir;
+    if(av > bv) return  1 * dir;
+    return 0;
+  });
+
+  var caret = function(k){
+    if(state.bSortKey !== k) return "";
+    return ' <span class="sc">' + (state.bSortDir === "asc" ? "\u25B2" : "\u25BC") + '</span>';
+  };
+
+  /* Only the drafted month can be filtered - a past month is a record, and
+     hiding rows of a record is just losing them. */
+  var chips = hist ? '' :
+      '<div class="bfilter">' +
+        '<button class="bchip' + (state.bFilter==="all"?" on":"") + '" data-bf="all">' +
+          'All \u00b7 ' + all.length + '</button>' +
+        '<button class="bchip' + (state.bFilter==="unpaid"?" on":"") + '" data-bf="unpaid">' +
+          'Unpaid \u00b7 ' + unpaid.length + '</button>' +
+        '<button class="bchip' + (state.bFilter==="boxes"?" on":"") + '" data-bf="boxes">' +
+          'Box \u00b7 ' + boxed.length + '</button>' +
+      '</div>';
 
   /* A quarterly customer who isn't due doesn't appear in the list - and a
      name simply missing looks like something went wrong. So say it. */
@@ -1501,154 +1548,166 @@ function renderBilling(){
       }).join(' \u00b7 ') + '</div>';
   }
 
+  var head = '<div class="bhead">' +
+      '<span class="agcaret"></span>' +
+      '<span class="bname" data-bsort="name">Name' + caret("name") + '</span>' +
+      '<span class="bc-inv" data-bsort="inv">Invoice' + caret("inv") + '</span>' +
+      '<span class="bc-mon">Month</span>' +
+      '<span class="bc-amt" data-bsort="amount">Amount' + caret("amount") + '</span>' +
+      '<span class="bc-del">Send</span>' +
+      '<span class="bc-flag"' + (hist ? '' : ' data-bsort="flag"') + '>' +
+        (hist ? '' : 'Flags' + caret("flag")) + '</span>' +
+    '</div>';
+
   var body;
   if(!rows.length){
-    body = skip + '<div class="empty-state">Nothing logged for this month.</div>';
-  } else {
-    var head = '<div class="bhead">' +
-        '<div class="bcell-name">Name</div>' +
-        '<div class="bcell-inv">Invoice</div>' +
-        '<div class="bcell-mon">Month</div>' +
-        '<div class="bcell-amt">Amount</div>' +
-        '<div class="bcell-del">Send</div>' +
-        (hist ? '' : '<div class="bcell-tog"></div>') +
+    body = skip + head + '<div class="empty-state">' +
+      (state.bSearch ? 'No customer matches that.' : 'Nothing logged for this month.') +
       '</div>';
+  } else {
+    body = skip + head + rows.map(function(r){
 
-    body = skip + head + '<div class="bcards">' +
-      rows.map(function(r){
-        var cls = r.unpaid ? " unpaid" : (r.boxChange ? " boxchg" : "");
+      /* A past month is a RECORD. There is nothing to type into it, so the
+         only thing a row can open onto is the note it was billed with. No
+         note, no caret - a caret that opens an empty panel is a lie about
+         there being something there. */
+      var hasDetail = hist ? !!(r.notes) : true;
+      var open = (hasDetail && state.bOpen[r.shorthand]) ? " open" : "";
 
-        var w = [];
-        if(r.unpaid){
-          w.push('<span class="bwarn pay">' + esc(r.lastDoc) + ' unpaid \u00b7 $' +
-                 fmt(r.unpaidAmt) + '</span>');
-        }
-        if(r.boxChange){
-          w.push('<span class="bwarn box">Boxes ' + r.boxChange.from + ' \u2192 ' +
-                 r.boxChange.to + ' \u2014 check the amount</span>');
-        }
-        if(r.neverBilled){
-          w.push('<span class="bwarn box">Never billed \u2014 no history to copy</span>');
-        }
-        var warn = w.length ? '<div class="bwarns">' + w.join("") + '</div>' : '';
+      /* The same chips Receivables uses for aging. Red already means money
+         that is late on that page, so it means the same thing here rather
+         than becoming a second private language. */
+      var flags = "";
+      if(r.unpaid){
+        flags += '<span class="chip chip-90" title="$' + fmt(r.unpaidAmt) + ' still owed">' +
+                 esc(r.lastDoc) + ' unpaid</span> ';
+      }
+      if(r.boxChange){
+        flags += '<span class="chip chip-30">' + r.boxChange.from + '\u2192' +
+                 r.boxChange.to + '</span>';
+      }
+      if(r.neverBilled){
+        flags += '<span class="chip chip-30">never billed</span>';
+      }
 
-        /* Delivery has its own column. A portal is the one that costs real
-           time to find, so it carries its link. */
-        var d = (r.delivery || "email").toLowerCase();
-        var deliv;
-        if(d === "portal" && r.portalUrl){
-          deliv = '<a class="bdeliv d-portal" href="' + esc(r.portalUrl) + '" ' +
-                  'target="_blank" rel="noopener" title="' + esc(r.portalUrl) + '">portal \u2197</a>';
-        } else if(d === "portal"){
-          deliv = '<span class="bdeliv d-portal" style="cursor:default;">portal</span>';
-        } else if(d === "mail"){
-          deliv = '<span class="bdeliv d-mail">mail</span>';
-        } else {
-          deliv = '<span class="bdeliv d-email">email</span>';
-        }
+      var d = (r.delivery || "email").toLowerCase();
+      var deliv;
+      if(d === "portal" && r.portalUrl){
+        deliv = '<a class="bdeliv d-portal" href="' + esc(r.portalUrl) + '" ' +
+                'target="_blank" rel="noopener" data-stop="1" ' +
+                'title="' + esc(r.portalUrl) + '">portal \u2197</a>';
+      } else if(d === "portal"){
+        deliv = '<span class="bdeliv d-portal" style="cursor:default;">portal</span>';
+      } else if(d === "mail"){
+        deliv = '<span class="bdeliv d-mail">mail</span>';
+      } else {
+        deliv = '<span class="bdeliv d-email">email</span>';
+      }
 
-        var note = r.notes || "";
-        var fdesc = r.feeDesc || "";
+      /* "Haldor Topsoe / Haldor Topsoe" is a line that says nothing. */
+      var dba = (r.customer &&
+                 r.customer.trim().toLowerCase() !== String(r.shorthand).trim().toLowerCase())
+        ? '<span class="dba">' + esc(r.customer) + '</span>' : '';
 
-        /* "Haldor Topsoe / Haldor Topsoe" is a line that says nothing. The
-           QuickBooks name earns its row only when it differs from the one
-           Kim actually calls them. */
-        var sub = (r.customer &&
-                   r.customer.trim().toLowerCase() !== String(r.shorthand).trim().toLowerCase())
-          ? '<span class="bsub">' + esc(r.customer) + '</span>' : '';
+      var note  = r.notes || "";
+      var fdesc = r.feeDesc || "";
 
-        /* Open on its own when there is something to see. Nothing is ever
-           hidden behind a click - only blanks are. */
-        var hasExtra = !!(r.fee || note || fdesc);
+      /* The reason, said ONCE, to the person who opened the row - rather
+         than shouted on every one of fifty rows in the list. */
+      var why = "";
+      if(r.unpaid){
+        why += '<div class="bwhy pay">Invoice <b>' + esc(r.lastDoc) + '</b>' +
+               (r.lastDate ? ' from <b>' + esc(usDate(r.lastDate)) + '</b>' : '') +
+               ' is still open \u2014 <b>$' + fmt(r.unpaidAmt) + '</b> outstanding. ' +
+               'Send a reminder; do not carry it forward into this invoice.</div>';
+      }
+      if(r.boxChange){
+        why += '<div class="bwhy box">The last invoice billed <b>' + r.boxChange.from +
+               '</b> boxes; the newest shows <b>' + r.boxChange.to + '</b>. ' +
+               'Check the amount before this goes out.</div>';
+      }
+      if(r.neverBilled){
+        why += '<div class="bwhy box">Never billed \u2014 there is no history to copy ' +
+               'an amount from. This one has to be typed.</div>';
+      }
 
-        return '<div class="bcard' + cls + '">' +
-          '<div class="bmain">' +
-            '<div class="bcell-name">' +
-              '<span class="bname">' + esc(r.shorthand) + '</span>' + sub +
-            '</div>' +
-            /* A logged invoice exists in QuickBooks, so it opens. A drafted
-               one does not exist yet - it will once the billing is done - so
-               it stays plain text rather than a link to nothing. */
-            '<div class="bcell-inv"><span class="binv">' +
-              (hist ? invLink(r.invoiceNo, "x") : esc(r.invoiceNo)) +
-            '</span></div>' +
-            '<div class="bcell-mon">' + esc(r.serviceMonth) +
-              (r.quarterly ? '<span class="bsub">quarterly</span>' : '') + '</div>' +
-            '<div class="bcell-amt">' +
-              '<span class="bamt">' +
-                (r.amount == null ? '\u2014' : '$' + fmt(r.amount)) + '</span>' +
-              (r.boxes ? '<span class="bsub">' + r.boxes + ' box' +
-                         (r.boxes > 1 ? 'es' : '') + '</span>' : '') +
-              (!hist && r.fee
-                ? '<div class="bbase">$' + fmt(r.baseAmount) + ' + $' + fmt(r.fee) + '</div>'
-                : '') +
-            '</div>' +
-            '<div class="bcell-del">' + deliv + '</div>' +
-            (hist ? '' :
-              '<div class="bcell-tog">' +
-                '<button class="btog' + (hasExtra ? ' on' : '') + '" ' +
-                  'data-btog="' + esc(r.shorthand) + '" ' +
-                  'title="One-time fee and note" ' +
-                  'aria-label="One-time fee and note for ' + esc(r.shorthand) + '">' +
-                  (hasExtra ? '\u2212' : '+') +
-                '</button>' +
-              '</div>') +
+      var detail;
+      if(hist){
+        detail = note ? '<div class="bwhy"><b>Billed with this note:</b><br>' +
+                        '<span class="bnote">' + esc(note) + '</span></div>' : '';
+      } else {
+        detail = why +
+          /* The line the CUSTOMER reads. */
+          '<div class="bxline">' +
+            '<span class="bxlbl out">One-time fee $</span>' +
+            '<input class="bfee" type="number" step="1" min="0" ' +
+              'data-fee="' + esc(r.shorthand) + '" ' +
+              'value="' + (r.fee ? r.fee : '') + '" placeholder="0" ' +
+              'title="One-time fee \u2014 a replacement monitor, say">' +
+            '<input class="bfdesc" type="text" ' +
+              'data-fdesc="' + esc(r.shorthand) + '" ' +
+              'value="' + esc(fdesc) + '" ' +
+              'placeholder="What the fee is for \u2014 goes on the invoice" ' +
+              'title="This becomes the line-item text on the customer\'s invoice.">' +
           '</div>' +
-          warn +
-          /* A past month is a record and stays read-only - its note is shown,
-             not offered for typing. */
-          (hist
-            ? (note ? '<div class="bextra open" style="border-top:0.5px solid var(--line);">' +
-                      '<span class="bnote">' + esc(note) + '</span></div>' : '')
-            : '<div class="bextra' + (hasExtra ? ' open' : '') + '" ' +
-                'data-bx="' + esc(r.shorthand) + '">' +
-                /* The line the CUSTOMER reads. */
-                '<div class="bxline">' +
-                  '<span class="bxlbl out">One-time fee $</span>' +
-                  '<input class="bfee" type="number" step="1" min="0" ' +
-                    'data-fee="' + esc(r.shorthand) + '" ' +
-                    'value="' + (r.fee ? r.fee : '') + '" placeholder="0" ' +
-                    'title="One-time fee \u2014 a replacement monitor, say">' +
-                  '<input class="bfdesc" type="text" ' +
-                    'data-fdesc="' + esc(r.shorthand) + '" ' +
-                    'value="' + esc(fdesc) + '" ' +
-                    'placeholder="What the fee is for \u2014 goes on the invoice" ' +
-                    'title="This becomes the line-item text on the customer\'s invoice.">' +
-                '</div>' +
-                /* The line only WasteNet reads. */
-                '<div class="bxline">' +
-                  '<span class="bxlbl in">Internal</span>' +
-                  '<textarea class="bedit" rows="1" data-note="' + esc(r.shorthand) + '" ' +
-                    'title="Internal \u2014 stays in the log, never reaches the customer" ' +
-                    'placeholder="Internal note \u2014 not sent to the customer">' + esc(note) + '</textarea>' +
-                '</div>' +
-              '</div>') +
+          /* The line only WasteNet reads. */
+          '<div class="bxline">' +
+            '<span class="bxlbl in">Internal</span>' +
+            '<textarea class="bedit" rows="1" data-note="' + esc(r.shorthand) + '" ' +
+              'title="Internal \u2014 stays in the log, never reaches the customer" ' +
+              'placeholder="Internal note \u2014 not sent to the customer">' + esc(note) + '</textarea>' +
+          '</div>' +
+          (r.fee
+            ? '<div class="bbase" style="text-align:left; margin-top:8px;">Invoice total: $' +
+              fmt(r.baseAmount) + ' monitoring + $' + fmt(r.fee) + ' one-time = $' +
+              fmt(r.amount) + '</div>'
+            : '');
+      }
+
+      return '<div class="agrow' + open + '" data-brow="' + esc(r.shorthand) + '">' +
+          '<div class="aghead"' + (hasDetail ? '' : ' style="cursor:default"') + '>' +
+            '<span class="agcaret">' + (hasDetail ? '\u25B6' : '') + '</span>' +
+            '<span class="bname">' + esc(r.shorthand) + dba + '</span>' +
+            '<span class="bc-inv">' +
+              (hist ? invLink(r.invoiceNo, "x") : esc(r.invoiceNo)) + '</span>' +
+            '<span class="bc-mon">' + esc(r.serviceMonth) +
+              (r.quarterly ? ' \u00b7 qtr' : '') + '</span>' +
+            '<span class="bc-amt">' +
+              (r.amount == null ? '\u2014' : '$' + fmt(r.amount)) +
+              (r.boxes ? ' <span class="bx">\u00b7 ' + r.boxes + '</span>' : '') + '</span>' +
+            '<span class="bc-del">' + deliv + '</span>' +
+            '<span class="bc-flag">' + flags + '</span>' +
+          '</div>' +
+          '<div class="agdetail">' + detail + '</div>' +
         '</div>';
-      }).join("") + '</div>';
+    }).join("");
   }
 
-  /* The invoice range, for a past month as much as a drafted one. A record
-     should say what it covers. */
-  var right = '';
-  if(hist){
-    var ns = all.map(function(r){ return Number(r.invoiceNo) || 0; })
-                .filter(Boolean).sort(function(a,b){ return a - b; });
-    if(ns.length){
-      right = '<span class="bsub" style="display:inline;">invoices ' +
-              ns[0] + '\u2013' + ns[ns.length - 1] + '</span>';
-    }
-  } else if(state.bDraft){
-    right = '<span class="bsub" style="display:inline;">invoices ' + state.bDraft.startNumber +
-            '\u2013' + (state.bDraft.startNumber + all.length - 1) + '</span>';
-  }
+  /* The running total, in the same place and the same words the other three
+     pages use. The invoice range folds into it rather than costing its own
+     slot on the right. */
+  var total = rows.reduce(function(s, r){ return s + (Number(r.amount) || 0); }, 0);
+
+  var ns = all.map(function(r){ return Number(r.invoiceNo) || 0; })
+              .filter(Boolean).sort(function(a, b){ return a - b; });
+  var range = ns.length
+    ? ' \u00b7 #' + ns[0] + (ns.length > 1 ? '\u2013' + ns[ns.length - 1] : '')
+    : '';
+
+  var title = '<div class="fbar-t">' + monthLabel(state.bMonth) +
+    ' <span class="amt">\u00b7 ' + rows.length + ' invoice' + (rows.length === 1 ? '' : 's') +
+    ' \u00b7 ' + moneyShort(total) + range +
+    (hist ? ' \u00b7 as billed' : '') + '</span></div>';
 
   return '<div class="folder">' +
       '<div class="pinhead" id="pinhead">' +
         tabs +
         '<div class="fbar">' +
           '<select class="yrsel" id="bYr" aria-label="Year">' + yrOpts + '</select>' +
-          '<div class="bfilter">' + chips + '</div>' +
-          '<div class="fbar-right" style="display:flex; gap:7px; align-items:center;">' + right + '</div>' +
+          title +
+          chips +
+          '<input class="search" id="bSearch" type="text" ' +
+            'placeholder="Search customer or #" value="' + esc(state.bSearch) + '">' +
         '</div>' +
       '</div>' +
       '<div class="folder-lower" style="padding:2px 14px 8px;">' + body + '</div>' +
@@ -1677,6 +1736,8 @@ function loadBilling(year){
     state.bNotDue     = (data.draft && data.draft.notDue) || [];
     state.bLoaded     = true;
     state.bFilter     = "all";
+    state.bSearch     = "";
+    state.bOpen       = {};
 
     /* Land on the month that still needs billing - that is the one being
        worked on. Failing that, the latest month with a log. */
@@ -1697,6 +1758,8 @@ function wireBilling(){
       if(m === state.bMonth) return;
       state.bMonth = m;
       state.bFilter = "all";
+      state.bSearch = "";
+      state.bOpen = {};      // a row opened in July is not a row opened in June
       renderSummary();
       renderBody();
     };
@@ -1730,18 +1793,37 @@ function wireBilling(){
     };
   });
 
-  /* The fee and note row. Opening it puts the cursor in the fee box - the
-     click was the intent to type something. */
-  document.querySelectorAll("[data-btog]").forEach(function(el){
+  /* Sortable headers, same as Receivables and Payments. Clicking the flag
+     column is the fastest way to bring every unpaid customer together. */
+  document.querySelectorAll("[data-bsort]").forEach(function(el){
     el.onclick = function(){
-      var nm = el.getAttribute("data-btog");
-      var row = document.querySelector('[data-bx="' + nm.replace(/"/g,'\\"') + '"]');
-      if(!row) return;
-      var open = row.classList.toggle("open");
-      el.classList.toggle("on", open);
-      el.textContent = open ? "\u2212" : "+";
-      if(open){
-        var fee = row.querySelector(".bfee");
+      var k = el.getAttribute("data-bsort");
+      if(state.bSortKey === k){
+        state.bSortDir = state.bSortDir === "asc" ? "desc" : "asc";
+      } else {
+        state.bSortKey = k;
+        /* Names read A-Z; money and flags are wanted biggest-first. */
+        state.bSortDir = (k === "name") ? "asc" : "desc";
+      }
+      renderBody();
+    };
+  });
+
+  /* The row opens the way an agent's row opens - same class, same caret,
+     same green panel. A portal link inside the row is a link, not a
+     toggle, so it has to stop the click from reaching the header. */
+  document.querySelectorAll(".agrow[data-brow]").forEach(function(el){
+    var head = el.querySelector(".aghead");
+    if(!head) return;
+    head.onclick = function(ev){
+      if(ev.target.closest && ev.target.closest("[data-stop]")) return;
+      var k = el.getAttribute("data-brow");
+      var row = bRowByName(k);
+      if(state.bHistory && !(row && row.notes)) return;   // nothing to open
+      state.bOpen[k] = !state.bOpen[k];
+      el.classList.toggle("open");
+      if(state.bOpen[k] && !state.bHistory){
+        var fee = el.querySelector(".bfee");
         if(fee) fee.focus();
       }
     };
@@ -1793,6 +1875,19 @@ function wireBilling(){
     el.onblur = function(){ saveEdit(el.getAttribute("data-fdesc"), el); };
     el.onkeydown = function(e){ if(e.key === "Enter") el.blur(); };
   });
+
+  /* Billing's search, same behaviour as the Payments one: re-render on every
+     keystroke, then put the cursor back - the input is destroyed by the
+     redraw that the keystroke caused. */
+  var bs = document.getElementById("bSearch");
+  if(bs){
+    bs.oninput = function(){
+      state.bSearch = bs.value;
+      renderBody();
+      var again = document.getElementById("bSearch");
+      if(again){ again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+    };
+  }
 
   document.querySelectorAll("[data-fee]").forEach(function(el){
     el.onblur = function(){
