@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-monitor · build 2026-07-12-b · shared shape tokens; schedule service is one grouped list -->
+<!-- wastenet-monitor · build 2026-07-13-a · batch only when >1 box per hauler; matched top margin -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -41,6 +41,10 @@
     font-family:var(--font); background:var(--page); color:var(--ink);
     font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased;
   }
+  /* Identical in wastenet-accounting.html. The two pages sat at different
+     distances from the top of the window - 20px here, 16px there - which is
+     the sort of thing you cannot unsee once you have switched between them
+     twice. */
   .wrap{max-width:820px; margin:0 auto; padding:20px 16px 80px;}
 
   /* header bar (Option A) */
@@ -832,7 +836,13 @@ function fillIndicator(b, fc, pctW, trigL){
 }
 
 /* ---------- row html ---------- */
-function rowHtml(b, missed, bucketTag){
+/* showHaul: put the hauler code in the row's own meta line.
+   It used to be welded to bucketTag - the search-results flag - so the only
+   way to show a hauler was to also stamp the row with a "schedule service"
+   chip it did not need. A box standing on its own with no group header above
+   it still has to say who hauls it; that is the one fact the whole page
+   exists to answer. So the two are now separate switches. */
+function rowHtml(b, missed, bucketTag, showHaul){
   var fc = fillColor(b.pct, b.trig);
   var ec = edgeColor(b.pct, b.trig);
   var pctW = b.pct==null ? 0 : Math.max(0, Math.min(100, b.pct));
@@ -851,7 +861,7 @@ function rowHtml(b, missed, bucketTag){
     metaInner = '<span class="missed-flag">⚠ missed pickup'+(b.puDate?' · expected '+esc(shortDay(b.puDate)):'')+'</span>' + bTag;
   } else {
     metaInner = '<span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span>'+
-      (bucketTag? ' · '+esc(b.haulCode) : '')+' · '+esc(b.channel)+'</span>' + bTag + stepsHtml(b) +
+      ((bucketTag || showHaul) ? ' · '+esc(b.haulCode) : '')+' · '+esc(b.channel)+'</span>' + bTag + stepsHtml(b) +
       (onSchedulePage() ? suggestedChipHtml(b) : "") +
       (alsoStale(b) ? '<span class="also-stale-tag">also not cycling</span>' : '');
   }
@@ -1554,26 +1564,34 @@ function handsOffRowHtml(b){
 
 /* One hauler, one group - inside the SAME .plain-list container every other
    bucket uses. This used to be a free-standing folder card, and a hauler with
-   only ONE box fell through to a bare .solo card instead. Two consequences,
-   one of them not cosmetic:
+   only ONE box fell through to a bare .solo card instead, which named no
+   hauler at all: the single fact that decides who you telephone was visible
+   for some boxes and invisible for others, depending on how many boxes that
+   hauler happened to have that day.
 
-     - the page looked like a different product from every other bucket, and
-     - a solo card never named the hauler at all. The single fact that decides
-       who you telephone was visible for some boxes and invisible for others,
-       depending on how many boxes that hauler happened to have today.
+   But a "group" of one is not a group. A header saying "1 box · email" over a
+   single row, with a date chip repeating the date already sitting on that
+   row, is chrome pretending to be information. So a hauler is only batched
+   when there is more than one box to batch - and a lone box carries its own
+   hauler code in its meta line instead.
 
    The old date tabs grouped by b.puDate - the pickup date CES already holds.
    But a box is ON this list precisely because its pickup has NOT been
    arranged, so puDate is empty for nearly all of them and every box collapsed
-   into a single "Needs scheduling" tab. They were filtering on a field that is
-   blank here, while the date that actually matters - suggestedPickupFor(), the
-   one you read down the phone - did no work at all.
+   into a single "Needs scheduling" tab. They filtered on a field that is blank
+   here, while the date that actually matters - suggestedPickupFor(), the one
+   you read down the phone - did no work at all.
 
-   So: group by hauler, order within by that suggested date, and summarise the
+   So: batch by hauler, order within by that suggested date, summarise the
    dates in the header as counts. Nothing is hidden. You read a hauler's whole
    list while you are on the call with them, rather than tabbing between dates
    mid-sentence. */
 function haulGroupHtml(haulCode, boxes){
+  /* A group of one is not a group. No header - the row says who hauls it. */
+  if(boxes.length === 1){
+    return rowHtml(boxes[0], isMissed(boxes[0]), null, true);
+  }
+
   var chanLabel = boxes[0].channel;
 
   /* Count the suggested dates, and sort the rows by them. Boxes with no
@@ -1584,7 +1602,7 @@ function haulGroupHtml(haulCode, boxes){
     var sug = suggestedPickupFor(b);
     var key = sug ? sug.value : "__none__";
     if(!counts[key]){
-      counts[key] = { label: sug ? sug.label : "No rule", n:0, raw: sug ? sug.value : "" };
+      counts[key] = { label: sug ? sug.label : "No rule", n:0 };
       order.push(key);
     }
     counts[key].n++;
@@ -1612,8 +1630,7 @@ function haulGroupHtml(haulCode, boxes){
   return '' +
     '<div class="haul-head">' +
       '<span class="haul-code">' + esc(haulCode) + '</span>' +
-      '<span class="haul-meta">' + boxes.length + ' box' + (boxes.length > 1 ? 'es' : '') +
-        ' \u00b7 ' + esc(chanLabel) + '</span>' +
+      '<span class="haul-meta">' + boxes.length + ' boxes \u00b7 ' + esc(chanLabel) + '</span>' +
       '<span class="haul-spacer"></span>' +
       chips +
     '</div>' +

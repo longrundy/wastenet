@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-accounting · build 2026-07-12-e · shared shape tokens with the monitor -->
+<!-- wastenet-accounting · build 2026-07-13-a · top margin matched to the monitor -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -43,7 +43,11 @@
     font-family:var(--font); background:var(--page); color:var(--ink);
     font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased;
   }
-  .wrap{max-width:820px; margin:0 auto; padding:16px 16px 60px;}
+  /* Identical in wastenet-monitor.html. The two pages sat at different
+     distances from the top of the window - 16px here, 20px there - which is
+     the sort of thing you cannot unsee once you have switched between them
+     twice. */
+  .wrap{max-width:820px; margin:0 auto; padding:20px 16px 80px;}
 
   /* ---- top card: brand + sections + compact scorecard ---- */
   /* The top card scrolls away NORMALLY - it is not sticky, and it never
