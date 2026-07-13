@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-monitor · build 2026-07-13-c · (i) on every bucket + Contacts directory -->
+<!-- wastenet-monitor · build 2026-07-13-d · Contacts rebuilt: focus-safe search, add with scope -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -90,45 +90,94 @@
   .lg-foot a:hover{text-decoration:underline;}
 
   /* ---- contacts: a LENS on Master Box List G/H/I, never a second copy ---- */
-  .cd-head{display:flex; align-items:center; gap:8px; padding:8px 14px;
+  .cbar{padding:12px 14px; margin-bottom:12px;}
+  .cbar-top{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+  .cbar-t{font-size:13.5px; font-weight:600;}
+  .cbar-sub{font-size:11.5px; color:var(--ink-3);}
+  .cbar-row{display:flex; align-items:center; gap:6px; flex-wrap:wrap;}
+  .cspacer{flex:1 1 auto;}
+
+  .cchip{font-size:11px; font-weight:500; color:var(--ink); background:var(--card);
+         border:0.5px solid var(--line-strong); border-radius:var(--r-pill);
+         padding:5px 12px; cursor:pointer; font-family:var(--font); white-space:nowrap;
+         transition:background .12s, border-color .12s;}
+  .cchip:hover:not(.on){background:var(--panel);}
+  .cchip.on{background:var(--green); border-color:var(--green); color:#fff;}
+  .cchip-n{opacity:0.65; margin-left:2px;}
+
+  .csearch{display:flex; align-items:center; gap:6px; height:var(--h-ctl);
+           padding:0 10px; border:0.5px solid var(--green-border);
+           border-radius:var(--r-ctl); background:var(--card); width:240px; box-sizing:border-box;}
+  .csearch:focus-within{border-color:var(--green);}
+  .csearch input{border:none; outline:none; background:transparent; font-size:12px;
+                 color:var(--ink); flex:1; height:100%; font-family:inherit; min-width:0;}
+
+  /* add somebody. The SCOPE is the point: office@wastenetinc.com belongs on every
+     box, and adding it 478 times is not a feature, it is a punishment. */
+  .cadd{margin-top:11px; padding-top:11px; border-top:0.5px solid var(--line);}
+  .cadd-row{display:flex; align-items:center; gap:6px; margin-bottom:7px;}
+  .cadd-in{height:var(--h-ctl); padding:0 10px; font-size:12px; flex:1; min-width:0;
+           border:0.5px solid var(--line-strong); border-radius:var(--r-ctl);
+           font-family:var(--font); color:var(--ink); background:var(--card);
+           outline:none; box-sizing:border-box;}
+  .cadd-in:focus{border-color:var(--green);}
+  .cadd-box{max-width:110px; flex:0 0 110px;}
+  .cadd-sel{height:var(--h-ctl); padding:0 8px; font-size:12px; flex:0 0 auto;
+            border:0.5px solid var(--line-strong); border-radius:var(--r-ctl);
+            font-family:var(--font); color:var(--ink); background:var(--card);
+            cursor:pointer; outline:none; box-sizing:border-box;}
+  .cadd-note{font-size:11px; line-height:1.6; color:var(--ink-3);}
+
+  .cd-head{display:flex; align-items:center; gap:8px; padding:7px 14px;
            background:var(--green-tint-2); border-bottom:0.5px solid var(--green-border);
            border-top:0.5px solid var(--green-border);}
-  .cd-dom{font-size:12.5px; font-weight:600; color:var(--green-darker);}
+  .plain-list > .cd-head:first-child{border-top:none;}
+  .cd-dom{font-size:12px; font-weight:600; color:var(--green-darker);}
   .cd-n{font-size:11px; color:var(--green-dark);}
 
-  .crow{border-bottom:0.5px solid var(--line); cursor:pointer;}
+  .crow{border-bottom:0.5px solid var(--line);}
   .crow:last-child{border-bottom:none;}
-  .crow:hover{background:var(--panel);}
   .crow.open{background:var(--green-tint-2);}
-  .cmain{display:flex; align-items:center; gap:8px; padding:10px 16px;}
+  .cmain{display:flex; align-items:center; gap:10px; padding:10px 14px; cursor:pointer;}
+  .crow:not(.open) .cmain:hover{background:var(--panel);}
+  .cdisc{width:26px; height:26px; flex:0 0 26px; border-radius:var(--r-pill);
+         background:var(--green-tint); color:var(--green-darker); font-size:10px;
+         font-weight:600; display:flex; align-items:center; justify-content:center;}
+  .crow.open .cdisc{background:var(--green); color:#fff;}
   .cmail{font-size:13px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .cat{color:var(--ink-3);}
-  .cspacer{flex:1 1 auto;}
-  .crole{font-size:10px; font-weight:600; padding:2px 7px; border-radius:var(--r-pill); white-space:nowrap;}
+  .crole{font-size:10px; font-weight:600; padding:2px 8px; border-radius:var(--r-pill); white-space:nowrap;}
   .crole-hauler{background:var(--green-tint); color:var(--green-darker);}
   .crole-customer{background:#E7EEF6; color:#274766;}
   .crole-staff{background:#F5E9D6; color:var(--amber-dark);}
-  .cboxn{font-size:11px; color:var(--ink-3); width:64px; text-align:right; flex:0 0 64px;}
+  .cboxn{font-size:11px; color:var(--ink-3); width:58px; flex:0 0 58px; text-align:right;}
 
-  .cdetail{padding:2px 16px 14px 16px;}
-  .cd-t{font-size:11.5px; color:var(--ink-2); margin-bottom:7px;}
-  .cboxes{border:0.5px solid var(--line-strong); border-radius:var(--r-ctl);
-          background:var(--card); overflow:hidden;}
+  .cdetail{padding:0 14px 14px 50px;}
+  /* Three numbers, not a wall of box ids. David is on 439 boxes and the list of
+     them answers no question anybody actually has. */
+  .cstats{display:flex; gap:8px; margin-bottom:10px;}
+  .cstat{flex:1; background:var(--card); border:0.5px solid var(--line);
+         border-radius:var(--r-ctl); padding:9px 11px;}
+  .cstat-n{font-size:18px; font-weight:600; color:var(--green-darker); line-height:1.2;}
+  .cstat-l{font-size:11px; color:var(--ink-2);}
+
+  .cboxes{background:var(--card); border:0.5px solid var(--line);
+          border-radius:var(--r-ctl); overflow:hidden;}
   .cbox{display:flex; align-items:center; gap:9px; padding:7px 11px;
         border-bottom:0.5px solid var(--line); font-size:12px;}
   .cbox:last-child{border-bottom:none;}
-  .cbox-id{font-weight:600; color:var(--green-dark); width:52px; flex:0 0 52px;}
+  .cbox-id{font-weight:600; color:var(--green-dark); width:44px; flex:0 0 44px;}
   .cbox-site{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .cbox-haul{font-size:11px; color:var(--ink-3); width:80px; flex:0 0 80px; text-align:right;}
+  .cbox-haul{font-size:11px; color:var(--ink-3); width:70px; flex:0 0 70px; text-align:right;}
   .cbox-x{font-size:11px; color:var(--red-dark); background:transparent; border:none;
-          cursor:pointer; padding:2px 5px; border-radius:var(--r-input); flex:0 0 auto;}
+          cursor:pointer; padding:2px 5px; border-radius:var(--r-input); flex:0 0 auto;
+          font-family:var(--font);}
   .cbox-x:hover{background:var(--red-tint);}
-  .cd-act{margin-top:9px;}
-  /* Changing an address EVERYWHERE is the operation people actually need - a
-     hauler's rep leaves and forty rows are suddenly wrong. It is also the one
-     that can quietly wreck the box list, so it says how many rows it will touch
-     before it touches any of them. */
-  .cd-warn{margin-top:9px; font-size:11px; line-height:1.6; color:var(--ink-3);}
+  .cbox-more{width:100%; padding:8px 11px; font-size:11.5px; color:var(--ink-2);
+             background:var(--panel); border:none; border-top:0.5px solid var(--line);
+             cursor:pointer; font-family:var(--font);}
+  .cbox-more:hover{background:var(--green-tint-2); color:var(--green-darker);}
+  .cd-act{margin-top:10px;}
 
   .wrap{max-width:820px; margin:0 auto; padding:20px 16px 80px;}
 
@@ -539,7 +588,7 @@ function lockOut(msg){
 
 var state = { rows: [], scanTitle: "", openId: null, staleOpen: false, view: "action",
   // contacts - a LENS on Master Box List G/H/I, never a second copy
-  cDir: [], cLoaded: false, cSearch: "", cRole: "all", cOpen: null, cRaw: null,
+  cDir: [], cLoaded: false, cSearch: "", cRole: "all", cOpen: null, cShowAll: null, cRaw: null,
   tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, staffNotesById: {}, staffNotesUpdById: {}, emptyMarkedById: {}, notesOpenId: null, schedTab: null, clearTab: null };
 
 /* ---------- JSONP ---------- */
@@ -739,34 +788,38 @@ function closeLogic(){ document.getElementById("logicModal").classList.remove("s
 document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeLogic(); });
 
 /* ==================================================================
-   CONTACTS
+   CONTACTS  -  every address WasteNet has, in one place
 
-   Every email address WasteNet has, in one place, searchable.
-
-   ------------------------------------------------------------------
    WHERE THE DATA LIVES - and where it does NOT
 
-   Contacts are stored on the Master Box List, three columns:
+   Master Box List, three columns, semicolon-separated, PER BOX:
 
-       G  Haulers          the people you telephone to arrange a pickup
+       G  Haulers          who you telephone to arrange a pickup
        H  Customers        the site
        I  WasteNet staff   whoever here is on the thread
 
-   Each cell holds semicolon-separated addresses, PER BOX. So the same
-   hauler's address is written out again on every box they service - it
-   might appear on forty rows.
+   So the same hauler's address is written out again on every box they
+   service. David appears on 439 rows. Until now there was no way to ask
+   "who is Samantha, and which boxes is she on?" without reading 478 rows
+   by eye. That is what this page is for.
 
-   That is exactly why this page had to exist: there was no way to ask
-   "who is Samantha, and which boxes is she on?" without reading 445
-   rows by eye.
+   IT STORES NOTHING. It reads those three columns, turns them inside out
+   - grouping by PERSON instead of by BOX - and writes every edit straight
+   back. A second contacts table would have to be kept in step with the
+   first, and a thing that has to be kept in step eventually is not.
 
-   THIS PAGE DOES NOT STORE CONTACTS. It reads those three columns,
-   turns them inside out - grouping by PERSON instead of by BOX - and
-   shows the result. Every edit writes straight back to G/H/I.
+   ------------------------------------------------------------------
+   TWO THINGS THE FIRST VERSION GOT WRONG
 
-   A second contacts table would have to be kept in step with the first,
-   and a thing that has to be kept in step eventually is not. There is
-   one copy of this data and it is in the sheet the scanner reads.
+   1. It listed all 439 of David's boxes, each with a Remove button.
+      Nobody is going to click Remove four hundred times. That is not
+      information, it is noise in the shape of information. What you want
+      to know is: how many, which haulers, and can I change his address in
+      one go. So: three numbers, the first few boxes, the rest on request.
+
+   2. The search lost focus on every keystroke, because the whole panel
+      was re-rendered and the input destroyed along with it. The header is
+      now rendered ONCE; only the list beneath it redraws.
    ================================================================== */
 
 function splitEmails(cell){
@@ -776,7 +829,14 @@ function splitEmails(cell){
     .filter(function(e){ return e.indexOf('@') !== -1; });
 }
 
-/* Turn 445 boxes-with-people into people-with-boxes. */
+function initialsOf(email){
+  var local = String(email || '').split('@')[0];
+  var parts = local.split(/[._\-]+/).filter(Boolean);
+  if(parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return local.slice(0, 2).toUpperCase();
+}
+
+/* Turn boxes-with-people into people-with-boxes. */
 function buildDirectory(contacts, rows){
   var boxById = {};
   (rows || []).forEach(function(b){ boxById[String(b.id)] = b; });
@@ -784,31 +844,29 @@ function buildDirectory(contacts, rows){
   var dir = {};
   var add = function(email, role, boxId){
     var key = email.toLowerCase();
-    if(!dir[key]){
-      dir[key] = { email: email, roles: {}, boxes: [], haulers: {} };
-    }
+    if(!dir[key]) dir[key] = { email: email, roles: {}, boxes: [], haulers: {} };
     var d = dir[key];
     d.roles[role] = true;
     if(d.boxes.indexOf(boxId) === -1) d.boxes.push(boxId);
     var b = boxById[boxId];
-    if(b && b.haulCode && b.haulCode !== '\u2014') d.haulers[b.haulCode] = true;
-    /* Keep the best-cased version we have seen. An address typed as
-       Samantha.Hernandez@... reads better than samantha.hernandez@... */
+    if(b && b.haulCode && b.haulCode !== "\u2014") d.haulers[b.haulCode] = true;
+    /* Keep the best-cased spelling. Samantha.Hernandez@ is how she spells her
+       own name; it is not our business to lower-case her. */
     if(email !== email.toLowerCase() && d.email === d.email.toLowerCase()) d.email = email;
   };
 
   Object.keys(contacts || {}).forEach(function(boxId){
     var c = contacts[boxId] || {};
-    splitEmails(c.toRecipients).forEach(function(e){ add(e, 'hauler', boxId); });
-    splitEmails(c.ccRecipients).forEach(function(e){ add(e, 'customer', boxId); });
-    splitEmails(c.staffRecipients).forEach(function(e){ add(e, 'staff', boxId); });
+    splitEmails(c.toRecipients).forEach(function(e){ add(e, "hauler", boxId); });
+    splitEmails(c.ccRecipients).forEach(function(e){ add(e, "customer", boxId); });
+    splitEmails(c.staffRecipients).forEach(function(e){ add(e, "staff", boxId); });
   });
 
   return Object.keys(dir).map(function(k){
     var d = dir[k];
     return {
       email: d.email,
-      domain: (d.email.split('@')[1] || '').toLowerCase(),
+      domain: (d.email.split("@")[1] || "").toLowerCase(),
       roles: Object.keys(d.roles),
       boxes: d.boxes.sort(function(a,b){
         return String(a).localeCompare(String(b), undefined, { numeric:true });
@@ -818,21 +876,49 @@ function buildDirectory(contacts, rows){
   });
 }
 
-function renderContacts(){
-  if(!state.cLoaded){
-    return '<div class="empty-state"><span class="spinner"></span>Reading the box list&hellip;</div>';
-  }
-
+/* ---------- the header. Rendered ONCE, so the search keeps focus. ---------- */
+function contactsHeaderHtml(){
   var dir = state.cDir || [];
-  var q = (state.cSearch || '').trim().toLowerCase();
+  var counts = { all: dir.length, hauler:0, customer:0, staff:0 };
+  dir.forEach(function(c){ c.roles.forEach(function(r){ counts[r]++; }); });
+
+  var chip = function(k, label){
+    return '<button class="cchip' + (state.cRole===k ? " on" : "") + '" data-crole="' + k + '">' +
+           label + ' <span class="cchip-n">' + counts[k] + "</span></button>";
+  };
+
+  return '<div class="topcard cbar">' +
+      '<div class="cbar-top">' +
+        '<span class="cbar-t">Contacts</span>' +
+        '<span class="cbar-sub">' + dir.length + " people \u00b7 " +
+          (state.rows||[]).length + " boxes</span>" +
+        '<span class="cspacer"></span>' +
+        '<button class="btn" id="cAddBtn">+ Add</button>' +
+      "</div>" +
+      '<div class="cbar-row">' +
+        chip("all","Everyone") + chip("hauler","Haulers") +
+        chip("customer","Customers") + chip("staff","WasteNet") +
+        '<span class="cspacer"></span>' +
+        '<div class="csearch"><i class="search-ico">\u2315</i>' +
+          '<input type="text" id="cSearch" placeholder="Name, address, hauler, box #\u2026" ' +
+            'value="' + esc(state.cSearch||"") + '" autocomplete="off"></div>' +
+      "</div>" +
+      '<div id="cAddForm"></div>' +
+    "</div>" +
+    '<div id="cList"></div>';
+}
+
+/* ---------- the list. The ONLY part that redraws on a keystroke. ---------- */
+function contactsListHtml(){
+  var dir = state.cDir || [];
+  var q = (state.cSearch || "").trim().toLowerCase();
 
   var shown = dir.filter(function(c){
-    if(state.cRole !== 'all' && c.roles.indexOf(state.cRole) === -1) return false;
+    if(state.cRole !== "all" && c.roles.indexOf(state.cRole) === -1) return false;
     if(!q) return true;
     if(c.email.toLowerCase().indexOf(q) !== -1) return true;
     if(c.haulers.some(function(h){ return h.toLowerCase().indexOf(q) !== -1; })) return true;
-    /* searching "716" should find whoever is on box 716 */
-    if(c.boxes.some(function(b){ return String(b) === q; })) return true;
+    if(c.boxes.some(function(b){ return String(b) === q; })) return true;   // "716" finds everyone on box 716
     return false;
   });
 
@@ -841,92 +927,293 @@ function renderContacts(){
     return a.email.localeCompare(b.email);
   });
 
-  var counts = { all: dir.length, hauler:0, customer:0, staff:0 };
-  dir.forEach(function(c){
-    c.roles.forEach(function(r){ counts[r]++; });
-  });
+  if(!shown.length){
+    return '<div class="plain-list"><div class="empty-state">Nobody matches that.</div></div>';
+  }
 
-  var chip = function(k, label){
-    return '<button class="bchip' + (state.cRole===k ? ' on' : '') + '" data-crole="' + k + '">' +
-           label + ' \u00b7 ' + counts[k] + '</button>';
-  };
-
-  /* Group by domain. Forty Costco warehouse mailboxes are one company, and
-     reading them as one block is how a person actually thinks about them. */
   var groups = {}, order = [];
   shown.forEach(function(c){
     if(!groups[c.domain]){ groups[c.domain] = []; order.push(c.domain); }
     groups[c.domain].push(c);
   });
 
-  var body = order.map(function(dom){
+  return '<div class="plain-list">' + order.map(function(dom){
     var list = groups[dom];
     return '<div class="cd-head">' +
-        '<span class="cd-dom">' + esc(dom) + '</span>' +
-        '<span class="cd-n">' + list.length + '</span>' +
-      '</div>' +
-      list.map(function(c){
-        var open = state.cOpen === c.email.toLowerCase();
-        return '<div class="crow' + (open ? ' open' : '') + '" data-cmail="' + esc(c.email) + '">' +
-            '<div class="cmain">' +
-              '<span class="cmail">' + esc(c.email.split('@')[0]) +
-                '<span class="cat">@' + esc(c.domain) + '</span></span>' +
-              '<span class="cspacer"></span>' +
-              c.roles.sort().map(function(r){
-                return '<span class="crole crole-' + r + '">' + r + '</span>';
-              }).join('') +
-              '<span class="cboxn">' + c.boxes.length + ' box' +
-                (c.boxes.length===1?'':'es') + '</span>' +
-            '</div>' +
-            (open ? contactDetailHtml(c) : '') +
-          '</div>';
-      }).join('');
-  }).join('');
+        '<span class="cd-dom">' + esc(dom) + "</span>" +
+        '<span class="cd-n">' + list.length + "</span>" +
+      "</div>" +
+      list.map(contactRowHtml).join("");
+  }).join("") + "</div>";
+}
 
-  if(!shown.length){
-    body = '<div class="empty-state">Nobody matches that.</div>';
-  }
-
-  return '<div class="folder">' +
-      '<div class="pinhead">' +
-        '<div class="fbar">' +
-          '<div class="fbar-t">' + dir.length + ' contacts ' +
-            '<span class="amt">\u00b7 across ' + (state.rows||[]).length + ' boxes</span></div>' +
-          '<div class="bfilter">' +
-            chip('all','Everyone') + chip('hauler','Haulers') +
-            chip('customer','Customers') + chip('staff','WasteNet') +
-          '</div>' +
-          '<input class="search" id="cSearch" type="text" placeholder="Name, address, hauler, box #\u2026" ' +
-            'value="' + esc(state.cSearch||'') + '" autocomplete="off">' +
-        '</div>' +
-      '</div>' +
-      '<div class="folder-lower" style="padding:0 0 6px;">' + body + '</div>' +
-    '</div>';
+function contactRowHtml(c){
+  var open = state.cOpen === c.email.toLowerCase();
+  return '<div class="crow' + (open ? " open" : "") + '">' +
+      '<div class="cmain" data-cmail="' + esc(c.email) + '">' +
+        '<span class="cdisc">' + esc(initialsOf(c.email)) + "</span>" +
+        '<span class="cmail">' + esc(c.email.split("@")[0]) +
+          '<span class="cat">@' + esc(c.domain) + "</span></span>" +
+        '<span class="cspacer"></span>' +
+        c.roles.sort().map(function(r){
+          return '<span class="crole crole-' + r + '">' + r + "</span>";
+        }).join("") +
+        '<span class="cboxn">' + c.boxes.length + " box" + (c.boxes.length===1?"":"es") + "</span>" +
+      "</div>" +
+      (open ? contactDetailHtml(c) : "") +
+    "</div>";
 }
 
 function contactDetailHtml(c){
-  var boxRows = c.boxes.map(function(id){
+  var total = (state.rows||[]).length || 1;
+  var pct = Math.round(c.boxes.length / total * 100);
+  var showAll = state.cShowAll === c.email.toLowerCase();
+  var CAP = 6;
+  var list = showAll ? c.boxes : c.boxes.slice(0, CAP);
+  var hidden = c.boxes.length - list.length;
+
+  var boxRows = list.map(function(id){
     var b = (state.rows||[]).filter(function(x){ return String(x.id) === String(id); })[0];
     return '<div class="cbox">' +
-        '<span class="cbox-id">#' + esc(id) + '</span>' +
-        '<span class="cbox-site">' + esc(b ? b.desc : '(not in this scan)') + '</span>' +
-        '<span class="cbox-haul">' + esc(b ? b.haulCode : '') + '</span>' +
-        '<button class="cbox-x" data-cdrop="' + esc(c.email) + '|' + esc(id) +
-          '" title="Take this person off box ' + esc(id) + '">remove</button>' +
-      '</div>';
-  }).join('');
+        '<span class="cbox-id">#' + esc(id) + "</span>" +
+        '<span class="cbox-site">' + esc(b ? b.desc : "(not in this scan)") + "</span>" +
+        '<span class="cbox-haul">' + esc(b ? b.haulCode : "") + "</span>" +
+        '<button class="cbox-x" data-cdrop="' + esc(c.email) + "|" + esc(id) + '">remove</button>' +
+      "</div>";
+  }).join("");
+
+  if(hidden > 0){
+    boxRows += '<button class="cbox-more" data-cmore="' + esc(c.email) + '">' +
+      "Show the other " + hidden + " box" + (hidden===1?"":"es") + "</button>";
+  }
 
   return '<div class="cdetail">' +
-      '<div class="cd-t">On ' + c.boxes.length + ' box' + (c.boxes.length===1?'':'es') +
-        (c.haulers.length ? ' \u00b7 ' + c.haulers.map(esc).join(', ') : '') + '</div>' +
-      '<div class="cboxes">' + boxRows + '</div>' +
+      /* Three numbers instead of a wall of box ids. David is on 439 boxes and
+         the list of them is not the answer to any question anybody has. */
+      '<div class="cstats">' +
+        '<div class="cstat"><div class="cstat-n">' + c.boxes.length + "</div>" +
+          '<div class="cstat-l">box' + (c.boxes.length===1?"":"es") + "</div></div>" +
+        '<div class="cstat"><div class="cstat-n">' + c.haulers.length + "</div>" +
+          '<div class="cstat-l">hauler' + (c.haulers.length===1?"":"s") + "</div></div>" +
+        '<div class="cstat"><div class="cstat-n">' + pct + "%</div>" +
+          '<div class="cstat-l">of all boxes</div></div>' +
+      "</div>" +
+      '<div class="cboxes">' + boxRows + "</div>" +
       '<div class="cd-act">' +
-        '<button class="btn" data-crename="' + esc(c.email) + '">Change this address everywhere</button>' +
-      '</div>' +
-      '<div class="cd-warn">Contacts live on the <b>Master Box List</b>, columns G, H and I \u2014 ' +
-        'this page reads them and writes straight back to them. There is no second copy.</div>' +
-    '</div>';
+        /* The operation people ACTUALLY need. Nobody clicks Remove 439 times;
+           they change the address once, when somebody leaves. */
+        '<button class="btn" data-crename="' + esc(c.email) + '">' +
+          "Change this address on all " + c.boxes.length + " box" +
+          (c.boxes.length===1?"":"es") + "</button>" +
+      "</div>" +
+    "</div>";
 }
+
+/* ---------- adding somebody ----------
+   One address, but with a SCOPE. The whole point of office@wastenetinc.com is
+   that it belongs on every box, and putting it on 478 boxes one at a time is
+   not a feature, it is a punishment. */
+function contactAddHtml(){
+  var haulers = {};
+  (state.rows||[]).forEach(function(b){
+    if(b.haulCode && b.haulCode !== "\u2014") haulers[b.haulCode] = (haulers[b.haulCode]||0) + 1;
+  });
+  var hOpts = Object.keys(haulers).sort().map(function(h){
+    return '<option value="' + esc(h) + '">' + esc(h) + " \u00b7 " + haulers[h] + " boxes</option>";
+  }).join("");
+
+  return '<div class="cadd">' +
+      '<div class="cadd-row">' +
+        '<input type="text" id="cAddEmail" class="cadd-in" placeholder="name@company.com" autocomplete="off">' +
+        '<select id="cAddRole" class="cadd-sel">' +
+          '<option value="hauler">Hauler</option>' +
+          '<option value="customer">Customer</option>' +
+          '<option value="staff">WasteNet staff</option>' +
+        "</select>" +
+      "</div>" +
+      '<div class="cadd-row">' +
+        '<select id="cAddScope" class="cadd-sel">' +
+          '<option value="box">On one box\u2026</option>' +
+          '<option value="haul">On every box of one hauler\u2026</option>' +
+          '<option value="all">On EVERY box</option>' +
+        "</select>" +
+        '<input type="text" id="cAddBox" class="cadd-in cadd-box" placeholder="Box #">' +
+        '<select id="cAddHaul" class="cadd-sel" style="display:none;">' + hOpts + "</select>" +
+        '<span class="cspacer"></span>' +
+        '<button class="btn" id="cAddGo">Add</button>' +
+        '<button class="btn" id="cAddCancel">Cancel</button>' +
+      "</div>" +
+      '<div class="cadd-note">Writes to the <b>Master Box List</b>, columns G/H/I \u2014 the same ' +
+        "sheet the scanner reads. There is no separate contacts table.</div>" +
+    "</div>";
+}
+
+
+function renderContactsAll(){
+  var el = document.getElementById("list");
+  el.innerHTML = contactsHeaderHtml();
+  document.getElementById("cList").innerHTML = contactsListHtml();
+  wireContactsHeader();
+  wireContactsList();
+}
+
+/* Only the list. The header - and the search box inside it - stays where it is,
+   which is the whole reason the cursor no longer vanishes mid-word. */
+function renderContactsList(){
+  var el = document.getElementById("cList");
+  if(!el){ renderContactsAll(); return; }
+  el.innerHTML = contactsListHtml();
+  wireContactsList();
+}
+
+function wireContactsHeader(){
+  var s = document.getElementById("cSearch");
+  if(s) s.oninput = function(){ state.cSearch = s.value; renderContactsList(); };
+
+  document.querySelectorAll("[data-crole]").forEach(function(el){
+    el.onclick = function(){
+      state.cRole = el.getAttribute("data-crole");
+      document.querySelectorAll("[data-crole]").forEach(function(x){
+        x.classList.toggle("on", x.getAttribute("data-crole") === state.cRole);
+      });
+      renderContactsList();
+    };
+  });
+
+  var addBtn = document.getElementById("cAddBtn");
+  var form   = document.getElementById("cAddForm");
+  if(addBtn && form){
+    addBtn.onclick = function(){
+      if(form.innerHTML){ form.innerHTML = ""; return; }
+      form.innerHTML = contactAddHtml();
+      wireContactsAdd();
+      var e = document.getElementById("cAddEmail");
+      if(e) e.focus();
+    };
+  }
+}
+
+function wireContactsAdd(){
+  var scope = document.getElementById("cAddScope");
+  var box   = document.getElementById("cAddBox");
+  var haul  = document.getElementById("cAddHaul");
+
+  var sync = function(){
+    box.style.display  = (scope.value === "box")  ? "" : "none";
+    haul.style.display = (scope.value === "haul") ? "" : "none";
+  };
+  scope.onchange = sync;
+  sync();
+
+  document.getElementById("cAddCancel").onclick = function(){
+    document.getElementById("cAddForm").innerHTML = "";
+  };
+
+  document.getElementById("cAddGo").onclick = function(){
+    var email = document.getElementById("cAddEmail").value.trim();
+    var role  = document.getElementById("cAddRole").value;
+    if(email.indexOf("@") === -1){ alert("That does not look like an email address."); return; }
+
+    /* Work out WHICH boxes, and say so in plain English before touching a thing.
+       "On every box" is 478 rows of the sheet the scanner reads. */
+    var ids = [], what = "";
+    if(scope.value === "all"){
+      ids = (state.rows||[]).map(function(b){ return String(b.id); });
+      what = "EVERY box \u2014 all " + ids.length + " of them";
+    } else if(scope.value === "haul"){
+      var h = haul.value;
+      ids = (state.rows||[]).filter(function(b){ return b.haulCode === h; })
+                            .map(function(b){ return String(b.id); });
+      what = "every box of hauler " + h + " \u2014 " + ids.length + " box" + (ids.length===1?"":"es");
+    } else {
+      var one = box.value.trim();
+      if(!one){ alert("Which box?"); return; }
+      ids = [one];
+      what = "box " + one;
+    }
+    if(!ids.length){ alert("That matches no boxes."); return; }
+
+    contactWrite(
+      { op:"add", email:email, role:role, boxIds:ids.join(",") },
+      email + " will be added as a " + role + " on " + what + "."
+    );
+  };
+}
+
+function wireContactsList(){
+  document.querySelectorAll("[data-cmail]").forEach(function(el){
+    el.onclick = function(){
+      var m = el.getAttribute("data-cmail").toLowerCase();
+      state.cOpen = (state.cOpen === m) ? null : m;
+      state.cShowAll = null;
+      renderContactsList();
+    };
+  });
+
+  document.querySelectorAll("[data-cmore]").forEach(function(el){
+    el.onclick = function(e){
+      e.stopPropagation();
+      state.cShowAll = el.getAttribute("data-cmore").toLowerCase();
+      renderContactsList();
+    };
+  });
+
+  document.querySelectorAll("[data-cdrop]").forEach(function(el){
+    el.onclick = function(e){
+      e.stopPropagation();
+      var parts = el.getAttribute("data-cdrop").split("|");
+      contactWrite({ op:"remove", email:parts[0], boxId:parts[1] },
+        parts[0] + " comes off box " + parts[1] + ".");
+    };
+  });
+
+  document.querySelectorAll("[data-crename]").forEach(function(el){
+    el.onclick = function(e){
+      e.stopPropagation();
+      var from = el.getAttribute("data-crename");
+      var c = (state.cDir||[]).filter(function(x){ return x.email === from; })[0];
+      var n = c ? c.boxes.length : 0;
+      var to = prompt(
+        "Change this address EVERYWHERE it appears.\n\n" + from +
+        "\n\nis on " + n + " box" + (n===1?"":"es") + ". Every one of them will be rewritten " +
+        "on the Master Box List.\n\nNew address:", "");
+      if(!to || to.indexOf("@") === -1) return;
+      contactWrite({ op:"rename", email:from, to:to.trim() },
+        from + " becomes " + to.trim() + " on all " + n + " box" + (n===1?"":"es") + ".");
+    };
+  });
+}
+
+/* Every write goes back to Master Box List G/H/I - the cells the scanner reads.
+   Nothing is stored on this page. */
+function contactWrite(payload, plainEnglish){
+  if(!confirm(plainEnglish + "\n\nThis edits the Master Box List. Go ahead?")) return;
+  payload.action = "edit_contact";
+  payload.key = KEY;
+  jsonp(payload, function(data){
+    if(!data || !data.ok){
+      alert("Could not save: " + ((data && data.error) || "no reply from the sheet"));
+      return;
+    }
+    var form = document.getElementById("cAddForm");
+    if(form) form.innerHTML = "";
+    state.cLoaded = false;
+    state.cOpen = null;
+    state.cShowAll = null;
+    loadContacts();
+  });
+}
+
+function loadContacts(){
+  if(state.cLoaded) return;
+  jsonp({ action:"master_contacts", key:KEY }, function(data){
+    state.cRaw = (data && data.contacts) || {};
+    state.cDir = buildDirectory(state.cRaw, state.rows);
+    state.cLoaded = true;
+    if(state.view === "contacts") renderContactsAll();
+  });
+}
+
 
 /* ---------- suggested pickup date ----------
    Ported VERBATIM from the ops dashboard (index.html) so the two views can
@@ -1479,8 +1766,11 @@ function render(){
   /* Contacts is a view, not a bucket. It is not derived from the scan, so it
      short-circuits before any of the bucketing runs. */
   if(state.view === "contacts"){
-    listEl.innerHTML = renderContacts();
-    wireContacts();
+    if(!state.cLoaded){
+      listEl.innerHTML = '<div class="empty-state"><span class="spinner"></span>Reading the box list&hellip;</div>';
+    } else {
+      renderContactsAll();
+    }
     wireScorecard();
     return;
   }
@@ -1751,90 +2041,6 @@ function render(){
   wireRows();
   wireScorecard();
   wireSearch();
-}
-
-function wireContacts(){
-  var s = document.getElementById("cSearch");
-  if(s){
-    s.oninput = function(){
-      state.cSearch = s.value;
-      renderContactsOnly();
-    };
-  }
-
-  document.querySelectorAll("[data-crole]").forEach(function(el){
-    el.onclick = function(){ state.cRole = el.getAttribute("data-crole"); renderContactsOnly(); };
-  });
-
-  document.querySelectorAll("[data-cmail]").forEach(function(el){
-    el.onclick = function(e){
-      if(e.target.closest("[data-cdrop]") || e.target.closest("[data-crename]")) return;
-      var m = el.getAttribute("data-cmail").toLowerCase();
-      state.cOpen = (state.cOpen === m) ? null : m;
-      renderContactsOnly();
-    };
-  });
-
-  document.querySelectorAll("[data-cdrop]").forEach(function(el){
-    el.onclick = function(e){
-      e.stopPropagation();
-      var parts = el.getAttribute("data-cdrop").split("|");
-      contactWrite({ op:"remove", email:parts[0], boxId:parts[1] },
-        parts[0] + " will be taken off box " + parts[1] + ".");
-    };
-  });
-
-  document.querySelectorAll("[data-crename]").forEach(function(el){
-    el.onclick = function(e){
-      e.stopPropagation();
-      var from = el.getAttribute("data-crename");
-      var c = (state.cDir||[]).filter(function(x){ return x.email === from; })[0];
-      var n = c ? c.boxes.length : 0;
-      var to = prompt(
-        "Change this address EVERYWHERE it appears.\n\n" +
-        from + "\n\nappears on " + n + " box" + (n===1?"":"es") + ". Every one of them will be " +
-        "rewritten on the Master Box List.\n\nNew address:", "");
-      if(!to || !to.trim() || to.indexOf("@") === -1) return;
-      contactWrite({ op:"rename", email:from, to:to.trim() },
-        from + " becomes " + to.trim() + " on all " + n + " box" + (n===1?"":"es") + ".");
-    };
-  });
-}
-
-/* Re-render the list only. A full render() would re-derive every bucket from
-   the scan, which contacts do not depend on and which would lose the focus in
-   the search box mid-keystroke. */
-function renderContactsOnly(){
-  document.getElementById("list").innerHTML = renderContacts();
-  wireContacts();
-}
-
-/* Every write goes back to Master Box List G/H/I - the same cells the scanner
-   reads. Nothing is stored here. */
-function contactWrite(payload, plainEnglish){
-  if(!confirm(plainEnglish + "\n\nThis edits the Master Box List. Go ahead?")) return;
-  payload.action = "edit_contact";
-  payload.key = KEY;
-  jsonp(payload, function(data){
-    if(!data || !data.ok){
-      alert("Could not save: " + ((data && data.error) || "no reply from the sheet"));
-      return;
-    }
-    state.cLoaded = false;
-    state.cOpen = null;
-    renderContactsOnly();
-    loadContacts();
-  });
-}
-
-function loadContacts(){
-  if(state.cLoaded) return;
-  jsonp({ action:"master_contacts", key:KEY }, function(data){
-    state.cRaw = (data && data.contacts) || {};
-    state.cDir = buildDirectory(state.cRaw, state.rows);
-    state.cLoaded = true;
-    if(state.view === "contacts") renderContactsOnly();
-  });
 }
 
 function wireScorecard(){
