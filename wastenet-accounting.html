@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-accounting · build 2026-07-13-d · Deposits: wider payment search; refuses to guess -->
+<!-- wastenet-accounting · build 2026-07-13-e · ACH payments match within 45 days; cheques stay tight -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -1891,8 +1891,20 @@ function matchDeposits(deposits, openInvoices, payments, payerMap) {
     return out;
   };
 
-  /* A payment keyed on the 20th is not settling a deposit that landed on the
-     2nd. Ten days either way covers a cheque sitting in a drawer. */
+  /* How far from the deposit may a payment sit and still be the same money?
+     Wider than you would think.
+
+     Costco's money lands at Frost on the 3rd of the month, and the payment is
+     keyed on the LAST day of the month - 01-31, 02-27, 03-31, 04-30, 06-30.
+     Twenty-seven days apart, every single month, as a matter of routine. A
+     ten-day window never saw it, so the dashboard called a $21,870 deposit
+     "unexplained" about an account that pays in full and on time, every time.
+
+     For an ACH the bank has NAMED the payer, so an exact amount from that
+     exact customer is strong evidence on its own - the date is corroboration,
+     not proof, and it can be generous. For an anonymous cheque lump there is
+     no name to lean on, only arithmetic, so the date has to stay tight or the
+     false matches multiply. */
   var near = function (list, date, days) {
     if (!date) return list;
     var t = new Date(date).getTime();
@@ -1947,7 +1959,7 @@ function matchDeposits(deposits, openInvoices, payments, payerMap) {
              back "not recorded", and the tool then went off inventing
              combinations of unpaid invoices to explain money that was never
              missing. ---- */
-    var payPool = near(isAch ? poolFrom(payByCustomer, names) : payments, d.date, 10)
+    var payPool = near(isAch ? poolFrom(payByCustomer, names) : payments, d.date, isAch ? 45 : 12)
       .map(function (p) {
         return { docNumber: p.docNumber, customer: p.customer, date: p.date,
                  cents: cents(p.amount), amount: p.amount };
