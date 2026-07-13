@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-accounting · build 2026-07-11-c · sections + sticky folder -->
+<!-- wastenet-accounting · build 2026-07-12-a · billing rows are cards; red moves to the alert -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -279,23 +279,62 @@
   .bchip.on{background:var(--green); border-color:var(--green); color:#fff;}
   .bchip:hover:not(.on){background:var(--green-tint);}
 
-  .btable{width:100%; border-collapse:collapse; table-layout:fixed;}
-  .btable th{font-size:10.5px; font-weight:600; color:var(--ink-2); text-align:left; padding:7px 5px;
-             border-bottom:0.5px solid var(--line-strong); position:sticky; top:var(--pinh);
-             background:var(--card); z-index:5; white-space:nowrap;}
-  .btable td{padding:9px 5px; border-bottom:0.5px solid var(--line); font-size:12.5px; vertical-align:top;}
-  .btable tr:hover td{background:var(--panel);}
-  .btable tr.flagged td{background:var(--amber-tint);}
-  .btable tr.unpaid td{background:var(--red-tint);}
+  /* A row is a CARD, not a table row. Stacked red table rows bled into one
+     another - three unpaid customers in a row read as one continuous slab
+     with no visible boundary. So the fill comes off entirely: the card
+     separates by gap and border, and red goes to the ALERT, which is the
+     thing that actually carries the meaning. */
+  .bcards{display:flex; flex-direction:column; gap:7px;}
+  .bcard{background:var(--card); border:0.5px solid var(--line-strong); border-radius:10px;
+         padding:9px 12px;}
+  .bcard:hover{border-color:var(--ink-3);}
+  .bcard.unpaid{border-color:var(--red);}
+  .bcard.boxchg{border-color:var(--amber);}
+
+  .bmain{display:flex; align-items:center; gap:9px;}
+  .bcell-name{flex:1; min-width:0;}
+  .bcell-inv{width:58px; flex:0 0 58px;}
+  .bcell-mon{width:74px; flex:0 0 74px; font-size:11.5px; color:var(--ink-2);}
+  .bcell-amt{width:100px; flex:0 0 100px; text-align:right;}
+  .bcell-del{width:60px; flex:0 0 60px; text-align:center;}
+  .bcell-tog{width:30px; flex:0 0 30px; text-align:right;}
+
+  /* Column labels, aligned to the card's columns rather than a table grid. */
+  .bhead{display:flex; align-items:center; gap:9px; padding:6px 12px;
+         border-bottom:0.5px solid var(--line-strong); margin-bottom:7px;
+         font-size:10.5px; font-weight:600; color:var(--ink-2); white-space:nowrap;
+         position:sticky; top:var(--pinh); background:var(--card); z-index:5;}
+
+  .bamt{font-size:13px; font-weight:600;}
+
+  /* The fee and the note are blank on nearly every row. Paying ~50px of
+     height for an empty field on all 53 customers is what made the month
+     unscannable. They collapse - and open on their own when they have
+     something in them. */
+  .btog{width:26px; height:26px; padding:0; border-radius:7px; cursor:pointer; line-height:1;
+        border:0.5px solid var(--line-strong); background:var(--card); color:var(--ink-3);
+        font-family:var(--font); font-size:13px;}
+  .btog:hover{background:var(--panel); color:var(--ink);}
+  .btog.on{background:var(--green-tint); border-color:var(--green-border); color:var(--green-dark);}
+  .bextra{display:none; align-items:center; gap:8px; margin-top:8px; padding-top:8px;
+          border-top:0.5px solid var(--line);}
+  .bextra.open{display:flex;}
+  .bxlbl{font-size:10.5px; color:var(--ink-3); flex:0 0 auto;}
 
   .bname{font-weight:600; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   /* the QuickBooks name, the box count, the date - all secondary lines that
      must sit UNDER their heading, never run into it */
   .bsub{font-size:10.5px; color:var(--ink-3); display:block; margin-top:2px; line-height:1.35;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .bwarn{font-size:10.5px; margin-top:4px; font-weight:600; line-height:1.4; white-space:normal;}
-  .bwarn.pay{color:var(--red-dark);}
-  .bwarn.box{color:var(--amber-dark);}
+  /* Contained, so the alert is a thing sitting ON the card rather than a
+     wash covering it. "Send a reminder, don't carry it forward" said the
+     same thing on every flagged row - once read, it is noise. The invoice
+     number and the amount are the information. */
+  .bwarns{display:flex; flex-wrap:wrap; gap:5px; margin-top:6px;}
+  .bwarn{font-size:10.5px; font-weight:600; line-height:1.3; white-space:nowrap;
+         padding:3px 8px; border-radius:7px; display:inline-block;}
+  .bwarn.pay{color:var(--red-dark); background:var(--red-tint);}
+  .bwarn.box{color:var(--amber-dark); background:var(--amber-tint);}
   /* Delivery is its own thing now - not a scrap buried in a note. */
   .bdeliv{font-size:10.5px; font-weight:600; border-radius:9px; padding:3px 9px; white-space:nowrap;
           display:inline-block; text-decoration:none;}
@@ -323,18 +362,17 @@
   .bedit.saving{border-color:var(--amber); background:var(--amber-tint);}
   .bedit.saved{border-color:var(--green); background:var(--green-tint-2);}
 
-  /* The one-time fee gets its own line. Squeezed in beside the amount, its
-     label had nowhere to go and was clipped to a single letter. */
-  .bfeewrap{margin-top:6px; display:flex; align-items:center; gap:3px; justify-content:flex-end;}
-  .bfeelbl{font-size:11px; color:var(--ink-3); flex:0 0 auto;}
-  .bfee{width:72px; font-family:var(--font); font-size:11.5px; text-align:right; color:var(--ink);
+  /* The one-time fee - a replacement monitor, say - now lives in the row
+     that opens, beside the note it almost always needs explaining. */
+  .bfee{width:76px; font-family:var(--font); font-size:11.5px; text-align:right; color:var(--ink);
         background:var(--card); border:0.5px solid var(--line-strong); border-radius:6px;
         padding:4px 6px; outline:none; flex:0 0 auto;}
   .bfee:focus{border-color:var(--green); background:#fff;}
   .bfee.saved{border-color:var(--green); background:var(--green-tint-2);}
   .bfee.saving{border-color:var(--amber); background:var(--amber-tint);}
-  .bfeehint{font-size:9.5px; color:var(--ink-3); text-align:right; margin-top:2px;}
-  .bbase{font-size:10px; color:var(--green-dark); font-weight:600; text-align:right; margin-top:3px;}
+  /* When a fee IS charged, the amount stops being one number and becomes a
+     sum. Say so, under the total. */
+  .bbase{font-size:10px; color:var(--green-dark); font-weight:600; text-align:right; margin-top:2px;}
   .binv{font-weight:600; color:var(--green-dark);}
 
   /* lock */
@@ -1451,32 +1489,35 @@ function renderBilling(){
   if(!rows.length){
     body = skip + '<div class="empty-state">Nothing logged for this month.</div>';
   } else {
-    body = skip + '<table class="btable"><thead><tr>' +
-        '<th style="width:24%">Name</th>' +
-        '<th style="width:9%">Invoice #</th>' +
-        '<th style="width:15%">Month</th>' +
-        '<th style="width:15%" class="num">Amount</th>' +
-        '<th style="width:9%">Send</th>' +
-        '<th style="width:28%">Notes</th>' +
-      '</tr></thead><tbody>' +
-      rows.map(function(r){
-        var cls = r.unpaid ? ' class="unpaid"' : (r.boxChange ? ' class="flagged"' : '');
+    var head = '<div class="bhead">' +
+        '<div class="bcell-name">Name</div>' +
+        '<div class="bcell-inv">Invoice</div>' +
+        '<div class="bcell-mon">Month</div>' +
+        '<div class="bcell-amt">Amount</div>' +
+        '<div class="bcell-del">Send</div>' +
+        (hist ? '' : '<div class="bcell-tog"></div>') +
+      '</div>';
 
-        var warn = "";
+    body = skip + head + '<div class="bcards">' +
+      rows.map(function(r){
+        var cls = r.unpaid ? " unpaid" : (r.boxChange ? " boxchg" : "");
+
+        var w = [];
         if(r.unpaid){
-          warn += '<div class="bwarn pay">Invoice ' + esc(r.lastDoc) + ' still owes $' +
-                  fmt(r.unpaidAmt) + ' \u2014 send a reminder, don\'t carry it forward</div>';
+          w.push('<span class="bwarn pay">' + esc(r.lastDoc) + ' unpaid \u00b7 $' +
+                 fmt(r.unpaidAmt) + '</span>');
         }
         if(r.boxChange){
-          warn += '<div class="bwarn box">Boxes went ' + r.boxChange.from + ' \u2192 ' +
-                  r.boxChange.to + ' \u2014 check the amount</div>';
+          w.push('<span class="bwarn box">Boxes ' + r.boxChange.from + ' \u2192 ' +
+                 r.boxChange.to + ' \u2014 check the amount</span>');
         }
         if(r.neverBilled){
-          warn += '<div class="bwarn box">Never billed \u2014 no history to copy</div>';
+          w.push('<span class="bwarn box">Never billed \u2014 no history to copy</span>');
         }
+        var warn = w.length ? '<div class="bwarns">' + w.join("") + '</div>' : '';
 
-        /* Delivery has its own column now. A portal is the one that costs
-           real time to find, so it carries its link. */
+        /* Delivery has its own column. A portal is the one that costs real
+           time to find, so it carries its link. */
         var d = (r.delivery || "email").toLowerCase();
         var deliv;
         if(d === "portal" && r.portalUrl){
@@ -1492,46 +1533,68 @@ function renderBilling(){
 
         var note = r.notes || "";
 
-        return '<tr' + cls + '>' +
-          '<td>' +
-            '<span class="bname">' + esc(r.shorthand) + '</span>' +
-            (r.customer ? '<span class="bsub">' + esc(r.customer) + '</span>' : '') +
-            warn +
-          '</td>' +
-          /* A logged invoice exists in QuickBooks, so it opens. A drafted one
-             does not exist yet - it will once the billing is done - so it
-             stays plain text rather than becoming a link to nothing. */
-          '<td>' + (hist
-            ? '<span class="binv">' + invLink(r.invoiceNo, "x") + '</span>'
-            : '<span class="binv">' + esc(r.invoiceNo) + '</span>') + '</td>' +
-          '<td>' + esc(r.serviceMonth) +
-            (r.quarterly ? '<span class="bsub">quarterly</span>' : '') + '</td>' +
-          '<td class="num">' +
-            (r.amount == null ? '\u2014' : '$' + fmt(r.amount)) +
-            (r.boxes ? '<span class="bsub">' + r.boxes + ' box' + (r.boxes > 1 ? 'es' : '') + '</span>' : '') +
-            /* A replacement monitor, or any other one-time charge, gets added
-               here. Nothing can predict it from last month's invoice, so it
-               has to be typed. */
+        /* "Haldor Topsoe / Haldor Topsoe" is a line that says nothing. The
+           QuickBooks name earns its row only when it differs from the one
+           Kim actually calls them. */
+        var sub = (r.customer &&
+                   r.customer.trim().toLowerCase() !== String(r.shorthand).trim().toLowerCase())
+          ? '<span class="bsub">' + esc(r.customer) + '</span>' : '';
+
+        /* Open on its own when there is something to see. Nothing is ever
+           hidden behind a click - only blanks are. */
+        var hasExtra = !!(r.fee || note);
+
+        return '<div class="bcard' + cls + '">' +
+          '<div class="bmain">' +
+            '<div class="bcell-name">' +
+              '<span class="bname">' + esc(r.shorthand) + '</span>' + sub +
+            '</div>' +
+            /* A logged invoice exists in QuickBooks, so it opens. A drafted
+               one does not exist yet - it will once the billing is done - so
+               it stays plain text rather than a link to nothing. */
+            '<div class="bcell-inv"><span class="binv">' +
+              (hist ? invLink(r.invoiceNo, "x") : esc(r.invoiceNo)) +
+            '</span></div>' +
+            '<div class="bcell-mon">' + esc(r.serviceMonth) +
+              (r.quarterly ? '<span class="bsub">quarterly</span>' : '') + '</div>' +
+            '<div class="bcell-amt">' +
+              '<span class="bamt">' +
+                (r.amount == null ? '\u2014' : '$' + fmt(r.amount)) + '</span>' +
+              (r.boxes ? '<span class="bsub">' + r.boxes + ' box' +
+                         (r.boxes > 1 ? 'es' : '') + '</span>' : '') +
+              (!hist && r.fee
+                ? '<div class="bbase">$' + fmt(r.baseAmount) + ' + $' + fmt(r.fee) + '</div>'
+                : '') +
+            '</div>' +
+            '<div class="bcell-del">' + deliv + '</div>' +
             (hist ? '' :
-              '<div class="bfeewrap">' +
-                '<span class="bfeelbl">+ $</span>' +
+              '<div class="bcell-tog">' +
+                '<button class="btog' + (hasExtra ? ' on' : '') + '" ' +
+                  'data-btog="' + esc(r.shorthand) + '" ' +
+                  'title="One-time fee and note" ' +
+                  'aria-label="One-time fee and note for ' + esc(r.shorthand) + '">' +
+                  (hasExtra ? '\u2212' : '+') +
+                '</button>' +
+              '</div>') +
+          '</div>' +
+          warn +
+          /* A past month is a record and stays read-only - its note is shown,
+             not offered for typing. */
+          (hist
+            ? (note ? '<div class="bextra open" style="border-top:0.5px solid var(--line);">' +
+                      '<span class="bnote">' + esc(note) + '</span></div>' : '')
+            : '<div class="bextra' + (hasExtra ? ' open' : '') + '" ' +
+                'data-bx="' + esc(r.shorthand) + '">' +
+                '<span class="bxlbl">One-time fee $</span>' +
                 '<input class="bfee" type="number" step="1" min="0" ' +
                   'data-fee="' + esc(r.shorthand) + '" ' +
                   'value="' + (r.fee ? r.fee : '') + '" placeholder="0" ' +
                   'title="One-time fee \u2014 a replacement monitor, say">' +
-              '</div>' +
-              (r.fee
-                ? '<div class="bbase">$' + fmt(r.baseAmount) + ' + $' + fmt(r.fee) + '</div>'
-                : '<div class="bfeehint">one-time fee</div>')) +
-          '</td>' +
-          '<td>' + deliv + '</td>' +
-          '<td>' + (hist
-            ? '<span class="bnote">' + esc(note) + '</span>'
-            : '<textarea class="bedit" rows="1" data-note="' + esc(r.shorthand) + '" ' +
-              'placeholder="Add a note\u2026">' + esc(note) + '</textarea>') +
-          '</td>' +
-        '</tr>';
-      }).join("") + '</tbody></table>';
+                '<textarea class="bedit" rows="1" data-note="' + esc(r.shorthand) + '" ' +
+                  'placeholder="Add a note\u2026">' + esc(note) + '</textarea>' +
+              '</div>') +
+        '</div>';
+      }).join("") + '</div>';
   }
 
   /* The invoice range, for a past month as much as a drafted one. A record
@@ -1634,6 +1697,23 @@ function wireBilling(){
     el.onclick = function(){
       state.bFilter = el.getAttribute("data-bf");
       renderBody();
+    };
+  });
+
+  /* The fee and note row. Opening it puts the cursor in the fee box - the
+     click was the intent to type something. */
+  document.querySelectorAll("[data-btog]").forEach(function(el){
+    el.onclick = function(){
+      var nm = el.getAttribute("data-btog");
+      var row = document.querySelector('[data-bx="' + nm.replace(/"/g,'\\"') + '"]');
+      if(!row) return;
+      var open = row.classList.toggle("open");
+      el.classList.toggle("on", open);
+      el.textContent = open ? "\u2212" : "+";
+      if(open){
+        var fee = row.querySelector(".bfee");
+        if(fee) fee.focus();
+      }
     };
   });
 
