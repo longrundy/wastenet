@@ -1488,7 +1488,11 @@ function renderStmtModal(){
     '<div class="stmt-card">'+
       '<div class="stmt-top">'+
         '<div>'+
-          '<div class="stmt-h">Statement for ' + esc(st.name) + '</div>'+
+          // The period, in the title. It is the one thing that must be right before
+          // you press send, and the subject line at the far bottom of the modal is
+          // the wrong place to have to go and check it.
+          '<div class="stmt-h">Statement for ' + esc(st.name) + ' \u00b7 ' +
+            esc(stmtPeriodLabel(st.period)) + '</div>'+
           '<div class="stmt-sub">To ' + esc(st.to) + ' \u00b7 bcc ' + esc(BCC) + '</div>'+
         '</div>'+
         '<button class="stmt-x" id="stmtX">Close</button>'+
