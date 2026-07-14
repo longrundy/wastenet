@@ -339,6 +339,26 @@
              border:0.5px solid var(--green-border); background:transparent;}
   .haul-date.first{background:var(--green); border-color:var(--green); color:#fff;}
 
+  /* ---- a batch is a different KIND of thing from a singleton ----
+     One trip, two boxes, one phone call - versus one box on its own. Rendered
+     as sibling rows in a single list, those two read identically, and the
+     header ends up looking like it presides over everything below it rather
+     than over its own two rows. So a batch gets its own card. The shape says
+     "these travel together" before anyone reads a word of it. */
+  .haul-group{border:0.5px solid var(--green-border); border-radius:var(--r-card);
+              overflow:hidden; background:var(--card); margin-bottom:12px;}
+  .haul-group .row:last-child, .haul-group .detail:last-child{border-bottom:none;}
+
+  /* The portal link only exists when the sheet has a URL for that haul code.
+     No URL, no link - and nothing breaks, because a hauler with no portal is
+     the normal case, not an error. */
+  .haul-portal{display:inline-flex; align-items:center; gap:4px; font-size:10.5px;
+               font-weight:600; padding:2px 9px; border-radius:var(--r-pill);
+               white-space:nowrap; text-decoration:none;
+               color:var(--green-darker); background:var(--card);
+               border:0.5px solid var(--green-border);}
+  .haul-portal:hover{background:var(--green); border-color:var(--green); color:#fff;}
+
   .plain-list{border:0.5px solid var(--line); border-radius:var(--r-card); overflow:hidden; background:var(--card);}
   .plain-list .row{border-bottom:0.5px solid var(--line);}
   .plain-list .row:last-child, .plain-list .detail:last-child{border-bottom:none;}
@@ -599,7 +619,7 @@ function lockOut(msg){
 }
 
 var state = { rows: [], scanTitle: "", openId: null, staleOpen: false, view: "action",
-  tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, staffNotesById: {}, staffNotesUpdById: {}, emptyMarkedById: {}, ledgerById: {}, notesOpenId: null, schedTab: null, clearTab: null };
+  tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, staffNotesById: {}, staffNotesUpdById: {}, emptyMarkedById: {}, ledgerById: {}, portalById: {}, notesOpenId: null, schedTab: null, clearTab: null };
 
 /* ---------- JSONP ---------- */
 function jsonp(params, cb){
@@ -1556,12 +1576,22 @@ function render(){
       var keys = Object.keys(groups).sort(function(a,b){
         var d = groups[b].length - groups[a].length; return d!==0 ? d : a.localeCompare(b);
       });
-      /* ONE container, exactly like stale / record-empty / monitor-down.
-         Every hauler gets a header - including the ones with a single box,
-         which previously got no header and therefore no hauler name. */
-      html += '<div class="plain-list">' +
-        keys.map(function(k){ return haulGroupHtml(k, groups[k]); }).join("") +
-      '</div>';
+      /* Batches first, each in its own card; the singletons then collect in one
+         plain list beneath them. Two containers, because there are two kinds of
+         thing here - a trip that covers several boxes, and a box on its own.
+         (An earlier comment here claimed every hauler got a header including
+         single-box ones. It never did - haulGroupHtml returns a bare row for a
+         group of one. The comment was describing an intention, not the code.) */
+      var batchKeys  = keys.filter(function(k){ return groups[k].length > 1; });
+      var singleKeys = keys.filter(function(k){ return groups[k].length === 1; });
+
+      html += batchKeys.map(function(k){ return haulGroupHtml(k, groups[k]); }).join("");
+
+      if(singleKeys.length){
+        html += '<div class="plain-list">' +
+          singleKeys.map(function(k){ return haulGroupHtml(k, groups[k]); }).join("") +
+        '</div>';
+      }
     }
   }
   else if(state.view === "scheduled"){
@@ -1962,14 +1992,26 @@ function haulGroupHtml(haulCode, boxes){
            esc(c.label) + ' \u00b7 ' + c.n + '</span>';
   }).join("");
 
+  /* Only render a portal link when the sheet actually has a URL for this
+     hauler. A dead link on a scheduling screen is worse than no link: it
+     costs somebody a click and a page load to learn nothing. */
+  var url = state.portalById[String(haulCode).toUpperCase()] || "";
+  var portal = url
+    ? '<a class="haul-portal" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' +
+      'Open portal \u2197</a>'
+    : '';
+
   return '' +
-    '<div class="haul-head">' +
-      '<span class="haul-code">' + esc(haulCode) + '</span>' +
-      '<span class="haul-meta">' + boxes.length + ' boxes \u00b7 ' + esc(chanLabel) + '</span>' +
-      '<span class="haul-spacer"></span>' +
-      chips +
-    '</div>' +
-    sorted.map(function(b){ return rowHtml(b, isMissed(b)); }).join("");
+    '<div class="haul-group">' +
+      '<div class="haul-head">' +
+        '<span class="haul-code">' + esc(haulCode) + '</span>' +
+        '<span class="haul-meta">' + boxes.length + ' boxes \u00b7 ' + esc(chanLabel) + '</span>' +
+        '<span class="haul-spacer"></span>' +
+        portal +
+        chips +
+      '</div>' +
+      sorted.map(function(b){ return rowHtml(b, isMissed(b)); }).join("") +
+    '</div>';
 }
 
 /* ---------- missed-pickup heuristic (display only, Phase 1) ----------
@@ -2045,6 +2087,7 @@ function load(){
   fetchSetSchedule();
   fetchEmptyMarked();
   fetchLedgerMarks();
+  fetchHaulerPortals();
 }
 
 // Fetch what we have told people, per box: the pickup date the service
@@ -2073,6 +2116,26 @@ function fetchLedgerMarks(){
 // Fetch the set of boxes manually flagged "marked empty in CES" so the
 // record-empty rows can show a checked state. Non-fatal on failure - the
 // checkboxes just start unchecked.
+// Hauler portal URLs, keyed by haul code, straight off the Hauler Portals tab.
+// They live on the SHEET rather than in this file for the same reason contacts
+// and scheduling rules do: Myrna can add a hauler without anyone touching code,
+// and a portal that moves is a cell edit rather than a deploy.
+//
+// Non-fatal on failure - the map stays empty and no portal links render. The
+// list still works; it just loses a shortcut.
+function fetchHaulerPortals(){
+  jsonp({ action:"hauler_portals", key:KEY }, function(data){
+    if(data && data.ok && data.portals){
+      var m = {};
+      Object.keys(data.portals).forEach(function(code){
+        m[String(code).toUpperCase()] = data.portals[code];
+      });
+      state.portalById = m;
+      render();
+    }
+  });
+}
+
 function fetchEmptyMarked(){
   jsonp({ action:"empty_marked_list", key:KEY }, function(data){
     if(data && data.ok && data.marked){
