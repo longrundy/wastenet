@@ -400,6 +400,39 @@
   .step-btn:hover .box{border-color:var(--green); background:var(--green-tint);}
   .step-btn:hover .lbl-txt{color:var(--green-dark);}
 
+  /* ---- overrides ---- */
+  .row.moved-in{background:var(--amber-tint, #FDF3E3);}
+  .moved-tag{font-size:10px; font-weight:700; padding:2px 8px; border-radius:var(--r-pill);
+             background:var(--amber-dark); color:#fff; white-space:nowrap; margin-left:6px;}
+  /* The row says who moved it, when, why - AND what the scanner actually
+     thought. Without that last part a moved box is indistinguishable from one
+     the machine flagged, and nobody can tell whether the rules are broken. */
+  .moved-why{font-size:10.5px; color:var(--amber-dark); margin-top:4px;}
+
+  .move-strip{display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+              padding:10px 14px; border-bottom:0.5px solid var(--line);}
+  .move-strip.in{background:var(--green-tint-2); border-color:var(--green-border);}
+  .move-strip.out{background:var(--red-tint); border-color:#F0999A;}
+  .move-q{font-size:12px; font-weight:600;}
+  .move-strip.in .move-q{color:var(--green-darker);}
+  .move-strip.out .move-q{color:var(--red-darker);}
+  .move-in-txt{flex:1; min-width:160px; font-family:var(--font); font-size:12px;
+    height:var(--h-ctl); padding:0 9px; border:0.5px solid var(--line-strong);
+    border-radius:var(--r-input); background:var(--card); color:var(--ink);}
+  .move-go{font-family:var(--font); font-size:12px; font-weight:600; height:var(--h-ctl);
+    padding:0 12px; border-radius:var(--r-ctl); border:none; color:#fff; cursor:pointer;}
+  .move-go.in{background:var(--green);}
+  .move-go.out{background:var(--amber-dark);}
+  .move-go:disabled{opacity:0.6; cursor:default;}
+  .move-x{font-family:var(--font); font-size:12px; height:var(--h-ctl); padding:0 11px;
+    border-radius:var(--r-ctl); border:0.5px solid var(--line-strong);
+    background:var(--card); color:var(--ink-2); cursor:pointer;}
+  .move-note{font-size:11px; color:var(--ink-2); flex:1 0 100%;}
+
+  .dismiss-bar{margin-top:10px; font-size:12px; color:var(--ink-2);}
+  .dismiss-link{background:none; border:none; padding:0; font:inherit; color:var(--green-dark);
+    font-weight:600; cursor:pointer; text-decoration:underline;}
+
   /* The booking strip. Opens under the row, pre-filled with the suggestion. */
   .book-strip{display:flex; align-items:center; gap:8px; flex-wrap:wrap;
               padding:10px 14px; background:var(--green-tint-2);
@@ -519,7 +552,14 @@
   .decision{display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600; padding:3px 10px; border-radius:var(--r-pill);}
   .decision.yes{background:var(--red-tint); color:var(--red-dark);}
   .decision.no{background:var(--green-tint); color:var(--green-darker);}
-  .dormant-note{margin-top:12px; padding:9px 11px; background:var(--green-tint-2); border-radius:var(--r-ctl); font-size:11px; color:var(--green-darker);}
+  /* Was a standing note claiming scheduling wasn't wired yet. It is now, so the
+     panel holds the Move control instead of a sentence that had become false. */
+  .dormant-note{margin-top:12px;}
+  .move-btn{font-family:var(--font); font-size:12px; font-weight:600; height:var(--h-ctl);
+    padding:0 12px; border-radius:var(--r-ctl); border:0.5px solid var(--line-strong);
+    background:var(--card); color:var(--ink-2); cursor:pointer;}
+  .move-btn:hover{border-color:var(--green-border); background:var(--green-tint-2);
+    color:var(--green-dark);}
 
   /* standalone single-box row */
 
@@ -696,7 +736,7 @@ function lockOut(msg){
 }
 
 var state = { rows: [], scanTitle: "", openId: null, staleOpen: false, view: "action",
-  tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, staffNotesById: {}, staffNotesUpdById: {}, emptyMarkedById: {}, ledgerById: {}, portalById: {}, actionBoxes: [], bookOpenId: null, bookBusy: false, notesOpenId: null, schedTab: null, clearTab: null };
+  tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, staffNotesById: {}, staffNotesUpdById: {}, emptyMarkedById: {}, ledgerById: {}, overrideById: {}, portalById: {}, actionBoxes: [], moveOpenId: null, moveBusy: false, showDismissed: false, bookOpenId: null, bookBusy: false, notesOpenId: null, schedTab: null, clearTab: null };
 
 /* ---------- JSONP ---------- */
 function jsonp(params, cb){
@@ -1199,6 +1239,37 @@ function stepsHtml(b){
    rule, so it simply doesn't render. Suppression on "Notified" happens once
    that write-back exists (Phase 2); until then it shows for every action box. */
 
+/* ---------- a person disagreeing with the scanner ----------
+   The scanner never reads any of this. It recomputes every box from CES facts
+   at 4:30 each morning and knows nothing about overrides. This is a dashboard
+   overlay, and it is deliberately ASYMMETRIC:
+
+     MOVED IN  survives the night. It creates work, and work quietly forgotten
+               is the failure that matters. It ends when the customer is told.
+
+     DISMISSED does NOT survive the night - it is scoped to the scan tab it was
+               made on, so tomorrow it simply is not there. It HIDES work, and a
+               hidden full compactor is the failure that matters. Worst case the
+               box nags again tomorrow. Annoying; never dangerous.
+
+   Each one lives exactly as long as its own failure direction stays safe. */
+function notifiedLit(b){
+  var told = state.ledgerById[b.id] || {};
+  var onBox = toYmd(b.schDate);
+  return !!onBox && !!told.notified && toYmd(told.notified) === onBox;
+}
+function movedIn(b){
+  var o = state.overrideById[b.id];
+  // Ends when the customer has been told - the same rule that takes any other
+  // box off the list. No separate expiry to write, or to forget to write.
+  return !!o && o.kind === "in" && !notifiedLit(b);
+}
+function dismissedNow(b){
+  var o = state.overrideById[b.id];
+  // Only honoured on the tab it was made on. That IS the expiry.
+  return !!o && o.kind === "out" && o.tab && o.tab === state.currentTab;
+}
+
 /* ---------- the date we would actually put in an email ----------
    Sch Date if the box has one - somebody booked that, in a portal, and took
    whatever day the portal had. Our suggestion only when nothing real exists. */
@@ -1327,23 +1398,83 @@ function rowHtml(b, missed, bucketTag, showHaul){
     metaInner = '<span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span>'+
       ((bucketTag || showHaul) ? ' · '+esc(b.haulCode) : '')+' · '+esc(b.channel)+'</span>' + bTag + stepsHtml(b) +
       (onSchedulePage() ? emailPillHtml(b) : "") +
+      (movedIn(b) ? '<span class="moved-tag">moved in</span>' : '') +
+      (dismissedNow(b) ? '<span class="moved-tag">dismissed</span>' : '') +
       (alsoStale(b) ? '<span class="also-stale-tag">also not cycling</span>' : '');
   }
 
   var fillBlock = fillIndicator(b, fc, pctW, trigL);
 
   return ''+
-    '<div class="row'+(open?' open':'')+(missed?' missed':'')+'" data-id="'+esc(b.id)+'">'+
+    '<div class="row'+(open?' open':'')+(missed?' missed':'')+(movedIn(b)?' moved-in':'')+'" data-id="'+esc(b.id)+'">'+
       '<div class="edge" style="background:'+(missed?'#A32D2D':ec)+';"></div>'+
       '<div class="row-main">'+
         '<div class="row-name"><span class="row-name-text">'+esc(b.desc)+'</span></div>'+
         '<div class="row-meta">'+metaInner+'</div>'+
+        (movedIn(b) || dismissedNow(b)
+          ? '<div class="moved-why">'+esc(state.overrideById[b.id].reason || "no reason given")+
+            ' \u2014 the scanner said ' + esc(b.pct==null ? "no reading" : (b.pct + "%")) +
+            ', ' + (b.need.indexOf("YES")!==-1 ? "service needed" : "no action") + '</div>'
+          : '')+
       '</div>'+
       fillBlock+
       '<div class="chev">▾</div>'+
     '</div>'+
     bookStripHtml(b)+
+    moveStripHtml(b)+
     detailHtml(b);
+}
+
+/* ---------- the move strip ----------------------------------------------
+   It lives in the EXPANDED row, not on the meta line. That line already carries
+   the box id, the channel, three marks and the pill; a fifth thing tips it over.
+   It also means a move cannot happen by accident - you open the row, you type a
+   reason, you commit.
+
+   The reason is required. Not bureaucracy: an override with no reason is
+   indistinguishable from a mis-click a week later, and it is the reason that
+   turns a box dismissed three mornings running into a bug report about its
+   trigger rather than a box that keeps mysteriously coming back. */
+function moveStripHtml(b){
+  if(state.moveOpenId !== b.id) return "";
+  var onAction = state.actionBoxes.indexOf(b) !== -1 || dismissedNow(b);
+  var out = onAction && !movedIn(b);   // on the action list -> the move is OUT
+
+  if(movedIn(b)){
+    return '<div class="move-strip in">'+
+      '<span class="move-q">Moved onto the list by hand</span>'+
+      '<span class="move-note">' + esc(state.overrideById[b.id].reason || "") + '</span>'+
+      '<button class="move-go in" data-clear="'+esc(b.id)+'">Undo the move</button>'+
+      '<button class="move-x" data-movex="1">Close</button>'+
+    '</div>';
+  }
+  if(dismissedNow(b)){
+    return '<div class="move-strip out">'+
+      '<span class="move-q">Dismissed for today</span>'+
+      '<span class="move-note">' + esc(state.overrideById[b.id].reason || "") + '</span>'+
+      '<button class="move-go out" data-clear="'+esc(b.id)+'">Put it back</button>'+
+      '<button class="move-x" data-movex="1">Close</button>'+
+    '</div>';
+  }
+  if(out){
+    return '<div class="move-strip out">'+
+      '<span class="move-q">Dismiss until tomorrow\u2019s scan \u2014 why?</span>'+
+      '<input class="move-in-txt" id="moveReason" placeholder="e.g. sensor stuck, called the site \u2014 box is empty">'+
+      '<button class="move-go out" id="moveGo" data-id="'+esc(b.id)+'" data-kind="out">'+
+        (state.moveBusy ? "Saving\u2026" : "Dismiss for today") + '</button>'+
+      '<button class="move-x" data-movex="1">Cancel</button>'+
+      '<span class="move-note">Gone from this list until the 4:30 AM scan. The scanner does not '+
+        'know about this and will judge the box tomorrow exactly as it would any other day.</span>'+
+    '</div>';
+  }
+  return '<div class="move-strip in">'+
+    '<span class="move-q">Move to Schedule Service \u2014 why?</span>'+
+    '<input class="move-in-txt" id="moveReason" placeholder="e.g. site called, they need it Thursday">'+
+    '<button class="move-go in" id="moveGo" data-id="'+esc(b.id)+'" data-kind="in">'+
+      (state.moveBusy ? "Saving\u2026" : "Move it") + '</button>'+
+    '<button class="move-x" data-movex="1">Cancel</button>'+
+    '<span class="move-note">Stays on the list until the customer has been notified.</span>'+
+  '</div>';
 }
 
 /* ---------- the booking strip ------------------------------------------
@@ -1459,7 +1590,14 @@ function detailHtml(b){
   return '<div class="detail'+(open?' show':'')+'" data-detail="'+esc(b.id)+'">'+
     '<div class="detail-inner">'+
       stats + rows +
-      '<div class="dormant-note">Scheduling, notifications, and confirmations aren\'t wired yet — this view is for checking the monitoring.</div>'+
+      /* This used to read "Scheduling, notifications, and confirmations aren't
+         wired yet." They are, as of today - and a false note sitting inside the
+         tool is worse than no note, because a new person would believe it. */
+      '<div class="dormant-note">'+
+        '<button class="move-btn" data-move="'+esc(b.id)+'">'+
+          (movedIn(b) || dismissedNow(b) ? "Review the override" : "Move this box\u2026") +
+        '</button>'+
+      '</div>'+
     '</div>'+
   '</div>';
 }
@@ -1599,15 +1737,54 @@ function render(){
   var pool = afterHandsOff.filter(function(b){ return !isNeedsEmpty(b); });
   var monitorDown = pool.filter(isMonitorDown);
   var notDown = pool.filter(function(b){ return !isMonitorDown(b); });
-  var scheduled = notDown.filter(isScheduled);
-  var allYes = notDown.filter(function(b){ return b.need.indexOf("YES")!==-1 && !isScheduled(b); });
+  /* ---- what counts as HANDLED ----------------------------------------
+     Not "CES shows a scheduled pickup" on its own. A box is handled when the
+     CUSTOMER HAS BEEN TOLD - scheduling it and never announcing it leaves a
+     site with a truck arriving unannounced, and the box would have vanished
+     off the list as though the job were done. So a box leaves the action list
+     when CES says a pickup is scheduled OR when our own ledger says the notice
+     went out for the date currently on the box.
+
+     Which is why a portal box you have booked but not announced KEEPS SITTING
+     THERE, showing Scheduled and Confirmed but not Notified. Visibly half
+     finished, because it is. */
+  var handled = function(b){ return isScheduled(b) || notifiedLit(b); };
+
+  var scheduled = notDown.filter(handled);
+  var allYes = notDown.filter(function(b){ return b.need.indexOf("YES")!==-1 && !handled(b); });
   var stale  = allYes.filter(isStaleScan);
+
   var action = allYes.filter(function(b){ return !isStaleScan(b); });
-  // Published so Draft all can use the SAME list the page is showing. Working
-  // it out a second time in the click handler is how the button ends up
-  // drafting a set of boxes that is not the set on screen.
-  state.actionBoxes = action;
-  var clearNormal = notDown.filter(function(b){ return b.need.indexOf("YES")===-1 && b.need!=="N/A" && !isScheduled(b); });
+
+  /* ---- then the people overrule the machine ----
+     Moved-in boxes join the list even though the scanner said no. Dismissed
+     boxes leave it even though the scanner said yes. Both are visible, both
+     carry a reason, and neither touches what the scanner actually reported. */
+  var forcedIn = notDown.filter(function(b){
+    return movedIn(b) && !handled(b) && action.indexOf(b) === -1;
+  });
+  action = action.concat(forcedIn);
+
+  /* A DISMISSAL DOES NOT REDUCE THE COUNT. Eight boxes need service; three have
+     been set aside by a person. The scorecard keeps saying eight, and the LIST
+     shows five with "3 dismissed today - show" beneath it.
+
+     If the count fell to five, somebody could dismiss their way to an empty
+     dashboard and it would look like a clean morning. The work does not stop
+     existing because one person decided not to look at it. */
+  var dismissed = action.filter(dismissedNow);
+  state.dismissedBoxes = dismissed;
+  // Published so Draft all uses the SAME list the page is showing. Working it
+  // out a second time in the click handler is how the button ends up drafting a
+  // set of boxes that is not the set on screen.
+  state.actionBoxes = action.filter(function(b){ return !dismissedNow(b); });
+  /* !handled, not !isScheduled: a box whose customer has been notified now sits
+     in Scheduled, and without this it would ALSO sit in No Action and the six
+     buckets would stop summing to the scan total.
+     !movedIn for the same reason - a moved-in box is on the action list now. */
+  var clearNormal = notDown.filter(function(b){
+    return b.need.indexOf("YES")===-1 && b.need!=="N/A" && !handled(b) && !movedIn(b);
+  });
   // Inactive boxes (need==="N/A" - descriptions starting X/Y/Z, retired).
   // Previously these fell into NO bucket, so the six scorecard numbers
   // summed to less than the total. They now ride in No Action (behind an
@@ -1771,6 +1948,23 @@ function render(){
         html += '<div class="plain-list">' +
           singleKeys.map(function(k){ return haulGroupHtml(k, groups[k]); }).join("") +
         '</div>';
+      }
+
+      /* A dismissed box vanishes from the list. Without this it would be gone
+         with no way back until tomorrow, and a mis-click would bury a full
+         compactor for a day. The count is never hidden - it stays in the
+         scorecard - but the row needs a door back too. */
+      var dis = state.dismissedBoxes || [];
+      if(dis.length){
+        html += '<div class="dismiss-bar">' + dis.length +
+          (dis.length === 1 ? " box dismissed today \u00b7 " : " boxes dismissed today \u00b7 ") +
+          '<button class="dismiss-link" id="showDismissed">' +
+            (state.showDismissed ? "hide" : "show") + '</button></div>';
+        if(state.showDismissed){
+          html += '<div class="plain-list" style="margin-top:8px;">' +
+            dis.map(function(b){ return rowHtml(b, isMissed(b)); }).join("") +
+          '</div>';
+        }
       }
     }
   }
@@ -2265,6 +2459,75 @@ function wireRows(){
     });
   });
 
+  /* ---- overrides -------------------------------------------------------- */
+  var showDis = document.getElementById("showDismissed");
+  if(showDis) showDis.addEventListener("click", function(){
+    state.showDismissed = !state.showDismissed;
+    render();
+  });
+
+  listEl.querySelectorAll("button[data-move]").forEach(function(bt){
+    bt.addEventListener("click", function(e){
+      e.stopPropagation();
+      var id = bt.getAttribute("data-move");
+      state.moveOpenId = (state.moveOpenId === id) ? null : id;
+      state.moveBusy = false;
+      render();
+    });
+  });
+  listEl.querySelectorAll(".move-strip").forEach(function(st){
+    st.addEventListener("click", function(e){ e.stopPropagation(); });
+  });
+  listEl.querySelectorAll("[data-movex]").forEach(function(bt){
+    bt.addEventListener("click", function(e){
+      e.stopPropagation();
+      state.moveOpenId = null; state.moveBusy = false; render();
+    });
+  });
+
+  function writeOverride(id, kind, reason){
+    if(state.moveBusy) return;
+    state.moveBusy = true;
+    render();
+    jsonp({ action:"box_override", boxId:id, kind:kind, reason:reason,
+            tab:(state.currentTab || ""), by:"dashboard", key:KEY }, function(data){
+      state.moveBusy = false;
+      if(data && data.ok){
+        state.moveOpenId = null;
+        setBanner(kind === "in"  ? ("Box " + esc(id) + " moved onto Schedule Service.")
+                : kind === "out" ? ("Box " + esc(id) + " dismissed until tomorrow\u2019s scan.")
+                :                  ("Override on box " + esc(id) + " removed."), "info");
+        fetchLedgerMarks();   // overrides ride along with the marks
+      } else {
+        setBanner(esc((data && data.error) || "Could not record that."), "err");
+        render();
+      }
+    });
+  }
+
+  var moveGo = document.getElementById("moveGo");
+  if(moveGo) moveGo.addEventListener("click", function(e){
+    e.stopPropagation();
+    var inp = document.getElementById("moveReason");
+    var reason = inp ? (inp.value || "").trim() : "";
+    // Required. An override with no reason is indistinguishable from a mis-click
+    // a week later, and it is the reason that makes a repeat dismissal legible
+    // as a broken trigger rather than a mystery.
+    if(!reason){
+      setBanner("Give a reason \u2014 it is what makes this legible to whoever reads it next.", "err");
+      if(inp) inp.focus();
+      return;
+    }
+    writeOverride(moveGo.getAttribute("data-id"), moveGo.getAttribute("data-kind"), reason);
+  });
+
+  listEl.querySelectorAll("button[data-clear]").forEach(function(bt){
+    bt.addEventListener("click", function(e){
+      e.stopPropagation();
+      writeOverride(bt.getAttribute("data-clear"), "clear", "");
+    });
+  });
+
   /* ---- portal booking ------------------------------------------------
      stopPropagation everywhere: the whole row is a click target that expands
      the detail panel, so without it, opening the date picker would also open
@@ -2378,6 +2641,9 @@ function fetchLedgerMarks(){
       var m = {};
       Object.keys(data.marks).forEach(function(id){ m[normBoxId(id)] = data.marks[id]; });
       state.ledgerById = m;
+      var o = {};
+      Object.keys(data.overrides || {}).forEach(function(id){ o[normBoxId(id)] = data.overrides[id]; });
+      state.overrideById = o;
       render();
     }
   });
