@@ -81,7 +81,12 @@
   .qc-chev{font-size:10px; color:var(--ink-3); flex:0 0 auto;}
   .qc-body{border-top:0.5px solid var(--line); padding:13px 13px 14px 38px;
     font-size:12.5px; line-height:1.7; color:var(--ink-2); background:var(--panel);
-    white-space:pre-wrap; word-break:break-word;}
+    word-break:break-word;}
+  /* The email itself, rendered exactly as it will arrive. Scaled down a little
+     so a 600px message fits the card without a horizontal scrollbar. */
+  .qc-mail{margin-top:10px; border:0.5px solid var(--line); border-radius:var(--r-ctl);
+           overflow:hidden; background:#FAFBF8;}
+  .qc-mail img{max-width:150px; height:auto;}
   .qc-field{font-size:11.5px; color:var(--ink-3); margin-bottom:3px;}
   .qc-field b{color:var(--ink-2); font-weight:600;}
   .qc-hr{height:0.5px; background:var(--line); margin:9px 0;}
@@ -300,6 +305,109 @@ function fill(text, vals){
   return out;
 }
 
+/* The HTML twin of fill().
+
+   The template is escaped FIRST, then the values are dropped in as markup.
+   That order matters: escaping afterwards would eat the <b> tags we just
+   added, and escaping neither would let a stray < in somebody's site name
+   break the email. Square brackets survive escaping untouched, so the
+   placeholders are still there to find. */
+function fillHtml(text, vals){
+  var out = esc(String(text || ""));
+  Object.keys(vals).forEach(function(k){
+    out = out.split("[" + k + "]").join(vals[k]);   // values are pre-built markup
+  });
+  out = boldLiteralSites(out);
+  return out.replace(/\n/g, "<br>");
+}
+
+/* The ~440 per-box templates do not use a [box list] placeholder - each one has
+   its site TYPED IN as literal text, on the line under "compactor(s):". So there
+   is no placeholder to bold, and the one thing a hauler scans for would arrive
+   as grey body copy.
+ *
+ * So: bold the lines that follow that heading, up to the next blank line. It is
+ * a heuristic and it says so - a template that phrases the heading differently
+ * simply gets no bolding, which is a dull email rather than a broken one.
+ *
+ * The durable fix is on the sheet, not here: replace those literal sites with
+ * [box list] and the email follows CES for free. Until then, this. */
+function boldLiteralSites(html){
+  var lines = html.split("\n");
+  var out = [], arming = false;
+  for(var i = 0; i < lines.length; i++){
+    var raw = lines[i];
+    var flat = raw.trim();
+    if(arming && flat === ""){ arming = false; out.push(raw); continue; }
+    if(arming && flat && flat.indexOf("<") === -1){   // already-marked-up lines are left alone
+      out.push('<span style="color:#3B6D11;font-weight:bold;">\u2022 ' + flat + '</span>');
+      continue;
+    }
+    out.push(raw);
+    if(/compactor\(s\)\s*:\s*$/i.test(flat)) arming = true;
+  }
+  return out.join("\n");
+}
+
+var LOGO = "https://dashboard.wastenetinc.com/WastenetLogo.png";
+var DISCLAIMER =
+  "This email and any files transmitted with it are confidential and intended solely for the " +
+  "use of the individual or entity to whom they are addressed. If you have received this email " +
+  "in error, please notify the system manager. This message contains confidential information " +
+  "and is intended only for the individual named. If you are not the named addressee, you should " +
+  "not disseminate, distribute, or copy this email. Please notify the sender immediately by email " +
+  "if you have received this email by mistake and delete this email from your system. If you are " +
+  "not the intended recipient, you are notified that disclosing, copying, distributing, or taking " +
+  "any action in reliance on the contents of this information is strictly prohibited.";
+
+/* Tables and inline styles, not flexbox and a stylesheet. Outlook renders mail
+   with Word's engine, which has never heard of either. */
+function emailShell(innerHtml){
+  return '' +
+  '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FAFBF8;padding:24px 12px;">' +
+    '<tr><td align="center">' +
+      '<table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:#FFFFFF;border:1px solid #E4E7E0;border-radius:8px;">' +
+        '<tr><td style="padding:26px 30px 22px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.65;color:#1A1D1A;">' +
+          innerHtml +
+        '</td></tr>' +
+        '<tr><td style="padding:0 30px 22px;">' +
+          '<img src="' + LOGO + '" alt="WasteNet" width="150" style="display:block;border:0;">' +
+        '</td></tr>' +
+        '<tr><td style="padding:16px 30px 22px;border-top:1px solid #E4E7E0;font-family:Arial,Helvetica,sans-serif;">' +
+          '<div style="font-size:11px;font-weight:bold;color:#525A60;margin-bottom:5px;">Wasteflo, Inc. d.b.a. WasteNet</div>' +
+          '<div style="font-size:10px;line-height:1.5;color:#8A8F8A;font-style:italic;">' + DISCLAIMER + '</div>' +
+        '</td></tr>' +
+      '</table>' +
+    '</td></tr>' +
+  '</table>';
+}
+
+function confirmButton(link){
+  return '<table cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 6px;">' +
+    '<tr><td style="background:#5CAA16;border-radius:6px;">' +
+      '<a href="' + esc(link) + '" style="display:inline-block;padding:13px 26px;' +
+      'font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;' +
+      'color:#FFFFFF;text-decoration:none;">Confirm Service Scheduled</a>' +
+    '</td></tr></table>';
+}
+
+/* The values, as markup. Date bold, every location bold - the two things a
+   hauler is actually scanning for. */
+function htmlVals(dateLong, boxLines, link){
+  var list = boxLines.map(function(l){
+    return '<span style="color:#3B6D11;font-weight:bold;">\u2022 ' + esc(l) + '</span>';
+  }).join("<br>");
+  return {
+    // Same green as the locations. The date and the sites are the two things a
+    // hauler actually scans for - they should read as one set, not two.
+    "pickup date": '<span style="color:#3B6D11;font-weight:bold;">' + esc(dateLong) + '</span>',
+    "box list": list,
+    "service description": list,
+    "box description": list,
+    "confirm link": link ? confirmButton(link) : ""
+  };
+}
+
 /* ================= BUILD THE QUEUE ================= */
 
 /* The date we will actually PUT IN THE EMAIL.
@@ -359,39 +467,43 @@ function buildQueue(){
        tab - David wrote those per box and they say things a generic template
        cannot. Several boxes use the Batch template, because a per-box body
        cannot list boxes it does not know about. */
-    var subject, body;
+    var lines = g.ids.map(function(id){
+      var r = state.rows[id] || {};
+      return (r.desc || ("Box " + id)) + "  \u2014  box " + id;
+    });
+    var tSub, tBody;
     if(multi){
       var t = state.templates["batch"] || {};
-      var list = g.ids.map(function(id){
-        var r = state.rows[id] || {};
-        return (r.desc || ("Box " + id)) + "  \u2014  box " + id;
-      }).join("\n");
-      subject = fill(t.subject, { "pickup date": fmtLong(g.date) });
-      body    = fill(t.body,    { "pickup date": fmtLong(g.date), "box list": list, "confirm link": link });
+      tSub = t.subject; tBody = t.body;
     } else {
-      var id0 = g.ids[0];
-      var c0 = state.contacts[id0] || {};
-      var r0 = state.rows[id0] || {};
-      subject = fill(c0.subjectTemplate || ("Compactor Service Requested - [pickup date]"),
-                     { "pickup date": fmtLong(g.date) });
-      body = fill(c0.bodyTemplate || "", {
-        "pickup date": fmtLong(g.date),
-        "box description": r0.desc || ("Box " + id0),
-        "service description": r0.desc || ("Box " + id0),
-        "box list": (r0.desc || ("Box " + id0)) + "  \u2014  box " + id0,
-        "confirm link": link
-      });
-      // Some per-box bodies have no [confirm link] slot. Append rather than
-      // ship a request the hauler cannot confirm.
-      if(body.indexOf(link) === -1){
-        body += "\n\nTo confirm this service is scheduled, click below and enter your name - no reply needed:\n" + link;
-      }
+      // One box uses its OWN subject and body off the Service Email Content tab -
+      // David wrote those per box and they say things a generic template cannot.
+      var c0 = state.contacts[g.ids[0]] || {};
+      tSub = c0.subjectTemplate || "Compactor Service Requested - [pickup date]";
+      tBody = c0.bodyTemplate || "";
+    }
+
+    var subject = fill(tSub, { "pickup date": fmtLong(g.date) });
+    var body = fill(tBody, {
+      "pickup date": fmtLong(g.date),
+      "box list": lines.join("\n"),
+      "box description": lines.join("\n"),
+      "service description": lines.join("\n"),
+      "confirm link": link
+    });
+    var inner = fillHtml(tBody, htmlVals(fmtLong(g.date), lines, link));
+
+    // Some per-box bodies have no [confirm link] slot at all. Append rather than
+    // ship a hauler a request they have no way to confirm.
+    if(body.indexOf(link) === -1){
+      body += "\n\nTo confirm this service is scheduled, click below and enter your name - no reply needed:\n" + link;
+      inner += "<br><br>To confirm this service is scheduled, click below and enter your name - no reply needed:" + confirmButton(link);
     }
 
     q.push({
       id: "req|" + k, kind: "request",
       to: g.to, cc: g.cc, ids: g.ids, date: g.date,
-      subject: subject, body: body, link: link,
+      subject: subject, body: body, html: emailShell(inner), link: link,
       event: "REQUEST SENT",
       label: g.ids.map(function(id){ return channelOf(state.rows[id] || {}); })
                .indexOf("phone") !== -1 ? "call list" : "request"
@@ -435,16 +547,21 @@ function buildQueue(){
   Object.keys(notG).forEach(function(k){
     var g = notG[k];
     var t = state.templates["notice"] || {};
-    var desc = g.ids.map(function(id){
+    var lines = g.ids.map(function(id){
       var r = state.rows[id] || {};
       return r.desc || ("Box " + id);
-    }).join("\n");
+    });
+    // No confirm link on a notice. The customer is not the one confirming - the
+    // hauler is - and a button that quietly confirmed on a customer's click
+    // would let a site manager confirm a pickup no hauler ever agreed to.
+    var vals = { "pickup date": fmtLong(g.date), "service description": lines.join("\n"),
+                 "box description": lines.join("\n"), "box list": lines.join("\n") };
     q.push({
       id: "not|" + k, kind: "notice",
       to: g.to, cc: [], ids: g.ids, date: g.date,
-      subject: fill(t.subject, { "pickup date": fmtLong(g.date) }),
-      body: fill(t.body, { "pickup date": fmtLong(g.date), "service description": desc,
-                           "box description": desc, "box list": desc }),
+      subject: fill(t.subject, vals),
+      body: fill(t.body, vals),
+      html: emailShell(fillHtml(t.body, htmlVals(fmtLong(g.date), lines, ""))),
       event: "CUSTOMER NOTIFIED", label: "notice"
     });
   });
@@ -480,7 +597,10 @@ function cardHtml(e){
       (e.cc.length ? '<div class="qc-field"><b>Cc</b> &nbsp;' + esc(e.cc.join(", ")) + '</div>' : '') +
       '<div class="qc-field"><b>Bcc</b> &nbsp;' + esc(BCC) + '</div>' +
       '<div class="qc-field"><b>Subject</b> &nbsp;' + esc(e.subject) + '</div>' +
-      '<div class="qc-hr"></div>' + esc(e.body) +
+      '<div class="qc-hr"></div>' +
+      // The REAL html, rendered - not a plain-text stand-in for it. A preview
+      // that shows something other than what leaves is not a preview.
+      '<div class="qc-mail">' + e.html + '</div>' +
     '</div>';
   }
 
@@ -623,20 +743,13 @@ function sendAll(){
       return;
     }
     var e = pending[i++];
-    var html = e.body.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
-                     .replace(/\n/g,"<br>");
-    if(e.link){
-      html = html.split(e.link).join(
-        '<a href="' + e.link + '" style="display:inline-block;background:#5CAA16;color:#fff;' +
-        'padding:11px 20px;border-radius:6px;text-decoration:none;font-weight:bold;">' +
-        'Confirm Service Scheduled</a>');
-    }
-    html = '<div style="font-family:Arial,sans-serif;font-size:14px;color:#1A1D1A;">' + html + '</div>';
 
     jsonp({
       action: "send_email", key: KEY,
       to: e.to.join(","), cc: e.cc.join(","), bcc: BCC,
-      subject: e.subject, body: e.body, html: html,
+      // e.html is the SAME string the preview rendered. Building it twice - once
+      // to show and once to send - is how a preview starts quietly lying.
+      subject: e.subject, body: e.body, html: e.html,
       // The ledger row rides along with the send - see sendEmailViaSendGrid.
       boxId: e.ids.join(","), event: e.event, pickupDate: e.date, tab: state.tab
     }, function(data){
