@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WasteNet Messages</title>
+<link rel="icon" href="WastenetLogo.png">
+<style>
+  :root{
+    --green:#5CAA16; --green-dark:#3B6D11; --green-darker:#27500A;
+    --green-tint:#EAF3DE; --green-tint-2:#F4FAEC; --green-border:#C0DD97;
+    --amber:#EF9F27; --amber-dark:#854F0B;
+    --red:#E24B4A; --red-dark:#A32D2D; --red-darker:#791F1F; --red-tint:#FCEBEB;
+    --ink:#1A1D1A; --ink-2:#525A60; --ink-3:#8A8F8A;
+    --line:#E4E7E0; --line-strong:#CFD4CA;
+    --card:#FFFFFF; --panel:#F6F7F3; --page:#FAFBF8;
+
+    /* Same six shape tokens as the two dashboards. Chrome is rectangular,
+       tokens are round. */
+    --r-input:6px; --r-ctl:8px; --r-menu:10px; --r-card:12px; --r-pill:999px;
+    --h-ctl:30px;
+
+    --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--page); color:var(--ink); font-family:var(--font);
+       font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:860px; margin:0 auto; padding:22px 20px 80px;}
+
+  /* ---- header ---- */
+  .header-bar{display:flex; align-items:center; gap:10px; background:var(--card);
+    border:0.5px solid var(--line); border-radius:var(--r-card); padding:12px 14px; margin-bottom:18px;}
+  .brand-name{font-size:17px; font-weight:800; letter-spacing:0.04em; color:var(--green);}
+  .brand-div{width:1px; height:16px; background:var(--line-strong);}
+  .brand-tool{font-size:13px; color:var(--ink-2);}
+  .spacer{flex:1;}
+  .btn{font-family:var(--font); font-size:13px; height:var(--h-ctl); padding:0 12px;
+    border:0.5px solid var(--line-strong); border-radius:var(--r-ctl); background:var(--card);
+    color:var(--ink); cursor:pointer; display:inline-flex; align-items:center; gap:6px;}
+  .btn:hover{border-color:var(--green-border); background:var(--green-tint-2);}
+  .btn.primary{background:var(--green); border-color:var(--green); color:#fff; font-weight:600;}
+  .btn.primary:hover{background:var(--green-dark); border-color:var(--green-dark);}
+  .btn:disabled{opacity:0.55; cursor:default;}
+  .btn:disabled:hover{background:var(--green); border-color:var(--green);}
+
+  .banner{padding:12px 14px; border-radius:var(--r-card); font-size:13px; margin-bottom:16px; display:none;}
+  .banner.show{display:block;}
+  .banner.err{background:var(--red-tint); color:var(--red-darker); border:0.5px solid #F0999A;}
+  .banner.info{background:var(--green-tint-2); color:var(--green-darker); border:0.5px solid var(--green-border);}
+
+  /* ---- the summary bar. Counts, and the one button that sends. ---- */
+  .summary{display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding-bottom:14px; border-bottom:0.5px solid var(--line); margin-bottom:20px;}
+  .summary h1{font-size:17px; font-weight:600; margin:0;}
+  .summary .count{font-size:13px; color:var(--ink-2);}
+
+  .sec{font-size:12px; font-weight:600; color:var(--ink-2); margin:22px 0 10px;
+       text-transform:uppercase; letter-spacing:0.04em;}
+  .sec:first-of-type{margin-top:0;}
+
+  /* ---- one card = one email ---- */
+  .qc{border:0.5px solid var(--line); border-radius:var(--r-card); background:var(--card);
+      margin-bottom:8px; overflow:hidden;}
+  .qc.off{opacity:0.5;}
+  .qc.blocked{border-color:#F0999A; background:var(--red-tint);}
+  .qc-head{display:flex; align-items:center; gap:10px; padding:11px 13px; cursor:pointer;}
+  .qc-chk{width:15px; height:15px; border-radius:4px; border:1px solid var(--line-strong);
+    background:var(--card); flex:0 0 auto; display:flex; align-items:center; justify-content:center;
+    font-size:10px; color:#fff; line-height:1;}
+  .qc-chk.on{background:var(--green); border-color:var(--green);}
+  .qc-chk.dead{opacity:0.4;}
+  .qc-mid{flex:1; min-width:0;}
+  .qc-to{font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .qc-sub{font-size:11.5px; color:var(--ink-2); margin-top:2px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .qc.blocked .qc-to{color:var(--red-darker);}
+  .qc-n{font-size:11px; color:var(--ink-3); white-space:nowrap; flex:0 0 auto;}
+  .qc-date{font-size:11px; padding:2px 9px; border-radius:var(--r-pill); white-space:nowrap;
+    background:var(--green-tint); color:var(--green-darker); border:0.5px solid var(--green-border);
+    flex:0 0 auto;}
+  .qc-chev{font-size:10px; color:var(--ink-3); flex:0 0 auto;}
+  .qc-body{border-top:0.5px solid var(--line); padding:13px 13px 14px 38px;
+    font-size:12.5px; line-height:1.7; color:var(--ink-2); background:var(--panel);
+    white-space:pre-wrap; word-break:break-word;}
+  .qc-field{font-size:11.5px; color:var(--ink-3); margin-bottom:3px;}
+  .qc-field b{color:var(--ink-2); font-weight:600;}
+  .qc-hr{height:0.5px; background:var(--line); margin:9px 0;}
+  .qc-sent{font-size:11px; padding:2px 9px; border-radius:var(--r-pill);
+    background:var(--green); color:#fff; flex:0 0 auto;}
+
+  .empty{padding:50px 20px; text-align:center; color:var(--ink-2);}
+  .empty .big{font-size:16px; font-weight:600; color:var(--ink); margin-bottom:6px;}
+  .spinner{display:inline-block; width:13px; height:13px; border:2px solid var(--line-strong);
+    border-top-color:var(--green); border-radius:50%; animation:spin .7s linear infinite;
+    margin-right:8px; vertical-align:-2px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header-bar">
+    <div class="brand-name">WASTENET</div>
+    <div class="brand-div"></div>
+    <div class="brand-tool">Messages</div>
+    <div class="spacer"></div>
+    <button class="btn" id="backBtn">&larr; Monitoring Dashboard</button>
+  </div>
+
+  <div class="banner" id="banner"></div>
+  <div id="main"><div class="empty"><span class="spinner"></span>Building the drafts&hellip;</div></div>
+</div>
+
+<script>
+var API = "https://script.google.com/macros/s/AKfycbwc3siwl0OTP2O5WzNZCDn4cj3MDVRfcVxJW0TZtoPnAKLwhYSwmW_m1h7ib6Yf_Dvk9w/exec";
+var KEY = (function(){
+  try { return sessionStorage.getItem("wastenet_dashboard_key") || ""; }
+  catch(e){ return ""; }
+})();
+
+var BCC = "office@wastenetinc.com";
+var CONFIRM_BASE = "https://dashboard.wastenetinc.com/confirm";
+
+/* ------------------------------------------------------------------
+   WHAT THIS PAGE IS
+
+   Not "a form for writing an email". A REVIEW QUEUE: here is everything
+   about to go out, in your name, right now - approve it.
+
+   A thirty-box morning is thirty boxes but only a dozen emails, because
+   one hauler drives one trip and one contact reads one message. So the
+   work is: read down the page, untick what looks wrong, press send once.
+   Two clicks, not thirty.
+
+   It does NOT recompute which boxes need service. The monitor already
+   decided that, and a second copy of those rules is a second copy to
+   drift. The monitor hands over the box IDs AND the dates it displayed,
+   so the queue shows exactly what the list showed.
+   ------------------------------------------------------------------ */
+
+var state = {
+  tab: "",           // the scan tab these boxes came from
+  want: {},          // boxId -> pickup date (yyyy-MM-dd), straight from the monitor
+  rows: {},          // boxId -> scan row
+  contacts: {},      // boxId -> master_contacts entry
+  templates: {},     // "notice" / "batch" -> {subject, body}
+  marks: {},         // boxId -> {scheduled, notified, confirmed}
+  queue: [],         // the emails
+  checked: {},       // queue id -> bool
+  open: null,        // which card is expanded
+  sending: false,
+  sent: {},          // queue id -> "ok" | error string
+  loaded: 0
+};
+
+function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;")
+  .replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+function setBanner(msg, kind){
+  var b = document.getElementById("banner");
+  if(!msg){ b.className="banner"; b.innerHTML=""; return; }
+  b.className = "banner show " + (kind || "info");
+  b.innerHTML = msg;
+}
+
+function jsonp(params, cb){
+  var name = "wn_cb_" + Math.random().toString(36).slice(2);
+  var timeout = setTimeout(function(){ cleanup(); cb({ ok:false, error:"Request timed out." }); }, 30000);
+  function cleanup(){
+    clearTimeout(timeout);
+    try{ delete window[name]; }catch(e){ window[name] = undefined; }
+    if(s && s.parentNode) s.parentNode.removeChild(s);
+  }
+  window[name] = function(data){ cleanup(); cb(data); };
+  var qs = Object.keys(params).map(function(k){
+    return encodeURIComponent(k) + "=" + encodeURIComponent(params[k]);
+  }).join("&");
+  var s = document.createElement("script");
+  s.src = API + "?" + qs + "&callback=" + name;
+  s.onerror = function(){ cleanup(); cb({ ok:false, error:"Could not reach the server." }); };
+  document.head.appendChild(s);
+}
+
+/* Byte-for-byte the same hash as confirmToken() in the Apps Script. If these
+   two ever drift, every confirm link in every email 404s and the hauler is
+   the one who finds out. */
+function confirmToken(boxId, tab){
+  var str = String(boxId) + "|" + String(tab) + "|WN2026CONFIRM";
+  var h = 5381;
+  for(var i=0; i<str.length; i++){ h = ((h * 33) ^ str.charCodeAt(i)) >>> 0; }
+  return h.toString(16);
+}
+function confirmLink(boxIds, tab){
+  var b = boxIds.join(",");
+  return CONFIRM_BASE + "?b=" + encodeURIComponent(b) +
+         "&t=" + encodeURIComponent(tab) + "&k=" + confirmToken(b, tab);
+}
+
+/* Addresses are typed by people into spreadsheet cells, so they arrive
+   separated by whatever was to hand - a comma, a semicolon, a newline. */
+function addrs(s){
+  return String(s || "").split(/[;,\n]/)
+    .map(function(x){ return x.trim(); })
+    .filter(function(x){ return x && x.indexOf("@") !== -1; });
+}
+function addrKey(list){
+  return list.map(function(a){ return a.toLowerCase(); }).sort().join(";");
+}
+
+function fmtDate(ymd){
+  var p = String(ymd || "").split("-");
+  if(p.length !== 3) return ymd || "";
+  var d = new Date(+p[0], +p[1]-1, +p[2]);
+  if(isNaN(d.getTime())) return ymd;
+  var days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  var mons = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return days[d.getDay()] + " " + mons[d.getMonth()] + " " + d.getDate();
+}
+function fmtLong(ymd){
+  var p = String(ymd || "").split("-");
+  if(p.length !== 3) return ymd || "";
+  var d = new Date(+p[0], +p[1]-1, +p[2]);
+  if(isNaN(d.getTime())) return ymd;
+  var days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  var mons = ["January","February","March","April","May","June","July",
+              "August","September","October","November","December"];
+  return days[d.getDay()] + ", " + mons[d.getMonth()] + " " + d.getDate() + ", " + d.getFullYear();
+}
+
+/* The channel rule, identical to the monitor's channelOf(). A Haul Code
+   naming Myrna means phone no matter what Srvc Mthd says. */
+function channelOf(row){
+  var hc = String((row && row.haulCode) || "").toUpperCase();
+  var sm = String((row && row.srvcMthd) || "").toLowerCase();
+  if(hc.indexOf("MYRNA") !== -1) return "phone";
+  if(sm.indexOf("portal") !== -1) return "portal";
+  if(sm.indexOf("phone") !== -1) return "phone";
+  if(sm.indexOf("email") !== -1) return "email";
+  return sm || "";
+}
+
+/* ---------- template filling ----------
+   Placeholders are square-bracket and live in the SHEET, so the wording can
+   change without anyone touching this file. We only know the slot names. */
+function fill(text, vals){
+  var out = String(text || "");
+  Object.keys(vals).forEach(function(k){
+    out = out.split("[" + k + "]").join(vals[k]);
+  });
+  return out;
+}
+
+/* ================= BUILD THE QUEUE ================= */
+
+/* The date we will actually PUT IN THE EMAIL.
+ *
+ * The monitor passes the date it displayed - a suggestion. But if the box
+ * already carries a Sch Date, that is not a suggestion any more: somebody
+ * booked it, in a portal, and took whatever day the portal had. That date
+ * outranks ours, and announcing the suggestion instead would tell a customer
+ * to expect a truck on a day nobody arranged.
+ *
+ * Sch Date if it exists. Our suggestion only when nothing real exists yet. */
+function pickupFor(id){
+  var r = state.rows[id] || {};
+  var m = String(r.schDate || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return m[1] + "-" + m[2] + "-" + m[3];
+  if(r.schDate){
+    var d = new Date(r.schDate);
+    if(!isNaN(d.getTime())){
+      var mo = String(d.getMonth()+1); if(mo.length < 2) mo = "0" + mo;
+      var dy = String(d.getDate());    if(dy.length < 2) dy = "0" + dy;
+      return d.getFullYear() + "-" + mo + "-" + dy;
+    }
+  }
+  return state.want[id];
+}
+
+function buildQueue(){
+  var q = [];
+  var ids = Object.keys(state.want);
+
+  /* ---- 1. Service requests: grouped by RECIPIENT + date ----
+     Not by haul code. The haul code is a label; the recipient list is what
+     actually determines who gets an envelope. Two boxes under one haul code
+     with different To: addresses are two emails, and grouping on the label
+     would have quietly merged them into one and mailed each hauler the other
+     one's boxes.
+
+     A box gets a request iff it HAS a service recipient. Portal boxes have
+     none - by design, there is no hauler to email - so they fall out here
+     rather than needing a special case. */
+  var reqG = {};
+  ids.forEach(function(id){
+    var c = state.contacts[id] || {};
+    var to = addrs(c.serviceToRecipients);
+    if(!to.length) return;
+    var dt = pickupFor(id);
+    var k = addrKey(to) + "|" + dt;
+    (reqG[k] = reqG[k] || { to:to, cc:addrs(c.serviceCcRecipients), date:dt, ids:[] }).ids.push(id);
+  });
+
+  Object.keys(reqG).forEach(function(k){
+    var g = reqG[k];
+    var multi = g.ids.length > 1;
+    var link = confirmLink(g.ids, state.tab);
+
+    /* One box uses its OWN subject and body off the Service Email Content
+       tab - David wrote those per box and they say things a generic template
+       cannot. Several boxes use the Batch template, because a per-box body
+       cannot list boxes it does not know about. */
+    var subject, body;
+    if(multi){
+      var t = state.templates["batch"] || {};
+      var list = g.ids.map(function(id){
+        var r = state.rows[id] || {};
+        return (r.desc || ("Box " + id)) + "  \u2014  box " + id;
+      }).join("\n");
+      subject = fill(t.subject, { "pickup date": fmtLong(g.date) });
+      body    = fill(t.body,    { "pickup date": fmtLong(g.date), "box list": list, "confirm link": link });
+    } else {
+      var id0 = g.ids[0];
+      var c0 = state.contacts[id0] || {};
+      var r0 = state.rows[id0] || {};
+      subject = fill(c0.subjectTemplate || ("Compactor Service Requested - [pickup date]"),
+                     { "pickup date": fmtLong(g.date) });
+      body = fill(c0.bodyTemplate || "", {
+        "pickup date": fmtLong(g.date),
+        "box description": r0.desc || ("Box " + id0),
+        "service description": r0.desc || ("Box " + id0),
+        "box list": (r0.desc || ("Box " + id0)) + "  \u2014  box " + id0,
+        "confirm link": link
+      });
+      // Some per-box bodies have no [confirm link] slot. Append rather than
+      // ship a request the hauler cannot confirm.
+      if(body.indexOf(link) === -1){
+        body += "\n\nTo confirm this service is scheduled, click below and enter your name - no reply needed:\n" + link;
+      }
+    }
+
+    q.push({
+      id: "req|" + k, kind: "request",
+      to: g.to, cc: g.cc, ids: g.ids, date: g.date,
+      subject: subject, body: body, link: link,
+      event: "REQUEST SENT",
+      label: g.ids.map(function(id){ return channelOf(state.rows[id] || {}); })
+               .indexOf("phone") !== -1 ? "call list" : "request"
+    });
+  });
+
+  /* ---- 2. Customer notices: grouped by CONTACT + date ----
+     The customer does not need a list of everyone else's sites - they need
+     to know their own compactor is coming and to have the gate unlocked. So
+     one email per contact per date, naming their boxes.
+
+     A notice announces "scheduled to be emptied". That must be TRUE when it
+     leaves. For an email or phone box it becomes true the moment the request
+     goes - the two ride together. For a PORTAL box nothing has been booked
+     until a person books it, so the notice waits: no Sch Date, no notice. */
+  var notG = {};
+  var blocked = [];
+  ids.forEach(function(id){
+    var c = state.contacts[id] || {};
+    var r = state.rows[id] || {};
+    var ch = channelOf(r);
+    var cust = addrs(c.ccRecipients);   // Master Box List column H. NOT a Cc - see below.
+
+    if(ch === "portal" && !r.schDate){
+      blocked.push({ id:"blk|portal|"+id, ids:[id], date:pickupFor(id),
+        why:"Book this in the hauler's portal first, then the notice can go out.",
+        who:(r.desc || ("Box " + id)) + " \u00b7 portal, not yet booked" });
+      return;
+    }
+    if(!cust.length){
+      blocked.push({ id:"blk|nocontact|"+id, ids:[id], date:pickupFor(id),
+        why:"No customer contact on the Master Box List. Nobody to notify \u2014 Notified can never light for this box.",
+        who:(r.desc || ("Box " + id)) + " \u00b7 no customer contact" });
+      return;
+    }
+    var dt = pickupFor(id);
+    var k = addrKey(cust) + "|" + dt;
+    (notG[k] = notG[k] || { to:cust, date:dt, ids:[] }).ids.push(id);
+  });
+
+  Object.keys(notG).forEach(function(k){
+    var g = notG[k];
+    var t = state.templates["notice"] || {};
+    var desc = g.ids.map(function(id){
+      var r = state.rows[id] || {};
+      return r.desc || ("Box " + id);
+    }).join("\n");
+    q.push({
+      id: "not|" + k, kind: "notice",
+      to: g.to, cc: [], ids: g.ids, date: g.date,
+      subject: fill(t.subject, { "pickup date": fmtLong(g.date) }),
+      body: fill(t.body, { "pickup date": fmtLong(g.date), "service description": desc,
+                           "box description": desc, "box list": desc }),
+      event: "CUSTOMER NOTIFIED", label: "notice"
+    });
+  });
+
+  q.sort(function(a,b){
+    if(a.kind !== b.kind) return a.kind === "request" ? -1 : 1;
+    return (a.date + a.to.join()).localeCompare(b.date + b.to.join());
+  });
+
+  state.queue = q;
+  state.blocked = blocked;
+  q.forEach(function(e){ if(!(e.id in state.checked)) state.checked[e.id] = true; });
+}
+
+/* ================= RENDER ================= */
+
+function cardHtml(e){
+  var on = !!state.checked[e.id];
+  var done = state.sent[e.id];
+  var open = state.open === e.id;
+  var boxes = e.ids.length + (e.ids.length === 1 ? " box" : " boxes");
+
+  var right = done === "ok"
+    ? '<span class="qc-sent">Sent</span>'
+    : '<span class="qc-n">' + boxes + '</span>' +
+      '<span class="qc-date">' + esc(fmtDate(e.date)) + '</span>' +
+      '<span class="qc-chev">' + (open ? "\u25b4" : "\u25be") + '</span>';
+
+  var body = "";
+  if(open){
+    body = '<div class="qc-body">' +
+      '<div class="qc-field"><b>To</b> &nbsp;' + esc(e.to.join(", ")) + '</div>' +
+      (e.cc.length ? '<div class="qc-field"><b>Cc</b> &nbsp;' + esc(e.cc.join(", ")) + '</div>' : '') +
+      '<div class="qc-field"><b>Bcc</b> &nbsp;' + esc(BCC) + '</div>' +
+      '<div class="qc-field"><b>Subject</b> &nbsp;' + esc(e.subject) + '</div>' +
+      '<div class="qc-hr"></div>' + esc(e.body) +
+    '</div>';
+  }
+
+  return '<div class="qc' + (on || done ? "" : " off") + '" data-q="' + esc(e.id) + '">' +
+    '<div class="qc-head">' +
+      '<span class="qc-chk' + (done ? " on dead" : (on ? " on" : "")) + '" data-chk="' + esc(e.id) + '">' +
+        (on || done ? "\u2713" : "") + '</span>' +
+      '<div class="qc-mid">' +
+        '<div class="qc-to">' + esc(e.to.join(", ")) + '</div>' +
+        '<div class="qc-sub">' + esc(e.subject) + '</div>' +
+      '</div>' + right +
+    '</div>' + body +
+  '</div>';
+}
+
+function blockedHtml(b){
+  return '<div class="qc blocked">' +
+    '<div class="qc-head" style="cursor:default;">' +
+      '<span class="qc-chk dead"></span>' +
+      '<div class="qc-mid">' +
+        '<div class="qc-to">' + esc(b.who) + '</div>' +
+        '<div class="qc-sub">' + esc(b.why) + '</div>' +
+      '</div>' +
+      '<span class="qc-date">' + esc(fmtDate(b.date)) + '</span>' +
+    '</div>' +
+  '</div>';
+}
+
+function render(){
+  var main = document.getElementById("main");
+  var q = state.queue, blocked = state.blocked || [];
+
+  if(!q.length && !blocked.length){
+    main.innerHTML = '<div class="empty"><div class="big">Nothing to send</div>' +
+      'Open this from the Schedule Service list on the Monitoring Dashboard.</div>';
+    return;
+  }
+
+  var live = q.filter(function(e){ return !state.sent[e.id]; });
+  var checked = live.filter(function(e){ return state.checked[e.id]; });
+  var boxCount = {};
+  checked.forEach(function(e){ e.ids.forEach(function(id){ boxCount[id] = 1; }); });
+  var nBoxes = Object.keys(boxCount).length;
+  var allOn = live.length > 0 && checked.length === live.length;
+
+  var reqs = q.filter(function(e){ return e.kind === "request"; });
+  var nots = q.filter(function(e){ return e.kind === "notice"; });
+
+  var html = '<div class="summary">' +
+    '<h1>Ready to send</h1>' +
+    '<span class="count">' + checked.length + " of " + live.length +
+      " emails \u00b7 " + nBoxes + " boxes</span>" +
+    '<span class="spacer"></span>' +
+    (live.length ? '<button class="btn" id="toggleAll">' + (allOn ? "Uncheck all" : "Check all") + '</button>' : '') +
+    '<button class="btn primary" id="sendAll"' + (checked.length && !state.sending ? "" : " disabled") + '>' +
+      (state.sending ? '<span class="spinner"></span>Sending\u2026'
+                     : "Send " + checked.length + (checked.length === 1 ? " email" : " emails")) +
+    '</button>' +
+  '</div>';
+
+  if(reqs.length){
+    html += '<div class="sec">Service requests \u00b7 ' + reqs.length + ' \u00b7 grouped by hauler and date</div>';
+    html += reqs.map(cardHtml).join("");
+  }
+  if(nots.length){
+    html += '<div class="sec">Customer notices \u00b7 ' + nots.length + ' \u00b7 grouped by contact and date</div>';
+    html += nots.map(cardHtml).join("");
+  }
+  if(blocked.length){
+    html += '<div class="sec">Cannot send \u00b7 ' + blocked.length + '</div>';
+    html += blocked.map(blockedHtml).join("");
+  }
+
+  main.innerHTML = html;
+  wire();
+}
+
+function wire(){
+  var t = document.getElementById("toggleAll");
+  if(t) t.addEventListener("click", function(){
+    var live = state.queue.filter(function(e){ return !state.sent[e.id]; });
+    var allOn = live.every(function(e){ return state.checked[e.id]; });
+    live.forEach(function(e){ state.checked[e.id] = !allOn; });
+    render();
+  });
+
+  var s = document.getElementById("sendAll");
+  if(s) s.addEventListener("click", sendAll);
+
+  document.querySelectorAll("[data-chk]").forEach(function(el){
+    el.addEventListener("click", function(ev){
+      ev.stopPropagation();
+      var id = el.getAttribute("data-chk");
+      if(state.sent[id] || state.sending) return;
+      state.checked[id] = !state.checked[id];
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-q] .qc-head").forEach(function(el){
+    el.addEventListener("click", function(){
+      var id = el.parentNode.getAttribute("data-q");
+      state.open = (state.open === id) ? null : id;
+      render();
+    });
+  });
+}
+
+/* ================= SEND ================= */
+
+/* One at a time, not thirty at once. JSONP means thirty parallel <script>
+   tags, and SendGrid plus Apps Script would rate-limit some of them - and a
+   half-sent batch where you cannot tell which half is the worst possible
+   outcome here. Slower, and you always know exactly what left. */
+function sendAll(){
+  if(state.sending) return;
+  var pending = state.queue.filter(function(e){
+    return state.checked[e.id] && !state.sent[e.id];
+  });
+  if(!pending.length) return;
+
+  state.sending = true;
+  setBanner("");
+  render();
+
+  var i = 0, okCount = 0, failed = [];
+
+  function next(){
+    if(i >= pending.length){
+      state.sending = false;
+      render();
+      if(failed.length === 0){
+        setBanner("Sent " + okCount + (okCount === 1 ? " email." : " emails.") +
+                  " The marks on the Monitoring Dashboard will follow.", "info");
+      } else {
+        setBanner("Sent " + okCount + ", <b>" + failed.length + " failed</b>: " +
+                  esc(failed.join("; ")) + ". Nothing was sent twice \u2014 the ones that " +
+                  "succeeded are ticked and will not resend.", "err");
+      }
+      return;
+    }
+    var e = pending[i++];
+    var html = e.body.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+                     .replace(/\n/g,"<br>");
+    if(e.link){
+      html = html.split(e.link).join(
+        '<a href="' + e.link + '" style="display:inline-block;background:#5CAA16;color:#fff;' +
+        'padding:11px 20px;border-radius:6px;text-decoration:none;font-weight:bold;">' +
+        'Confirm Service Scheduled</a>');
+    }
+    html = '<div style="font-family:Arial,sans-serif;font-size:14px;color:#1A1D1A;">' + html + '</div>';
+
+    jsonp({
+      action: "send_email", key: KEY,
+      to: e.to.join(","), cc: e.cc.join(","), bcc: BCC,
+      subject: e.subject, body: e.body, html: html,
+      // The ledger row rides along with the send - see sendEmailViaSendGrid.
+      boxId: e.ids.join(","), event: e.event, pickupDate: e.date, tab: state.tab
+    }, function(data){
+      if(data && data.ok){
+        state.sent[e.id] = "ok";
+        okCount++;
+        // The mail went. If the LEDGER row did not, say so loudly: the email
+        // is out in the world and the dashboard does not know, so the mark
+        // will stay dark and somebody will send it a second time.
+        if(data.logged === false){
+          failed.push(e.to[0] + " (sent, but NOT logged: " + (data.logNote || "unknown") + ")");
+        }
+      } else {
+        state.sent[e.id] = (data && data.error) || "failed";
+        failed.push(e.to[0] + " (" + ((data && data.error) || "failed") + ")");
+        delete state.sent[e.id];   // leave it checked so it can be retried
+      }
+      render();
+      setTimeout(next, 350);
+    });
+  }
+  next();
+}
+
+/* ================= LOAD ================= */
+
+function parseUrl(){
+  var p = new URLSearchParams(window.location.search);
+  state.tab = p.get("tab") || "";
+  var b = p.get("b") || "";
+  b.split(",").forEach(function(pair){
+    var bits = pair.split(":");
+    var id = (bits[0] || "").trim();
+    var d  = (bits[1] || "").trim();
+    if(id && /^\d{4}-\d{2}-\d{2}$/.test(d)) state.want[id] = d;
+  });
+}
+
+function ready(){
+  state.loaded++;
+  if(state.loaded < 3) return;   // scan + contacts + templates
+  buildQueue();
+  render();
+}
+
+function boot(){
+  document.getElementById("backBtn").addEventListener("click", function(){
+    window.location.href = "wastenet-monitor.html";
+  });
+
+  parseUrl();
+  if(!state.tab || !Object.keys(state.want).length){
+    document.getElementById("main").innerHTML =
+      '<div class="empty"><div class="big">Nothing to send</div>' +
+      'Open this from the Schedule Service list on the Monitoring Dashboard.</div>';
+    return;
+  }
+
+  // action=tab takes `name`, not `tab`. (The monitor calls it the same way.)
+  jsonp({ action:"tab", name:state.tab, key:KEY }, function(data){
+    if(data && data.ok && data.rows){
+      data.rows.forEach(function(r){
+        var id = String(r["Box ID"] == null ? "" : r["Box ID"]);
+        if(id.slice(-2) === ".0") id = id.slice(0, -2);
+        if(!(id in state.want)) return;
+        state.rows[id] = {
+          id: id,
+          desc: String(r["Description"] || ""),
+          haulCode: String(r["Haul Code"] || ""),
+          srvcMthd: String(r["Srvc Mthd"] || ""),
+          schDate: String(r["Sch Date"] || "")
+        };
+      });
+    } else {
+      setBanner(esc((data && data.error) || "Could not load the scan."), "err");
+    }
+    ready();
+  });
+
+  jsonp({ action:"master_contacts", key:KEY }, function(data){
+    if(data && data.ok && data.contacts) state.contacts = data.contacts;
+    else setBanner(esc((data && data.error) || "Could not load contacts."), "err");
+    ready();
+  });
+
+  jsonp({ action:"email_templates", key:KEY }, function(data){
+    if(data && data.ok && data.templates){
+      // Keyed on the Pill Label, lowercased - "Notice", "Batch". The Apps
+      // Script calls the fields subjectTemplate/bodyTemplate; normalise here
+      // so the rest of this file only ever says subject/body.
+      Object.keys(data.templates).forEach(function(k){
+        var t = data.templates[k] || {};
+        state.templates[String(k).toLowerCase()] = {
+          subject: t.subjectTemplate || "",
+          body: t.bodyTemplate || ""
+        };
+      });
+      if(!state.templates["notice"] || !state.templates["batch"]){
+        // Say which one is missing. A blank body would otherwise sail straight
+        // out to a hauler and nobody would know why until they replied.
+        setBanner("Missing template(s) on the Email Templates tab: " +
+          (!state.templates["notice"] ? "Notice " : "") +
+          (!state.templates["batch"] ? "Batch" : "") +
+          " \u2014 drafts using them will be blank.", "err");
+      }
+    } else {
+      setBanner(esc((data && data.error) || "Could not load the email templates."), "err");
+    }
+    ready();
+  });
+}
+
+boot();
+</script>
+</body>
+</html>
