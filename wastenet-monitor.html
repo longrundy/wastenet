@@ -361,15 +361,27 @@
                border:0.5px solid var(--green-border);}
   .haul-portal:hover{background:var(--green); border-color:var(--green); color:#fff;}
 
-  /* The split pill. Two halves, one object - the date is what the button acts on. */
-  .em-pill{display:inline-flex; align-items:stretch; border-radius:var(--r-pill);
-           overflow:hidden; flex:0 0 auto; margin-left:6px; white-space:nowrap;}
-  .em-date{font-size:10.5px; font-weight:600; padding:2px 9px; display:inline-flex; align-items:center;
+  /* ---- the split pill: [ date | Email(s) ] ----
+     THE HALVES CARRY THEIR OWN ROUNDING. The obvious way to build this - round
+     the parent and overflow:hidden - clips square-cornered children with a pill
+     mask, which slices straight through the date's left border and leaves a
+     stub of it hanging in space. It reads as a stray vertical bar next to the
+     pill, which is exactly what it is.
+
+     So each half is rounded on its own outer edge, and the parent does no
+     clipping at all. The border then follows the curve instead of being cut
+     by it. */
+  .em-pill{display:inline-flex; align-items:stretch; flex:0 0 auto;
+           margin-left:6px; white-space:nowrap;}
+  .em-date{font-size:10.5px; font-weight:600; padding:2px 9px 2px 11px;
+           display:inline-flex; align-items:center;
            background:var(--card); color:var(--green-darker);
-           border:0.5px solid var(--green-border); border-right:none;}
-  .em-go{font-family:var(--font); font-size:10.5px; font-weight:600; padding:2px 9px;
+           border:0.5px solid var(--green-border); border-right:none;
+           border-radius:var(--r-pill) 0 0 var(--r-pill);}
+  .em-go{font-family:var(--font); font-size:10.5px; font-weight:600;
+         padding:2px 11px 2px 9px; display:inline-flex; align-items:center;
          border:0.5px solid var(--green); background:var(--green); color:#fff;
-         cursor:pointer; display:inline-flex; align-items:center;}
+         cursor:pointer; border-radius:0 var(--r-pill) var(--r-pill) 0;}
   .em-go:hover{background:var(--green-dark); border-color:var(--green-dark);}
 
   /* Draft all. One click for a thirty-box morning. */
