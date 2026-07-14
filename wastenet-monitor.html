@@ -1731,8 +1731,26 @@ function render(){
   // Precedence, highest first: hands-off (do nothing) > needs-marking-empty
   // (just emptied, record it - NOT service) > monitor down > scheduled >
   // action > stale > no action. Each is pulled from what the previous left.
-  var handsOff = state.rows.filter(isHandsOff);
-  var afterHandsOff = state.rows.filter(function(b){ return !isHandsOff(b); });
+  /* ---- a moved-in box leaves its old bucket FIRST ----------------------
+     This has to happen before the precedence chain, not after it. The chain
+     strips out hands-off, needs-empty and monitor-down boxes at the top, and
+     the action list is built from what survives - so a MONITOR-DOWN box could
+     never be moved in, however hard anyone clicked the button.
+
+     Which is exactly the case that matters. A dead monitor does not mean a dead
+     compactor. The site is still filling it, it still needs emptying, and the
+     one thing standing between it and a pickup is a scanner that cannot see.
+     Same for a stale scan. The person can see what the machine cannot, and this
+     is where they get to say so.
+
+     Pulling them out here (rather than adding them back later) also keeps each
+     box in exactly ONE bucket, so the six scorecard numbers still reconcile to
+     the scan total. */
+  var forcedIn = state.rows.filter(function(b){ return movedIn(b); });
+  var pool0 = state.rows.filter(function(b){ return !movedIn(b); });
+
+  var handsOff = pool0.filter(isHandsOff);
+  var afterHandsOff = pool0.filter(function(b){ return !isHandsOff(b); });
   var needsEmpty = afterHandsOff.filter(isNeedsEmpty);
   var pool = afterHandsOff.filter(function(b){ return !isNeedsEmpty(b); });
   var monitorDown = pool.filter(isMonitorDown);
@@ -1757,12 +1775,11 @@ function render(){
   var action = allYes.filter(function(b){ return !isStaleScan(b); });
 
   /* ---- then the people overrule the machine ----
-     Moved-in boxes join the list even though the scanner said no. Dismissed
-     boxes leave it even though the scanner said yes. Both are visible, both
-     carry a reason, and neither touches what the scanner actually reported. */
-  var forcedIn = notDown.filter(function(b){
-    return movedIn(b) && !handled(b) && action.indexOf(b) === -1;
-  });
+     Moved-in boxes join the list even though the scanner said no - from ANY
+     bucket, including monitor-down and stale, which is the whole point.
+     Dismissed boxes leave it even though the scanner said yes. Both stay
+     visible, both carry a reason, and neither touches what the scanner
+     actually reported. */
   action = action.concat(forcedIn);
 
   /* A DISMISSAL DOES NOT REDUCE THE COUNT. Eight boxes need service; three have
@@ -2187,6 +2204,7 @@ function scheduledRowHtml(b, overdue){
       '</div>'+
       '<div class="chev">▾</div>'+
     '</div>'+
+    moveStripHtml(b)+
     detailHtml(b);
 }
 
@@ -2209,6 +2227,7 @@ function staleRowHtml(b){
       '</div>'+
       '<div class="chev">▾</div>'+
     '</div>'+
+    moveStripHtml(b)+
     detailHtml(b);
 }
 
@@ -2233,6 +2252,7 @@ function monitorRowHtml(b){
       '</div>'+
       '<div class="chev">▾</div>'+
     '</div>'+
+    moveStripHtml(b)+
     detailHtml(b);
 }
 
@@ -2272,6 +2292,7 @@ function needsEmptyRowHtml(b){
       '</div>'+
       '<div class="chev">▾</div>'+
     '</div>'+
+    moveStripHtml(b)+
     detailHtml(b);
 }
 
@@ -2298,6 +2319,7 @@ function handsOffRowHtml(b){
       '</div>'+
       '<div class="chev">▾</div>'+
     '</div>'+
+    moveStripHtml(b)+
     detailHtml(b);
 }
 
