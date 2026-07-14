@@ -638,6 +638,57 @@
     .score-n{font-size:15px;}
     .ftab{padding:6px 9px 7px; font-size:11px;}
   }
+
+/* ---------- financials ---------- */
+
+/* One card: legend, chart, cards, caveats. They are read together or not at
+   all - a margin with no note about what is missing from it is a number
+   pretending to be a conclusion. */
+.fincard{ padding:18px 20px 16px; }
+
+.finlegend{
+  display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  font-size:12px; color:var(--muted); margin-bottom:10px;
+}
+.finlegend span{ display:inline-flex; align-items:center; gap:5px; }
+.finlegend .sw{ width:10px; height:10px; border-radius:2px; display:inline-block; }
+.sw-rev{  background:#2a78d6; }
+.sw-comm{ background:#eda100; }
+.sw-ces{  background:#1baf7a; }
+.sw-line{ background:#4a3aa7; height:2px; width:16px; border-radius:0; }
+.finyr{
+  margin-left:auto; font-size:12px; padding:3px 6px;
+  border:1px solid var(--line); border-radius:6px; background:#fff;
+}
+
+.finsvg{ width:100%; height:auto; display:block; }
+.fingrid{ stroke:#e6e6df; stroke-width:1; }
+.finax{ fill:#8a8983; font-size:11px; }
+.b-rev{  fill:#2a78d6; }
+.b-comm{ fill:#eda100; }
+.b-ces{  fill:#1baf7a; }
+/* A month CES has not been entered for. Hollow on purpose - it must read as
+   a gap, never as a zero. */
+.b-none{ fill:none; stroke:#c3c2b7; stroke-width:1; stroke-dasharray:2 2; }
+.finline{ fill:none; stroke:#4a3aa7; stroke-width:2; stroke-linejoin:round; }
+.findot{ fill:#4a3aa7; }
+
+.fincards{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+  gap:10px; margin-top:14px;
+}
+.fincell{ background:#F5F6F1; border-radius:8px; padding:10px 12px; }
+.fin-l{ font-size:12px; color:var(--muted); }
+.fin-n{ font-size:20px; font-weight:500; margin-top:2px; }
+.fin-s{ font-size:11px; color:var(--muted); margin-top:2px; }
+.f-up{   color:#3B6D11; }
+.f-down{ color:#A32D2D; }
+
+.finnote{
+  font-size:12px; color:var(--muted); line-height:1.5;
+  margin-top:12px; padding-top:10px; border-top:1px solid var(--line);
+}
+.finnote.f-warn{ color:#8a5a06; }
 </style>
 </head>
 <body>
@@ -685,6 +736,7 @@
       <button class="sec" data-sec="billing">Billing</button>
       <button class="sec" data-sec="agents">Agents</button>
       <button class="sec" data-sec="deposits">Deposits</button>
+      <button class="sec" data-sec="financials">Financials</button>
     </div>
     <button class="btn" id="slimRefreshBtn" aria-label="Refresh">&#8635;</button>
   </div>
@@ -732,6 +784,7 @@
       <button class="sec" data-sec="billing">Billing</button>
       <button class="sec" data-sec="agents">Agents</button>
       <button class="sec" data-sec="deposits">Deposits</button>
+      <button class="sec" data-sec="financials">Financials</button>
       <!-- One (i) for the section you are looking at. Five buttons each with
            their own (i) would be five pieces of chrome asking to be ignored. -->
       <button class="lg-i" id="secInfo" title="How is this worked out?"
@@ -866,6 +919,13 @@ var state = {
   agMonths: [],
   agYears: [],
   agByYear: {},       // year -> { "yyyy-mm": {agents, unmapped} }
+
+  // financials
+  finYear: "",
+  finLoaded: false,
+  finLoading: false,
+  finCes: {},         // "yyyy-mm" -> { billed, paid, note }
+  finCesLoaded: false,
   agLoaded: false,
   agLoading: false,
   agOpen: {},         // which agent rows are expanded
@@ -1262,6 +1322,11 @@ function renderSummary(){
     '</div>';
     return;
   }
+
+  /* Financials carries its own four cards, directly above its chart where
+     they can be read against it. A second set up here would be the same
+     numbers twice. */
+  if(state.section === "financials"){ el.innerHTML = ""; return; }
 
   if(state.section === "payments"){
     if(!state.colLoaded){ el.innerHTML = ""; return; }
@@ -2030,7 +2095,7 @@ function shareLabel(a){
 
 /* Fetch a whole year. ~600 commissionable payments - months are then
    switched on the client with no further requests. */
-function loadPayouts(year){
+function loadPayouts(year, then){
   if(state.agLoading) return;
   state.agLoading = true;
 
@@ -2058,6 +2123,9 @@ function loadPayouts(year){
     // Land on the full-year view. It answers "what did each agent make
     // this year" without a click, and the months are one tap away.
     state.agMonth = "";
+
+    /* Financials waits on this. Tell it rather than making it poll. */
+    if(then){ then(); return; }
 
     renderSummary();
     renderBody();
@@ -3442,6 +3510,343 @@ function loadPayers(){
   });
 }
 
+/* ---------- financials ---------- */
+
+/* Three numbers, one page: what came in, what CES cost, what the agents were
+   paid. Everything else the company spends is real but is not on this page,
+   and the page says so rather than letting a reader assume otherwise.
+
+   BASIS - worth understanding before trusting the margin line.
+
+   Revenue and commissions are CASH: money collected, and the share of that
+   money the agents earned on it. Both come from the same two endpoints the
+   Payments and Agents pages already use, so this page cannot disagree with
+   those pages.
+
+   CES is BILLED, not paid. Deliberately. What CES bills is the cost of
+   monitoring the boxes that month, and it is steady - a base fee plus
+   per-incident charges. What leaves the bank is whatever was sent, which is
+   not the same thing: March 2026 paid nothing and April paid $15,000, while
+   the real cost of both months was ordinary. Charting payments would show a
+   cliff that never happened and a recovery that never happened. A pulse that
+   jumps for no reason is worse than no pulse.
+
+   So the margin mixes bases slightly. That is a choice, not an oversight. */
+
+/* A month with no CES row is a month we cannot cost. Revenue and commissions
+   still draw - they are known - but the margin does not, and the CES bar is
+   left hollow. Treating a missing row as zero would print a 69% margin and
+   call it the best month in company history. */
+function finRows(){
+  var yr = state.finYear;
+  if(!yr) return [];
+
+  var pay = state.agByYear[yr] || {};
+
+  var rev = {};
+  (state.months || []).forEach(function(m){
+    if(String(m.month).slice(0,4) === yr) rev[m.month] = Number(m.total) || 0;
+  });
+
+  /* Every month any source knows about, so a month with revenue but no CES
+     row still appears - hollow - rather than vanishing. */
+  var keys = {};
+  Object.keys(rev).forEach(function(k){ keys[k] = 1; });
+  Object.keys(pay).forEach(function(k){ if(k.slice(0,4) === yr) keys[k] = 1; });
+  Object.keys(state.finCes).forEach(function(k){ if(k.slice(0,4) === yr) keys[k] = 1; });
+
+  return Object.keys(keys).sort().map(function(m){
+    var c = state.finCes[m];
+    var comm = ((pay[m] && pay[m].agents) || []).reduce(function(s,a){
+      return s + (Number(a.payout) || 0);
+    }, 0);
+
+    var revenue = rev[m] || 0;
+    var billed  = c ? (Number(c.billed) || 0) : 0;
+    var known   = !!c;
+    var gross   = revenue - billed - comm;
+
+    return {
+      month:   m,
+      revenue: revenue,
+      ces:     billed,
+      comm:    comm,
+      gross:   known ? gross : null,
+      margin:  (known && revenue > 0) ? (gross / revenue) * 100 : null,
+      known:   known
+    };
+  });
+}
+
+/* Hand-drawn SVG rather than a charting library. The page has no build step
+   and no dependencies, and pulling one in for six bars would be the largest
+   thing on it. */
+function finChart(rows){
+  if(!rows.length) return "";
+
+  var W = 720, H = 250, L = 50, R = 42, T = 14, B = 26;
+  var iw = W - L - R, ih = H - T - B;
+
+  var max = 0;
+  rows.forEach(function(r){ max = Math.max(max, r.revenue, r.ces, r.comm); });
+  if(max <= 0) max = 1;
+
+  /* Round the ceiling up to a number a human would have picked, so the
+     gridlines read $10k and $20k rather than $17,431. */
+  var step = Math.pow(10, String(Math.round(max)).length - 1);
+  var top  = Math.ceil(max / step) * step;
+  if(top <= 0) top = step;
+
+  var gw = iw / rows.length;
+  var bw = Math.max(4, Math.min(15, (gw - 16) / 3));
+  var y0 = T + ih;
+
+  function yv(v){ return y0 - (Math.max(0, v) / top) * ih; }
+  function ym(p){ return y0 - (p / 100) * ih; }
+
+  var s = '<svg class="finsvg" viewBox="0 0 ' + W + ' ' + H + '" ' +
+          'role="img" aria-label="Revenue, CES cost, agent commissions and gross margin by month">';
+
+  var g, gy, gv;
+  for(g = 0; g <= 4; g++){
+    gy = T + (ih / 4) * g;
+    gv = top - (top / 4) * g;
+    s += '<line class="fingrid" x1="' + L + '" y1="' + gy + '" x2="' + (L + iw) + '" y2="' + gy + '"/>';
+    s += '<text class="finax" x="' + (L - 8) + '" y="' + (gy + 4) + '" text-anchor="end">$' +
+         Math.round(gv / 1000) + 'k</text>';
+  }
+
+  var p;
+  for(p = 0; p <= 100; p += 25){
+    s += '<text class="finax" x="' + (L + iw + 8) + '" y="' + (ym(p) + 4) + '">' + p + '%</text>';
+  }
+
+  rows.forEach(function(r, i){
+    var cx = L + gw * i + gw / 2;
+    var x0 = cx - (bw * 3 + 8) / 2;
+
+    s += '<rect class="finbar b-rev" x="' + x0 + '" y="' + yv(r.revenue) +
+         '" width="' + bw + '" height="' + Math.max(0, y0 - yv(r.revenue)) + '" rx="2"/>';
+    s += '<rect class="finbar b-comm" x="' + (x0 + bw + 4) + '" y="' + yv(r.comm) +
+         '" width="' + bw + '" height="' + Math.max(0, y0 - yv(r.comm)) + '" rx="2"/>';
+
+    /* No CES row for this month. Draw the slot it would have filled as a
+       dashed outline, so the absence is visible rather than silent. */
+    if(r.known){
+      s += '<rect class="finbar b-ces" x="' + (x0 + (bw + 4) * 2) + '" y="' + yv(r.ces) +
+           '" width="' + bw + '" height="' + Math.max(0, y0 - yv(r.ces)) + '" rx="2"/>';
+    } else {
+      s += '<rect class="finbar b-none" x="' + (x0 + (bw + 4) * 2) + '" y="' + (y0 - 10) +
+           '" width="' + bw + '" height="10" rx="2"/>';
+    }
+
+    s += '<text class="finax" x="' + cx + '" y="' + (H - 7) + '" text-anchor="middle">' +
+         monthShort(r.month) + '</text>';
+  });
+
+  /* The margin line BREAKS at any month with no CES. It does not bridge the
+     gap - bridging would draw a number nobody measured. */
+  var seg = [], segs = [];
+  rows.forEach(function(r, i){
+    if(r.margin === null){
+      if(seg.length) segs.push(seg);
+      seg = [];
+      return;
+    }
+    seg.push([L + gw * i + gw / 2, ym(r.margin)]);
+  });
+  if(seg.length) segs.push(seg);
+
+  segs.forEach(function(sg){
+    if(sg.length > 1){
+      s += '<polyline class="finline" points="' +
+           sg.map(function(pt){ return pt[0] + ',' + pt[1]; }).join(" ") + '"/>';
+    }
+    sg.forEach(function(pt){
+      s += '<circle class="findot" cx="' + pt[0] + '" cy="' + pt[1] + '" r="3.5"/>';
+    });
+  });
+
+  return s + '</svg>';
+}
+
+function finCard(label, big, sub, cls){
+  return '<div class="fincell">' +
+           '<div class="fin-l">' + label + '</div>' +
+           '<div class="fin-n">' + big + '</div>' +
+           '<div class="fin-s ' + (cls || "") + '">' + sub + '</div>' +
+         '</div>';
+}
+
+function renderFinancials(){
+  if(!state.finLoaded){
+    return '<div class="empty-state"><span class="spinner"></span>Working out the numbers&hellip;</div>';
+  }
+
+  var rows = finRows();
+  if(!rows.length){
+    return '<div class="empty-state">Nothing to show for ' + state.finYear + '.</div>';
+  }
+
+  var known   = rows.filter(function(r){ return r.known; });
+  var missing = rows.filter(function(r){ return !r.known; });
+
+  /* The totals cover only the months we can actually cost. Including a month
+     with no CES row would understate cost and overstate margin. */
+  var tRev  = known.reduce(function(s,r){ return s + r.revenue; }, 0);
+  var tCes  = known.reduce(function(s,r){ return s + r.ces; }, 0);
+  var tComm = known.reduce(function(s,r){ return s + r.comm; }, 0);
+  var tGross = tRev - tCes - tComm;
+
+  function pct(v){ return tRev > 0 ? (v / tRev * 100).toFixed(1) + "%" : "\u2014"; }
+
+  /* Last year, but only the SAME months, so six months of this year are never
+     compared against twelve of last. */
+  var prevYr = String(Number(state.finYear) - 1);
+  var mons = {};
+  known.forEach(function(r){ mons[r.month.slice(5,7)] = 1; });
+
+  var prevRev = (state.months || []).filter(function(m){
+    return String(m.month).slice(0,4) === prevYr && mons[String(m.month).slice(5,7)];
+  }).reduce(function(s,m){ return s + (Number(m.total) || 0); }, 0);
+
+  var delta = "\u2014", dcls = "";
+  if(prevRev > 0 && tRev > 0){
+    var d = ((tRev - prevRev) / prevRev) * 100;
+    delta = (d >= 0 ? "\u2191 " : "\u2193 ") + Math.abs(d).toFixed(0) + "% vs " + prevYr;
+    dcls  = d >= 0 ? "f-up" : "f-down";
+  }
+
+  var yrOpts = (state.years || []).map(function(y){
+    return '<option value="' + y.year + '"' +
+           (state.finYear === y.year ? " selected" : "") + '>' + y.year + '</option>';
+  }).join("");
+
+  var legend =
+    '<div class="finlegend">' +
+      '<span><i class="sw sw-rev"></i>Revenue</span>' +
+      '<span><i class="sw sw-comm"></i>Commissions</span>' +
+      '<span><i class="sw sw-ces"></i>CES</span>' +
+      '<span><i class="sw sw-line"></i>Margin %</span>' +
+      '<select id="finYr" class="finyr">' + yrOpts + '</select>' +
+    '</div>';
+
+  var cards =
+    '<div class="fincards">' +
+      finCard("Revenue",      moneyShort(tRev),   delta,       dcls) +
+      finCard("CES",          moneyShort(tCes),   pct(tCes),   "") +
+      finCard("Commissions",  moneyShort(tComm),  pct(tComm),  "") +
+      finCard("Gross margin", moneyShort(tGross), pct(tGross), "") +
+    '</div>';
+
+  /* Say plainly what is missing and what is not counted. A financial page that
+     quietly leaves things out is worse than one that owns up to it. */
+  var notes = "";
+  if(missing.length){
+    notes += '<div class="finnote f-warn">No CES cost recorded for ' +
+      missing.map(function(r){ return monthShort(r.month); }).join(", ") +
+      '. Those months are drawn hollow and left out of the totals \u2014 the margin ' +
+      'is unknown, not zero. Add them to the <b>CES Costs</b> tab to fill them in.</div>';
+  }
+  notes += '<div class="finnote">Revenue and commissions are cash collected. CES is what ' +
+    'CES <b>billed</b> that month, not what was paid \u2014 payments lag, the cost does not. ' +
+    'Overhead, staff and owner distributions are not on this page.</div>';
+
+  return '<div class="card fincard">' + legend + finChart(rows) + cards + notes + '</div>';
+}
+
+function wireFinancials(){
+  var sel = document.getElementById("finYr");
+  if(!sel) return;
+
+  sel.onchange = function(){
+    var y = sel.value;
+    state.finYear = y;
+
+    /* Payouts come a year at a time. If this year is already in hand,
+       switching is a lookup and nothing goes over the wire. */
+    if(state.agByYear[y]){
+      renderSummary();
+      renderBody();
+      return;
+    }
+
+    state.finLoaded = false;
+    renderBody();
+    loadPayouts(y, function(){
+      state.finLoaded = true;
+      renderSummary();
+      renderBody();
+    });
+  };
+}
+
+/* Three sources, and the page cannot draw until all three are in. Rather than
+   nest the callbacks three deep, count them down. */
+function loadFinancials(){
+  if(state.finLoading) return;
+  state.finLoading = true;
+
+  var yr = state.finYear ||
+           (state.years && state.years[0] && state.years[0].year) ||
+           String(new Date().getFullYear());
+  state.finYear = yr;
+
+  var waiting = 1;   // start at 1 so an all-cached path cannot finish early
+
+  function done(){
+    if(--waiting > 0) return;
+    state.finLoading = false;
+    state.finLoaded  = true;
+
+    /* The year list arrives WITH collections, so the newest year may only
+       become knowable now. */
+    if(!state.finYear && state.years && state.years[0]){
+      state.finYear = state.years[0].year;
+    }
+
+    /* Collections may have landed on a different year than the one payouts
+       were fetched for. If so, fetch the payouts that match. */
+    if(state.finYear && !state.agByYear[state.finYear]){
+      state.finLoaded = false;
+      renderBody();
+      loadPayouts(state.finYear, function(){
+        state.finLoaded = true;
+        renderSummary();
+        renderBody();
+      });
+      return;
+    }
+
+    renderSummary();
+    renderBody();
+  }
+
+  if(!state.finCesLoaded){
+    waiting++;
+    jsonp({ action:"ces", key:KEY }, function(data){
+      if(data && data.ok){
+        state.finCes = {};
+        (data.ces || []).forEach(function(c){ state.finCes[c.month] = c; });
+      }
+      state.finCesLoaded = true;
+      done();
+    });
+  }
+
+  if(!state.colLoaded){
+    waiting++;
+    loadCollections("", done);
+  }
+
+  if(!state.agByYear[yr]){
+    waiting++;
+    loadPayouts(yr, done);
+  }
+
+  done();   // clears the initial 1
+}
+
 /* ---------- body ---------- */
 function renderBody(){
   var el = document.getElementById("body");
@@ -3470,6 +3875,13 @@ function renderBody(){
   if(state.section === "payments"){
     el.innerHTML = renderCollections();
     wireCollections();
+    measurePin();
+    return;
+  }
+
+  if(state.section === "financials"){
+    el.innerHTML = renderFinancials();
+    wireFinancials();
     measurePin();
     return;
   }
@@ -3632,11 +4044,13 @@ function wireCollections(){
 
 /* Fetch a whole year (~700 rows). Months are then switched on the
    client with no further requests. */
-function loadCollections(year){
+function loadCollections(year, then){
   if(state.colLoading) return;
   state.colLoading = true;
 
-  if(state.colLoaded){
+  /* Only paint the spinner if Collections is the page being looked at.
+     Financials also calls this, and must not blank someone else's body. */
+  if(state.colLoaded && state.section === "payments"){
     document.getElementById("body").innerHTML =
       '<div class="empty-state"><span class="spinner"></span>Loading ' + (year || "") + '&hellip;</div>';
   }
@@ -3666,6 +4080,9 @@ function loadCollections(year){
     }
 
     state.colLoaded = true;
+
+    if(then){ then(); return; }
+
     renderSummary();
     renderBody();
   });
@@ -3716,6 +4133,13 @@ document.querySelectorAll(".sec").forEach(function(el){
       renderSummary();
       renderBody();
       loadBilling("");
+      return;
+    }
+
+    if(state.section === "financials" && !state.finLoaded && !state.finLoading){
+      renderSummary();
+      renderBody();
+      loadFinancials();
       return;
     }
 
