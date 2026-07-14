@@ -397,7 +397,12 @@
      record-empty and hands-off pages. */
   .row-name{font-size:14px; font-weight:500; display:flex; align-items:center; gap:8px; min-width:0;}
   .row-name-text{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;}
-  .row-name .sug-chip{flex:0 0 auto;}
+  /* margin-left:auto pins the chip to the RIGHT edge of the row, so every
+     pickup date lands in the same column no matter how long the name is -
+     straight down the page, right against the fill bar. Chips that hug the end
+     of the name land in a different place on every row, and a ragged column is
+     a column nobody scans. */
+  .row-name .sug-chip{flex:0 0 auto; margin-left:auto;}
   .row.missed .row-name{color:var(--red-darker);}
   .row-meta{display:flex; align-items:center; gap:6px; margin-top:6px; flex-wrap:wrap;}
   .row-id{font-size:10px; color:var(--ink-3); margin-right:2px;}
