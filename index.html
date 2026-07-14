@@ -57,20 +57,18 @@
 
   /* choices */
   .picker{display:none;}
-  .picker.show{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px;}
-  /* The guide spans both columns and sits under them. It is a reference, not a
-     place you go to work - so it should not compete with the two doors above it. */
-  .pick.guide{grid-column:1 / -1; flex-direction:row; align-items:center;
-              text-align:left; gap:16px; padding:16px 20px;}
-  .pick.guide .disc{width:38px; height:38px; margin:0; flex:0 0 auto;}
-  .pick.guide .disc svg{width:19px; height:19px;}
-  .pick.guide .pick-t{margin-bottom:2px;}
-  .pick.guide .pick-d{max-width:none;}
+  .picker.show{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px;
+               max-width:496px; margin:0 auto;}
 
+  /* Square, and centred rather than top-aligned. The two descriptions are not
+     the same length, and in a fixed-height card a top-aligned block leaves one
+     door looking half-empty. Centring means the shorter one still sits level. */
   .pick{
-    display:block; text-align:center; text-decoration:none; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    aspect-ratio:1 / 1;
+    text-align:center; text-decoration:none; cursor:pointer;
     background:var(--card); border:0.5px solid var(--line-strong); border-radius:var(--r-card);
-    padding:26px 20px 22px; font-family:var(--font);
+    padding:20px; font-family:var(--font);
     transition:border-color .16s ease, background .16s ease, transform .16s ease, box-shadow .16s ease;
     -webkit-tap-highlight-color:transparent;
   }
@@ -80,7 +78,7 @@
   }
 
   .disc{
-    width:56px; height:56px; border-radius:50%; margin:0 auto 14px;
+    width:56px; height:56px; border-radius:50%; margin:0 auto 14px; flex:0 0 auto;
     background:var(--green-tint); border:1px solid var(--green-border);
     display:flex; align-items:center; justify-content:center;
     color:var(--green-dark);
@@ -93,7 +91,11 @@
   .pick-d{font-size:12.5px; color:var(--ink-2); line-height:1.5;}
 
   @media (max-width:480px){
-    .picker.show{grid-template-columns:1fr;}
+    /* One column on a phone - and NOT square. A 1:1 card at full phone width is
+       a 350px block, so the second door falls below the fold and stops existing
+       as far as most people are concerned. Let height follow content instead. */
+    .picker.show{grid-template-columns:1fr; max-width:none;}
+    .pick{aspect-ratio:auto; padding:26px 20px 22px;}
     .logo{width:165px;}
   }
 </style>
@@ -117,9 +119,10 @@
       <div class="disc">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M4 7h16l-1.4 12.2a1 1 0 0 1-1 .8H6.4a1 1 0 0 1-1-.8L4 7z"/>
-          <path d="M3 7l1.6-2.6a1 1 0 0 1 .86-.4h13.08a1 1 0 0 1 .86.4L21 7"/>
-          <path d="M5.4 14h13.2" stroke-width="2.4"/>
+          <rect x="2.5" y="4" width="19" height="13" rx="1.6"/>
+          <path d="M9 20.5h6"/>
+          <path d="M12 17v3.5"/>
+          <path d="M5.5 13.2l3-4.6 3 3.4 3-5 3 4.4 1 1.8" stroke-width="1.5"/>
         </svg>
       </div>
       <div class="pick-t">Monitoring Dashboard</div>
@@ -130,10 +133,14 @@
       <div class="disc">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M6 3h12v18l-2.4-1.6L13.2 21 12 19.6 10.8 21l-2.4-1.6L6 21V3z"/>
-          <path d="M9.6 8.4h4.8"/>
-          <path d="M9.6 12h4.8"/>
-          <path d="M9.6 15.6h2.6"/>
+          <rect x="3.5" y="3.9" width="17" height="16.6" rx="1.6"/>
+          <rect x="6.2" y="6.3" width="11.6" height="3.5" rx="0.7" stroke-width="1.4"/>
+          <circle cx="7.7" cy="13" r="0.8" fill="currentColor" stroke="none"/>
+          <circle cx="12" cy="13" r="0.8" fill="currentColor" stroke="none"/>
+          <circle cx="16.3" cy="13" r="0.8" fill="currentColor" stroke="none"/>
+          <circle cx="7.7" cy="16.8" r="0.8" fill="currentColor" stroke="none"/>
+          <circle cx="12" cy="16.8" r="0.8" fill="currentColor" stroke="none"/>
+          <circle cx="16.3" cy="16.8" r="0.8" fill="currentColor" stroke="none"/>
         </svg>
       </div>
       <div class="pick-t">Accounting Dashboard</div>
