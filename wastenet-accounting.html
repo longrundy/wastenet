@@ -1411,14 +1411,41 @@ function openStmtPreview(agent){
   var cfg = (state.agSettings || {})[agent] || {};
   if(!cfg.email){ showNote("No email address on file for " + a.name + ".", true); return; }
 
-  state.stmt = {
-    agent: agent, name: a.name, to: cfg.email, period: state.agMonth,
-    html: statementHtml(a, state.agMonth),
-    subject: "WasteNet Commission Statement \u2014 " + stmtPeriodLabel(state.agMonth),
-    payout: a.payout, boxes: a.boxes, invoices: (a.invoices || []).length,
-    sending: false
+  var docs = (a.invoices || []).map(function(i){ return i.doc; }).filter(Boolean);
+
+  var build = function(){
+    state.stmt = {
+      agent: agent, name: a.name, to: cfg.email, period: state.agMonth,
+      html: statementHtml(a, state.agMonth),
+      subject: "WasteNet Commission Statement \u2014 " + stmtPeriodLabel(state.agMonth),
+      payout: a.payout, boxes: a.boxes, invoices: docs.length,
+      sending: false
+    };
+    renderStmtModal();
   };
-  renderStmtModal();
+
+  if(!docs.length){ build(); return; }
+
+  showNote("Fetching the invoice detail\u2026", false);
+  jsonp({ action:"invoice_lines", key:KEY, docs: docs.join(",") }, function(data){
+    /* If the detail did not load, DO NOT quietly render a statement without it.
+       A statement missing its itemisation still looks complete - the totals are
+       all there - and the one person who would notice is the agent, after it
+       has been sent. */
+    if(!data || !data.ok){
+      showNote(esc((data && data.error) || "Could not load the invoice detail.") +
+               " The statement has not been drafted.", true);
+      return;
+    }
+    state.stmtLines = data.lines || {};
+    if(data.missing && data.missing.length){
+      showNote("No stored line items for invoice(s) " + esc(data.missing.join(", ")) +
+               ". They will appear on the statement as a total only.", true);
+    } else {
+      showNote("", false);
+    }
+    build();
+  });
 }
 
 function renderStmtModal(){
@@ -1503,6 +1530,13 @@ function wireStmtModal(){
   };
 }
 
+/* MM/DD. The year is in the title and on every row it would just be noise -
+   and nine columns at 600px cannot afford four characters of noise. */
+function shortDate(d){
+  var p = String(d || "").split("-");
+  return p.length === 3 ? (p[1] + "/" + p[2]) : (d || "");
+}
+
 function stmtPeriodLabel(ym){
   var p = String(ym || "").split("-");
   if(p.length < 2) return ym || "";
@@ -1512,22 +1546,45 @@ function stmtPeriodLabel(ym){
 }
 
 function statementHtml(a, period){
+  var cel = "padding:6px 6px;border-bottom:1px solid #E4E7E0;font-size:11.5px;";
   var rows = (a.invoices || []).map(function(i){
+    /* THE INVOICE, OPENED UP.
+       On the dashboard an invoice number is a link that opens a panel of its
+       line items. In an email there is no panel to open and no page John can
+       reach - the dashboard is key-locked - so a link would be a dead end
+       however it was built. The detail goes inline instead: he sees what is
+       behind the number without clicking anything, in any mail client. */
+    var lines = (state.stmtLines || {})[i.doc] || [];
+    var detail = lines.length
+      ? '<tr><td colspan="9" style="padding:0 6px 9px 6px;border-bottom:1px solid #E4E7E0;background:#FAFBF8;">'+
+          '<table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">'+
+            lines.map(function(L){
+              return '<tr>'+
+                '<td style="padding:3px 6px 3px 14px;font-size:10.5px;color:#525A60;">'+ esc(L.desc || "") +'</td>'+
+                '<td style="padding:3px 6px;font-size:10.5px;color:#8A8F8A;text-align:right;width:52px;">'+
+                  (L.qty == null ? "" : fmtN(L.qty)) +'</td>'+
+                '<td style="padding:3px 6px;font-size:10.5px;color:#8A8F8A;text-align:right;width:62px;">'+
+                  (L.rate == null ? "" : "$" + fmt(L.rate)) +'</td>'+
+                '<td style="padding:3px 6px;font-size:10.5px;color:#525A60;text-align:right;width:72px;">$'+
+                  fmt(L.amount) +'</td>'+
+              '</tr>';
+            }).join("")+
+          '</table>'+
+        '</td></tr>'
+      : '';
+
     return '<tr>'+
-      '<td style="padding:7px 8px;border-bottom:1px solid #E4E7E0;font-size:12px;color:#525A60;">'+
-        esc(usDate(i.invDate || "")) + '</td>'+
-      '<td style="padding:7px 8px;border-bottom:1px solid #E4E7E0;font-size:12px;font-weight:bold;color:#3B6D11;">'+
-        esc(usDate(i.date)) + '</td>'+
-      '<td style="padding:7px 8px;border-bottom:1px solid #E4E7E0;font-size:12px;">'+
-        esc(i.customer) + (i.partial ? ' <span style="color:#854F0B;">(' + i.partial + '% paid)</span>' : '') + '</td>'+
-      '<td style="padding:7px 8px;border-bottom:1px solid #E4E7E0;font-size:12px;">'+ esc(i.doc) +'</td>'+
-      '<td style="padding:7px 8px;border-bottom:1px solid #E4E7E0;font-size:12px;text-align:right;">'+ fmtN(i.boxes) +'</td>'+
-      '<td style="padding:7px 8px;border-bottom:1px solid #E4E7E0;font-size:12px;text-align:right;">$'+ fmt(i.monitoring) +'</td>'+
-      '<td style="padding:7px 8px;border-bottom:1px solid #E4E7E0;font-size:12px;text-align:right;color:#A32D2D;">\u2212$'+ fmt(i.fees || 0) +'</td>'+
-      '<td style="padding:7px 8px;border-bottom:1px solid #E4E7E0;font-size:12px;text-align:right;color:#525A60;">'+
-        Math.round((i.share || 0) * 100) +'%</td>'+
-      '<td style="padding:7px 8px;border-bottom:1px solid #E4E7E0;font-size:12px;text-align:right;font-weight:bold;">$'+ fmt(i.payout) +'</td>'+
-    '</tr>';
+      '<td style="'+cel+'color:#8A8F8A;white-space:nowrap;">'+ esc(shortDate(i.invDate || "")) + '</td>'+
+      '<td style="'+cel+'font-weight:bold;color:#3B6D11;white-space:nowrap;">'+ esc(shortDate(i.date)) + '</td>'+
+      '<td style="'+cel+'">'+ esc(i.customer) +
+        (i.partial ? ' <span style="color:#854F0B;">(' + i.partial + '% paid)</span>' : '') + '</td>'+
+      '<td style="'+cel+'color:#3B6D11;">'+ esc(i.doc) +'</td>'+
+      '<td style="'+cel+'text-align:right;">'+ fmtN(i.boxes) +'</td>'+
+      '<td style="'+cel+'text-align:right;">$'+ fmt(i.monitoring) +'</td>'+
+      '<td style="'+cel+'text-align:right;color:#A32D2D;">\u2212$'+ fmt(i.fees || 0) +'</td>'+
+      '<td style="'+cel+'text-align:right;color:#8A8F8A;">'+ Math.round((i.share || 0) * 100) +'%</td>'+
+      '<td style="'+cel+'text-align:right;font-weight:bold;">$'+ fmt(i.payout) +'</td>'+
+    '</tr>' + detail;
   }).join("");
 
   /* ---- THE MATHS, BY RATE BAND ----------------------------------------
@@ -1590,15 +1647,14 @@ function statementHtml(a, period){
 
     '<table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin-top:6px;">'+
       '<thead><tr style="background:#F6F7F3;">'+
-        '<th style="padding:7px 8px;text-align:left;font-size:10.5px;color:#525A60;border-bottom:2px solid #CFD4CA;">INVOICED</th>'+
-        '<th style="padding:7px 8px;text-align:left;font-size:10.5px;color:#3B6D11;border-bottom:2px solid #CFD4CA;">PAID</th>'+
-        '<th style="padding:7px 8px;text-align:left;font-size:10.5px;color:#525A60;border-bottom:2px solid #CFD4CA;">CUSTOMER</th>'+
-        '<th style="padding:7px 8px;text-align:left;font-size:10.5px;color:#525A60;border-bottom:2px solid #CFD4CA;">INVOICE</th>'+
-        '<th style="padding:7px 8px;text-align:right;font-size:10.5px;color:#525A60;border-bottom:2px solid #CFD4CA;">BOXES</th>'+
-        '<th style="padding:7px 8px;text-align:right;font-size:10.5px;color:#525A60;border-bottom:2px solid #CFD4CA;">MONITORING</th>'+
-        '<th style="padding:7px 8px;text-align:right;font-size:10.5px;color:#525A60;border-bottom:2px solid #CFD4CA;">CELL FEE</th>'+
-        '<th style="padding:7px 8px;text-align:right;font-size:10.5px;color:#525A60;border-bottom:2px solid #CFD4CA;">RATE</th>'+
-        '<th style="padding:7px 8px;text-align:right;font-size:10.5px;color:#525A60;border-bottom:2px solid #CFD4CA;">PAYOUT</th>'+
+        ['INVOICED','PAID','CUSTOMER','INV','BOXES','MONITORING','CELL FEE','RATE','PAYOUT']
+          .map(function(h, n){
+            var right = n >= 4;
+            return '<th style="padding:6px 6px;font-size:9.5px;letter-spacing:0.03em;'+
+              'color:' + (h === "PAID" ? "#3B6D11" : "#525A60") + ';'+
+              'text-align:' + (right ? "right" : "left") + ';'+
+              'border-bottom:2px solid #CFD4CA;white-space:nowrap;">' + h + '</th>';
+          }).join("")+
       '</tr></thead><tbody>'+ rows +'</tbody>'+
     '</table>'+
 
@@ -1620,10 +1676,14 @@ function statementHtml(a, period){
 
   return '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FAFBF8;padding:24px 12px;">'+
     '<tr><td align="center">'+
-      '<table width="700" cellpadding="0" cellspacing="0" border="0" style="max-width:700px;background:#FFFFFF;border:1px solid #E4E7E0;border-radius:8px;">'+
-        '<tr><td style="padding:26px 28px 22px;font-family:Arial,Helvetica,sans-serif;color:#1A1D1A;">'+ inner +'</td></tr>'+
-        '<tr><td style="padding:0 28px 22px;"><img src="'+ LOGO +'" alt="WasteNet" width="150" style="display:block;border:0;"></td></tr>'+
-        '<tr><td style="padding:16px 28px 22px;border-top:1px solid #E4E7E0;font-family:Arial,Helvetica,sans-serif;">'+
+      /* 600px, the same as every other email we send. The statement was 700 and
+         it overflowed - in the preview, and in any mail client with a reading
+         pane. Nine columns is a lot; the answer is shorter dates and tighter
+         cells, not a wider envelope. */
+      '<table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:#FFFFFF;border:1px solid #E4E7E0;border-radius:8px;">'+
+        '<tr><td style="padding:26px 30px 22px;font-family:Arial,Helvetica,sans-serif;color:#1A1D1A;">'+ inner +'</td></tr>'+
+        '<tr><td style="padding:0 30px 22px;"><img src="'+ LOGO +'" alt="WasteNet" width="150" style="display:block;border:0;"></td></tr>'+
+        '<tr><td style="padding:16px 30px 22px;border-top:1px solid #E4E7E0;font-family:Arial,Helvetica,sans-serif;">'+
           '<div style="font-size:11px;font-weight:bold;color:#525A60;margin-bottom:5px;">Wasteflo, Inc. d.b.a. WasteNet</div>'+
           '<div style="font-size:10px;line-height:1.5;color:#8A8F8A;font-style:italic;">'+ DISCLAIMER +'</div>'+
         '</td></tr>'+
