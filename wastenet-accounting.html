@@ -354,6 +354,39 @@
   .agmail-v{font-weight:600; color:var(--green-darker); flex:1; min-width:0;
             overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .agmail-v.muted{font-weight:400; color:var(--ink-3);}
+  .banner.ok{background:var(--green-tint-2); color:var(--green-darker); border:0.5px solid var(--green-border);}
+
+  .stmt-btn{font-family:var(--font); font-size:11.5px; font-weight:600; padding:3px 10px;
+    border-radius:var(--r-pill); border:0.5px solid var(--green); background:var(--green);
+    color:#fff; cursor:pointer; margin-left:8px;}
+  .stmt-btn:hover{background:var(--green-dark); border-color:var(--green-dark);}
+  .stmt-sent{font-size:11px; color:var(--ink-3); margin-left:8px;}
+
+  .stmt-modal{position:fixed; inset:0; z-index:200; display:none;
+    align-items:center; justify-content:center; padding:24px; background:rgba(26,29,26,0.45);}
+  .stmt-modal.show{display:flex;}
+  .stmt-card{width:min(820px,100%); max-height:90vh; display:flex; flex-direction:column;
+    background:var(--card); border-radius:var(--r-card); overflow:hidden;
+    box-shadow:0 10px 40px rgba(0,0,0,0.22);}
+  .stmt-top{display:flex; align-items:center; gap:12px; padding:15px 18px;
+    border-bottom:0.5px solid var(--line);}
+  .stmt-h{font-size:15px; font-weight:600;}
+  .stmt-sub{font-size:12px; color:var(--ink-2); margin-top:2px;}
+  .stmt-warn{padding:10px 18px; background:var(--amber-tint,#FDF3E3); color:var(--amber-dark);
+    font-size:12.5px; font-weight:600; border-bottom:0.5px solid var(--line);}
+  /* The email itself, scrollable, rendered exactly as it will arrive. */
+  .stmt-body{flex:1; overflow:auto; background:var(--page);}
+  .stmt-foot{display:flex; align-items:center; gap:10px; padding:13px 18px;
+    border-top:0.5px solid var(--line); background:var(--card);}
+  .stmt-subj{font-size:12px; color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .stmt-x{font-family:var(--font); font-size:12.5px; height:var(--h-ctl); padding:0 13px;
+    border-radius:var(--r-ctl); border:0.5px solid var(--line-strong); background:var(--card);
+    color:var(--ink-2); cursor:pointer;}
+  .stmt-send{font-family:var(--font); font-size:12.5px; font-weight:600; height:var(--h-ctl);
+    padding:0 16px; border-radius:var(--r-ctl); border:none; background:var(--green);
+    color:#fff; cursor:pointer;}
+  .stmt-send:disabled{opacity:0.6; cursor:default;}
+
   .agmail-e{font-size:11px; color:var(--green-dark); background:transparent;
             border:none; cursor:pointer; padding:2px 6px; border-radius:var(--r-input);
             font-family:var(--font); flex:0 0 auto;}
@@ -695,6 +728,7 @@
   </div>
 
   <div class="banner" id="banner"></div>
+<div class="stmt-modal" id="stmtModal"></div>
 
   <div id="body">
     <div class="empty-state"><span class="spinner"></span>Loading invoices&hellip;</div>
@@ -721,6 +755,42 @@
    ============================================================ */
 
 var API = "https://script.google.com/macros/s/AKfycbwvvAfVChkEJPlgz8c0iRbH23YIrtxM7SGjm5YgNz-kgs43N7hCGtd8nqBewJJOt8mV/exec";
+
+/* Statements are SENT by the Box Monitor script, not this one.
+   SendGrid lives in exactly one place. Giving the accounting backend its own
+   key would mean two deployments, two identities and two things to revoke the
+   day an address changes - for the sake of seven emails a month. */
+var MONITOR_API = "https://script.google.com/macros/s/AKfycbwc3siwl0OTP2O5WzNZCDn4cj3MDVRfcVxJW0TZtoPnAKLwhYSwmW_m1h7ib6Yf_Dvk9w/exec";
+var BCC = "office@wastenetinc.com";
+var LOGO = "https://dashboard.wastenetinc.com/WastenetLogo.png";
+var DISCLAIMER =
+  "This email and any files transmitted with it are confidential and intended solely for the " +
+  "use of the individual or entity to whom they are addressed. If you have received this email " +
+  "in error, please notify the system manager. This message contains confidential information " +
+  "and is intended only for the individual named. If you are not the named addressee, you should " +
+  "not disseminate, distribute, or copy this email. Please notify the sender immediately by email " +
+  "if you have received this email by mistake and delete this email from your system. If you are " +
+  "not the intended recipient, you are notified that disclosing, copying, distributing, or taking " +
+  "any action in reliance on the contents of this information is strictly prohibited.";
+
+/* Fire a request at the MONITOR script rather than this page's own backend. */
+function jsonpTo(base, params, cb){
+  var name = "wn_cb_" + Math.random().toString(36).slice(2);
+  var t = setTimeout(function(){ cleanup(); cb({ ok:false, error:"Request timed out." }); }, 30000);
+  function cleanup(){
+    clearTimeout(t);
+    try{ delete window[name]; }catch(e){ window[name] = undefined; }
+    if(sc && sc.parentNode) sc.parentNode.removeChild(sc);
+  }
+  window[name] = function(d){ cleanup(); cb(d); };
+  var qs = Object.keys(params).map(function(k){
+    return encodeURIComponent(k) + "=" + encodeURIComponent(params[k]);
+  }).join("&");
+  var sc = document.createElement("script");
+  sc.src = base + "?" + qs + "&callback=" + name;
+  sc.onerror = function(){ cleanup(); cb({ ok:false, error:"Could not reach the server." }); };
+  document.body.appendChild(sc);
+}
 var MONITOR_URL = "wastenet-monitor.html";
 
 /* Access code. NOT hardcoded - this file's source is public on GitHub,
@@ -1314,9 +1384,258 @@ var ICON_COMMISSION =
    at Post Oak is scheduled. Contacts are organised by BOX; agents are organised
    by CUSTOMER. Agent Map has tied John to his 27 customers all along. The only
    thing ever missing was this one field. */
+/* ================= THE COMMISSION STATEMENT =================
+
+   TWO DATES ON EVERY LINE, and this is the whole point of the thing.
+
+   Commission is paid on money RECEIVED, not money invoiced. A July statement is
+   therefore mostly June's invoices, finally paid. Show only the payment date and
+   John sees six July dates and reasonably concludes he is looking at July's
+   business - and when July's invoices land on August's statement he will believe
+   he has been paid twice for the same month, or not at all. That gap is where
+   commission arguments start, and they start with the statement, not the maths.
+
+   So: Invoiced 06/17 / Paid 07/04, side by side, on every row. Plus one line at
+   the top saying it in words. He never has to remember being told once.
+
+   The fee is shown per line too. An agent checking his own statement should not
+   have to work out 25 boxes x $25 in his head to see where $625 went. */
+/* The preview is not a courtesy. This is money, going to someone who will
+   check the arithmetic, and it is the last moment a mistake costs nothing. */
+function openStmtPreview(agent){
+  var md = agMonthData();
+  var a = (md.rows || []).filter(function(x){ return x.agent === agent; })[0];
+  if(!a){ showNote("Could not find that agent in the current month.", true); return; }
+  var cfg = (state.agSettings || {})[agent] || {};
+  if(!cfg.email){ showNote("No email address on file for " + a.name + ".", true); return; }
+
+  state.stmt = {
+    agent: agent, name: a.name, to: cfg.email, period: state.agMonth,
+    html: statementHtml(a, state.agMonth),
+    subject: "WasteNet Commission Statement \u2014 " + stmtPeriodLabel(state.agMonth),
+    payout: a.payout, boxes: a.boxes, invoices: (a.invoices || []).length,
+    sending: false
+  };
+  renderStmtModal();
+}
+
+function renderStmtModal(){
+  var el = document.getElementById("stmtModal");
+  var st = state.stmt;
+  if(!st){ el.className = "stmt-modal"; el.innerHTML = ""; return; }
+  var already = (state.statements || {})[st.agent + "|" + st.period];
+  el.className = "stmt-modal show";
+  el.innerHTML =
+    '<div class="stmt-card">'+
+      '<div class="stmt-top">'+
+        '<div>'+
+          '<div class="stmt-h">Statement for ' + esc(st.name) + '</div>'+
+          '<div class="stmt-sub">To ' + esc(st.to) + ' \u00b7 bcc ' + esc(BCC) + '</div>'+
+        '</div>'+
+        '<button class="stmt-x" id="stmtX">Close</button>'+
+      '</div>'+
+      (already
+        ? '<div class="stmt-warn">This statement was already sent on ' +
+            esc(usDate(already.at.slice(0,10))) + '. Sending again will deliver a second copy.</div>'
+        : '')+
+      '<div class="stmt-body">' + st.html + '</div>'+
+      '<div class="stmt-foot">'+
+        '<span class="stmt-subj">Subject: ' + esc(st.subject) + '</span>'+
+        '<span style="flex:1;"></span>'+
+        '<button class="stmt-x" id="stmtCancel">Cancel</button>'+
+        '<button class="stmt-send" id="stmtSend"' + (st.sending ? " disabled" : "") + '>'+
+          (st.sending ? "Sending\u2026" : "Send it") + '</button>'+
+      '</div>'+
+    '</div>';
+  wireStmtModal();
+}
+
+function wireStmtModal(){
+  var close = function(){ state.stmt = null; renderStmtModal(); };
+  var x = document.getElementById("stmtX");     if(x) x.onclick = close;
+  var c = document.getElementById("stmtCancel"); if(c) c.onclick = close;
+  var send = document.getElementById("stmtSend");
+  if(send) send.onclick = function(){
+    var st = state.stmt;
+    if(!st || st.sending) return;
+    st.sending = true;
+    renderStmtModal();
+
+    /* Sent by the MONITOR script - SendGrid lives there. */
+    jsonpTo(MONITOR_API, {
+      action:"send_email", key:KEY,
+      to: st.to, cc: "", bcc: BCC,
+      subject: st.subject,
+      body: "Your WasteNet commission statement for " + stmtPeriodLabel(st.period) +
+            " is below. Commission is calculated on payments received in this period.",
+      html: st.html
+    }, function(data){
+      if(!(data && data.ok)){
+        st.sending = false;
+        renderStmtModal();
+        showNote(esc((data && data.error) || "Could not send the statement."), true);
+        return;
+      }
+      /* The mail is gone. Record it - on the ACCOUNTING script, which owns the
+         Statement Log. If this write fails the statement still went out, so say
+         so plainly rather than implying it did not. */
+      jsonp({ action:"statement_sent", key:KEY, agent: st.agent, period: st.period,
+              to: st.to, payout: st.payout, boxes: st.boxes, invoices: st.invoices,
+              by: "dashboard" }, function(rec){
+        if(!state.statements) state.statements = {};
+        state.statements[st.agent + "|" + st.period] =
+          { at: new Date().toISOString(), to: st.to, payout: st.payout };
+        var name = st.name;
+        state.stmt = null;
+        renderStmtModal();
+        renderBody();
+        if(rec && rec.ok){
+          showNote("Statement sent to " + esc(name) + ".", false);
+        } else {
+          showNote("Statement <b>WAS SENT</b> to " + esc(name) + ", but it could not be " +
+                   "written to the Statement Log: " + esc((rec && rec.error) || "unknown") +
+                   ". Do not send it again \u2014 it has gone.", true);
+        }
+      });
+    });
+  };
+}
+
+function stmtPeriodLabel(ym){
+  var p = String(ym || "").split("-");
+  if(p.length < 2) return ym || "";
+  var mons = ["January","February","March","April","May","June","July",
+              "August","September","October","November","December"];
+  return mons[Number(p[1]) - 1] + " " + p[0];
+}
+
+function statementHtml(a, period){
+  var rows = (a.invoices || []).map(function(i){
+    return '<tr>'+
+      '<td style="padding:7px 8px;border-bottom:1px solid #E4E7E0;font-size:12px;color:#525A60;">'+
+        esc(usDate(i.invDate || "")) + '</td>'+
+      '<td style="padding:7px 8px;border-bottom:1px solid #E4E7E0;font-size:12px;font-weight:bold;color:#3B6D11;">'+
+        esc(usDate(i.date)) + '</td>'+
+      '<td style="padding:7px 8px;border-bottom:1px solid #E4E7E0;font-size:12px;">'+
+        esc(i.customer) + (i.partial ? ' <span style="color:#854F0B;">(' + i.partial + '% paid)</span>' : '') + '</td>'+
+      '<td style="padding:7px 8px;border-bottom:1px solid #E4E7E0;font-size:12px;">'+ esc(i.doc) +'</td>'+
+      '<td style="padding:7px 8px;border-bottom:1px solid #E4E7E0;font-size:12px;text-align:right;">'+ fmtN(i.boxes) +'</td>'+
+      '<td style="padding:7px 8px;border-bottom:1px solid #E4E7E0;font-size:12px;text-align:right;">$'+ fmt(i.monitoring) +'</td>'+
+      '<td style="padding:7px 8px;border-bottom:1px solid #E4E7E0;font-size:12px;text-align:right;color:#A32D2D;">\u2212$'+ fmt(i.fees || 0) +'</td>'+
+      '<td style="padding:7px 8px;border-bottom:1px solid #E4E7E0;font-size:12px;text-align:right;color:#525A60;">'+
+        Math.round((i.share || 0) * 100) +'%</td>'+
+      '<td style="padding:7px 8px;border-bottom:1px solid #E4E7E0;font-size:12px;text-align:right;font-weight:bold;">$'+ fmt(i.payout) +'</td>'+
+    '</tr>';
+  }).join("");
+
+  /* ---- THE MATHS, BY RATE BAND ----------------------------------------
+     An agent can be paid at more than one rate in a month: 50% on most
+     accounts, 25% on Costco and the Raley's entities. Mixed rates CANNOT be
+     written as a single multiplication.
+
+     The obvious summary - "monitoring MINUS fees TIMES share" - is therefore a
+     lie for exactly those agents, and a self-refuting one: the total it prints
+     will not equal the lines printed above it. John would find that in about
+     four seconds, and rightly ask which number he is being paid.
+
+     So the summary is built from the lines themselves, one block per rate, and
+     the total is their sum by construction. It cannot disagree with the table
+     because it is made of the table. */
+  var bands = {};
+  (a.invoices || []).forEach(function(i){
+    var k = String(i.share || 0);
+    if(!bands[k]) bands[k] = { share: i.share || 0, monitoring: 0, fees: 0, payout: 0, n: 0 };
+    bands[k].monitoring += (i.monitoring || 0);
+    bands[k].fees       += (i.fees || 0);
+    bands[k].payout     += (i.payout || 0);
+    bands[k].n++;
+  });
+  var bandKeys = Object.keys(bands).sort(function(x,y){ return bands[y].share - bands[x].share; });
+
+  var fees = (a.invoices || []).reduce(function(t,i){ return t + (i.fees || 0); }, 0);
+  var monTot = (a.invoices || []).reduce(function(t,i){ return t + (i.monitoring || 0); }, 0);
+  var payTot = (a.invoices || []).reduce(function(t,i){ return t + (i.payout || 0); }, 0);
+
+  var mathRows = bandKeys.map(function(k){
+    var b = bands[k];
+    var bBase = b.monitoring - b.fees;
+    return '<div style="font-size:13px;color:#1A1D1A;line-height:1.9;'+
+             (bandKeys.length > 1 ? 'padding:6px 0;border-bottom:1px solid #C0DD97;' : '') + '">'+
+      (bandKeys.length > 1
+        ? '<b>At ' + Math.round(b.share * 100) + '%</b> \u00b7 ' + b.n +
+          (b.n === 1 ? ' invoice<br>' : ' invoices<br>')
+        : '')+
+      '<b>$'+ fmt(b.monitoring) +'</b> monitoring collected'+
+      ' \u2212 <b>$'+ fmt(b.fees) +'</b> cellular fees'+
+      ' = <b>$'+ fmt(bBase) +'</b>'+
+      ' \u00d7 <b>'+ Math.round(b.share * 100) +'%</b>'+
+      ' = <b style="color:#27500A;">$'+ fmt(b.payout) +'</b>'+
+    '</div>';
+  }).join("");
+
+  var inner =
+    '<div style="font-size:19px;font-weight:bold;color:#1A1D1A;">Commission Statement</div>'+
+    '<div style="font-size:15px;color:#525A60;margin-top:3px;">'+ esc(a.name) +' \u00b7 '+
+      esc(stmtPeriodLabel(period)) +'</div>'+
+
+    /* Said plainly, at the top, every month. */
+    '<div style="margin:18px 0;padding:11px 13px;background:#F4FAEC;border:1px solid #C0DD97;'+
+      'border-radius:6px;font-size:13px;color:#27500A;">'+
+      '<b>Commission is calculated on payments received in this period</b> \u2014 not on invoices '+
+      'raised in it. Most of the lines below are invoices from an earlier month whose payment '+
+      'arrived during '+ esc(stmtPeriodLabel(period)) +'.'+
+    '</div>'+
+
+    '<table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin-top:6px;">'+
+      '<thead><tr style="background:#F6F7F3;">'+
+        '<th style="padding:7px 8px;text-align:left;font-size:10.5px;color:#525A60;border-bottom:2px solid #CFD4CA;">INVOICED</th>'+
+        '<th style="padding:7px 8px;text-align:left;font-size:10.5px;color:#3B6D11;border-bottom:2px solid #CFD4CA;">PAID</th>'+
+        '<th style="padding:7px 8px;text-align:left;font-size:10.5px;color:#525A60;border-bottom:2px solid #CFD4CA;">CUSTOMER</th>'+
+        '<th style="padding:7px 8px;text-align:left;font-size:10.5px;color:#525A60;border-bottom:2px solid #CFD4CA;">INVOICE</th>'+
+        '<th style="padding:7px 8px;text-align:right;font-size:10.5px;color:#525A60;border-bottom:2px solid #CFD4CA;">BOXES</th>'+
+        '<th style="padding:7px 8px;text-align:right;font-size:10.5px;color:#525A60;border-bottom:2px solid #CFD4CA;">MONITORING</th>'+
+        '<th style="padding:7px 8px;text-align:right;font-size:10.5px;color:#525A60;border-bottom:2px solid #CFD4CA;">CELL FEE</th>'+
+        '<th style="padding:7px 8px;text-align:right;font-size:10.5px;color:#525A60;border-bottom:2px solid #CFD4CA;">RATE</th>'+
+        '<th style="padding:7px 8px;text-align:right;font-size:10.5px;color:#525A60;border-bottom:2px solid #CFD4CA;">PAYOUT</th>'+
+      '</tr></thead><tbody>'+ rows +'</tbody>'+
+    '</table>'+
+
+    '<div style="margin-top:18px;padding:13px 15px;background:#F4FAEC;border:1px solid #C0DD97;border-radius:6px;">'+
+      '<div style="font-size:11px;color:#3B6D11;font-weight:bold;margin-bottom:4px;">HOW THIS WAS CALCULATED</div>'+
+      mathRows +
+      '<div style="margin-top:9px;padding-top:9px;border-top:2px solid #C0DD97;font-size:13px;">'+
+        'Total commission for '+ esc(stmtPeriodLabel(period)) +': '+
+        '<span style="font-size:19px;font-weight:bold;color:#27500A;">$'+ fmt(payTot) +'</span>'+
+      '</div>'+
+      '<div style="margin-top:7px;font-size:11px;color:#525A60;">'+
+        'Cellular fees are $25 per box \u00b7 '+ fmtN(a.boxes) +' boxes this period.'+
+      '</div>'+
+    '</div>'+
+
+    '<div style="margin-top:16px;font-size:12px;color:#525A60;">'+
+      'Questions on any line? Reply to this email and we will walk through it.'+
+    '</div>';
+
+  return '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FAFBF8;padding:24px 12px;">'+
+    '<tr><td align="center">'+
+      '<table width="700" cellpadding="0" cellspacing="0" border="0" style="max-width:700px;background:#FFFFFF;border:1px solid #E4E7E0;border-radius:8px;">'+
+        '<tr><td style="padding:26px 28px 22px;font-family:Arial,Helvetica,sans-serif;color:#1A1D1A;">'+ inner +'</td></tr>'+
+        '<tr><td style="padding:0 28px 22px;"><img src="'+ LOGO +'" alt="WasteNet" width="150" style="display:block;border:0;"></td></tr>'+
+        '<tr><td style="padding:16px 28px 22px;border-top:1px solid #E4E7E0;font-family:Arial,Helvetica,sans-serif;">'+
+          '<div style="font-size:11px;font-weight:bold;color:#525A60;margin-bottom:5px;">Wasteflo, Inc. d.b.a. WasteNet</div>'+
+          '<div style="font-size:10px;line-height:1.5;color:#8A8F8A;font-style:italic;">'+ DISCLAIMER +'</div>'+
+        '</td></tr>'+
+      '</table>'+
+    '</td></tr></table>';
+}
+
 function agEmailHtml(a){
   var cfg = (state.agSettings || {})[a.agent] || {};
   var em = cfg.email || "";
+  // Has this agent already had THIS month's statement? Without the answer the
+  // two failure modes are sending it twice and never sending it at all, and
+  // both are invisible from here.
+  var sentInfo = (state.statements || {})[a.agent + "|" + state.agMonth];
   return '<div class="agmail' + (em ? "" : " none") + '">' +
       '<span class="agmail-l">Statements go to</span>' +
       (em
@@ -1324,7 +1643,24 @@ function agEmailHtml(a){
         : '<span class="agmail-v muted">no address yet</span>') +
       '<button class="agmail-e" data-agmail="' + esc(a.agent) + '" ' +
         'data-agname="' + esc(a.name) + '">' + (em ? "change" : "add one") + '</button>' +
+      /* Only offered on a SINGLE MONTH. A year-to-date view has no month's
+         invoices to itemise, and a statement you cannot itemise is a number
+         with no argument behind it - exactly the thing an agent would query. */
+      (em && state.agMonth
+        ? '<button class="stmt-btn" data-stmt="' + esc(a.agent) + '">' +
+            (sentInfo ? "Sent \u00b7 send again" : "Email statement \u2197") + '</button>' +
+          (sentInfo ? '<span class="stmt-sent">sent ' + esc(usDate(sentInfo.at.slice(0,10))) + '</span>' : '')
+        : '') +
     '</div>';
+}
+
+function wireStatementButtons(){
+  document.querySelectorAll("[data-stmt]").forEach(function(el){
+    el.onclick = function(e){
+      e.stopPropagation();   // the agent header is a click target that collapses the card
+      openStmtPreview(el.getAttribute("data-stmt"));
+    };
+  });
 }
 
 function wireAgentEmail(){
@@ -1560,6 +1896,8 @@ function loadPayouts(year){
     /* keyed by agent code, so agEmailHtml() can look one up */
     state.agSettings = {};
     (data.settings || []).forEach(function(s){ state.agSettings[s.agent] = s; });
+    // Which statements have already gone out. Keyed "AGENT|2026-07".
+    state.statements = data.statements || {};
 
     state.agMonths = data.months || [];
     state.agYears  = data.years  || [];
@@ -1622,6 +1960,7 @@ function wireAgents(){
   });
 
   wireAgentEmail();
+  wireStatementButtons();
 }
 
 /* ---------- payments ---------- */
@@ -3241,6 +3580,19 @@ document.querySelectorAll(".sec").forEach(function(el){
     renderBody();
   };
 });
+
+/* A NOTICE, not a page failure.
+   showError() below replaces the whole body with "Couldn't load invoices" -
+   right when a load has failed, catastrophic when a single email has. Using it
+   to report a send would blank the dashboard under a message about one agent. */
+function showNote(msg, isErr){
+  var b = document.getElementById("banner");
+  b.innerHTML = msg;
+  b.className = "banner show" + (isErr ? "" : " ok");
+  if(!isErr) setTimeout(function(){
+    if(b.className.indexOf("ok") !== -1) b.className = "banner";
+  }, 6000);
+}
 
 function showError(msg){
   var b = document.getElementById("banner");
