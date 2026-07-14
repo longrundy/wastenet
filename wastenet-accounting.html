@@ -1075,7 +1075,11 @@ function paintInvoice(d){
       : '') +
   '</div>';
 
-  var rows = lines.map(function(l){
+  /* A bundle header is dropped, not dimmed. Showing "trash compactors, 2 x $150
+     = $300" above the two $150 lines that ARE those compactors invites exactly
+     the reading it got: three charges on a $300 invoice, summing to $600. The
+     components name the actual boxes; the header names nothing. */
+  var rows = lines.filter(function(l){ return !l.bundle; }).map(function(l){
     var cls = l.kind === 'CHARGE' ? ' class="charge"'
             : l.kind === 'HEADER' ? ' class="header-line"' : '';
     var kind = l.kind === 'CHARGE' ? '<span class="ivkind k-charge">one-time</span>'
@@ -1568,6 +1572,10 @@ function invoiceLineSummary(doc, monitoringBase){
   var groups = [], byKey = {}, charges = [];
   lines.forEach(function(L){
     if(L.kind === "HEADER") return;
+    // A QuickBooks bundle header. Its components are the two lines under it, and
+    // counting both the header and its children says the invoice is worth twice
+    // what it is.
+    if(L.bundle) return;
     if(L.kind === "CHARGE"){ charges.push(L); return; }   // never commissionable
     var key = String(L.rate == null ? "?" : L.rate);
     if(!byKey[key]){
