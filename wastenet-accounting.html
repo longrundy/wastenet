@@ -1547,6 +1547,67 @@ function stmtPeriodLabel(ym){
   return mons[Number(p[1]) - 1] + " " + p[0];
 }
 
+/* The invoice, opened up - WITHOUT twenty-five rows that all say $125.
+ *
+ * Baycare's invoice carries one line per box: twenty-five of them, each a
+ * different site, each the same monthly monitoring fee. Printed out in full
+ * they tell John what the row above already told him (25 boxes, $3,125) and
+ * shove the table past 600px in the process.
+ *
+ * They are not IDENTICAL lines - the site differs on every one - so they cannot
+ * honestly be collapsed under a shared description. What they do share is a rate
+ * and a kind, and that is what gets grouped: "25 lines at $125.00 = $3,125.00".
+ * The arithmetic survives; the twenty-five near-duplicate site names do not.
+ *
+ * A one-off charge (kind CHARGE) is never grouped away, however many there are.
+ * It is not commissionable, and it is exactly the line John would ask about when
+ * his commission does not match the invoice total he can see.
+ */
+function invoiceDetailHtml(lines){
+  if(!lines || !lines.length) return "";
+
+  var groups = [];
+  var byKey = {};
+  lines.forEach(function(L){
+    if(L.kind === "HEADER") return;                     // a heading, not a charge
+    var isCharge = L.kind === "CHARGE";
+    // A one-time charge always stands alone. Grouping it away is exactly the
+    // information an agent is entitled to see.
+    var key = isCharge ? ("charge|" + groups.length) : ("m|" + (L.rate == null ? "?" : L.rate));
+    if(!byKey[key]){
+      byKey[key] = { rate: L.rate, charge: isCharge, desc: L.desc || "", n: 0, qty: 0, amount: 0 };
+      groups.push(byKey[key]);
+    }
+    var g = byKey[key];
+    g.n++;
+    g.qty += (L.qty == null ? 1 : L.qty);
+    g.amount += (L.amount || 0);
+  });
+
+  if(!groups.length) return "";
+
+  var rows = groups.map(function(g){
+    var label = g.charge
+      ? esc(g.desc) + ' <span style="color:#854F0B;font-weight:bold;">one-time \u2014 no commission</span>'
+      : (g.n > 1
+          ? '<b>' + fmtN(g.n) + '</b> \u00d7 monitoring'
+          : esc(g.desc));
+    return '<tr>'+
+      '<td style="padding:3px 6px 3px 16px;font-size:10.5px;color:#525A60;">'+ label +'</td>'+
+      '<td style="padding:3px 6px;font-size:10.5px;color:#8A8F8A;text-align:right;white-space:nowrap;">'+
+        (g.rate == null ? "" : "@ $" + fmt(g.rate)) +'</td>'+
+      '<td style="padding:3px 6px;font-size:10.5px;color:#525A60;text-align:right;white-space:nowrap;">$'+
+        fmt(g.amount) +'</td>'+
+    '</tr>';
+  }).join("");
+
+  return '<tr><td colspan="9" style="padding:2px 6px 8px 6px;border-bottom:1px solid #E4E7E0;background:#FAFBF8;">'+
+    '<table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">'+
+      rows +
+    '</table>'+
+  '</td></tr>';
+}
+
 function statementHtml(a, period){
   var cel = "padding:6px 6px;border-bottom:1px solid #E4E7E0;font-size:11.5px;";
   var rows = (a.invoices || []).map(function(i){
@@ -1557,23 +1618,7 @@ function statementHtml(a, period){
        however it was built. The detail goes inline instead: he sees what is
        behind the number without clicking anything, in any mail client. */
     var lines = (state.stmtLines || {})[i.doc] || [];
-    var detail = lines.length
-      ? '<tr><td colspan="9" style="padding:0 6px 9px 6px;border-bottom:1px solid #E4E7E0;background:#FAFBF8;">'+
-          '<table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">'+
-            lines.map(function(L){
-              return '<tr>'+
-                '<td style="padding:3px 6px 3px 14px;font-size:10.5px;color:#525A60;">'+ esc(L.desc || "") +'</td>'+
-                '<td style="padding:3px 6px;font-size:10.5px;color:#8A8F8A;text-align:right;width:52px;">'+
-                  (L.qty == null ? "" : fmtN(L.qty)) +'</td>'+
-                '<td style="padding:3px 6px;font-size:10.5px;color:#8A8F8A;text-align:right;width:62px;">'+
-                  (L.rate == null ? "" : "$" + fmt(L.rate)) +'</td>'+
-                '<td style="padding:3px 6px;font-size:10.5px;color:#525A60;text-align:right;width:72px;">$'+
-                  fmt(L.amount) +'</td>'+
-              '</tr>';
-            }).join("")+
-          '</table>'+
-        '</td></tr>'
-      : '';
+    var detail = invoiceDetailHtml(lines);
 
     return '<tr>'+
       '<td style="'+cel+'color:#8A8F8A;white-space:nowrap;">'+ esc(shortDate(i.invDate || "")) + '</td>'+
