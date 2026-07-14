@@ -373,7 +373,7 @@
   .stmt-warn{padding:10px 18px; background:var(--amber-tint,#FDF3E3); color:var(--amber-dark);
     font-size:12.5px; font-weight:600; border-bottom:0.5px solid var(--line);}
   /* The email itself, scrollable, rendered exactly as it will arrive. */
-  .stmt-body{flex:1; overflow:auto; background:var(--page);}
+  .stmt-frame{flex:1; width:100%; border:0; background:var(--page); display:block; min-height:340px;}
   .stmt-foot{display:flex; align-items:center; gap:10px; padding:13px 18px;
     border-top:0.5px solid var(--line); background:var(--card);}
   .stmt-subj{font-size:12px; color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
@@ -1473,7 +1473,22 @@ function renderStmtModal(){
         ? '<div class="stmt-warn">This statement was already sent on ' +
             esc(usDate(already.at.slice(0,10))) + '. Sending again will deliver a second copy.</div>'
         : '')+
-      '<div class="stmt-body">' + st.html + '</div>'+
+      /* AN IFRAME, NOT A DIV.
+       *
+       * This page carries a global rule - table{width:100%; table-layout:fixed}
+       * - that applies to every table on it. Injected into the page, the email's
+       * own tables were being overruled by the dashboard's stylesheet: the 600px
+       * card was stretched to the width of the modal, text stopped wrapping where
+       * it should, and the banner and disclaimer ran off the edge.
+       *
+       * So the preview was never showing the email. It was showing the email with
+       * the dashboard's CSS on top of it - which is not what any recipient will
+       * ever see, and is a worse fault than the overflow it produced. Three
+       * attempts went into fixing the email; the email was fine.
+       *
+       * An iframe has its own document and inherits nothing. What renders in here
+       * is what lands in John's inbox. */
+      '<iframe id="stmtFrame" class="stmt-frame" title="Statement preview"></iframe>'+
       '<div class="stmt-foot">'+
         '<span class="stmt-subj">Subject: ' + esc(st.subject) + '</span>'+
         '<span style="flex:1;"></span>'+
@@ -1486,6 +1501,15 @@ function renderStmtModal(){
 }
 
 function wireStmtModal(){
+  /* srcdoc, so the frame gets a real document of its own with none of this
+     page's CSS in it. A plain white body and the email, exactly as sent. */
+  var fr = document.getElementById("stmtFrame");
+  if(fr && state.stmt){
+    fr.srcdoc = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+      '<style>body{margin:0;padding:0;background:#FAFBF8;}</style></head><body>' +
+      state.stmt.html + '</body></html>';
+  }
+
   var close = function(){ state.stmt = null; renderStmtModal(); };
   var x = document.getElementById("stmtX");     if(x) x.onclick = close;
   var c = document.getElementById("stmtCancel"); if(c) c.onclick = close;
