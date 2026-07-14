@@ -354,6 +354,17 @@
   .agmail-v{font-weight:600; color:var(--green-darker); flex:1; min-width:0;
             overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .agmail-v.muted{font-weight:400; color:var(--ink-3);}
+  /* The "fetching" notice belongs WHERE THE WORK IS - under the button that
+     started it, on the agent it is fetching for. At the top of the page it was
+     three tabs away from the thing you clicked, and read like a page-level
+     event rather than a row-level one. */
+  .agfetch{display:flex; align-items:center; gap:8px; margin-top:6px;
+    padding:8px 12px; border-radius:var(--r-ctl); font-size:12px; font-weight:600;
+    background:#FFF4CC; border:0.5px solid #E8C55A; color:#7A5B00;}
+  .agspin{width:12px; height:12px; flex:0 0 auto; border:2px solid #E8C55A;
+    border-top-color:#7A5B00; border-radius:50%; animation:agspin .7s linear infinite;}
+  @keyframes agspin{to{transform:rotate(360deg);}}
+
   .stmt-btn{font-family:var(--font); font-size:11.5px; font-weight:600; padding:3px 10px;
     border-radius:var(--r-pill); border:0.5px solid var(--green); background:var(--green);
     color:#fff; cursor:pointer; margin-left:8px;}
@@ -1438,13 +1449,19 @@ function openStmtPreview(agent){
 
   if(!docs.length){ build(); return; }
 
-  showNote("Fetching the invoice detail\u2026", false);
+  // Shown on the agent's own row, not in the page banner. renderBody() redraws
+  // the agent list, which is where the strip lives.
+  state.stmtFetching = agent;
+  renderBody();
+
   jsonp({ action:"invoice_lines", key:KEY, docs: docs.join(",") }, function(data){
+    state.stmtFetching = null;
     /* If the detail did not load, DO NOT quietly render a statement without it.
        A statement missing its itemisation still looks complete - the totals are
        all there - and the one person who would notice is the agent, after it
        has been sent. */
     if(!data || !data.ok){
+      renderBody();   // clear the strip before saying why
       showNote(esc((data && data.error) || "Could not load the invoice detail.") +
                " The statement has not been drafted.", true);
       return;
@@ -1456,7 +1473,8 @@ function openStmtPreview(agent){
     } else {
       showNote("", false);
     }
-    build();
+    renderBody();     // the strip goes
+    build();          // the draft opens
   });
 }
 
@@ -1775,7 +1793,10 @@ function agEmailHtml(a){
             (sentInfo ? "Sent \u00b7 send again" : "Email statement \u2197") + '</button>' +
           (sentInfo ? '<span class="stmt-sent">sent ' + esc(usDate(sentInfo.at.slice(0,10))) + '</span>' : '')
         : '') +
-    '</div>';
+    '</div>' +
+    (state.stmtFetching === a.agent
+      ? '<div class="agfetch"><span class="agspin"></span>Fetching the invoice detail\u2026</div>'
+      : '');
 }
 
 function wireStatementButtons(){
