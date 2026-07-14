@@ -363,7 +363,12 @@
   .stmt-modal{position:fixed; inset:0; z-index:200; display:none;
     align-items:center; justify-content:center; padding:24px; background:rgba(26,29,26,0.45);}
   .stmt-modal.show{display:flex;}
-  .stmt-card{width:min(820px,100%); max-height:90vh; display:flex; flex-direction:column;
+  /* A DEFINITE height, not a max.
+     An iframe has no intrinsic content height - the browser cannot ask the
+     document inside how tall it wants to be - so with only a max-height the
+     card collapsed to the frame's min-height and the preview came out letterbox
+     sized. Give the card a real height and flex:1 has something to fill. */
+  .stmt-card{width:min(780px,100%); height:min(90vh, 940px); display:flex; flex-direction:column;
     background:var(--card); border-radius:var(--r-card); overflow:hidden;
     box-shadow:0 10px 40px rgba(0,0,0,0.22);}
   .stmt-top{display:flex; align-items:center; gap:12px; padding:15px 18px;
@@ -373,7 +378,8 @@
   .stmt-warn{padding:10px 18px; background:var(--amber-tint,#FDF3E3); color:var(--amber-dark);
     font-size:12.5px; font-weight:600; border-bottom:0.5px solid var(--line);}
   /* The email itself, scrollable, rendered exactly as it will arrive. */
-  .stmt-frame{flex:1; width:100%; border:0; background:var(--page); display:block; min-height:340px;}
+  .stmt-frame{flex:1 1 auto; width:100%; border:0; background:var(--page);
+              display:block; min-height:0;}
   .stmt-foot{display:flex; align-items:center; gap:10px; padding:13px 18px;
     border-top:0.5px solid var(--line); background:var(--card);}
   .stmt-subj{font-size:12px; color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
