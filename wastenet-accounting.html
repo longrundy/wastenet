@@ -354,8 +354,6 @@
   .agmail-v{font-weight:600; color:var(--green-darker); flex:1; min-width:0;
             overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .agmail-v.muted{font-weight:400; color:var(--ink-3);}
-  .banner.ok{background:var(--green-tint-2); color:var(--green-darker); border:0.5px solid var(--green-border);}
-
   .stmt-btn{font-family:var(--font); font-size:11.5px; font-weight:600; padding:3px 10px;
     border-radius:var(--r-pill); border:0.5px solid var(--green); background:var(--green);
     color:#fff; cursor:pointer; margin-left:8px;}
@@ -455,6 +453,10 @@
   .empty-state{text-align:center; padding:36px 16px; color:var(--ink-2); font-size:13px;}
   .banner{display:none; border-radius:var(--r-card); padding:10px 14px; font-size:13px; margin-bottom:14px;}
   .banner.show{display:block; background:var(--red-tint); color:var(--red-darker); border:0.5px solid var(--red);}
+  /* Must come AFTER .banner.show and out-specify it. Defined earlier and at equal
+     weight, red simply won - and a progress message read as a failure. */
+  .banner.show.ok{background:var(--green-tint-2); color:var(--green-darker);
+                  border:0.5px solid var(--green-border);}
   .spinner{display:inline-block; width:13px; height:13px; border:2px solid var(--line-strong); border-top-color:var(--green); border-radius:50%; animation:spin .7s linear infinite; margin-right:7px; vertical-align:-2px;}
   @keyframes spin{to{transform:rotate(360deg);}}
 
