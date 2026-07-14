@@ -656,6 +656,7 @@
 .sw-comm{ background:#eda100; }
 .sw-ces{  background:#1baf7a; }
 .sw-line{ background:#4a3aa7; height:2px; width:16px; border-radius:0; }
+.sw-inv{ background:#8a8983; height:0; width:16px; border-radius:0; border-top:1.5px dashed #8a8983; }
 .finyr{
   margin-left:auto; font-size:12px; padding:3px 6px;
   border:1px solid var(--line); border-radius:6px; background:#fff;
@@ -671,6 +672,7 @@
    a gap, never as a zero. */
 .b-none{ fill:none; stroke:#c3c2b7; stroke-width:1; stroke-dasharray:2 2; }
 .finline{ fill:none; stroke:#4a3aa7; stroke-width:2; stroke-linejoin:round; }
+.fininv{ fill:none; stroke:#8a8983; stroke-width:1.5; stroke-dasharray:5 3; stroke-linejoin:round; }
 .findot{ fill:#4a3aa7; }
 
 .fincards{
@@ -689,6 +691,8 @@
   margin-top:12px; padding-top:10px; border-top:1px solid var(--line);
 }
 .finnote.f-warn{ color:#8a5a06; }
+.finstory{ color:var(--ink,#2c2c2a); }
+.finstory b{ font-weight:500; }
 </style>
 </head>
 <body>
@@ -926,6 +930,8 @@ var state = {
   finLoading: false,
   finCes: {},         // "yyyy-mm" -> { billed, paid, note }
   finCesLoaded: false,
+  finInv: {},         // "yyyy-mm" -> invoiced total (what was BILLED)
+  finInvLoaded: false,
   agLoaded: false,
   agLoading: false,
   agOpen: {},         // which agent rows are expanded
@@ -3565,15 +3571,17 @@ function finRows(){
     var billed  = c ? (Number(c.billed) || 0) : 0;
     var known   = !!c;
     var gross   = revenue - billed - comm;
+    var invoiced = Number(state.finInv[m]) || 0;
 
     return {
-      month:   m,
-      revenue: revenue,
-      ces:     billed,
-      comm:    comm,
-      gross:   known ? gross : null,
-      margin:  (known && revenue > 0) ? (gross / revenue) * 100 : null,
-      known:   known
+      month:    m,
+      revenue:  revenue,
+      invoiced: invoiced,
+      ces:      billed,
+      comm:     comm,
+      gross:    known ? gross : null,
+      margin:   (known && revenue > 0) ? (gross / revenue) * 100 : null,
+      known:    known
     };
   });
 }
@@ -3588,7 +3596,7 @@ function finChart(rows){
   var iw = W - L - R, ih = H - T - B;
 
   var max = 0;
-  rows.forEach(function(r){ max = Math.max(max, r.revenue, r.ces, r.comm); });
+  rows.forEach(function(r){ max = Math.max(max, r.revenue, r.invoiced, r.ces, r.comm); });
   if(max <= 0) max = 1;
 
   /* Round the ceiling up to a number a human would have picked, so the
@@ -3644,6 +3652,21 @@ function finChart(rows){
          monthShort(r.month) + '</text>';
   });
 
+  /* The billed line: what was invoiced each month, drawn behind everything
+     as context. It is nearly flat - and that is the point. Collected bounces
+     around it, and the gap between the two is the receivables swing, not a
+     change in the business. Dashed, so it reads as a reference, not a series
+     that competes with the bars. */
+  var inv = rows.filter(function(r){ return r.invoiced > 0; });
+  if(inv.length > 1){
+    s += '<polyline class="fininv" points="' +
+         rows.map(function(r, i){
+           return r.invoiced > 0
+             ? (L + gw * i + gw / 2) + ',' + yv(r.invoiced)
+             : null;
+         }).filter(Boolean).join(" ") + '"/>';
+  }
+
   /* The margin line BREAKS at any month with no CES. It does not bridge the
      gap - bridging would draw a number nobody measured. */
   var seg = [], segs = [];
@@ -3668,6 +3691,106 @@ function finChart(rows){
   });
 
   return s + '</svg>';
+}
+
+/* The year, in a sentence or three. Not a caption on one number - the shape
+   of the whole twelve months: is billing steady, is collection lumpy, and if
+   so, is one customer's timing the reason. Everything here is computed from
+   data already on the page; nothing new is fetched. */
+function finNarrative(rows, tRev, prevRev, prevYr, yr){
+  var costed = rows.filter(function(r){ return r.known; });
+  if(costed.length < 2) return "";
+
+  var bits = [];
+
+  /* 1. Direction, stated against the SAME months last year (tRev and prevRev
+        are already computed that way in renderFinancials). */
+  if(prevRev > 0 && tRev > 0){
+    var d = ((tRev - prevRev) / prevRev) * 100;
+    var word = Math.abs(d) < 3 ? "held roughly flat"
+             : d > 0 ? "rose " + Math.round(d) + "%"
+             : "fell " + Math.round(Math.abs(d)) + "%";
+    bits.push("Collections " + word + " against the same months of " + prevYr + ".");
+  }
+
+  /* 2. Billed vs collected. If billing is steady but collection is not, say
+        so plainly - it is the single most useful thing on the page. */
+  var inv = rows.filter(function(r){ return r.invoiced > 0; });
+  if(inv.length >= 3){
+    var iVals = inv.map(function(r){ return r.invoiced; });
+    var iMax = Math.max.apply(null, iVals), iMin = Math.min.apply(null, iVals);
+    var iAvg = iVals.reduce(function(a,b){ return a+b; }, 0) / iVals.length;
+    var billedSteady = (iMax - iMin) / iAvg < 0.25;   // within a quarter, month to month
+
+    var cVals = rows.filter(function(r){ return r.revenue > 0; }).map(function(r){ return r.revenue; });
+    var cMax = Math.max.apply(null, cVals), cMin = Math.min.apply(null, cVals);
+    var cAvg = cVals.reduce(function(a,b){ return a+b; }, 0) / cVals.length;
+    var collectSwings = (cMax - cMin) / cAvg > 0.4;    // swings more than 40%
+
+    if(billedSteady && collectSwings){
+      bits.push("Billing was steady all year - about " + moneyShort(iAvg) +
+        " a month - while collections swung from " + moneyShort(cMin) + " to " +
+        moneyShort(cMax) + ". That swing is payment timing, not the business " +
+        "changing: the flat billed line is the truer picture of the work.");
+    } else if(billedSteady){
+      bits.push("Billing ran about " + moneyShort(iAvg) + " a month, steadily.");
+    }
+  }
+
+  /* 3. Name the biggest single swing month, and - when the loaded payment
+        year matches - the customer behind it. This is the SPM story, found
+        rather than hard-coded. */
+  var big = null;
+  for(var i = 1; i < rows.length; i++){
+    var jump = rows[i].revenue - rows[i-1].revenue;
+    if(rows[i-1].revenue > 0 && (!big || Math.abs(jump) > Math.abs(big.jump))){
+      big = { i: i, jump: jump, month: rows[i].month, prev: rows[i-1].month };
+    }
+  }
+
+  if(big && Math.abs(big.jump) > 8000){
+    var mover = biggestMover(big.prev, big.month, yr);
+    var dir = big.jump > 0 ? "more than" : "less than";
+    var line = monthShort(big.month) + " collected " + moneyShort(Math.abs(big.jump)) +
+               " " + dir + " " + monthShort(big.prev);
+    if(mover){
+      line += " - largely " + mover.name + ", whose payments moved by " +
+              moneyShort(Math.abs(mover.delta)) + " between the two months";
+    }
+    bits.push(line + ".");
+  }
+
+  if(!bits.length) return "";
+  return '<div class="finnote finstory"><b>' + yr + ' at a glance.</b> ' +
+         bits.join(" ") + '</div>';
+}
+
+/* Which customer's collections changed most between two months - the reason a
+   month looks better or worse than its neighbour. Returns null unless the
+   payment rows for this year happen to be loaded, so the narrative degrades
+   to "no name" rather than guessing. */
+function biggestMover(mPrev, mThis, yr){
+  var rows = state.payByYear[yr];
+  if(!rows || !rows.length) return null;
+
+  var a = {}, b = {};
+  rows.forEach(function(p){
+    var m = String(p.txnDate || "").slice(0, 7);
+    var who = p.customer || "?";
+    if(m === mPrev) a[who] = (a[who] || 0) + (Number(p.amount) || 0);
+    else if(m === mThis) b[who] = (b[who] || 0) + (Number(p.amount) || 0);
+  });
+
+  var best = null;
+  var names = {};
+  Object.keys(a).forEach(function(k){ names[k] = 1; });
+  Object.keys(b).forEach(function(k){ names[k] = 1; });
+  Object.keys(names).forEach(function(who){
+    var delta = (b[who] || 0) - (a[who] || 0);
+    if(!best || Math.abs(delta) > Math.abs(best.delta)) best = { name: who, delta: delta };
+  });
+
+  return (best && Math.abs(best.delta) > 3000) ? best : null;
 }
 
 function finCard(label, big, sub, cls){
@@ -3727,6 +3850,7 @@ function renderFinancials(){
       '<span><i class="sw sw-rev"></i>Revenue</span>' +
       '<span><i class="sw sw-comm"></i>Commissions</span>' +
       '<span><i class="sw sw-ces"></i>CES</span>' +
+      '<span><i class="sw sw-inv"></i>Billed</span>' +
       '<span><i class="sw sw-line"></i>Margin %</span>' +
       '<select id="finYr" class="finyr">' + yrOpts + '</select>' +
     '</div>';
@@ -3752,7 +3876,9 @@ function renderFinancials(){
     'CES <b>billed</b> that month, not what was paid \u2014 payments lag, the cost does not. ' +
     'Overhead, staff and owner distributions are not on this page.</div>';
 
-  return '<div class="card fincard">' + legend + finChart(rows) + cards + notes + '</div>';
+  var story = finNarrative(rows, tRev, prevRev, prevYr, state.finYear);
+
+  return '<div class="card fincard">' + legend + finChart(rows) + cards + story + notes + '</div>';
 }
 
 function wireFinancials(){
@@ -3830,6 +3956,18 @@ function loadFinancials(){
         (data.ces || []).forEach(function(c){ state.finCes[c.month] = c; });
       }
       state.finCesLoaded = true;
+      done();
+    });
+  }
+
+  if(!state.finInvLoaded){
+    waiting++;
+    jsonp({ action:"invoiced", key:KEY }, function(data){
+      if(data && data.ok){
+        state.finInv = {};
+        (data.months || []).forEach(function(m){ state.finInv[m.month] = m.total; });
+      }
+      state.finInvLoaded = true;
       done();
     });
   }
