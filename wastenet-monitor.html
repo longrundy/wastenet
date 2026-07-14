@@ -359,6 +359,29 @@
                border:0.5px solid var(--green-border);}
   .haul-portal:hover{background:var(--green); border-color:var(--green); color:#fff;}
 
+  /* Scheduled, when it is a button. Looks exactly like the un-ticked step it
+     replaces until you hover it - the row should not shout that one of its
+     three marks is special. */
+  .step-btn{background:none; border:none; padding:0; margin:0; font:inherit; cursor:pointer;
+            display:inline-flex; align-items:center; gap:4px; border-radius:var(--r-pill);}
+  .step-btn:hover .box{border-color:var(--green); background:var(--green-tint);}
+  .step-btn:hover .lbl-txt{color:var(--green-dark);}
+
+  /* The booking strip. Opens under the row, pre-filled with the suggestion. */
+  .book-strip{display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+              padding:10px 14px; background:var(--green-tint-2);
+              border-bottom:0.5px solid var(--green-border);}
+  .book-q{font-size:12px; color:var(--green-darker); font-weight:600;}
+  .book-hint{font-size:11px; color:var(--ink-2);}
+  .book-strip input[type=date]{font-family:var(--font); font-size:12px; height:var(--h-ctl);
+              padding:0 8px; border:0.5px solid var(--line-strong); border-radius:var(--r-input);
+              background:var(--card); color:var(--ink);}
+  .book-go, .book-x{font-family:var(--font); font-size:12px; height:var(--h-ctl); padding:0 12px;
+              border-radius:var(--r-ctl); cursor:pointer; border:0.5px solid var(--green-border);}
+  .book-go{background:var(--green); border-color:var(--green); color:#fff; font-weight:600;}
+  .book-go:disabled{opacity:0.6; cursor:default;}
+  .book-x{background:var(--card); color:var(--ink-2);}
+
   .plain-list{border:0.5px solid var(--line); border-radius:var(--r-card); overflow:hidden; background:var(--card);}
   .plain-list .row{border-bottom:0.5px solid var(--line);}
   .plain-list .row:last-child, .plain-list .detail:last-child{border-bottom:none;}
@@ -640,7 +663,7 @@ function lockOut(msg){
 }
 
 var state = { rows: [], scanTitle: "", openId: null, staleOpen: false, view: "action",
-  tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, staffNotesById: {}, staffNotesUpdById: {}, emptyMarkedById: {}, ledgerById: {}, portalById: {}, notesOpenId: null, schedTab: null, clearTab: null };
+  tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, staffNotesById: {}, staffNotesUpdById: {}, emptyMarkedById: {}, ledgerById: {}, portalById: {}, bookOpenId: null, bookBusy: false, notesOpenId: null, schedTab: null, clearTab: null };
 
 /* ---------- JSONP ---------- */
 function jsonp(params, cb){
@@ -1103,16 +1126,37 @@ function stepsHtml(b){
   var onBox     = toYmd(b.schDate);
   var lit       = function(d){ return !!onBox && !!d && toYmd(d) === onBox; };
 
-  var scheduled = lit(told.sent);       // REQUEST SENT       - hauler, or staff who will phone
-  var notified  = lit(told.notified);   // CUSTOMER NOTIFIED  - the site was told
-  var confirmed = lit(told.confirmed);  // CONFIRMED (link)   - the hauler agreed to THIS date
+  var scheduled = lit(told.scheduled);  // request emailed, OR booked in a portal
+  var notified  = lit(told.notified);   // the site was told
+  var confirmed = lit(told.confirmed);  // hauler clicked their link, OR a portal accepted it
+
+  /* ---- Scheduled is clickable on PORTAL boxes ONLY ----
+     On a portal box, nothing is sent - you go and book it yourself, and the
+     only thing that can ever know you did is you. So you say so, and the click
+     is the record.
+
+     On an email or phone box it must NOT be clickable. There, Scheduled means
+     "the request went out", and the send is what lights it. A hand-clickable
+     box would let somebody tick a request they never actually sent - the same
+     false-green we spent this morning removing, wearing a different hat. */
+  var canBook = onSchedulePage() && b.channel === "portal";
 
   function step(done, label){
-    if(done) return '<span class="step done"><span class="chk">✓</span><span class="lbl-txt">'+label+'</span></span>';
+    if(done) return '<span class="step done"><span class="chk">\u2713</span><span class="lbl-txt">'+label+'</span></span>';
     return '<span class="step todo"><span class="box"></span><span class="lbl-txt">'+label+'</span></span>';
   }
-  var sep = '<span class="step-sep">›</span>';
-  return '<span class="steps">'+ step(scheduled,"Scheduled")+sep+ step(notified,"Notified")+sep+ step(confirmed,"Confirmed") +'</span>';
+  function bookStep(done){
+    if(done) return step(true, "Scheduled");
+    return '<button class="step todo step-btn" data-book="'+esc(b.id)+'" title="Book this in the portal, then record the date you got">'+
+             '<span class="box"></span><span class="lbl-txt">Scheduled</span></button>';
+  }
+
+  var sep = '<span class="step-sep">\u203a</span>';
+  return '<span class="steps">'+
+    (canBook ? bookStep(scheduled) : step(scheduled,"Scheduled")) + sep +
+    step(notified,"Notified") + sep +
+    step(confirmed,"Confirmed") +
+  '</span>';
 }
 
 /* ---------- suggested-pickup chip (schedule-service rows only) ----------
@@ -1227,6 +1271,7 @@ function rowHtml(b, missed, bucketTag, showHaul){
       fillBlock+
       '<div class="chev">▾</div>'+
     '</div>'+
+    bookStripHtml(b)+
     detailHtml(b);
 }
 
@@ -2075,6 +2120,59 @@ function wireRows(){
       render();
     });
   });
+  /* ---- portal booking ------------------------------------------------
+     stopPropagation everywhere: the whole row is a click target that expands
+     the detail panel, so without it, opening the date picker would also open
+     the accordion underneath and the strip would jump around while you type. */
+  listEl.querySelectorAll("button[data-book]").forEach(function(bt){
+    bt.addEventListener("click", function(e){
+      e.stopPropagation();
+      var id = bt.getAttribute("data-book");
+      state.bookOpenId = (state.bookOpenId === id) ? null : id;
+      state.bookBusy = false;
+      render();
+    });
+  });
+  listEl.querySelectorAll(".book-strip").forEach(function(strip){
+    strip.addEventListener("click", function(e){ e.stopPropagation(); });
+  });
+  var bookX = document.getElementById("bookX");
+  if(bookX) bookX.addEventListener("click", function(e){
+    e.stopPropagation();
+    state.bookOpenId = null; state.bookBusy = false; render();
+  });
+  var bookGo = document.getElementById("bookGo");
+  if(bookGo) bookGo.addEventListener("click", function(e){
+    e.stopPropagation();
+    if(state.bookBusy) return;
+    var id = bookGo.getAttribute("data-id");
+    var input = document.getElementById("bookDate");
+    var date = input ? input.value : "";
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){
+      setBanner("Pick a date first.", "err");
+      return;
+    }
+    // NOT optimistic. The marked-empty checkbox above updates locally and
+    // reconciles later, and that is fine - it is a note to self. This writes
+    // a date that a customer is about to be told. If the write fails, the
+    // dashboard must not sit there showing a booking that does not exist.
+    state.bookBusy = true;
+    render();
+    jsonp({ action:"schedule_portal", tab:(state.currentTab||""), boxId:id, date:date, key:KEY },
+      function(data){
+        state.bookBusy = false;
+        if(data && data.ok){
+          state.bookOpenId = null;
+          setBanner("Booked " + esc(id) + " for " + esc(date) + ".", "info");
+          loadScan(state.isLatest ? "latest" : state.currentTab);  // Sch Date changed on the sheet
+          fetchLedgerMarks();                                      // and so did the marks
+        } else {
+          setBanner(esc((data && data.error) || "Could not record the booking."), "err");
+          render();
+        }
+      });
+  });
+
   // row expand (accordion — one open at a time)
   listEl.querySelectorAll(".row").forEach(function(rw){
     rw.addEventListener("click", function(){
