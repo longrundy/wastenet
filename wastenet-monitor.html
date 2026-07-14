@@ -1986,10 +1986,16 @@ function haulGroupHtml(haulCode, boxes){
     return String(x.id).localeCompare(String(y.id), undefined, { numeric:true });
   });
 
+  /* The count on a chip earns its place only when the batch SPLITS across
+     dates - then "Tue Jul 14 . 2 / Wed Jul 15 . 1" is the only thing saying
+     how it divides. When every box shares one date there is a single chip, and
+     its count just says again what "2 boxes" already said two inches to the
+     left. So: one chip, no number. */
+  var splitDates = order.length > 1;
   var chips = order.map(function(k, i){
     var c = counts[k];
     return '<span class="haul-date' + (i === 0 ? ' first' : '') + '">' +
-           esc(c.label) + ' \u00b7 ' + c.n + '</span>';
+           esc(c.label) + (splitDates ? ' \u00b7 ' + c.n : '') + '</span>';
   }).join("");
 
   /* Only render a portal link when the sheet actually has a URL for this
