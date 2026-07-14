@@ -381,7 +381,23 @@
   .row.missed{background:var(--red-tint);}
   .edge{flex:0 0 3px; align-self:stretch; border-radius:2px; min-height:34px;}
   .row-main{flex:1; min-width:0;}
-  .row-name{font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  /* The pickup date rides on the NAME line now, not the meta line below it. It
+     is the most consequential fact in the row - the date you are about to put
+     in front of a hauler - and it was sitting at the tail of a run of
+     checkboxes.
+
+     Flex, not a plain block, because the name truncates (Costco 1206 already
+     does) and a chip appended inside a text-overflow:ellipsis box gets eaten
+     along with the name. The text shrinks; the chip never does.
+
+     .row-name-text is applied in ALL SIX row renderers, not only the one that
+     carries a chip. The ellipsis lives on the text span now, so any .row-name
+     left without it would simply stop truncating, and the long Costco names
+     would shove the fill bar off the row on the scheduled, stale, monitor-down,
+     record-empty and hands-off pages. */
+  .row-name{font-size:14px; font-weight:500; display:flex; align-items:center; gap:8px; min-width:0;}
+  .row-name-text{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;}
+  .row-name .sug-chip{flex:0 0 auto;}
   .row.missed .row-name{color:var(--red-darker);}
   .row-meta{display:flex; align-items:center; gap:6px; margin-top:6px; flex-wrap:wrap;}
   .row-id{font-size:10px; color:var(--ink-3); margin-right:2px;}
@@ -1190,7 +1206,6 @@ function rowHtml(b, missed, bucketTag, showHaul){
   } else {
     metaInner = '<span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span>'+
       ((bucketTag || showHaul) ? ' · '+esc(b.haulCode) : '')+' · '+esc(b.channel)+'</span>' + bTag + stepsHtml(b) +
-      (onSchedulePage() ? suggestedChipHtml(b) : "") +
       (alsoStale(b) ? '<span class="also-stale-tag">also not cycling</span>' : '');
   }
 
@@ -1200,7 +1215,8 @@ function rowHtml(b, missed, bucketTag, showHaul){
     '<div class="row'+(open?' open':'')+(missed?' missed':'')+'" data-id="'+esc(b.id)+'">'+
       '<div class="edge" style="background:'+(missed?'#A32D2D':ec)+';"></div>'+
       '<div class="row-main">'+
-        '<div class="row-name">'+esc(b.desc)+'</div>'+
+        '<div class="row-name"><span class="row-name-text">'+esc(b.desc)+'</span>'+
+          (onSchedulePage() ? suggestedChipHtml(b) : "")+'</div>'+
         '<div class="row-meta">'+metaInner+'</div>'+
       '</div>'+
       fillBlock+
@@ -1804,7 +1820,7 @@ function scheduledRowHtml(b, overdue){
     '<div class="row sched-row'+(open?' open':'')+'" data-id="'+esc(b.id)+'">'+
       '<div class="edge" style="background:'+(overdue?'#A32D2D':'#378ADD')+';"></div>'+
       '<div class="row-main">'+
-        '<div class="row-name">'+esc(b.desc)+'</div>'+
+        '<div class="row-name"><span class="row-name-text">'+esc(b.desc)+'</span></div>'+
         '<div class="row-meta"><span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span> · '+esc(b.haulCode)+' · '+esc(b.channel)+'</span></div>'+
       '</div>'+
       '<div class="fill-wrap reason '+(overdue?'reason-overdue':'reason-sched-pickup')+'">'+
@@ -1824,7 +1840,7 @@ function staleRowHtml(b){
     '<div class="row stale-row'+(open?' open':'')+'" data-id="'+esc(b.id)+'">'+
       '<div class="edge" style="background:'+(fresh?'#E24B4A':'#B4B2A9')+';"></div>'+
       '<div class="row-main">'+
-        '<div class="row-name">'+esc(b.desc)+'</div>'+
+        '<div class="row-name"><span class="row-name-text">'+esc(b.desc)+'</span></div>'+
         '<div class="row-meta"><span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span> · '+esc(b.haulCode)+' · '+esc(b.channel)+'</span>'+
           (fresh?'<span class="fresh-tag">just stopped</span>':'')+
         '</div>'+
@@ -1848,7 +1864,7 @@ function monitorRowHtml(b){
     '<div class="row monitor-row'+(open?' open':'')+'" data-id="'+esc(b.id)+'">'+
       '<div class="edge" style="background:#5B6470;"></div>'+
       '<div class="row-main">'+
-        '<div class="row-name">'+esc(b.desc)+'</div>'+
+        '<div class="row-name"><span class="row-name-text">'+esc(b.desc)+'</span></div>'+
         '<div class="row-meta"><span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span> · '+esc(b.haulCode)+' · '+esc(b.channel)+'</span>'+
           (reason?'<span class="monitor-reason-tag">'+esc(reason)+'</span>':'')+
         '</div>'+
@@ -1870,7 +1886,7 @@ function needsEmptyRowHtml(b){
     '<div class="row needsempty-row'+(open?' open':'')+'" data-id="'+esc(b.id)+'">'+
       '<div class="edge" style="background:#0F8C86;"></div>'+
       '<div class="row-main">'+
-        '<div class="row-name">'+esc(b.desc)+'</div>'+
+        '<div class="row-name"><span class="row-name-text">'+esc(b.desc)+'</span></div>'+
         '<div class="row-meta"><span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span> · '+esc(b.haulCode)+' · '+esc(b.channel)+'</span>'+
           '<span class="needsempty-tag">just emptied</span>'+
         '</div>'+
@@ -1913,7 +1929,7 @@ function handsOffRowHtml(b){
     '<div class="row handsoff-row'+(open?' open':'')+'" data-id="'+esc(b.id)+'">'+
       '<div class="edge" style="background:#A9AEB5;"></div>'+
       '<div class="row-main">'+
-        '<div class="row-name">'+esc(b.desc)+'</div>'+
+        '<div class="row-name"><span class="row-name-text">'+esc(b.desc)+'</span></div>'+
         '<div class="row-meta"><span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span> · '+esc(b.haulCode)+' · '+esc(b.channel)+'</span>'+
           '<span class="handsoff-tag">'+esc(tag)+'</span>'+
         '</div>'+
