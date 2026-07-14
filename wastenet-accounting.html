@@ -3241,6 +3241,26 @@ function liveNoteFor(key){
     return "<b>Note:</b> only the pay-link records itself. ACH, cheque and Paymode payments are all " +
       "keyed into QuickBooks by hand \u2014 which means somebody first has to work out who paid.";
   }
+  if(key === "financials"){
+    if(!state.finLoaded) return "";
+    var rows = (typeof finRows === "function") ? finRows() : [];
+    var costed = rows.filter(function(r){ return r.known; });
+    var missing = rows.filter(function(r){ return !r.known; });
+    if(!costed.length) return "";
+    var tRev = costed.reduce(function(s,r){ return s + r.revenue; }, 0);
+    var tCes = costed.reduce(function(s,r){ return s + r.ces; }, 0);
+    var tComm = costed.reduce(function(s,r){ return s + r.comm; }, 0);
+    var gm = tRev > 0 ? Math.round((tRev - tCes - tComm) / tRev * 100) : 0;
+    var note = "<b>Right now (" + state.finYear + "):</b> across " + costed.length +
+      " costed month" + (costed.length === 1 ? "" : "s") + ", " + gm + "\u00a2 of every dollar " +
+      "collected is left after CES and agent commissions.";
+    if(missing.length){
+      note += " " + missing.length + " month" + (missing.length === 1 ? " is" : "s are") +
+        " left out because no CES cost has been entered for " +
+        (missing.length === 1 ? "it" : "them") + " yet.";
+    }
+    return note;
+  }
   return "";
 }
 
@@ -3561,6 +3581,15 @@ function finRows(){
   Object.keys(pay).forEach(function(k){ if(k.slice(0,4) === yr) keys[k] = 1; });
   Object.keys(state.finCes).forEach(function(k){ if(k.slice(0,4) === yr) keys[k] = 1; });
 
+  /* Never show the current, in-progress month. Only part of its revenue has
+     been collected and its CES statement has not arrived, so it would read
+     as a cliff plus a hollow bar - both artifacts of the month not being
+     over. Dropping it means the chart self-corrects: next month it fills in
+     on its own. Past years are untouched; this only ever hides "now". */
+  var now = new Date();
+  var curMonth = now.getFullYear() + "-" + ("0" + (now.getMonth() + 1)).slice(-2);
+  delete keys[curMonth];
+
   return Object.keys(keys).sort().map(function(m){
     var c = state.finCes[m];
     var comm = ((pay[m] && pay[m].agents) || []).reduce(function(s,a){
@@ -3840,7 +3869,14 @@ function renderFinancials(){
     dcls  = d >= 0 ? "f-up" : "f-down";
   }
 
-  var yrOpts = (state.years || []).map(function(y){
+  /* Only offer years CES has been entered for - otherwise the page would
+     invite a year it can only draw hollow. Derived from the CES data, so
+     adding 2024 later widens the dropdown on its own, no code change. */
+  var cesYears = {};
+  Object.keys(state.finCes).forEach(function(m){ cesYears[m.slice(0,4)] = 1; });
+  var yrOpts = (state.years || []).filter(function(y){
+    return cesYears[y.year];
+  }).map(function(y){
     return '<option value="' + y.year + '"' +
            (state.finYear === y.year ? " selected" : "") + '>' + y.year + '</option>';
   }).join("");
@@ -3929,6 +3965,18 @@ function loadFinancials(){
        become knowable now. */
     if(!state.finYear && state.years && state.years[0]){
       state.finYear = state.years[0].year;
+    }
+
+    /* Land on a year we can actually cost. The default is the newest
+       collections year, which may be one CES has no rows for yet - in which
+       case fall back to the newest year that DOES have CES, so the page never
+       opens on an all-hollow year that is not even in its own dropdown. */
+    var cesYears = {};
+    Object.keys(state.finCes).forEach(function(m){ cesYears[m.slice(0,4)] = 1; });
+    if(state.finYear && !cesYears[state.finYear]){
+      var pick = (state.years || []).map(function(y){ return y.year; })
+                   .filter(function(y){ return cesYears[y]; })[0];
+      if(pick) state.finYear = pick;
     }
 
     /* Collections may have landed on a different year than the one payouts

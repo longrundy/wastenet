@@ -186,6 +186,25 @@ agents: {
   ],
   source: 'The Agent Map and Agent Settings tabs, against the QuickBooks payments.',
   live: null
+},
+
+financials: {
+  title: 'Financials',
+  short: 'A pulse on the business: what came in, against the two costs that matter.',
+  body: [
+    'This is not the whole picture of the company, and it does not try to be. It shows revenue against the only two costs it tracks - CES and agent commissions - so you can see at a glance whether the shape of the business is holding. Everything left after those two costs is the gross margin, and a margin that stays steady month after month is the sign that nothing underneath has quietly changed.',
+    'The four cards read left to right. Revenue, then CES, then commissions, then what is left. Each cost also shows what slice of revenue it took, so the proportions are as visible as the dollars.',
+    'Three numbers feed the page, and they do not all come from the same place:',
+    ['REVENUE - money COLLECTED, straight from the same payments the Payments page uses. Not money invoiced. A month is only as big as what actually arrived in the bank.',
+     'COMMISSIONS - what the agents earned on that collected money, straight from the Agents page. The two always agree because they are the same underlying figure.',
+     'CES - what CES BILLED that month, read off their statements and typed into the CES Costs tab. Billed, not paid, on purpose: payments lag wildly - some months nothing goes out, some months a lump clears several at once - but the cost of monitoring the boxes is steady, and billed is the honest measure of it.'],
+    'Because revenue is money collected, it is LUMPY. A large customer whose accounts-payable department skips a month and doubles up the next turns a steady business into a chart that lurches. That is why the dashed BILLED line is drawn across the chart: it is nearly flat, because the same boxes are monitored every month, and it is the truer picture of the work. The gap between the flat billed line and the bouncing collected bars is payment timing, not the business changing.',
+    'A month with no CES cost entered is drawn HOLLOW - a dashed outline where its bar would be - and left out of the totals entirely. The margin line breaks across that gap rather than bridging it, because a margin computed without its largest cost would be a flattering fiction. The fix is not in the code: add the month to the CES Costs tab and it fills in.',
+    'The year dropdown only offers years CES has been entered for. Add an earlier year to the CES Costs tab and it appears on its own.',
+    'What is NOT here: overhead, staff, phones, insurance, and the distributions the owners draw. Those are real money and they are deliberately out of frame. This page answers one question - does the core model still work - and adding everything else would bury the answer.'
+  ],
+  source: 'Three tabs at once: the QuickBooks payments (revenue and commissions) and the hand-entered CES Costs tab (the CES billed figure). The dashed billed line comes from the QuickBooks invoices.',
+  live: 'financials'
 }
 
 };
