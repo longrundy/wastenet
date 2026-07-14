@@ -359,6 +359,25 @@
                border:0.5px solid var(--green-border);}
   .haul-portal:hover{background:var(--green); border-color:var(--green); color:#fff;}
 
+  /* The split pill. Two halves, one object - the date is what the button acts on. */
+  .em-pill{display:inline-flex; align-items:stretch; border-radius:var(--r-pill);
+           overflow:hidden; flex:0 0 auto; margin-left:6px; white-space:nowrap;}
+  .em-date{font-size:10.5px; font-weight:600; padding:2px 9px; display:inline-flex; align-items:center;
+           background:var(--card); color:var(--green-darker);
+           border:0.5px solid var(--green-border); border-right:none;}
+  .em-go{font-family:var(--font); font-size:10.5px; font-weight:600; padding:2px 9px;
+         border:0.5px solid var(--green); background:var(--green); color:#fff;
+         cursor:pointer; display:inline-flex; align-items:center;}
+  .em-go:hover{background:var(--green-dark); border-color:var(--green-dark);}
+
+  /* Draft all. One click for a thirty-box morning. */
+  .draft-bar{display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap;}
+  .draft-hint{font-size:12px; color:var(--ink-2);}
+  .draft-all{font-family:var(--font); font-size:12.5px; font-weight:600; height:var(--h-ctl);
+    padding:0 14px; border-radius:var(--r-ctl); border:0.5px solid var(--green);
+    background:var(--green); color:#fff; cursor:pointer;}
+  .draft-all:hover{background:var(--green-dark); border-color:var(--green-dark);}
+
   /* Scheduled, when it is a button. Looks exactly like the un-ticked step it
      replaces until you hover it - the row should not shout that one of its
      three marks is special. */
@@ -663,7 +682,7 @@ function lockOut(msg){
 }
 
 var state = { rows: [], scanTitle: "", openId: null, staleOpen: false, view: "action",
-  tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, staffNotesById: {}, staffNotesUpdById: {}, emptyMarkedById: {}, ledgerById: {}, portalById: {}, bookOpenId: null, bookBusy: false, notesOpenId: null, schedTab: null, clearTab: null };
+  tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, staffNotesById: {}, staffNotesUpdById: {}, emptyMarkedById: {}, ledgerById: {}, portalById: {}, actionBoxes: [], bookOpenId: null, bookBusy: false, notesOpenId: null, schedTab: null, clearTab: null };
 
 /* ---------- JSONP ---------- */
 function jsonp(params, cb){
@@ -1165,11 +1184,49 @@ function stepsHtml(b){
    date typed into the portal. Empty string when the box has no usable
    rule, so it simply doesn't render. Suppression on "Notified" happens once
    that write-back exists (Phase 2); until then it shows for every action box. */
-function suggestedChipHtml(b){
+
+/* ---------- the date we would actually put in an email ----------
+   Sch Date if the box has one - somebody booked that, in a portal, and took
+   whatever day the portal had. Our suggestion only when nothing real exists. */
+function pickupYmdFor(b){
+  var onBox = toYmd(b.schDate);
+  if(onBox) return onBox;
   var sug = suggestedPickupFor(b);
-  if(!sug) return "";
-  var cal = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto;"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg>';
-  return '<span class="chip-break" aria-hidden="true"></span><span class="sug-chip" title="Suggested pickup per '+esc(sug.rule)+'">'+cal+esc(sug.label)+'</span>';
+  return sug ? sug.value : "";
+}
+
+function fmtChipDate(ymd){
+  var p = String(ymd || "").split("-");
+  if(p.length !== 3) return ymd || "";
+  var d = new Date(+p[0], +p[1]-1, +p[2]);
+  if(isNaN(d.getTime())) return ymd;
+  var days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  var mons = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return days[d.getDay()] + " " + mons[d.getMonth()] + " " + d.getDate();
+}
+
+/* ---------- the split pill: [ date | Email(s) ] ----------
+   The date is not decoration sitting beside a button. It is the ARGUMENT the
+   button acts on - press it and that is the date the hauler and the customer
+   are both told. Read left to right it says what will happen, which is why the
+   halves are welded together instead of being two separate chips.
+
+   It says Email(s), not Send. Nothing leaves from here: it opens the review
+   queue, and you send from there having read what you are about to say. A
+   button labelled Send that does not send has already started lying. */
+function emailPillHtml(b){
+  var ymd = pickupYmdFor(b);
+  if(!ymd) return "";
+  var booked = !!toYmd(b.schDate);
+  var sug = suggestedPickupFor(b);
+  var label = booked ? fmtChipDate(ymd) : (sug ? sug.label : fmtChipDate(ymd));
+  var title = booked ? ("Scheduled for " + ymd)
+                     : ("Suggested pickup" + (sug ? " per " + sug.rule : ""));
+  return '<span class="em-pill">'+
+    '<span class="em-date" title="'+esc(title)+'">'+esc(label)+'</span>'+
+    '<button class="em-go" data-mail="'+esc(b.id)+'" data-date="'+esc(ymd)+'" '+
+      'title="Open the drafts for this box">Email(s) \u2197</button>'+
+  '</span>';
 }
 
 /* ---------- why is this box on the action list? ----------
@@ -1255,6 +1312,7 @@ function rowHtml(b, missed, bucketTag, showHaul){
   } else {
     metaInner = '<span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span>'+
       ((bucketTag || showHaul) ? ' · '+esc(b.haulCode) : '')+' · '+esc(b.channel)+'</span>' + bTag + stepsHtml(b) +
+      (onSchedulePage() ? emailPillHtml(b) : "") +
       (alsoStale(b) ? '<span class="also-stale-tag">also not cycling</span>' : '');
   }
 
@@ -1264,8 +1322,7 @@ function rowHtml(b, missed, bucketTag, showHaul){
     '<div class="row'+(open?' open':'')+(missed?' missed':'')+'" data-id="'+esc(b.id)+'">'+
       '<div class="edge" style="background:'+(missed?'#A32D2D':ec)+';"></div>'+
       '<div class="row-main">'+
-        '<div class="row-name"><span class="row-name-text">'+esc(b.desc)+'</span>'+
-          (onSchedulePage() ? suggestedChipHtml(b) : "")+'</div>'+
+        '<div class="row-name"><span class="row-name-text">'+esc(b.desc)+'</span></div>'+
         '<div class="row-meta">'+metaInner+'</div>'+
       '</div>'+
       fillBlock+
@@ -1532,6 +1589,10 @@ function render(){
   var allYes = notDown.filter(function(b){ return b.need.indexOf("YES")!==-1 && !isScheduled(b); });
   var stale  = allYes.filter(isStaleScan);
   var action = allYes.filter(function(b){ return !isStaleScan(b); });
+  // Published so Draft all can use the SAME list the page is showing. Working
+  // it out a second time in the click handler is how the button ends up
+  // drafting a set of boxes that is not the set on screen.
+  state.actionBoxes = action;
   var clearNormal = notDown.filter(function(b){ return b.need.indexOf("YES")===-1 && b.need!=="N/A" && !isScheduled(b); });
   // Inactive boxes (need==="N/A" - descriptions starting X/Y/Z, retired).
   // Previously these fell into NO bucket, so the six scorecard numbers
@@ -1674,6 +1735,19 @@ function render(){
          (An earlier comment here claimed every hauler got a header including
          single-box ones. It never did - haulGroupHtml returns a bare row for a
          group of one. The comment was describing an intention, not the code.) */
+      /* Draft all. Thirty boxes is thirty rows but only a dozen emails, because
+         one hauler drives one trip and one contact reads one message. Clicking
+         each row's pill thirty times to discover that is not a workflow. */
+      var mailable = state.actionBoxes.filter(function(b){ return !!pickupYmdFor(b); });
+      if(mailable.length){
+        html += '<div class="draft-bar">' +
+          '<button class="draft-all" id="draftAll">Draft all \u2197</button>' +
+          '<span class="draft-hint">' + mailable.length +
+            (mailable.length === 1 ? " box" : " boxes") +
+            ' \u2014 opens every request and notice for review. Nothing sends until you say so.</span>' +
+        '</div>';
+      }
+
       var batchKeys  = keys.filter(function(k){ return groups[k].length > 1; });
       var singleKeys = keys.filter(function(k){ return groups[k].length === 1; });
 
@@ -2146,6 +2220,37 @@ function wireRows(){
       render();
     });
   });
+  /* ---- open the review queue ------------------------------------------
+     The monitor hands over the box IDs AND the dates it displayed. messages.html
+     does not recompute either: a second copy of the bucket rules is a second
+     copy to drift, and a queue that quietly disagrees with the list it came from
+     is worse than no queue. What you saw is what it drafts. */
+  function openMessages(boxes){
+    if(!boxes.length) return;
+    var b = boxes.map(function(x){ return x.id + ":" + x.date; }).join(",");
+    var tab = state.isLatest ? (state.currentTab || "") : (state.currentTab || "");
+    if(!tab){ setBanner("No scan tab loaded yet.", "err"); return; }
+    window.location.href = "messages.html?tab=" + encodeURIComponent(tab) +
+                           "&b=" + encodeURIComponent(b);
+  }
+
+  var draftAll = document.getElementById("draftAll");
+  if(draftAll) draftAll.addEventListener("click", function(){
+    var boxes = [];
+    (state.actionBoxes || []).forEach(function(b){
+      var d = pickupYmdFor(b);
+      if(d) boxes.push({ id:b.id, date:d });
+    });
+    openMessages(boxes);
+  });
+
+  listEl.querySelectorAll("button[data-mail]").forEach(function(bt){
+    bt.addEventListener("click", function(e){
+      e.stopPropagation();   // the whole row is a click target; don't also expand it
+      openMessages([{ id: bt.getAttribute("data-mail"), date: bt.getAttribute("data-date") }]);
+    });
+  });
+
   /* ---- portal booking ------------------------------------------------
      stopPropagation everywhere: the whole row is a click target that expands
      the detail panel, so without it, opening the date picker would also open
