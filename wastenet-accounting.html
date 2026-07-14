@@ -1707,9 +1707,8 @@ function statementHtml(a, period){
 
     '<div style="margin:18px 0;padding:11px 13px;background:#F4FAEC;border:1px solid #C0DD97;'+
       'border-radius:6px;font-size:12.5px;color:#27500A;line-height:1.6;">'+
-      '<b>Commission is calculated on payments received in this period</b> \u2014 not on invoices '+
-      'raised in it. Most of the invoices below were raised in an earlier month; what puts them '+
-      'here is that the payment arrived during '+ esc(stmtPeriodLabel(period)) +'.'+
+      '<b>Commission is paid on money received, not on money invoiced.</b> '+
+      'Every invoice below was paid during '+ esc(stmtPeriodLabel(period)) +'.'+
     '</div>'+
 
     blocks +
