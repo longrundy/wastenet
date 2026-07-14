@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>WasteNet Messages</title>
-<link rel="icon" href="WastenetLogo.png">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="favicon-180.png">
 <style>
   :root{
     --green:#5CAA16; --green-dark:#3B6D11; --green-darker:#27500A;
@@ -344,7 +345,14 @@ function boldLiteralSites(html){
       continue;
     }
     out.push(raw);
-    if(/compactor\(s\)\s*:\s*$/i.test(flat)) arming = true;
+    /* Arm on a line that MENTIONS A COMPACTOR and ENDS WITH A COLON. Both
+       conditions are load-bearing:
+         "...the following compactor(s):"                            <- arms
+         "...compactor(s) at Texoma Medical Center in Denison, TX:"  <- also arms
+         "...click below and enter your name - no reply needed:"     <- must NOT
+       Ending-with-a-colon alone would arm on that last one and bold the confirm
+       button's line. Mentioning a compactor alone would arm on prose. */
+    if(/compactor/i.test(flat) && /:\s*$/.test(flat)) arming = true;
   }
   return out.join("\n");
 }
