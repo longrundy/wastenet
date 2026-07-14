@@ -1404,7 +1404,9 @@ var ICON_COMMISSION =
    check the arithmetic, and it is the last moment a mistake costs nothing. */
 function openStmtPreview(agent){
   var md = agMonthData();
-  var a = (md.rows || []).filter(function(x){ return x.agent === agent; })[0];
+  // agMonthData() returns { agents: [...] } - not rows. Getting this wrong made
+  // the button say "could not find that agent" on a page that was displaying him.
+  var a = (md.agents || []).filter(function(x){ return x.agent === agent; })[0];
   if(!a){ showNote("Could not find that agent in the current month.", true); return; }
   var cfg = (state.agSettings || {})[agent] || {};
   if(!cfg.email){ showNote("No email address on file for " + a.name + ".", true); return; }
