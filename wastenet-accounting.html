@@ -1532,11 +1532,57 @@ function wireStmtModal(){
   };
 }
 
-/* MM/DD. The year is in the title and on every row it would just be noise -
-   and nine columns at 600px cannot afford four characters of noise. */
-function shortDate(d){
-  var p = String(d || "").split("-");
-  return p.length === 3 ? (p[1] + "/" + p[2]) : (d || "");
+
+function stmtPeriodLabel(ym){
+  var p = String(ym || "").split("-");
+  if(p.length < 2) return ym || "";
+  var mons = ["January","February","March","April","May","June","July",
+              "August","September","October","November","December"];
+  return mons[Number(p[1]) - 1] + " " + p[0];
+}
+
+/* ---- ONE BLOCK PER INVOICE, NOT A NINE-COLUMN TABLE ----
+ *
+ * Invoiced / Paid / Customer / Inv / Boxes / Monitoring / Cell fee / Rate /
+ * Payout is nine columns, and nine columns do not fit in a 600px email. The
+ * table was what forced the width, and the width was what pushed the banner and
+ * the disclaimer off the edge. Shrinking the font would have bought a few
+ * pixels and lost the argument.
+ *
+ * So the table is gone. Each invoice is a block: who and how much on top, the
+ * invoice and its two dates underneath, then the arithmetic as three short
+ * lines. Nothing is forced wide, so nothing can run off. A twenty-two invoice
+ * month becomes a longer email rather than an illegible one.
+ */
+
+/* Group a doc's lines by rate, and reconcile them against the figure the
+ * commission was actually based on.
+ *
+ * A statement whose line detail contradicts the payout above it hands the agent
+ * an argument and us no defence. If they do not agree, we say the detail is
+ * unavailable - which is true, and is the one thing that cannot mislead him. */
+function invoiceLineSummary(doc, monitoringBase){
+  var lines = (state.stmtLines || {})[doc] || [];
+  if(!lines.length) return null;
+
+  var groups = [], byKey = {}, charges = [];
+  lines.forEach(function(L){
+    if(L.kind === "HEADER") return;
+    if(L.kind === "CHARGE"){ charges.push(L); return; }   // never commissionable
+    var key = String(L.rate == null ? "?" : L.rate);
+    if(!byKey[key]){
+      byKey[key] = { rate: L.rate, qty: 0, amount: 0, desc: L.desc || "" };
+      groups.push(byKey[key]);
+    }
+    byKey[key].qty    += (L.qty == null ? 1 : L.qty);
+    byKey[key].amount += (L.amount || 0);
+  });
+
+  var lineTotal = groups.reduce(function(t,g){ return t + g.amount; }, 0);
+  // Half a cent of slack for floating point; anything more is a real disagreement.
+  var agrees = Math.abs(lineTotal - (monitoringBase || 0)) < 0.005;
+
+  return { groups: groups, charges: charges, lineTotal: lineTotal, agrees: agrees };
 }
 
 function stmtPeriodLabel(ym){
@@ -1547,174 +1593,102 @@ function stmtPeriodLabel(ym){
   return mons[Number(p[1]) - 1] + " " + p[0];
 }
 
-/* The invoice, opened up - WITHOUT twenty-five rows that all say $125.
- *
- * Baycare's invoice carries one line per box: twenty-five of them, each a
- * different site, each the same monthly monitoring fee. Printed out in full
- * they tell John what the row above already told him (25 boxes, $3,125) and
- * shove the table past 600px in the process.
- *
- * They are not IDENTICAL lines - the site differs on every one - so they cannot
- * honestly be collapsed under a shared description. What they do share is a rate
- * and a kind, and that is what gets grouped: "25 lines at $125.00 = $3,125.00".
- * The arithmetic survives; the twenty-five near-duplicate site names do not.
- *
- * A one-off charge (kind CHARGE) is never grouped away, however many there are.
- * It is not commissionable, and it is exactly the line John would ask about when
- * his commission does not match the invoice total he can see.
- */
-function invoiceDetailHtml(lines){
-  if(!lines || !lines.length) return "";
+/* "Jun 25" - a date a person reads, not one they parse. */
+function stmtDay(d){
+  var p = String(d || "").split("-");
+  if(p.length !== 3) return d || "";
+  var mons = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return mons[Number(p[1]) - 1] + " " + Number(p[2]);
+}
 
-  var groups = [];
-  var byKey = {};
-  lines.forEach(function(L){
-    if(L.kind === "HEADER") return;                     // a heading, not a charge
-    var isCharge = L.kind === "CHARGE";
-    // A one-time charge always stands alone. Grouping it away is exactly the
-    // information an agent is entitled to see.
-    var key = isCharge ? ("charge|" + groups.length) : ("m|" + (L.rate == null ? "?" : L.rate));
-    if(!byKey[key]){
-      byKey[key] = { rate: L.rate, charge: isCharge, desc: L.desc || "", n: 0, qty: 0, amount: 0 };
-      groups.push(byKey[key]);
-    }
-    var g = byKey[key];
-    g.n++;
-    g.qty += (L.qty == null ? 1 : L.qty);
-    g.amount += (L.amount || 0);
-  });
+function invoiceBlockHtml(i, first){
+  var sum = invoiceLineSummary(i.doc, i.monitoring);
+  var base = (i.monitoring || 0) - (i.fees || 0);
 
-  if(!groups.length) return "";
+  var maths;
+  if(sum && sum.agrees){
+    maths = sum.groups.map(function(g){
+      return fmtN(g.qty) + ' \u00d7 monitoring @ $' + fmt(g.rate == null ? 0 : g.rate) +
+             ' &nbsp;=&nbsp; <b style="color:#1A1D1A;">$' + fmt(g.amount) + '</b>';
+    }).join("<br>");
+  } else {
+    /* The lines and the payout disagree - so do not print both and let John
+       work out which one we meant. Say the detail is unavailable, which is what
+       is actually true, and give him the figure the money was calculated on. */
+    maths = '$' + fmt(i.monitoring) + ' monitoring collected' +
+            '<br><span style="color:#8A8F8A;font-size:11px;">'+
+            'Line detail unavailable for this invoice \u2014 ask us and we will send it through.'+
+            '</span>';
+  }
 
-  var rows = groups.map(function(g){
-    var label = g.charge
-      ? esc(g.desc) + ' <span style="color:#854F0B;font-weight:bold;">one-time \u2014 no commission</span>'
-      : (g.n > 1
-          ? '<b>' + fmtN(g.n) + '</b> \u00d7 monitoring'
-          : esc(g.desc));
-    return '<tr>'+
-      '<td style="padding:3px 6px 3px 16px;font-size:10.5px;color:#525A60;">'+ label +'</td>'+
-      '<td style="padding:3px 6px;font-size:10.5px;color:#8A8F8A;text-align:right;white-space:nowrap;">'+
-        (g.rate == null ? "" : "@ $" + fmt(g.rate)) +'</td>'+
-      '<td style="padding:3px 6px;font-size:10.5px;color:#525A60;text-align:right;white-space:nowrap;">$'+
-        fmt(g.amount) +'</td>'+
-    '</tr>';
-  }).join("");
+  var chargeNote = (sum && sum.charges.length)
+    ? '<br><span style="color:#854F0B;">' +
+      sum.charges.map(function(c){
+        return esc(c.desc || "one-time charge") + ' $' + fmt(c.amount) + ' \u2014 not commissionable';
+      }).join('<br>') + '</span>'
+    : '';
 
-  return '<tr><td colspan="9" style="padding:2px 6px 8px 6px;border-bottom:1px solid #E4E7E0;background:#FAFBF8;">'+
-    '<table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">'+
-      rows +
+  return '<div style="border-top:'+ (first ? '2px solid #CFD4CA' : '1px solid #E4E7E0') +
+           ';padding:13px 0 12px;">'+
+    '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">'+
+      '<tr>'+
+        '<td style="font-size:14px;font-weight:bold;color:#1A1D1A;">'+ esc(i.customer) +
+          (i.partial ? ' <span style="color:#854F0B;font-weight:normal;font-size:11px;">('+
+            i.partial +'% paid)</span>' : '') + '</td>'+
+        '<td align="right" style="font-size:16px;font-weight:bold;color:#27500A;white-space:nowrap;">$'+
+          fmt(i.payout) +'</td>'+
+      '</tr>'+
+      '<tr><td colspan="2" style="font-size:11.5px;color:#8A8F8A;padding-top:3px;">'+
+        'Invoice '+ esc(i.doc) +' &nbsp;\u00b7&nbsp; invoiced '+ esc(stmtDay(i.invDate)) +
+        ' &nbsp;\u00b7&nbsp; <b style="color:#3B6D11;">paid '+ esc(stmtDay(i.date)) +'</b>'+
+      '</td></tr>'+
+      '<tr><td colspan="2" style="padding-top:8px;">'+
+        '<div style="background:#F6F7F3;border-radius:5px;padding:9px 11px;font-size:12px;'+
+          'color:#525A60;line-height:1.75;">'+
+          maths + chargeNote +
+          '<br>less cellular fees, '+ fmtN(i.boxes) +' boxes \u00d7 $25 &nbsp;=&nbsp; '+
+            '<b style="color:#A32D2D;">\u2212$'+ fmt(i.fees || 0) +'</b>'+
+          '<br><span style="color:#8A8F8A;">$'+ fmt(base) +' \u00d7 '+
+            Math.round((i.share || 0) * 100) +'% share</span> &nbsp;=&nbsp; '+
+            '<b style="color:#27500A;">$'+ fmt(i.payout) +'</b>'+
+        '</div>'+
+      '</td></tr>'+
     '</table>'+
-  '</td></tr>';
+  '</div>';
 }
 
 function statementHtml(a, period){
-  var cel = "padding:6px 6px;border-bottom:1px solid #E4E7E0;font-size:11.5px;";
-  var rows = (a.invoices || []).map(function(i){
-    /* THE INVOICE, OPENED UP.
-       On the dashboard an invoice number is a link that opens a panel of its
-       line items. In an email there is no panel to open and no page John can
-       reach - the dashboard is key-locked - so a link would be a dead end
-       however it was built. The detail goes inline instead: he sees what is
-       behind the number without clicking anything, in any mail client. */
-    var lines = (state.stmtLines || {})[i.doc] || [];
-    var detail = invoiceDetailHtml(lines);
-
-    return '<tr>'+
-      '<td style="'+cel+'color:#8A8F8A;white-space:nowrap;">'+ esc(shortDate(i.invDate || "")) + '</td>'+
-      '<td style="'+cel+'font-weight:bold;color:#3B6D11;white-space:nowrap;">'+ esc(shortDate(i.date)) + '</td>'+
-      '<td style="'+cel+'">'+ esc(i.customer) +
-        (i.partial ? ' <span style="color:#854F0B;">(' + i.partial + '% paid)</span>' : '') + '</td>'+
-      '<td style="'+cel+'color:#3B6D11;">'+ esc(i.doc) +'</td>'+
-      '<td style="'+cel+'text-align:right;">'+ fmtN(i.boxes) +'</td>'+
-      '<td style="'+cel+'text-align:right;">$'+ fmt(i.monitoring) +'</td>'+
-      '<td style="'+cel+'text-align:right;color:#A32D2D;">\u2212$'+ fmt(i.fees || 0) +'</td>'+
-      '<td style="'+cel+'text-align:right;color:#8A8F8A;">'+ Math.round((i.share || 0) * 100) +'%</td>'+
-      '<td style="'+cel+'text-align:right;font-weight:bold;">$'+ fmt(i.payout) +'</td>'+
-    '</tr>' + detail;
-  }).join("");
-
-  /* ---- THE MATHS, BY RATE BAND ----------------------------------------
-     An agent can be paid at more than one rate in a month: 50% on most
-     accounts, 25% on Costco and the Raley's entities. Mixed rates CANNOT be
-     written as a single multiplication.
-
-     The obvious summary - "monitoring MINUS fees TIMES share" - is therefore a
-     lie for exactly those agents, and a self-refuting one: the total it prints
-     will not equal the lines printed above it. John would find that in about
-     four seconds, and rightly ask which number he is being paid.
-
-     So the summary is built from the lines themselves, one block per rate, and
-     the total is their sum by construction. It cannot disagree with the table
-     because it is made of the table. */
-  var bands = {};
-  (a.invoices || []).forEach(function(i){
-    var k = String(i.share || 0);
-    if(!bands[k]) bands[k] = { share: i.share || 0, monitoring: 0, fees: 0, payout: 0, n: 0 };
-    bands[k].monitoring += (i.monitoring || 0);
-    bands[k].fees       += (i.fees || 0);
-    bands[k].payout     += (i.payout || 0);
-    bands[k].n++;
-  });
-  var bandKeys = Object.keys(bands).sort(function(x,y){ return bands[y].share - bands[x].share; });
-
-  var fees = (a.invoices || []).reduce(function(t,i){ return t + (i.fees || 0); }, 0);
-  var monTot = (a.invoices || []).reduce(function(t,i){ return t + (i.monitoring || 0); }, 0);
-  var payTot = (a.invoices || []).reduce(function(t,i){ return t + (i.payout || 0); }, 0);
-
-  var mathRows = bandKeys.map(function(k){
-    var b = bands[k];
-    var bBase = b.monitoring - b.fees;
-    return '<div style="font-size:13px;color:#1A1D1A;line-height:1.9;'+
-             (bandKeys.length > 1 ? 'padding:6px 0;border-bottom:1px solid #C0DD97;' : '') + '">'+
-      (bandKeys.length > 1
-        ? '<b>At ' + Math.round(b.share * 100) + '%</b> \u00b7 ' + b.n +
-          (b.n === 1 ? ' invoice<br>' : ' invoices<br>')
-        : '')+
-      '<b>$'+ fmt(b.monitoring) +'</b> monitoring collected'+
-      ' \u2212 <b>$'+ fmt(b.fees) +'</b> cellular fees'+
-      ' = <b>$'+ fmt(bBase) +'</b>'+
-      ' \u00d7 <b>'+ Math.round(b.share * 100) +'%</b>'+
-      ' = <b style="color:#27500A;">$'+ fmt(b.payout) +'</b>'+
-    '</div>';
-  }).join("");
+  var invs = a.invoices || [];
+  var blocks = invs.map(function(i, n){ return invoiceBlockHtml(i, n === 0); }).join("");
+  var payTot = invs.reduce(function(t,i){ return t + (i.payout || 0); }, 0);
 
   var inner =
     '<div style="font-size:19px;font-weight:bold;color:#1A1D1A;">Commission Statement</div>'+
     '<div style="font-size:15px;color:#525A60;margin-top:3px;">'+ esc(a.name) +' \u00b7 '+
       esc(stmtPeriodLabel(period)) +'</div>'+
 
-    /* Said plainly, at the top, every month. */
     '<div style="margin:18px 0;padding:11px 13px;background:#F4FAEC;border:1px solid #C0DD97;'+
-      'border-radius:6px;font-size:13px;color:#27500A;">'+
+      'border-radius:6px;font-size:12.5px;color:#27500A;line-height:1.6;">'+
       '<b>Commission is calculated on payments received in this period</b> \u2014 not on invoices '+
-      'raised in it. Most of the lines below are invoices from an earlier month whose payment '+
-      'arrived during '+ esc(stmtPeriodLabel(period)) +'.'+
+      'raised in it. Most of the invoices below were raised in an earlier month; what puts them '+
+      'here is that the payment arrived during '+ esc(stmtPeriodLabel(period)) +'.'+
     '</div>'+
 
-    '<table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin-top:6px;">'+
-      '<thead><tr style="background:#F6F7F3;">'+
-        ['INVOICED','PAID','CUSTOMER','INV','BOXES','MONITORING','CELL FEE','RATE','PAYOUT']
-          .map(function(h, n){
-            var right = n >= 4;
-            return '<th style="padding:6px 6px;font-size:9.5px;letter-spacing:0.03em;'+
-              'color:' + (h === "PAID" ? "#3B6D11" : "#525A60") + ';'+
-              'text-align:' + (right ? "right" : "left") + ';'+
-              'border-bottom:2px solid #CFD4CA;white-space:nowrap;">' + h + '</th>';
-          }).join("")+
-      '</tr></thead><tbody>'+ rows +'</tbody>'+
-    '</table>'+
+    blocks +
 
-    '<div style="margin-top:18px;padding:13px 15px;background:#F4FAEC;border:1px solid #C0DD97;border-radius:6px;">'+
-      '<div style="font-size:11px;color:#3B6D11;font-weight:bold;margin-bottom:4px;">HOW THIS WAS CALCULATED</div>'+
-      mathRows +
-      '<div style="margin-top:9px;padding-top:9px;border-top:2px solid #C0DD97;font-size:13px;">'+
-        'Total commission for '+ esc(stmtPeriodLabel(period)) +': '+
-        '<span style="font-size:19px;font-weight:bold;color:#27500A;">$'+ fmt(payTot) +'</span>'+
-      '</div>'+
-      '<div style="margin-top:7px;font-size:11px;color:#525A60;">'+
-        'Cellular fees are $25 per box \u00b7 '+ fmtN(a.boxes) +' boxes this period.'+
-      '</div>'+
+    '<div style="margin-top:6px;padding:14px 15px;background:#F4FAEC;border:1px solid #C0DD97;border-radius:6px;">'+
+      '<table width="100%" cellpadding="0" cellspacing="0" border="0">'+
+        '<tr>'+
+          '<td style="font-size:13px;color:#1A1D1A;">Total commission for <b>'+
+            esc(stmtPeriodLabel(period)) +'</b></td>'+
+          '<td align="right" style="font-size:21px;font-weight:bold;color:#27500A;white-space:nowrap;">$'+
+            fmt(payTot) +'</td>'+
+        '</tr>'+
+        '<tr><td colspan="2" style="font-size:11px;color:#525A60;padding-top:5px;">'+
+          fmtN(invs.length) + (invs.length === 1 ? ' invoice' : ' invoices') +
+          ' \u00b7 '+ fmtN(a.boxes) +' boxes \u00b7 cellular fees are $25 per box'+
+        '</td></tr>'+
+      '</table>'+
     '</div>'+
 
     '<div style="margin-top:16px;font-size:12px;color:#525A60;">'+
@@ -1723,10 +1697,6 @@ function statementHtml(a, period){
 
   return '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FAFBF8;padding:24px 12px;">'+
     '<tr><td align="center">'+
-      /* 600px, the same as every other email we send. The statement was 700 and
-         it overflowed - in the preview, and in any mail client with a reading
-         pane. Nine columns is a lot; the answer is shorter dates and tighter
-         cells, not a wider envelope. */
       '<table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:#FFFFFF;border:1px solid #E4E7E0;border-radius:8px;">'+
         '<tr><td style="padding:26px 30px 22px;font-family:Arial,Helvetica,sans-serif;color:#1A1D1A;">'+ inner +'</td></tr>'+
         '<tr><td style="padding:0 30px 22px;"><img src="'+ LOGO +'" alt="WasteNet" width="150" style="display:block;border:0;"></td></tr>'+
