@@ -88,6 +88,28 @@
   .qc-sent{font-size:11px; padding:2px 9px; border-radius:var(--r-pill);
     background:var(--green); color:#fff; flex:0 0 auto;}
 
+  /* Same lock as the dashboards, same sessionStorage key, so unlocking once
+     covers all of them for the session. sessionStorage is PER TAB, though - a
+     URL pasted into a fresh tab arrives with no key, which is exactly how this
+     page first came up empty. */
+  .lock{position:fixed; inset:0; z-index:100; background:var(--page); display:flex;
+        align-items:center; justify-content:center; padding:20px;}
+  .lock.hide{display:none;}
+  .lock-card{width:min(360px,100%); background:var(--card); border:0.5px solid var(--line-strong);
+    border-radius:var(--r-card); padding:24px; text-align:center; box-shadow:0 3px 14px rgba(0,0,0,0.07);}
+  .lock-brand{font-size:17px; font-weight:800; letter-spacing:0.04em; color:var(--green); margin-bottom:4px;}
+  .lock-sub{font-size:13px; color:var(--ink-2); margin-bottom:16px;}
+  .lock-in{width:100%; box-sizing:border-box; padding:10px 12px; font-size:15px;
+    border:1px solid var(--line-strong); border-radius:var(--r-input); font-family:var(--font);
+    color:var(--ink); outline:none;}
+  .lock-in:focus{border-color:var(--green);}
+  .lock-btn{width:100%; margin-top:12px; padding:11px; font-size:14px; font-weight:600;
+    border-radius:var(--r-input); border:none; cursor:pointer; background:var(--green);
+    color:#fff; font-family:var(--font);}
+  .lock-err{margin-top:12px; padding:8px 10px; background:var(--red-tint);
+    border:0.5px solid var(--red); border-radius:var(--r-input); color:var(--red-dark);
+    font-size:12.5px; font-weight:600;}
+
   .empty{padding:50px 20px; text-align:center; color:var(--ink-2);}
   .empty .big{font-size:16px; font-weight:600; color:var(--ink); margin-bottom:6px;}
   .spinner{display:inline-block; width:13px; height:13px; border:2px solid var(--line-strong);
@@ -97,6 +119,16 @@
 </style>
 </head>
 <body>
+<div class="lock hide" id="lock">
+  <div class="lock-card">
+    <div class="lock-brand">WASTENET</div>
+    <div class="lock-sub">Enter the access code to continue.</div>
+    <input class="lock-in" id="lockIn" type="password" placeholder="Access code">
+    <button class="lock-btn" id="lockBtn">Unlock</button>
+    <div class="lock-err" id="lockErr" style="display:none;"></div>
+  </div>
+</div>
+
 <div class="wrap">
 
   <div class="header-bar">
@@ -163,6 +195,20 @@ function setBanner(msg, kind){
   b.innerHTML = msg;
 }
 
+function lockOut(msg){
+  try { sessionStorage.removeItem("wastenet_dashboard_key"); } catch(e){}
+  KEY = "";
+  var lock = document.getElementById("lock");
+  var err  = document.getElementById("lockErr");
+  if(lock) lock.classList.remove("hide");
+  if(err){
+    if(msg){ err.textContent = msg; err.style.display = "block"; }
+    else { err.style.display = "none"; }
+  }
+  var inp = document.getElementById("lockIn");
+  if(inp){ inp.value = ""; inp.focus(); }
+}
+
 function jsonp(params, cb){
   var name = "wn_cb_" + Math.random().toString(36).slice(2);
   var timeout = setTimeout(function(){ cleanup(); cb({ ok:false, error:"Request timed out." }); }, 30000);
@@ -171,7 +217,11 @@ function jsonp(params, cb){
     try{ delete window[name]; }catch(e){ window[name] = undefined; }
     if(s && s.parentNode) s.parentNode.removeChild(s);
   }
-  window[name] = function(data){ cleanup(); cb(data); };
+  window[name] = function(data){
+    cleanup();
+    if(data && data.authRequired){ lockOut("That access code was not accepted. Please try again."); return; }
+    cb(data);
+  };
   var qs = Object.keys(params).map(function(k){
     return encodeURIComponent(k) + "=" + encodeURIComponent(params[k]);
   }).join("&");
@@ -625,27 +675,35 @@ function parseUrl(){
   });
 }
 
+/* If master_contacts did not load, EVERY box looks like it has no customer
+   contact - and the page said so, in red, nine times, as if it were a finding.
+   It was not a finding. It was a failed request wearing the costume of one, and
+   somebody would have gone off to edit a spreadsheet that was never wrong.
+
+   A diagnosis from data we do not have is worse than no diagnosis. So: refuse
+   to build the queue at all, and say plainly which load failed. */
 function ready(){
   state.loaded++;
   if(state.loaded < 3) return;   // scan + contacts + templates
+
+  var missing = [];
+  if(!Object.keys(state.rows).length)     missing.push("the scan");
+  if(!Object.keys(state.contacts).length) missing.push("contacts");
+  if(!state.templates["notice"] && !state.templates["batch"]) missing.push("email templates");
+
+  if(missing.length){
+    document.getElementById("main").innerHTML =
+      '<div class="empty"><div class="big">Could not build the drafts</div>' +
+      'Failed to load: ' + esc(missing.join(", ")) + '.<br>' +
+      'No conclusions have been drawn about any box \u2014 this is a loading problem, not a data problem.</div>';
+    return;
+  }
+
   buildQueue();
   render();
 }
 
-function boot(){
-  document.getElementById("backBtn").addEventListener("click", function(){
-    window.location.href = "wastenet-monitor.html";
-  });
-
-  parseUrl();
-  if(!state.tab || !Object.keys(state.want).length){
-    document.getElementById("main").innerHTML =
-      '<div class="empty"><div class="big">Nothing to send</div>' +
-      'Open this from the Schedule Service list on the Monitoring Dashboard.</div>';
-    return;
-  }
-
-  // action=tab takes `name`, not `tab`. (The monitor calls it the same way.)
+function loadAll(){
   jsonp({ action:"tab", name:state.tab, key:KEY }, function(data){
     if(data && data.ok && data.rows){
       data.rows.forEach(function(r){
@@ -685,18 +743,51 @@ function boot(){
         };
       });
       if(!state.templates["notice"] || !state.templates["batch"]){
-        // Say which one is missing. A blank body would otherwise sail straight
-        // out to a hauler and nobody would know why until they replied.
         setBanner("Missing template(s) on the Email Templates tab: " +
           (!state.templates["notice"] ? "Notice " : "") +
           (!state.templates["batch"] ? "Batch" : "") +
-          " \u2014 drafts using them will be blank.", "err");
+          " \u2014 drafts using them would be blank.", "err");
       }
     } else {
       setBanner(esc((data && data.error) || "Could not load the email templates."), "err");
     }
     ready();
   });
+}
+
+function boot(){
+  document.getElementById("backBtn").addEventListener("click", function(){
+    window.location.href = "wastenet-monitor.html";
+  });
+
+  var lockIn = document.getElementById("lockIn");
+  var lockBtn = document.getElementById("lockBtn");
+  function unlock(){
+    var v = (lockIn.value || "").trim();
+    if(!v) return;
+    try { sessionStorage.setItem("wastenet_dashboard_key", v); } catch(e){}
+    KEY = v;
+    document.getElementById("lock").classList.add("hide");
+    state.loaded = 0; state.rows = {}; state.contacts = {}; state.templates = {};
+    document.getElementById("main").innerHTML =
+      '<div class="empty"><span class="spinner"></span>Building the drafts&hellip;</div>';
+    loadAll();
+  }
+  lockBtn.addEventListener("click", unlock);
+  lockIn.addEventListener("keydown", function(e){ if(e.key === "Enter") unlock(); });
+
+  parseUrl();
+  if(!state.tab || !Object.keys(state.want).length){
+    document.getElementById("main").innerHTML =
+      '<div class="empty"><div class="big">Nothing to send</div>' +
+      'Open this from the Schedule Service list on the Monitoring Dashboard.</div>';
+    return;
+  }
+
+  // No key in this tab's sessionStorage - ask, rather than firing three
+  // requests that all come back unauthorized and get read as findings.
+  if(!KEY){ lockOut(""); return; }
+  loadAll();
 }
 
 boot();
