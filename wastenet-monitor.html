@@ -1275,6 +1275,32 @@ function rowHtml(b, missed, bucketTag, showHaul){
     detailHtml(b);
 }
 
+/* ---------- the booking strip ------------------------------------------
+   THE WHOLE POINT OF THIS THING is that the date is editable.
+
+   The dashboard suggests Tuesday. The portal offers Thursday, and you take
+   Thursday, because that is how portals go. If this recorded the SUGGESTION,
+   the sheet would hold a date no hauler ever agreed to - and then the customer
+   notice would announce it, and all three marks would validate happily against
+   it, and nothing anywhere would look wrong. The wrong day would simply
+   propagate, quietly, to a customer.
+
+   Pre-filled with the suggestion because that is usually right; one keystroke
+   from being changed because sometimes it is not. */
+function bookStripHtml(b){
+  if(state.bookOpenId !== b.id) return "";
+  var sug = suggestedPickupFor(b);
+  var val = sug ? sug.value : toDateInputValue(new Date());
+  return '<div class="book-strip" data-book-strip="'+esc(b.id)+'">'+
+    '<span class="book-q">Booked in the portal for</span>'+
+    '<input type="date" id="bookDate" value="'+esc(val)+'">'+
+    '<button class="book-go" id="bookGo" data-id="'+esc(b.id)+'">'+
+      (state.bookBusy ? 'Saving\u2026' : 'Record it')+'</button>'+
+    '<button class="book-x" id="bookX">Cancel</button>'+
+    '<span class="book-hint">Ticks Scheduled and Confirmed \u2014 the portal accepting it is the confirmation.</span>'+
+  '</div>';
+}
+
 /* ---------- expanded detail (monitoring focus) ---------- */
 function detailHtml(b){
   var open = state.openId === b.id;
