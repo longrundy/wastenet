@@ -683,6 +683,7 @@
 .fin-l{ font-size:12px; color:var(--muted); }
 .fin-n{ font-size:20px; font-weight:500; margin-top:2px; }
 .fin-s{ font-size:11px; color:var(--muted); margin-top:2px; }
+.fin-d{ margin-top:1px; }
 .f-up{   color:#3B6D11; }
 .f-down{ color:#A32D2D; }
 
@@ -3726,11 +3727,12 @@ function finChart(rows){
    of the whole twelve months: is billing steady, is collection lumpy, and if
    so, is one customer's timing the reason. Everything here is computed from
    data already on the page; nothing new is fetched. */
-function finNarrative(rows, tRev, prevRev, prevYr, yr){
+function finNarrative(rows, tRev, prevRev, prevYr, yr, cmp){
   var costed = rows.filter(function(r){ return r.known; });
   if(costed.length < 2) return "";
 
   var bits = [];
+  cmp = cmp || {};
 
   /* 1. Direction, stated against the SAME months last year (tRev and prevRev
         are already computed that way in renderFinancials). */
@@ -3740,6 +3742,41 @@ function finNarrative(rows, tRev, prevRev, prevYr, yr){
              : d > 0 ? "rose " + Math.round(d) + "%"
              : "fell " + Math.round(Math.abs(d)) + "%";
     bits.push("Collections " + word + " against the same months of " + prevYr + ".");
+  }
+
+  /* 1b. The two costs, versus the same months last year. This is the reason
+         the cost cards now carry a delta - and the narrative says out loud
+         which way each moved and, more importantly, whether MARGIN held. */
+  function movePhrase(now, prev, have, noun){
+    if(!have || !prev || !now) return null;
+    var d = ((now - prev) / prev) * 100;
+    if(Math.abs(d) < 3) return noun + " held about flat";
+    return noun + (d > 0 ? " rose " : " fell ") + Math.round(Math.abs(d)) + "%";
+  }
+  var mCes  = movePhrase(cmp.ces,  cmp.prevCes,  cmp.cesHave,  "CES");
+  var mComm = movePhrase(cmp.comm, cmp.prevComm, cmp.commHave, "commissions");
+  if(mCes && mComm){
+    bits.push("Against the same months last year, " + mCes + " and " + mComm + ".");
+  } else if(mCes){
+    bits.push("Against the same months last year, " + mCes + ".");
+  } else if(mComm){
+    bits.push("Against the same months last year, " + mComm + ".");
+  }
+
+  /* The verdict that matters most: did the MARGIN hold? Costs can both rise
+     and margin still be fine if revenue kept pace. Say which happened. */
+  if(cmp.marginHave && cmp.prevMargin && cmp.margin){
+    var md = cmp.margin - cmp.prevMargin;   // percentage POINTS
+    if(Math.abs(md) < 1){
+      bits.push("Gross margin held steady at about " + Math.round(cmp.margin) +
+                "\u00a2 on the dollar - the costs moved together with revenue, " +
+                "so the shape of the business did not change.");
+    } else {
+      bits.push("Gross margin " + (md > 0 ? "improved" : "slipped") + " about " +
+                Math.abs(Math.round(md)) + " point" + (Math.abs(Math.round(md)) === 1 ? "" : "s") +
+                ", from " + Math.round(cmp.prevMargin) + "\u00a2 to " +
+                Math.round(cmp.margin) + "\u00a2 on the dollar.");
+    }
   }
 
   /* 2. Billed vs collected. If billing is steady but collection is not, say
@@ -3822,11 +3859,13 @@ function biggestMover(mPrev, mThis, yr){
   return (best && Math.abs(best.delta) > 3000) ? best : null;
 }
 
-function finCard(label, big, sub, cls){
+function finCard(label, big, sub, cls, delta2, cls2){
+  var line1 = '<div class="fin-s ' + (cls || "") + '">' + (sub || "\u2014") + '</div>';
+  var line2 = delta2 ? '<div class="fin-s fin-d ' + (cls2 || "") + '">' + delta2 + '</div>' : "";
   return '<div class="fincell">' +
            '<div class="fin-l">' + label + '</div>' +
            '<div class="fin-n">' + big + '</div>' +
-           '<div class="fin-s ' + (cls || "") + '">' + sub + '</div>' +
+           line1 + line2 +
          '</div>';
 }
 
@@ -3853,21 +3892,57 @@ function renderFinancials(){
   function pct(v){ return tRev > 0 ? (v / tRev * 100).toFixed(1) + "%" : "\u2014"; }
 
   /* Last year, but only the SAME months, so six months of this year are never
-     compared against twelve of last. */
+     compared against twelve of last. Every card compares like-for-like: the
+     months costed THIS year, matched to the same months last year. If last
+     year is missing a piece (no CES entered, payouts not loaded), that card's
+     delta simply stays blank rather than comparing against a false zero. */
   var prevYr = String(Number(state.finYear) - 1);
   var mons = {};
   known.forEach(function(r){ mons[r.month.slice(5,7)] = 1; });
+  function sameMonth(m){ return String(m).slice(0,4) === prevYr && mons[String(m).slice(5,7)]; }
 
   var prevRev = (state.months || []).filter(function(m){
-    return String(m.month).slice(0,4) === prevYr && mons[String(m.month).slice(5,7)];
+    return sameMonth(m.month);
   }).reduce(function(s,m){ return s + (Number(m.total) || 0); }, 0);
 
-  var delta = "\u2014", dcls = "";
-  if(prevRev > 0 && tRev > 0){
-    var d = ((tRev - prevRev) / prevRev) * 100;
-    delta = (d >= 0 ? "\u2191 " : "\u2193 ") + Math.abs(d).toFixed(0) + "% vs " + prevYr;
-    dcls  = d >= 0 ? "f-up" : "f-down";
+  var prevCes = 0, prevCesHave = false;
+  Object.keys(state.finCes).forEach(function(k){
+    if(sameMonth(k)){ prevCes += Number(state.finCes[k].billed) || 0; prevCesHave = true; }
+  });
+
+  var prevComm = 0, prevCommHave = false;
+  var pyPay = state.agByYear[prevYr];
+  if(pyPay){
+    Object.keys(pyPay).forEach(function(k){
+      if(sameMonth(k)){
+        prevCommHave = true;
+        prevComm += ((pyPay[k] && pyPay[k].agents) || []).reduce(function(s,a){
+          return s + (Number(a.payout) || 0);
+        }, 0);
+      }
+    });
   }
+
+  var prevGross = prevRev - prevCes - prevComm;
+  var prevGrossHave = prevRev > 0 && prevCesHave && prevCommHave;
+
+  /* One delta line, built the same way every time. `costUp` flips the colour:
+     for a cost, growing is BAD (red) and shrinking is GOOD (green); for
+     revenue and margin it is the other way round. Returns blank when there is
+     no prior figure to compare against, so a card never invents a delta. */
+  function deltaLine(now, prev, have, costUp){
+    if(!have || !prev || !now) return { txt: "", cls: "" };
+    var d = ((now - prev) / prev) * 100;
+    var up = d >= 0;
+    var txt = (up ? "\u2191 " : "\u2193 ") + Math.abs(d).toFixed(0) + "% vs " + prevYr;
+    var good = costUp ? !up : up;   // for a cost, down is good
+    return { txt: txt, cls: good ? "f-up" : "f-down" };
+  }
+
+  var dRev  = deltaLine(tRev,  prevRev,  prevRev > 0,   false);
+  var dCes  = deltaLine(tCes,  prevCes,  prevCesHave,   true);
+  var dComm = deltaLine(tComm, prevComm, prevCommHave,  true);
+  var dGross= deltaLine(tGross,prevGross,prevGrossHave, false);
 
   /* Only offer years CES has been entered for - otherwise the page would
      invite a year it can only draw hollow. Derived from the CES data, so
@@ -3893,10 +3968,10 @@ function renderFinancials(){
 
   var cards =
     '<div class="fincards">' +
-      finCard("Revenue",      moneyShort(tRev),   delta,       dcls) +
-      finCard("CES",          moneyShort(tCes),   pct(tCes),   "") +
-      finCard("Commissions",  moneyShort(tComm),  pct(tComm),  "") +
-      finCard("Gross margin", moneyShort(tGross), pct(tGross), "") +
+      finCard("Revenue",      moneyShort(tRev),   "100%",      "",  dRev.txt,   dRev.cls) +
+      finCard("CES expense",  moneyShort(tCes),   pct(tCes),   "",  dCes.txt,   dCes.cls) +
+      finCard("Agent commissions", moneyShort(tComm), pct(tComm), "", dComm.txt, dComm.cls) +
+      finCard("Gross margin", moneyShort(tGross), pct(tGross), "",  dGross.txt, dGross.cls) +
     '</div>';
 
   /* Say plainly what is missing and what is not counted. A financial page that
@@ -3912,7 +3987,14 @@ function renderFinancials(){
     'CES <b>billed</b> that month, not what was paid \u2014 payments lag, the cost does not. ' +
     'Overhead, staff and owner distributions are not on this page.</div>';
 
-  var story = finNarrative(rows, tRev, prevRev, prevYr, state.finYear);
+  var thisMargin = tRev > 0 ? (tGross / tRev * 100) : 0;
+  var prevMargin = prevRev > 0 ? (prevGross / prevRev * 100) : 0;
+  var cmp = {
+    ces: tCes, prevCes: prevCes, cesHave: prevCesHave,
+    comm: tComm, prevComm: prevComm, commHave: prevCommHave,
+    margin: thisMargin, prevMargin: prevMargin, marginHave: prevGrossHave
+  };
+  var story = finNarrative(rows, tRev, prevRev, prevYr, state.finYear, cmp);
 
   return '<div class="card fincard">' + legend + finChart(rows) + cards + story + notes + '</div>';
 }
