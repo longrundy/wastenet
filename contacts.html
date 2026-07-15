@@ -70,6 +70,7 @@
   .lock-btn{width:100%; margin-top:12px; padding:11px; font-size:14px; font-weight:600; border-radius:var(--r-input); border:none; cursor:pointer; background:var(--green); color:#fff; font-family:var(--font);}
   .lock-err{margin-top:12px; padding:8px 10px; background:var(--red-tint); border:0.5px solid var(--red); border-radius:var(--r-input); color:var(--red-dark); font-size:12.5px; font-weight:600;}
   .brand-name{font-size:17px; font-weight:800; letter-spacing:0.04em; color:var(--green); flex:0 0 auto;}
+  .brand-logo{height:24px; width:auto; display:block; flex:0 0 auto;}
   .brand-div{width:1px; height:16px; background:var(--line-strong); flex:0 0 auto;}
   .viewnav{position:relative; flex:0 0 auto;}
   .view-label{font-size:12.5px; font-weight:500; color:var(--ink); font-family:var(--font);
@@ -223,21 +224,15 @@
 <div class="wrap" id="app" style="display:none;">
   <div class="topcard header">
     <div class="header-left">
-      <div class="brand-name">WASTENET</div>
-      <div class="brand-div"></div>
-      <div class="viewnav">
-        <button class="view-label" id="viewBtn">Go to a dashboard <span class="view-caret">&#9662;</span></button>
-        <div class="view-drop" id="viewDrop">
-          <button class="view-opt" onclick="location.href='wastenet-monitor.html'">Monitoring Dashboard</button>
-          <button class="view-opt" onclick="location.href='wastenet-accounting.html'">Accounting Dashboard</button>
-        </div>
-      </div>
+      <img class="brand-logo" src="wastenet-logo.png?v=2026-07-15" alt="WasteNet">
+      <div data-wn-nav data-label="Contacts"></div>
     </div>
   </div>
 
   <div id="list"><div class="empty-state"><span class="spinner"></span>Reading the box list&hellip;</div></div>
 </div>
 
+<script src="logic.js?v=2026-07-15-icons"></script>
 <script>
 var API = "https://script.google.com/macros/s/AKfycbwc3siwl0OTP2O5WzNZCDn4cj3MDVRfcVxJW0TZtoPnAKLwhYSwmW_m1h7ib6Yf_Dvk9w/exec";
 var KEY = (function(){
@@ -847,20 +842,6 @@ function load(){
     document.getElementById("app").style.display = "";
     load();
   }
-})();
-
-/* ---------- view menu ---------- */
-(function(){
-  var vb = document.getElementById("viewBtn"), vd = document.getElementById("viewDrop");
-  vb.onclick = function(e){
-    e.stopPropagation();
-    var open = !vd.classList.contains("open");
-    vd.classList.toggle("open", open);
-    vb.classList.toggle("open", open);
-  };
-  document.addEventListener("click", function(){
-    vd.classList.remove("open"); vb.classList.remove("open");
-  });
 })();
 </script>
 </body>

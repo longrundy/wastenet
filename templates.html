@@ -24,6 +24,7 @@
   .header-bar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px;}
   .brand{display:flex; align-items:center; gap:12px;}
   .brand-name{font-size:16px; font-weight:700; color:var(--green-dark); letter-spacing:0.02em;}
+  .brand-logo{height:24px; width:auto; display:block; flex:0 0 auto;}
   .brand-div{width:1px; height:20px; background:var(--line-strong);}
   .brand-sub{font-size:13px; color:var(--ink-2);}
   .navlink{font-size:12.5px; font-weight:500; color:var(--ink); text-decoration:none; padding:5px 12px; border:0.5px solid var(--line); border-radius:var(--r-ctl); background:var(--card);}
@@ -112,13 +113,8 @@
 <div class="wrap">
   <div class="header-bar">
     <div class="brand">
-      <div class="brand-name">WASTENET</div>
-      <div class="brand-div"></div>
-      <div class="brand-sub">Email templates</div>
-    </div>
-    <div style="display:flex; gap:8px;">
-      <a class="navlink" href="wastenet-monitor.html">Monitoring</a>
-      <a class="navlink" href="contacts.html">Contacts</a>
+      <img class="brand-logo" src="wastenet-logo.png?v=2026-07-15" alt="WasteNet">
+      <div data-wn-nav data-label="Email Templates"></div>
     </div>
   </div>
 
@@ -134,7 +130,7 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="logic.js?v=2026-07-14-tpl"></script>
+<script src="logic.js?v=2026-07-15-icons"></script>
 <script>
 var API = "https://script.google.com/macros/s/AKfycbwc3siwl0OTP2O5WzNZCDn4cj3MDVRfcVxJW0TZtoPnAKLwhYSwmW_m1h7ib6Yf_Dvk9w/exec";
 

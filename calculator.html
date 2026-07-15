@@ -40,6 +40,7 @@
   /* header */
   .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
   .brand{display:flex;align-items:center;gap:12px}
+  .brand-logo{height:24px;width:auto;display:block;flex:0 0 auto}
   .brand .wordmark{
     font-family:'Space Grotesk';font-size:22px;font-weight:700;
     color:var(--save);letter-spacing:.02em;line-height:1;
@@ -178,11 +179,8 @@
 
   <div class="top">
     <div class="brand">
-      <div>
-        <div class="wordmark">WASTENET</div>
-        <h1>Savings Estimate</h1>
-        <p>Compactor haul-cost audit</p>
-      </div>
+      <img class="brand-logo" src="wastenet-logo.png?v=2026-07-15" alt="WasteNet">
+      <div data-wn-nav data-label="Savings Calculator"></div>
     </div>
     <div class="who">
       <div class="lbl">Prepared for</div>
@@ -292,5 +290,6 @@
   <div class="note">Savings come entirely from <b>fewer hauls</b> &mdash; disposal tonnage is unchanged. Numbers shown are illustrative placeholders.</div>
 
 </div>
+<script src="logic.js?v=2026-07-15-icons"></script>
 </body>
 </html>

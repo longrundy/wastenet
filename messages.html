@@ -32,6 +32,7 @@
   .header-bar{display:flex; align-items:center; gap:10px; background:var(--card);
     border:0.5px solid var(--line); border-radius:var(--r-card); padding:12px 14px; margin-bottom:18px;}
   .brand-name{font-size:17px; font-weight:800; letter-spacing:0.04em; color:var(--green);}
+  .brand-logo{height:24px; width:auto; display:block; flex:0 0 auto;}
   .brand-div{width:1px; height:16px; background:var(--line-strong);}
   .brand-tool{font-size:13px; color:var(--ink-2);}
   .spacer{flex:1;}
@@ -138,9 +139,8 @@
 <div class="wrap">
 
   <div class="header-bar">
-    <div class="brand-name">WASTENET</div>
-    <div class="brand-div"></div>
-    <div class="brand-tool">Messages</div>
+    <img class="brand-logo" src="wastenet-logo.png?v=2026-07-15" alt="WasteNet">
+    <div data-wn-nav data-label="Compose"></div>
     <div class="spacer"></div>
     <button class="btn" id="backBtn">&larr; Monitoring Dashboard</button>
   </div>
@@ -149,6 +149,7 @@
   <div id="main"><div class="empty"><span class="spinner"></span>Building the drafts&hellip;</div></div>
 </div>
 
+<script src="logic.js?v=2026-07-15-icons"></script>
 <script>
 var API = "https://script.google.com/macros/s/AKfycbwc3siwl0OTP2O5WzNZCDn4cj3MDVRfcVxJW0TZtoPnAKLwhYSwmW_m1h7ib6Yf_Dvk9w/exec";
 var KEY = (function(){
