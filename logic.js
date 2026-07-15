@@ -272,12 +272,12 @@ function logicPanelHtml(key, liveNote) {
    ================================================================== */
 
 var WN_NAV_ICONS = {
-  monitor:    '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>',
-  accounting: '<svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>',
+  monitor:    '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8.5 20h7"/><path d="M12 16v4"/></svg>',
+  accounting: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.4v9.2"/><path d="M14.4 9.4c-.5-.7-1.4-1.1-2.4-1.1-1.4 0-2.5.8-2.5 1.8 0 2.5 5 1.2 5 3.8 0 1-1.1 1.8-2.5 1.8-1 0-1.9-.4-2.4-1.1"/></svg>',
   contacts:   '<svg viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>',
   templates:  '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>',
   compose:    '<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
-  calculator: '<svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h4"/></svg>'
+  calculator: '<svg viewBox="0 0 24 24"><rect x="5" y="2.5" width="14" height="19" rx="2"/><rect x="8" y="5.5" width="8" height="3.5" rx="0.6"/><path d="M9 13h.01M12 13h.01M15 13h.01M9 17h.01M12 17h.01M15 17h.01"/></svg>'
 };
 
 /* The whole app, in order. id must match the icon key and is what the
