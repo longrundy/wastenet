@@ -675,6 +675,7 @@
           </div>
         </div>
         <a class="navlink" href="contacts.html" title="Every hauler, customer and staff address">Contacts</a>
+        <a class="navlink" href="templates.html" title="View and edit email templates, or send a one-off email">Templates</a>
       </div>
       <div class="header-right">
         <div class="header-tools" id="headerTools"></div>
@@ -1878,7 +1879,8 @@ function render(){
         '<div class="brand-tool">Monitoring Dashboard</div>'+
         /* The slim bar is what you actually look at once you have scrolled, which
            is most of the time. Nav that disappears when you scroll is not nav. */
-        '<a class="navlink" href="contacts.html">Contacts</a></div>'+
+        '<a class="navlink" href="contacts.html">Contacts</a>'+
+        '<a class="navlink" href="templates.html">Templates</a></div>'+
       '<div class="header-right">'+
         (state.searchOpen
           ? '<div class="search-box"><i class="search-ico">⌕</i><input type="text" id="slimSearchInput" placeholder="Search box #, site, hauler…" value="'+esc(state.search)+'" autocomplete="off"><button class="search-x" id="slimSearchClose" aria-label="Close search">×</button></div>'
