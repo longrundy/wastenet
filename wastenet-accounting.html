@@ -726,15 +726,7 @@
     <div class="brand">
       <div class="brand-name">WASTENET</div>
       <div class="brand-div"></div>
-      <div class="viewnav">
-        <button class="view-label" id="slimViewBtn">Accounting Dashboard <span class="view-caret">&#9662;</span></button>
-        <div class="view-drop" id="slimViewDrop">
-          <button class="view-opt" id="slimGoMonitor">Monitoring Dashboard</button>
-          <button class="view-opt cur">Accounting Dashboard</button>
-        </div>
-      </div>
-      <a class="navlink" href="contacts.html">Contacts</a>
-      <a class="navlink" href="templates.html">Templates</a>
+      <div data-wn-nav data-label="Accounting Dashboard"></div>
     </div>
     <div class="sections">
       <button class="sec on" data-sec="receivables">Receivables</button>
@@ -769,15 +761,7 @@
       <div class="brand">
         <div class="brand-name">WASTENET</div>
         <div class="brand-div"></div>
-        <div class="viewnav">
-          <button class="view-label" id="viewBtn">Accounting Dashboard <span class="view-caret">&#9662;</span></button>
-          <div class="view-drop" id="viewDrop">
-            <button class="view-opt" id="goMonitor">Monitoring Dashboard</button>
-            <button class="view-opt cur">Accounting Dashboard</button>
-          </div>
-        </div>
-        <a class="navlink" href="contacts.html" title="Every hauler, customer and staff address">Contacts</a>
-        <a class="navlink" href="templates.html" title="View and edit email templates, or send a one-off email">Templates</a>
+        <div data-wn-nav data-label="Accounting Dashboard"></div>
       </div>
       <div class="header-right">
         <span class="stamp" id="stamp">Loading&hellip;</span>
@@ -4466,34 +4450,7 @@ function load(){
   });
 }
 
-/* ---------- header ---------- */
-var viewBtn  = document.getElementById("viewBtn");
-var viewDrop = document.getElementById("viewDrop");
-
-/* One helper for both bars. The button carries the .open class too, so the
-   caret can flip and the control can show it is holding a menu open. */
-function wireViewNav(btn, drop){
-  if(!btn || !drop) return;
-  btn.onclick = function(e){
-    e.stopPropagation();
-    var open = !drop.classList.contains("open");
-    closeAllViewNavs();
-    drop.classList.toggle("open", open);
-    btn.classList.toggle("open", open);
-  };
-}
-function closeAllViewNavs(){
-  document.querySelectorAll(".view-drop").forEach(function(d){ d.classList.remove("open"); });
-  document.querySelectorAll(".view-label").forEach(function(b){ b.classList.remove("open"); });
-}
-
-wireViewNav(viewBtn, viewDrop);
-wireViewNav(document.getElementById("slimViewBtn"), document.getElementById("slimViewDrop"));
-document.addEventListener("click", closeAllViewNavs);
-
-document.getElementById("goMonitor").onclick     = function(){ window.location.href = MONITOR_URL; };
-
-document.getElementById("slimGoMonitor").onclick = function(){ window.location.href = MONITOR_URL; };
+/* ---------- header ---------- (nav lives in logic.js) */
 document.getElementById("refreshBtn").onclick     = function(){ load(); };
 document.getElementById("slimRefreshBtn").onclick = function(){ load(); };
 
