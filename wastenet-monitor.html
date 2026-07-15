@@ -219,6 +219,7 @@
   .header-bar{display:flex; align-items:center; justify-content:space-between; gap:12px;}
   .brand{display:flex; align-items:center; gap:10px; min-width:0;}
   .brand-logo-wide{height:26px; width:auto; object-fit:contain; flex:0 0 auto;}
+  .brand-logo{height:24px; width:auto; display:block; flex:0 0 auto;}
   .brand-name{font-size:17px; font-weight:800; letter-spacing:0.04em; color:var(--green); flex:0 0 auto;}
   .brand-div{width:1px; height:16px; background:var(--line-strong); flex:0 0 auto;}
   .brand-tool{font-size:13px; color:var(--ink-2); flex:0 0 auto;}
@@ -665,8 +666,7 @@
   <div class="topcard" id="topcard">
     <div class="header-bar">
       <div class="brand">
-        <div class="brand-name">WASTENET</div>
-        <div class="brand-div"></div>
+        <img class="brand-logo" src="wastenet-logo.png?v=2026-07-15" alt="WasteNet">
         <div data-wn-nav data-label="Monitoring Dashboard"></div>
       </div>
       <div class="header-right">
@@ -1867,10 +1867,11 @@ function render(){
   var slimGroup = function(inner){ return '<div><div class="score-btn">'+inner+'</div></div>'; };
   document.getElementById("slimbarInner").innerHTML =
     '<div class="header-bar">'+
-      '<div class="brand"><div class="brand-name">WASTENET</div><div class="brand-div"></div>'+
+      '<div class="brand">'+
         /* The slim bar is what you actually look at once you have scrolled, which
            is most of the time. Nav that disappears when you scroll is not nav -
-           so the same shared menu rides along here too, filled after this builds. */
+           so the same shared menu rides along here too, filled after this builds.
+           The logo stays out of the slim bar to keep the scrolled view compact. */
         '<div data-wn-nav data-label="Monitoring Dashboard"></div></div>'+
       '<div class="header-right">'+
         (state.searchOpen
