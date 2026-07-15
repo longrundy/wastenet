@@ -177,32 +177,104 @@ var state = {
 var PLACEHOLDER_TEMPLATES = { "Notice": 1, "Batch": 1 };
 
 /* ============================================================
-   THE EMAIL FRAME - the single place plain text becomes HTML.
-   Both the live preview and (later) any real send call this, so
-   what you preview is byte-for-byte what goes out. The logo and
-   the legal disclaimer are welded on here and are not reachable
-   from anything a template editor can touch.
+   THE EMAIL RENDERER - copied VERBATIM from messages.html, which
+   is the flow that actually sends these. There must be exactly one
+   renderer; a second, guessed-at copy would preview an email that
+   is not the one that goes out. If messages.html changes, this
+   block must be updated to match. Shared pieces: esc, fillHtml,
+   boldLiteralSites, LOGO, DISCLAIMER, emailShell, confirmButton,
+   htmlVals.
    ============================================================ */
-function buildEmailHtml(subject, body){
-  var paras = String(body == null ? "" : body)
-    .split(/\n{2,}/)
-    .map(function(block){
-      return '<div style="font-size:13px;color:#1A1D1A;line-height:1.6;margin-top:10px;">' +
-             esc(block).replace(/\n/g, "<br>") + '</div>';
-    }).join("");
+function fillHtml(text, vals){
+  var out = esc(String(text || ""));
+  Object.keys(vals).forEach(function(k){
+    out = out.split("[" + k + "]").join(vals[k]);
+  });
+  out = boldLiteralSites(out);
+  return out.replace(/\n/g, "<br>");
+}
 
+function boldLiteralSites(html){
+  var lines = html.split("\n");
+  var out = [], arming = false;
+  for(var i = 0; i < lines.length; i++){
+    var raw = lines[i];
+    var flat = raw.trim();
+    if(arming && flat === ""){ arming = false; out.push(raw); continue; }
+    if(arming && flat && flat.indexOf("<") === -1){
+      out.push('<span style="color:#3B6D11;font-weight:bold;">\u2022 ' + flat + '</span>');
+      continue;
+    }
+    out.push(raw);
+    if(/compactor/i.test(flat) && /:\s*$/.test(flat)) arming = true;
+  }
+  return out.join("\n");
+}
+
+var LOGO = "https://dashboard.wastenetinc.com/WastenetLogo.png";
+var DISCLAIMER =
+  "This email and any files transmitted with it are confidential and intended solely for the " +
+  "use of the individual or entity to whom they are addressed. If you have received this email " +
+  "in error, please notify the system manager. This message contains confidential information " +
+  "and is intended only for the individual named. If you are not the named addressee, you should " +
+  "not disseminate, distribute, or copy this email. Please notify the sender immediately by email " +
+  "if you have received this email by mistake and delete this email from your system. If you are " +
+  "not the intended recipient, you are notified that disclosing, copying, distributing, or taking " +
+  "any action in reliance on the contents of this information is strictly prohibited.";
+
+function emailShell(innerHtml){
   return '' +
-'<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FAFBF8;padding:24px 12px;"><tr><td align="center">' +
-'<table width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;table-layout:fixed;background:#FFFFFF;border:1px solid #E4E7E0;border-radius:8px;">' +
-'<tr><td style="padding:26px 30px 8px;font-family:Arial,Helvetica,sans-serif;color:#1A1D1A;word-wrap:break-word;">' +
-paras +
-'</td></tr>' +
-'<tr><td style="padding:16px 30px 14px;"><img src="https://dashboard.wastenetinc.com/WastenetLogo.png" alt="WasteNet" width="150" style="display:block;border:0;"></td></tr>' +
-'<tr><td style="padding:14px 30px 22px;border-top:1px solid #E4E7E0;font-family:Arial,Helvetica,sans-serif;word-wrap:break-word;">' +
-'<div style="font-size:11px;font-weight:bold;color:#525A60;margin-bottom:5px;">Wasteflo, Inc. d.b.a. WasteNet</div>' +
-'<div style="font-size:10px;line-height:1.5;color:#8A8F8A;font-style:italic;">This email and any files transmitted with it are confidential and intended solely for the use of the individual or entity to whom they are addressed. If you have received this email in error, please notify the system manager.</div>' +
-'</td></tr>' +
-'</table></td></tr></table>';
+  '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FAFBF8;padding:24px 12px;">' +
+    '<tr><td align="center">' +
+      '<table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:#FFFFFF;border:1px solid #E4E7E0;border-radius:8px;">' +
+        '<tr><td style="padding:26px 30px 22px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.65;color:#1A1D1A;">' +
+          innerHtml +
+        '</td></tr>' +
+        '<tr><td style="padding:0 30px 22px;">' +
+          '<img src="' + LOGO + '" alt="WasteNet" width="150" style="display:block;border:0;">' +
+        '</td></tr>' +
+        '<tr><td style="padding:16px 30px 22px;border-top:1px solid #E4E7E0;font-family:Arial,Helvetica,sans-serif;">' +
+          '<div style="font-size:11px;font-weight:bold;color:#525A60;margin-bottom:5px;">Wasteflo, Inc. d.b.a. WasteNet</div>' +
+          '<div style="font-size:10px;line-height:1.5;color:#8A8F8A;font-style:italic;">' + DISCLAIMER + '</div>' +
+        '</td></tr>' +
+      '</table>' +
+    '</td></tr>' +
+  '</table>';
+}
+
+function confirmButton(link){
+  return '<table cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 6px;">' +
+    '<tr><td style="background:#5CAA16;border-radius:6px;">' +
+      '<a href="' + esc(link) + '" style="display:inline-block;padding:13px 26px;' +
+      'font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;' +
+      'color:#FFFFFF;text-decoration:none;">Confirm Service Scheduled</a>' +
+    '</td></tr></table>';
+}
+
+function htmlVals(dateLong, boxLines, link){
+  var list = boxLines.map(function(l){
+    return '<span style="color:#3B6D11;font-weight:bold;">\u2022 ' + esc(l) + '</span>';
+  }).join("<br>");
+  return {
+    "pickup date": '<span style="color:#3B6D11;font-weight:bold;">' + esc(dateLong) + '</span>',
+    "box list": list,
+    "service description": list,
+    "box description": list,
+    "confirm link": link ? confirmButton(link) : ""
+  };
+}
+
+/* Render a template body for PREVIEW. Placeholders are filled with clearly
+   labelled SAMPLE values so the preview shows what a recipient sees - green
+   date, green bulleted site - rather than raw [tokens]. The sample values are
+   never saved; only the raw template text is. */
+function previewInner(subject, body){
+  var vals = htmlVals(
+    "Friday, July 18, 2026",
+    ["Houston Zoo (TRASH) - 1513 Cambridge St - Houston, TX 77030"],
+    ""
+  );
+  return fillHtml(body, vals);
 }
 
 function toast(msg, isErr){
@@ -286,7 +358,10 @@ function refreshPreview(){
   var host = document.getElementById("preview");
   if(!host) return;
   var subjLine = '<div style="font-size:12px;color:#8A8F8A;padding:0 0 8px;">Subject: <b style="color:#1A1D1A;">' + esc(subj) + '</b></div>';
-  host.innerHTML = subjLine + buildEmailHtml(subj, body);
+  var sampleNote = (state.mode === "template" && (subj.indexOf("[") !== -1 || body.indexOf("[") !== -1))
+    ? '<div style="font-size:11px;color:#8A8F8A;padding:0 0 8px;">Placeholders shown with sample values &mdash; the real date and site(s) fill in per box when this sends.</div>'
+    : "";
+  host.innerHTML = subjLine + sampleNote + emailShell(previewInner(subj, body));
 }
 
 function wireTemplateMode(){
@@ -387,7 +462,9 @@ function wireBlankMode(){
     if(!to){ toast("Add at least one To address.", true); return; }
     if(!subject){ toast("Add a subject.", true); return; }
     if(!body.trim()){ toast("The body is empty.", true); return; }
-    var html = buildEmailHtml(subject, body);
+    /* A blank email has no placeholders to fill, so render its body straight
+       through the same shell with an empty value set. */
+    var html = emailShell(fillHtml(body, htmlVals("", [], "")));
     send.disabled = true; send.textContent = "Sending…";
     jsonp({ action:"send_email", key:KEY, to:to, cc:cc, bcc:bcc, subject:subject, body:body, html:html }, function(data){
       send.disabled = false; send.textContent = "Send";
