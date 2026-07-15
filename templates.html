@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WasteNet Email Templates</title>
+<style>
+  :root{
+    --green:#5CAA16; --green-dark:#3B6D11; --green-darker:#27500A;
+    --green-tint:#EAF3DE; --green-tint-2:#F4FAEC; --green-border:#C0DD97;
+    --amber:#EF9F27; --amber-dark:#854F0B;
+    --red:#E24B4A; --red-dark:#A32D2D; --red-tint:#FCEBEB;
+    --ink:#1A1D1A; --ink-2:#525A60; --ink-3:#8A8F8A;
+    --line:#E4E7E0; --line-strong:#CFD4CA;
+    --card:#FFFFFF; --panel:#F6F7F3; --page:#FAFBF8;
+    --r-input:6px; --r-ctl:8px; --r-menu:10px; --r-card:12px; --r-pill:999px; --h-ctl:30px;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{font-family:var(--font); background:var(--page); color:var(--ink); font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1080px; margin:0 auto; padding:18px 20px 60px;}
+
+  .header-bar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px;}
+  .brand{display:flex; align-items:center; gap:12px;}
+  .brand-name{font-size:16px; font-weight:700; color:var(--green-dark); letter-spacing:0.02em;}
+  .brand-div{width:1px; height:20px; background:var(--line-strong);}
+  .brand-sub{font-size:13px; color:var(--ink-2);}
+  .navlink{font-size:12.5px; font-weight:500; color:var(--ink); text-decoration:none; padding:5px 12px; border:0.5px solid var(--line); border-radius:var(--r-ctl); background:var(--card);}
+  .navlink:hover{background:var(--green-tint); border-color:var(--green-border);}
+
+  .modebar{display:inline-flex; gap:2px; background:var(--panel); border-radius:var(--r-pill); padding:3px; margin-bottom:20px;}
+  .mode{font-size:12.5px; padding:6px 18px; border-radius:var(--r-pill); border:0; background:transparent; color:var(--ink-2); cursor:pointer; font-family:var(--font);}
+  .mode.on{background:var(--green-tint); color:var(--green-darker); font-weight:500;}
+
+  .cols{display:grid; grid-template-columns:180px 1fr; gap:20px;}
+  .tlist-head{font-size:11px; color:var(--ink-3); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;}
+  .tlist{display:flex; flex-direction:column; gap:1px;}
+  .titem{font-size:13px; padding:7px 10px; border-radius:var(--r-ctl); color:var(--ink-2); cursor:pointer; border:0; background:transparent; text-align:left; font-family:var(--font); width:100%;}
+  .titem:hover{background:var(--panel);}
+  .titem.on{background:var(--green-tint); color:var(--green-darker); font-weight:500;}
+  .side-right{border-right:0.5px solid var(--line); padding-right:16px;}
+
+  .field-label{font-size:12px; color:var(--ink-2); margin-bottom:4px;}
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;}
+  input[type=text], textarea, select{
+    width:100%; font-family:var(--font); font-size:13px; color:var(--ink);
+    border:1px solid var(--line-strong); border-radius:var(--r-input);
+    background:var(--card); padding:8px 10px;
+  }
+  input[type=text], select{height:var(--h-ctl); padding:0 10px;}
+  textarea{line-height:1.5; resize:vertical; min-height:120px;}
+  input:focus, textarea:focus, select:focus{outline:none; border-color:var(--green); box-shadow:0 0 0 2px var(--green-tint);}
+  .mb12{margin-bottom:12px;}
+
+  .ph-row{display:flex; align-items:center; gap:6px; margin-top:8px; flex-wrap:wrap;}
+  .ph-lab{font-size:11px; color:var(--ink-3);}
+  .ph{font-size:11px; font-family:ui-monospace,Menlo,Consolas,monospace; background:#E6F1FB; color:#0C447C; padding:2px 7px; border-radius:4px;}
+
+  .btnrow{display:flex; gap:8px; margin-top:16px; align-items:center;}
+  .btn{font-family:var(--font); font-size:13px; height:var(--h-ctl); padding:0 16px; border-radius:var(--r-ctl); border:0.5px solid var(--line-strong); background:var(--card); color:var(--ink); cursor:pointer;}
+  .btn:hover{background:var(--panel);}
+  .btn.primary{background:var(--green-dark); border-color:var(--green-dark); color:#fff; font-weight:500;}
+  .btn.primary:hover{background:var(--green-darker);}
+  .btn:disabled{opacity:0.5; cursor:default;}
+  .hint{font-size:12px; color:var(--ink-3);}
+
+  .preview-wrap{margin-top:22px; border-top:0.5px solid var(--line); padding-top:16px;}
+  .preview-head{font-size:12px; color:var(--ink-2); margin-bottom:10px; display:flex; align-items:center; gap:6px;}
+  .locknote{display:flex; align-items:center; gap:6px; margin-top:10px; color:var(--ink-3); font-size:11px;}
+
+  .toast{position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; font-size:13px; padding:10px 18px; border-radius:var(--r-ctl); opacity:0; pointer-events:none; transition:opacity .2s; z-index:300;}
+  .toast.show{opacity:1;}
+  .toast.err{background:var(--red-dark);}
+
+  .lookup{position:relative;}
+  .lookup-drop{position:absolute; z-index:50; top:calc(100% + 2px); left:0; right:0; background:var(--card); border:0.5px solid var(--line-strong); border-radius:var(--r-menu); box-shadow:0 8px 30px rgba(0,0,0,0.12); max-height:200px; overflow-y:auto; display:none;}
+  .lookup-drop.show{display:block;}
+  .lookup-opt{padding:7px 10px; font-size:12.5px; cursor:pointer; border-bottom:0.5px solid var(--line);}
+  .lookup-opt:last-child{border-bottom:0;}
+  .lookup-opt:hover{background:var(--green-tint);}
+  .lookup-opt .em{color:var(--ink-2); font-size:11px;}
+
+  .lock{position:fixed; inset:0; background:var(--page); z-index:500; display:flex; align-items:center; justify-content:center;}
+  .lock.hide{display:none;}
+  .lock-card{background:var(--card); border:0.5px solid var(--line-strong); border-radius:var(--r-card); padding:32px 34px; width:320px; text-align:center; box-shadow:0 8px 40px rgba(0,0,0,0.1);}
+  .lock-brand{font-size:18px; font-weight:700; color:var(--green-dark); margin-bottom:6px;}
+  .lock-sub{font-size:13px; color:var(--ink-2); margin-bottom:16px;}
+  .lock-in{width:100%; height:36px; margin-bottom:10px;}
+  .lock-btn{width:100%; height:36px; background:var(--green-dark); color:#fff; border:0; border-radius:var(--r-ctl); font-size:14px; cursor:pointer;}
+  .lock-err{color:var(--red-dark); font-size:12px; margin-top:8px;}
+
+  .empty-state{padding:40px 20px; text-align:center; color:var(--ink-3);}
+  .spinner{display:inline-block; width:14px; height:14px; border:2px solid var(--line-strong); border-top-color:var(--green); border-radius:50%; animation:spin .7s linear infinite; margin-right:8px; vertical-align:-2px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+
+<div class="lock" id="lock">
+  <div class="lock-card">
+    <div class="lock-brand">WASTENET</div>
+    <div class="lock-sub">Enter the access code to continue.</div>
+    <input class="lock-in" id="lockIn" type="password" placeholder="Access code" autofocus>
+    <button class="lock-btn" id="lockBtn">Unlock</button>
+    <div class="lock-err" id="lockErr" style="display:none;"></div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="header-bar">
+    <div class="brand">
+      <div class="brand-name">WASTENET</div>
+      <div class="brand-div"></div>
+      <div class="brand-sub">Email templates</div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <a class="navlink" href="wastenet-monitor.html">Monitoring</a>
+      <a class="navlink" href="contacts.html">Contacts</a>
+    </div>
+  </div>
+
+  <div class="modebar">
+    <button class="mode on" id="modeTpl">Saved template</button>
+    <button class="mode" id="modeBlank">Blank email</button>
+  </div>
+
+  <div id="body">
+    <div class="empty-state"><span class="spinner"></span>Loading templates&hellip;</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="logic.js?v=2026-07-14-tpl"></script>
+<script>
+var API = "https://script.google.com/macros/s/AKfycbwc3siwl0OTP2O5WzNZCDn4cj3MDVRfcVxJW0TZtoPnAKLwhYSwmW_m1h7ib6Yf_Dvk9w/exec";
+
+var KEY = (function(){ try { return sessionStorage.getItem("wastenet_dashboard_key") || ""; } catch(e){ return ""; } })();
+
+function lockOut(msg){
+  try { sessionStorage.removeItem("wastenet_dashboard_key"); } catch(e){}
+  KEY = "";
+  var lock = document.getElementById("lock");
+  var err  = document.getElementById("lockErr");
+  if(lock) lock.classList.remove("hide");
+  if(err){ if(msg){ err.textContent = msg; err.style.display = "block"; } else { err.style.display = "none"; } }
+  var inp = document.getElementById("lockIn");
+  if(inp){ inp.value = ""; inp.focus(); }
+}
+
+function jsonp(params, cb){
+  var name = "wn_cb_" + Math.random().toString(36).slice(2);
+  var s;
+  var timeout = setTimeout(function(){ cleanup(); cb({ ok:false, error:"Request timed out." }); }, 30000);
+  function cleanup(){ clearTimeout(timeout); try{ delete window[name]; }catch(e){ window[name] = undefined; } if(s && s.parentNode) s.parentNode.removeChild(s); }
+  window[name] = function(data){ cleanup(); if(data && data.authRequired){ lockOut("That access code was not accepted. Please try again."); return; } cb(data); };
+  var qs = Object.keys(params).map(function(k){ return encodeURIComponent(k)+"="+encodeURIComponent(params[k]); }).join("&");
+  s = document.createElement("script");
+  s.src = API + "?" + qs + "&callback=" + name;
+  s.onerror = function(){ cleanup(); cb({ ok:false, error:"Could not reach the server." }); };
+  document.body.appendChild(s);
+}
+
+function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+var state = {
+  mode: "template",
+  templates: {},        // pill -> {subjectTemplate, bodyTemplate, toRole, ccRole}
+  order: [],            // pill labels in display order
+  current: null,        // selected pill
+  loaded: false,
+  contacts: [],         // flattened [{email,label}] for blank-mode lookup
+  contactsLoaded: false
+};
+
+var PLACEHOLDER_TEMPLATES = { "Notice": 1, "Batch": 1 };
+
+/* ============================================================
+   THE EMAIL FRAME - the single place plain text becomes HTML.
+   Both the live preview and (later) any real send call this, so
+   what you preview is byte-for-byte what goes out. The logo and
+   the legal disclaimer are welded on here and are not reachable
+   from anything a template editor can touch.
+   ============================================================ */
+function buildEmailHtml(subject, body){
+  var paras = String(body == null ? "" : body)
+    .split(/\n{2,}/)
+    .map(function(block){
+      return '<div style="font-size:13px;color:#1A1D1A;line-height:1.6;margin-top:10px;">' +
+             esc(block).replace(/\n/g, "<br>") + '</div>';
+    }).join("");
+
+  return '' +
+'<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FAFBF8;padding:24px 12px;"><tr><td align="center">' +
+'<table width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;table-layout:fixed;background:#FFFFFF;border:1px solid #E4E7E0;border-radius:8px;">' +
+'<tr><td style="padding:26px 30px 8px;font-family:Arial,Helvetica,sans-serif;color:#1A1D1A;word-wrap:break-word;">' +
+paras +
+'</td></tr>' +
+'<tr><td style="padding:16px 30px 14px;"><img src="https://dashboard.wastenetinc.com/WastenetLogo.png" alt="WasteNet" width="150" style="display:block;border:0;"></td></tr>' +
+'<tr><td style="padding:14px 30px 22px;border-top:1px solid #E4E7E0;font-family:Arial,Helvetica,sans-serif;word-wrap:break-word;">' +
+'<div style="font-size:11px;font-weight:bold;color:#525A60;margin-bottom:5px;">Wasteflo, Inc. d.b.a. WasteNet</div>' +
+'<div style="font-size:10px;line-height:1.5;color:#8A8F8A;font-style:italic;">This email and any files transmitted with it are confidential and intended solely for the use of the individual or entity to whom they are addressed. If you have received this email in error, please notify the system manager.</div>' +
+'</td></tr>' +
+'</table></td></tr></table>';
+}
+
+function toast(msg, isErr){
+  var t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = "toast show" + (isErr ? " err" : "");
+  setTimeout(function(){ t.className = "toast" + (isErr ? " err" : ""); }, 2600);
+}
+
+/* ---------- placeholders ---------- */
+function placeholdersFor(pill){
+  if(pill === "Notice") return ["[pickup date]", "[service description]"];
+  if(pill === "Batch")  return ["[pickup date]", "[service description]"];
+  return [];
+}
+
+/* ---------- render: template mode ---------- */
+function renderTemplateMode(){
+  var listHtml = state.order.map(function(pill){
+    return '<button class="titem' + (state.current === pill ? " on" : "") + '" data-pill="' + esc(pill) + '">' + esc(pill) + '</button>';
+  }).join("");
+
+  var t = state.templates[state.current] || { subjectTemplate:"", bodyTemplate:"", toRole:"Hauler", ccRole:"" };
+  var phs = placeholdersFor(state.current);
+  var phHtml = phs.length
+    ? '<div class="ph-row"><span class="ph-lab">Placeholders:</span>' +
+        phs.map(function(p){ return '<span class="ph">' + esc(p) + '</span>'; }).join("") +
+        '<span class="ph-lab">&mdash; keep these; they fill in automatically</span></div>'
+    : "";
+
+  var toRole = t.toRole || "Hauler";
+  var ccRole = t.ccRole || "";
+
+  var editor =
+    '<div class="row2">' +
+      '<div><div class="field-label">To recipient</div>' +
+        '<select id="toRole">' +
+          '<option value="Hauler"' + (toRole==="Hauler"?" selected":"") + '>Hauler</option>' +
+          '<option value="Customer"' + (toRole==="Customer"?" selected":"") + '>Customer</option>' +
+        '</select></div>' +
+      '<div><div class="field-label">Cc recipient</div>' +
+        '<select id="ccRole">' +
+          '<option value=""' + (ccRole===""?" selected":"") + '>N/A</option>' +
+          '<option value="Customer"' + (ccRole==="Customer"?" selected":"") + '>Customer</option>' +
+          '<option value="Hauler"' + (ccRole==="Hauler"?" selected":"") + '>Hauler</option>' +
+        '</select></div>' +
+    '</div>' +
+    '<div class="field-label">Subject</div>' +
+    '<input type="text" id="subj" class="mb12" value="' + esc(t.subjectTemplate) + '">' +
+    '<div class="field-label">Body</div>' +
+    '<textarea id="bodytext" style="height:150px;">' + esc(t.bodyTemplate) + '</textarea>' +
+    phHtml +
+    '<div class="btnrow">' +
+      '<button class="btn primary" id="saveBtn">Save template</button>' +
+      '<span class="hint" style="margin-left:auto;">Saved changes go live immediately</span>' +
+    '</div>' +
+    previewBlock();
+
+  document.getElementById("body").innerHTML =
+    '<div class="cols">' +
+      '<div class="side-right"><div class="tlist-head">Templates</div><div class="tlist">' + listHtml + '</div></div>' +
+      '<div>' + editor + '</div>' +
+    '</div>';
+
+  wireTemplateMode();
+  refreshPreview();
+}
+
+function previewBlock(){
+  return '<div class="preview-wrap">' +
+    '<div class="preview-head"><span>Preview &mdash; exactly what goes out</span></div>' +
+    '<div id="preview"></div>' +
+    '<div class="locknote">The logo and disclaimer are added automatically and can\'t be edited.</div>' +
+  '</div>';
+}
+
+function refreshPreview(){
+  var subj = (document.getElementById("subj") || {}).value || "";
+  var bodyEl = document.getElementById("bodytext");
+  var body = bodyEl ? bodyEl.value : "";
+  var host = document.getElementById("preview");
+  if(!host) return;
+  var subjLine = '<div style="font-size:12px;color:#8A8F8A;padding:0 0 8px;">Subject: <b style="color:#1A1D1A;">' + esc(subj) + '</b></div>';
+  host.innerHTML = subjLine + buildEmailHtml(subj, body);
+}
+
+function wireTemplateMode(){
+  document.querySelectorAll(".titem").forEach(function(el){
+    el.onclick = function(){ state.current = el.getAttribute("data-pill"); renderTemplateMode(); };
+  });
+  var subj = document.getElementById("subj");
+  var bt = document.getElementById("bodytext");
+  if(subj) subj.oninput = refreshPreview;
+  if(bt) bt.oninput = refreshPreview;
+
+  var save = document.getElementById("saveBtn");
+  if(save) save.onclick = function(){
+    var pill = state.current;
+    var subject = document.getElementById("subj").value;
+    var body = document.getElementById("bodytext").value;
+    var toRole = document.getElementById("toRole").value;
+    var ccRole = document.getElementById("ccRole").value;
+    save.disabled = true; save.textContent = "Saving…";
+    jsonp({ action:"save_template", key:KEY, pill:pill, subject:subject, body:body, toRole:toRole, ccRole:ccRole }, function(data){
+      save.disabled = false; save.textContent = "Save template";
+      if(data && data.ok){
+        state.templates[pill] = { subjectTemplate:subject, bodyTemplate:body, toRole:toRole, ccRole:ccRole };
+        toast("Saved. Live now.");
+      } else {
+        toast((data && data.error) || "Could not save.", true);
+      }
+    });
+  };
+}
+
+/* ---------- render: blank mode ---------- */
+function renderBlankMode(){
+  var editor =
+    '<div class="field-label">To</div>' +
+    '<div class="lookup mb12"><input type="text" id="toAddr" placeholder="name@example.com"><div class="lookup-drop" id="toDrop"></div></div>' +
+    '<div class="row2">' +
+      '<div class="lookup"><div class="field-label">Cc</div><input type="text" id="ccAddr" placeholder="Optional"><div class="lookup-drop" id="ccDrop"></div></div>' +
+      '<div class="lookup"><div class="field-label">Bcc</div><input type="text" id="bccAddr" placeholder="Optional"><div class="lookup-drop" id="bccDrop"></div></div>' +
+    '</div>' +
+    '<div class="field-label">Subject</div>' +
+    '<input type="text" id="subj" class="mb12" placeholder="Subject line">' +
+    '<div class="field-label">Body</div>' +
+    '<textarea id="bodytext" style="height:150px;" placeholder="Type your message"></textarea>' +
+    '<div class="btnrow">' +
+      '<button class="btn primary" id="sendBtn">Send</button>' +
+      '<span class="hint" style="margin-left:auto;">Sends immediately with the WasteNet footer</span>' +
+    '</div>' +
+    previewBlock();
+
+  document.getElementById("body").innerHTML = '<div>' + editor + '</div>';
+  wireBlankMode();
+  refreshPreview();
+}
+
+function wireBlankMode(){
+  var subj = document.getElementById("subj");
+  var bt = document.getElementById("bodytext");
+  if(subj) subj.oninput = refreshPreview;
+  if(bt) bt.oninput = refreshPreview;
+
+  ["to","cc","bcc"].forEach(function(which){
+    var inp = document.getElementById(which + "Addr");
+    var drop = document.getElementById(which + "Drop");
+    if(!inp || !drop) return;
+    inp.oninput = function(){
+      var q = inp.value.toLowerCase();
+      var last = q.split(/[;,]/).pop().trim();
+      if(last.length < 2 || !state.contacts.length){ drop.className = "lookup-drop"; return; }
+      var hits = state.contacts.filter(function(c){
+        return c.email.toLowerCase().indexOf(last) !== -1 || c.label.toLowerCase().indexOf(last) !== -1;
+      }).slice(0, 8);
+      if(!hits.length){ drop.className = "lookup-drop"; return; }
+      drop.innerHTML = hits.map(function(c){
+        return '<div class="lookup-opt" data-email="' + esc(c.email) + '"><b>' + esc(c.email) + '</b> <span class="em">' + esc(c.label) + '</span></div>';
+      }).join("");
+      drop.className = "lookup-drop show";
+      drop.querySelectorAll(".lookup-opt").forEach(function(opt){
+        opt.onclick = function(){
+          var parts = inp.value.split(/[;,]/); parts.pop();
+          parts.push(" " + opt.getAttribute("data-email"));
+          inp.value = parts.join(",").replace(/^,\s*/, "").trim();
+          drop.className = "lookup-drop";
+          inp.focus();
+        };
+      });
+    };
+    inp.onblur = function(){ setTimeout(function(){ drop.className = "lookup-drop"; }, 150); };
+  });
+
+  var send = document.getElementById("sendBtn");
+  if(send) send.onclick = function(){
+    var to = document.getElementById("toAddr").value.trim();
+    var cc = document.getElementById("ccAddr").value.trim();
+    var bcc = document.getElementById("bccAddr").value.trim();
+    var subject = document.getElementById("subj").value.trim();
+    var body = document.getElementById("bodytext").value;
+    if(!to){ toast("Add at least one To address.", true); return; }
+    if(!subject){ toast("Add a subject.", true); return; }
+    if(!body.trim()){ toast("The body is empty.", true); return; }
+    var html = buildEmailHtml(subject, body);
+    send.disabled = true; send.textContent = "Sending…";
+    jsonp({ action:"send_email", key:KEY, to:to, cc:cc, bcc:bcc, subject:subject, body:body, html:html }, function(data){
+      send.disabled = false; send.textContent = "Send";
+      if(data && data.ok){ toast("Sent."); }
+      else { toast((data && data.error) || "Could not send.", true); }
+    });
+  };
+}
+
+/* ---------- loaders ---------- */
+function loadTemplates(){
+  jsonp({ action:"email_templates", key:KEY }, function(data){
+    if(!data || !data.ok){ document.getElementById("body").innerHTML = '<div class="empty-state">Could not load templates.</div>'; return; }
+    state.templates = {};
+    state.order = [];
+    var t = data.templates || {};
+    var preferred = ["Notice","Batch","Emptied","Missed","Premature","Problem","Repair","Usage","Weights"];
+    preferred.forEach(function(p){ if(t[p]){ state.templates[p] = t[p]; state.order.push(p); } });
+    Object.keys(t).forEach(function(p){ if(state.order.indexOf(p) === -1){ state.templates[p] = t[p]; state.order.push(p); } });
+    state.loaded = true;
+    if(!state.current && state.order.length) state.current = state.order[0];
+    if(state.mode === "template") renderTemplateMode();
+  });
+}
+
+function loadContacts(){
+  if(state.contactsLoaded) return;
+  jsonp({ action:"master_contacts", key:KEY }, function(data){
+    var seen = {};
+    var out = [];
+    var c = (data && data.contacts) || {};
+    Object.keys(c).forEach(function(boxId){
+      var row = c[boxId] || {};
+      [["toRecipients","customer"],["ccRecipients","customer cc"],["serviceToRecipients","hauler"],["serviceCcRecipients","hauler cc"]].forEach(function(pair){
+        String(row[pair[0]] || "").split(/[;,]/).forEach(function(addr){
+          addr = addr.trim();
+          if(addr && addr.indexOf("@") !== -1 && !seen[addr.toLowerCase()]){
+            seen[addr.toLowerCase()] = 1;
+            out.push({ email:addr, label:pair[1] });
+          }
+        });
+      });
+    });
+    state.contacts = out;
+    state.contactsLoaded = true;
+  });
+}
+
+/* ---------- mode switch ---------- */
+function setMode(m){
+  state.mode = m;
+  document.getElementById("modeTpl").className = "mode" + (m==="template" ? " on" : "");
+  document.getElementById("modeBlank").className = "mode" + (m==="blank" ? " on" : "");
+  if(m === "template"){
+    if(state.loaded) renderTemplateMode();
+    else document.getElementById("body").innerHTML = '<div class="empty-state"><span class="spinner"></span>Loading templates&hellip;</div>';
+  } else {
+    loadContacts();
+    renderBlankMode();
+  }
+}
+
+/* ---------- boot ---------- */
+function boot(){
+  document.getElementById("modeTpl").onclick = function(){ setMode("template"); };
+  document.getElementById("modeBlank").onclick = function(){ setMode("blank"); };
+  loadTemplates();
+}
+
+(function(){
+  var lockBtn = document.getElementById("lockBtn");
+  var lockIn = document.getElementById("lockIn");
+  function unlock(){
+    var v = (lockIn.value || "").trim();
+    if(!v) return;
+    try { sessionStorage.setItem("wastenet_dashboard_key", v); } catch(e){}
+    KEY = v;
+    document.getElementById("lock").classList.add("hide");
+    boot();
+  }
+  if(lockBtn) lockBtn.onclick = unlock;
+  if(lockIn) lockIn.onkeydown = function(e){ if(e.key === "Enter") unlock(); };
+
+  if(KEY){ document.getElementById("lock").classList.add("hide"); boot(); }
+})();
+</script>
+</body>
+</html>
