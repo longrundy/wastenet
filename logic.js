@@ -1,13 +1,18 @@
 /* ==================================================================
-   logic.js  -  WHY IS THIS BOX IN THIS BUCKET?
+   logic.js  -  THE SINGLE SOURCE
 
-   The single source. Loaded by three pages:
+   Loaded by every page. Owns two shared things:
 
-     wastenet-monitor.html      the (i) on each of the six buckets
-     wastenet-accounting.html   the (i) on each of the four sections
-     how-it-works.html          the whole thing, as a guide
+   1. WHY IS THIS BOX IN THIS BUCKET?  (the (i) panels)
+        wastenet-monitor.html      the (i) on each of the six buckets
+        wastenet-accounting.html   the (i) on each of the four sections
+        how-it-works.html          the whole thing, as a guide
 
-   ONE copy. Edit it here and all three change together.
+   2. THE APP NAVIGATION  (the header dropdown - see the NAV section
+        at the bottom of this file). One page list, one menu, rendered
+        into every page. Add a page in WN_PAGES and all headers update.
+
+   ONE copy. Edit it here and every page changes together.
 
    ------------------------------------------------------------------
    THE RULE THAT KEEPS THIS HONEST
@@ -236,4 +241,198 @@ function logicPanelHtml(key, liveNote) {
     '<div class="lg-src"><b>Where the data comes from</b><br>' + L.source + '</div>';
 }
 
-if (typeof module !== 'undefined') module.exports = { LOGIC: LOGIC, logicPanelHtml: logicPanelHtml };
+/* ==================================================================
+   NAV  -  the app's header dropdown, defined once for every page.
+
+   WHY THIS LIVES HERE
+   Before this, the header carried a two-item view switch plus separate
+   Contacts / Templates buttons, hand-copied into each page. Every new
+   page meant another button and another copy to keep in sync - the
+   exact drift this file exists to prevent. Now there is one page list
+   and one menu, rendered into every header from here.
+
+   HOW A PAGE USES IT
+   Put one element in the header where the menu should sit:
+
+       <div data-wn-nav></div>
+
+   That is all. On load this file fills it with the trigger + grouped
+   menu, marks the current page (detected from the URL), and wires
+   open/close. Override the trigger's text with data-label:
+
+       <div data-wn-nav data-label="Accounting Dashboard"></div>
+
+   The menu is fully self-contained - its own class names (.wn-*) and
+   its own baked-in brand colors - so it looks identical on every page
+   regardless of that page's own stylesheet.
+
+   ADDING A PAGE
+   Add one line to WN_PAGES. Every header updates. Never add another
+   header button.
+   ================================================================== */
+
+var WN_NAV_ICONS = {
+  monitor:    '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>',
+  accounting: '<svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>',
+  contacts:   '<svg viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>',
+  templates:  '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>',
+  compose:    '<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
+  calculator: '<svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h4"/></svg>'
+};
+
+/* The whole app, in order. id must match the icon key and is what the
+   current-page detector compares against the filename in the URL. */
+var WN_PAGES = [
+  { group: 'Dashboards', items: [
+    { id: 'monitor',    label: 'Monitoring',        href: 'wastenet-monitor.html' },
+    { id: 'accounting', label: 'Accounting',        href: 'wastenet-accounting.html' }
+  ]},
+  { group: 'Communications', items: [
+    { id: 'contacts',   label: 'Contacts',          href: 'contacts.html' },
+    { id: 'templates',  label: 'Email Templates',   href: 'templates.html' },
+    { id: 'compose',    label: 'Compose',           href: 'messages.html' }
+  ]},
+  { group: 'Tools', items: [
+    { id: 'calculator', label: 'Savings Calculator', href: 'calculator.html' }
+  ]}
+];
+
+var WN_NAV_CSS =
+  '.wn-nav{position:relative;display:inline-flex;flex:0 0 auto;' +
+    'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}' +
+  '.wn-trigger{font-size:12.5px;font-weight:500;color:#1A1D1A;background:#fff;' +
+    'border:0.5px solid #CFD4CA;height:30px;padding:0 9px 0 11px;border-radius:8px;cursor:pointer;' +
+    'display:inline-flex;align-items:center;gap:6px;white-space:nowrap;box-sizing:border-box;' +
+    'transition:background .12s,border-color .12s,color .12s;}' +
+  '.wn-trigger:hover{background:#F6F7F3;border-color:#8A8F8A;}' +
+  '.wn-trigger.wn-open{background:#EAF3DE;border-color:#C0DD97;color:#27500A;}' +
+  '.wn-caret{font-size:11px;color:#525A60;transition:transform .14s ease;}' +
+  '.wn-trigger.wn-open .wn-caret{transform:rotate(180deg);color:#3B6D11;}' +
+  '.wn-drop{position:absolute;top:100%;left:0;margin-top:6px;background:#fff;' +
+    'border:0.5px solid #CFD4CA;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,0.10);' +
+    'min-width:254px;z-index:80;display:none;padding:6px;}' +
+  '.wn-drop.wn-open{display:block;}' +
+  '.wn-grp{padding:6px 8px 3px;}' +
+  '.wn-grp-l{font-size:10px;letter-spacing:0.09em;text-transform:uppercase;color:#8A8F8A;' +
+    'font-weight:700;padding:0 6px 5px;}' +
+  '.wn-sep{height:1px;background:#E4E7E0;margin:5px 4px;}' +
+  '.wn-item{display:flex;align-items:center;gap:10px;padding:8px 9px;border-radius:8px;' +
+    'font-size:13px;font-weight:500;color:#1A1D1A;text-decoration:none;white-space:nowrap;}' +
+  '.wn-item:hover{background:#F6F7F3;}' +
+  '.wn-item.wn-active{background:#EAF3DE;}' +
+  '.wn-item.wn-active .wn-lab{color:#3B6D11;font-weight:600;}' +
+  '.wn-ico{width:17px;height:17px;flex:0 0 auto;display:grid;place-items:center;color:#525A60;}' +
+  '.wn-ico svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;' +
+    'stroke-linecap:round;stroke-linejoin:round;}' +
+  '.wn-item.wn-active .wn-ico{color:#3B6D11;}' +
+  '.wn-here{margin-left:auto;font-size:9.5px;font-weight:700;letter-spacing:0.05em;color:#3B6D11;' +
+    'background:#F4FAEC;border:0.5px solid #C0DD97;border-radius:999px;padding:1px 7px;}';
+
+/* Which page are we on? Match the URL's filename against the page list.
+   Pages not in the menu (index, how-it-works) simply return null - the
+   menu still renders, just with nothing marked current. */
+function wnCurrentId() {
+  var file = (typeof location !== 'undefined' ? (location.pathname || '') : '')
+             .split('/').pop().split('?')[0].toLowerCase();
+  for (var i = 0; i < WN_PAGES.length; i++) {
+    for (var j = 0; j < WN_PAGES[i].items.length; j++) {
+      if (WN_PAGES[i].items[j].href.toLowerCase() === file) return WN_PAGES[i].items[j].id;
+    }
+  }
+  return null;
+}
+
+/* The grouped menu's inner HTML (what goes inside .wn-drop). */
+function wnNavMenu(current) {
+  if (current === undefined) current = wnCurrentId();
+  return WN_PAGES.map(function (g) {
+    return '<div class="wn-grp"><div class="wn-grp-l">' + g.group + '</div>' +
+      g.items.map(function (it) {
+        var on = (it.id === current);
+        return '<a class="wn-item' + (on ? ' wn-active' : '') + '" href="' + it.href + '"' +
+                 (on ? ' aria-current="page"' : '') + '>' +
+                 '<span class="wn-ico">' + (WN_NAV_ICONS[it.id] || '') + '</span>' +
+                 '<span class="wn-lab">' + it.label + '</span>' +
+                 (on ? '<span class="wn-here">HERE</span>' : '') +
+               '</a>';
+      }).join('') +
+    '</div>';
+  }).join('<div class="wn-sep"></div>');
+}
+
+/* Default trigger text = the current page's label. */
+function wnTriggerLabel(current) {
+  if (current === undefined) current = wnCurrentId();
+  for (var i = 0; i < WN_PAGES.length; i++) {
+    for (var j = 0; j < WN_PAGES[i].items.length; j++) {
+      if (WN_PAGES[i].items[j].id === current) return WN_PAGES[i].items[j].label;
+    }
+  }
+  return 'Menu';
+}
+
+/* Full nav HTML: the trigger button + the grouped menu. */
+function wnNavHtml(label) {
+  var cur = wnCurrentId();
+  if (!label) label = wnTriggerLabel(cur);
+  return '<div class="wn-nav">' +
+    '<button class="wn-trigger" type="button" aria-haspopup="true" aria-expanded="false">' +
+      label + ' <span class="wn-caret">\u25BE</span></button>' +
+    '<div class="wn-drop">' + wnNavMenu(cur) + '</div>' +
+  '</div>';
+}
+
+function wnInjectNavCss() {
+  if (typeof document === 'undefined' || document.getElementById('wn-nav-css')) return;
+  var s = document.createElement('style');
+  s.id = 'wn-nav-css';
+  s.textContent = WN_NAV_CSS;
+  (document.head || document.documentElement).appendChild(s);
+}
+
+/* Fill every [data-wn-nav] mount on the page. Safe to call again later
+   (e.g. when a sticky bar rebuilds itself) - it just re-renders. */
+function wnRenderNav() {
+  if (typeof document === 'undefined') return;
+  wnInjectNavCss();
+  var mounts = document.querySelectorAll('[data-wn-nav]');
+  for (var i = 0; i < mounts.length; i++) {
+    mounts[i].innerHTML = wnNavHtml(mounts[i].getAttribute('data-label') || '');
+  }
+}
+
+/* One delegated click handler for every trigger on the page, now and
+   any rendered later. A trigger toggles its own menu and closes others;
+   a click anywhere else closes all. Menu items are plain links, so
+   navigation needs no JS. */
+var wnNavWired = false;
+function wnWireNav() {
+  if (wnNavWired || typeof document === 'undefined') return;
+  wnNavWired = true;
+  document.addEventListener('click', function (e) {
+    var trg  = e.target.closest ? e.target.closest('.wn-trigger') : null;
+    var drop = trg ? trg.parentNode.querySelector('.wn-drop') : null;
+    var wasOpen = drop && drop.classList.contains('wn-open');
+    var open = document.querySelectorAll('.wn-drop.wn-open, .wn-trigger.wn-open');
+    for (var k = 0; k < open.length; k++) open[k].classList.remove('wn-open');
+    if (trg && drop && !wasOpen) {
+      e.stopPropagation();
+      drop.classList.add('wn-open');
+      trg.classList.add('wn-open');
+      trg.setAttribute('aria-expanded', 'true');
+    }
+  });
+}
+
+function wnInitNav() { wnRenderNav(); wnWireNav(); }
+
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wnInitNav);
+  else wnInitNav();
+}
+
+if (typeof module !== 'undefined') module.exports = {
+  LOGIC: LOGIC, logicPanelHtml: logicPanelHtml,
+  WN_PAGES: WN_PAGES, wnNavMenu: wnNavMenu, wnNavHtml: wnNavHtml,
+  wnCurrentId: wnCurrentId, wnTriggerLabel: wnTriggerLabel
+};
