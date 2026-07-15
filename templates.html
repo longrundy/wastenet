@@ -19,9 +19,10 @@
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
   body{font-family:var(--font); background:var(--page); color:var(--ink); font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased;}
-  .wrap{max-width:1080px; margin:0 auto; padding:18px 20px 60px;}
+  .wrap{max-width:820px; margin:0 auto; padding:18px 16px 60px;}
 
-  .header-bar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px;}
+  .header-bar{display:flex; align-items:center; gap:12px; background:var(--card); border:0.5px solid var(--line); border-radius:var(--r-card); padding:12px 16px; margin-bottom:16px;}
+  .editor-card{background:var(--card); border:0.5px solid var(--line); border-radius:var(--r-card); padding:14px 16px 16px; margin-bottom:16px;}
   .brand{display:flex; align-items:center; gap:12px;}
   .brand-name{font-size:16px; font-weight:700; color:var(--green-dark); letter-spacing:0.02em;}
   .brand-logo{height:24px; width:auto; display:block; flex:0 0 auto;}
@@ -30,7 +31,7 @@
   .navlink{font-size:12.5px; font-weight:500; color:var(--ink); text-decoration:none; padding:5px 12px; border:0.5px solid var(--line); border-radius:var(--r-ctl); background:var(--card);}
   .navlink:hover{background:var(--green-tint); border-color:var(--green-border);}
 
-  .modebar{display:inline-flex; gap:2px; background:var(--panel); border-radius:var(--r-pill); padding:3px; margin-bottom:20px;}
+  .modebar{display:inline-flex; gap:2px; background:var(--panel); border-radius:var(--r-pill); padding:3px; margin-bottom:14px;}
   .mode{font-size:12.5px; padding:6px 18px; border-radius:var(--r-pill); border:0; background:transparent; color:var(--ink-2); cursor:pointer; font-family:var(--font);}
   .mode.on{background:var(--green-tint); color:var(--green-darker); font-weight:500;}
 
@@ -68,7 +69,7 @@
   .btn:disabled{opacity:0.5; cursor:default;}
   .hint{font-size:12px; color:var(--ink-3);}
 
-  .preview-wrap{margin-top:22px; border-top:0.5px solid var(--line); padding-top:16px;}
+  .preview-wrap{background:var(--card); border:0.5px solid var(--line); border-radius:var(--r-card); padding:14px 16px 16px; margin-bottom:16px;}
   .preview-head{font-size:12px; color:var(--ink-2); margin-bottom:10px; display:flex; align-items:center; gap:6px;}
   .locknote{display:flex; align-items:center; gap:6px; margin-top:10px; color:var(--ink-3); font-size:11px;}
 
@@ -118,14 +119,18 @@
     </div>
   </div>
 
-  <div class="modebar">
-    <button class="mode on" id="modeTpl">Saved template</button>
-    <button class="mode" id="modeBlank">Blank email</button>
+  <div class="editor-card">
+    <div class="modebar">
+      <button class="mode on" id="modeTpl">Saved template</button>
+      <button class="mode" id="modeBlank">Blank email</button>
+    </div>
+
+    <div id="body">
+      <div class="empty-state"><span class="spinner"></span>Loading templates&hellip;</div>
+    </div>
   </div>
 
-  <div id="body">
-    <div class="empty-state"><span class="spinner"></span>Loading templates&hellip;</div>
-  </div>
+  <div id="previewHost"></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -338,14 +343,14 @@ function renderTemplateMode(){
     '<div class="btnrow">' +
       '<button class="btn primary" id="saveBtn">Save template</button>' +
       '<span class="hint" style="margin-left:auto;">Saved changes go live immediately</span>' +
-    '</div>' +
-    previewBlock();
+    '</div>';
 
   document.getElementById("body").innerHTML =
     '<div class="cols">' +
       '<div class="side-right"><div class="tlist-head">Templates</div><div class="tlist">' + listHtml + '</div></div>' +
       '<div>' + editor + '</div>' +
     '</div>';
+  document.getElementById("previewHost").innerHTML = previewBlock();
 
   wireTemplateMode();
   refreshPreview();
@@ -422,10 +427,10 @@ function renderBlankMode(){
     '<div class="btnrow">' +
       '<button class="btn primary" id="sendBtn">Send</button>' +
       '<span class="hint" style="margin-left:auto;">Sends with the WasteNet footer &middot; copied to office@ for the record</span>' +
-    '</div>' +
-    previewBlock();
+    '</div>';
 
   document.getElementById("body").innerHTML = '<div>' + editor + '</div>';
+  document.getElementById("previewHost").innerHTML = previewBlock();
   wireBlankMode();
   refreshPreview();
 }
