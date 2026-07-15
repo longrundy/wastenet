@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WasteNet Savings Calculator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#16262d;
+    --ink-soft:#3d525b;
+    --label:#6b7a80;
+    --paper:#eef0ed;
+    --card:#ffffff;
+    --line:#dde1dd;
+    --line-strong:#c6ccc6;
+    --save:#0f7a4a;
+    --save-bright:#17a862;
+    --save-tint:#e7f3ec;
+    --fee:#b5732a;
+    --fee-tint:#f6ecdf;
+    --shadow:0 1px 2px rgba(22,38,45,.04),0 8px 24px rgba(22,38,45,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:'Inter',system-ui,sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    padding:24px;
+    display:flex;
+    justify-content:center;
+  }
+  .app{width:100%;max-width:1120px}
+
+  /* header */
+  .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .mark{
+    width:38px;height:38px;border-radius:9px;
+    background:var(--ink);display:grid;place-items:center;flex:none;
+  }
+  .mark span{display:flex;gap:2.5px;align-items:flex-end;height:17px}
+  .mark i{width:3.5px;background:var(--save-bright);border-radius:1px;display:block}
+  .mark i:nth-child(1){height:7px}
+  .mark i:nth-child(2){height:12px}
+  .mark i:nth-child(3){height:17px}
+  .brand h1{font-family:'Space Grotesk';font-size:17px;font-weight:600;letter-spacing:-.01em}
+  .brand p{font-size:12px;color:var(--label);margin-top:1px}
+  .who{text-align:right}
+  .who .lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--label)}
+  .who .field{
+    margin-top:4px;font-size:15px;font-weight:600;color:var(--ink);
+    border:none;border-bottom:1.5px dashed var(--line-strong);
+    background:transparent;text-align:right;padding:2px 2px;width:220px;font-family:inherit;
+  }
+  .who .field:focus{outline:none;border-bottom-color:var(--save)}
+
+  /* main grid */
+  .grid{display:grid;grid-template-columns:1fr 1.15fr;gap:18px}
+
+  .panel{
+    background:var(--card);border:1px solid var(--line);
+    border-radius:16px;box-shadow:var(--shadow);
+  }
+  .panel-h{
+    display:flex;align-items:center;gap:8px;
+    padding:16px 20px 14px;border-bottom:1px solid var(--line);
+  }
+  .panel-h .n{
+    font-family:'Space Grotesk';font-size:12px;font-weight:600;color:var(--save);
+    background:var(--save-tint);border-radius:6px;padding:2px 7px;
+  }
+  .panel-h h2{font-size:14px;font-weight:600;letter-spacing:-.01em}
+  .panel-h .sub{font-size:12px;color:var(--label);margin-left:auto}
+
+  /* inputs */
+  .inputs{padding:8px 20px 18px}
+  .row{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:13px 0;border-bottom:1px solid var(--line);
+  }
+  .row:last-child{border-bottom:none}
+  .row .meta .k{font-size:14px;font-weight:500;color:var(--ink)}
+  .row .meta .h{font-size:11.5px;color:var(--label);margin-top:2px}
+  .control{display:flex;align-items:center;gap:6px}
+  .control .pre{font-size:15px;color:var(--label);font-weight:500}
+  .control input{
+    width:96px;font-family:'Space Grotesk';font-size:17px;font-weight:600;
+    text-align:right;color:var(--ink);
+    border:1.5px solid var(--line-strong);border-radius:9px;
+    padding:9px 11px;background:#fbfcfb;font-variant-numeric:tabular-nums;
+  }
+  .control input:focus{outline:none;border-color:var(--save);background:#fff;box-shadow:0 0 0 3px var(--save-tint)}
+  .control .suf{font-size:12.5px;color:var(--label);min-width:34px}
+  .control.tunable input{border-style:dashed}
+
+  .assump{
+    margin:2px 20px 18px;padding:12px 14px;background:#f7f9f7;
+    border:1px solid var(--line);border-radius:11px;
+  }
+  .assump .at{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--label);margin-bottom:2px}
+
+  /* results */
+  .result{display:flex;flex-direction:column}
+  .hero{padding:22px 24px 6px;text-align:center}
+  .hero .kicker{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--label);font-weight:600}
+  .hero .big{
+    font-family:'Space Grotesk';font-weight:700;color:var(--save);
+    font-size:76px;line-height:1;letter-spacing:-.03em;margin:6px 0 2px;
+    font-variant-numeric:tabular-nums;
+  }
+  .hero .per{font-size:14px;color:var(--ink-soft);font-weight:500}
+  .hero .pct{
+    display:inline-block;margin-top:10px;font-size:13px;font-weight:600;
+    color:var(--save);background:var(--save-tint);border-radius:20px;padding:5px 13px;
+  }
+
+  /* gauges */
+  .gauges{padding:14px 24px 6px;display:flex;flex-direction:column;gap:14px}
+  .gauge .gl{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+  .gauge .gl .t{font-size:12.5px;font-weight:600;color:var(--ink)}
+  .gauge .gl .v{font-family:'Space Grotesk';font-size:12.5px;font-weight:600;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+  .track{height:26px;border-radius:7px;background:#eef1ee;border:1px solid var(--line);position:relative;overflow:hidden}
+  .fill{height:100%;border-radius:6px 0 0 6px;position:relative}
+  .fill.now{width:60%;background:repeating-linear-gradient(45deg,#c6ccc6,#c6ccc6 6px,#d4d9d4 6px,#d4d9d4 12px)}
+  .fill.opt{width:90%;background:linear-gradient(90deg,var(--save),var(--save-bright))}
+  .cap{position:absolute;top:0;right:8px;height:100%;display:flex;align-items:center;font-size:11px;color:var(--label);font-weight:600}
+  .fill .in{position:absolute;top:0;right:9px;height:100%;display:flex;align-items:center;font-size:11px;font-weight:700;color:#fff}
+  .fill.now .in{color:var(--ink-soft)}
+
+  /* before/after ledger */
+  .ledger{margin:16px 24px 0;border-top:1px solid var(--line)}
+  .lrow{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--line)}
+  .lrow .lk{font-size:13.5px;color:var(--ink-soft)}
+  .lrow .lk b{color:var(--ink);font-weight:600}
+  .lrow .lv{font-family:'Space Grotesk';font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+  .lrow.fee .lv{color:var(--fee)}
+  .lrow.fee .lk{color:var(--fee)}
+  .lrow.net{border-bottom:none;padding-top:13px}
+  .lrow.net .lk{font-size:15px;font-weight:700;color:var(--ink)}
+  .lrow.net .lv{font-size:20px;color:var(--save)}
+  .yr1{margin-top:8px;padding:4px 14px 10px;background:#f7f9f7;border:1px solid var(--line);border-radius:11px}
+  .yr1 .lrow{padding:8px 0}
+  .yr1 .lrow.y{border-bottom:1px dashed var(--line)}
+  .yr1 .lrow.y1net{border-bottom:none}
+  .yr1 .lrow.y1net .lk{font-size:13.5px;font-weight:600;color:var(--ink)}
+  .yr1 .lrow.y1net .lv{font-size:15px;color:var(--ink)}
+  .pill{font-size:11px;font-weight:600;color:var(--label);background:#f2f4f2;border-radius:5px;padding:2px 7px;margin-left:8px}
+
+  /* footer actions */
+  .actions{padding:18px 24px 22px;display:flex;gap:10px}
+  .btn{
+    flex:1;font-family:'Inter';font-size:14px;font-weight:600;
+    border-radius:11px;padding:14px;cursor:pointer;border:1.5px solid var(--line-strong);
+    background:#fff;color:var(--ink-soft);
+  }
+  .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .btn.primary:hover{background:#0f1d22}
+
+  .note{
+    text-align:center;font-size:11.5px;color:var(--label);
+    margin-top:16px;
+  }
+  .note b{color:var(--fee);font-weight:600}
+
+  @media(max-width:860px){
+    .grid{grid-template-columns:1fr}
+    .hero .big{font-size:64px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="top">
+    <div class="brand">
+      <div class="mark"><span><i></i><i></i><i></i></span></div>
+      <div>
+        <h1>WasteNet Savings Estimate</h1>
+        <p>Compactor haul-cost audit</p>
+      </div>
+    </div>
+    <div class="who">
+      <div class="lbl">Prepared for</div>
+      <input class="field" value="Costco &mdash; Store #0412" spellcheck="false">
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <!-- LEFT: inputs -->
+    <div class="panel">
+      <div class="panel-h">
+        <span class="n">1</span>
+        <h2>From their invoice</h2>
+        <span class="sub">one compactor</span>
+      </div>
+      <div class="inputs">
+        <div class="row">
+          <div class="meta"><div class="k">Haul fee per pull</div><div class="h">Flat charge each pickup</div></div>
+          <div class="control"><span class="pre">$</span><input value="450"></div>
+        </div>
+        <div class="row">
+          <div class="meta"><div class="k">Disposal rate</div><div class="h">Tipping cost per ton</div></div>
+          <div class="control"><span class="pre">$</span><input value="60"><span class="suf">/ton</span></div>
+        </div>
+        <div class="row">
+          <div class="meta"><div class="k">Current tons per pull</div><div class="h">Avg. net weight hauled today</div></div>
+          <div class="control"><input value="4.8"><span class="suf">tons</span></div>
+        </div>
+        <div class="row">
+          <div class="meta"><div class="k">Box payload capacity</div><div class="h">Full weight this box holds</div></div>
+          <div class="control"><input value="8.0"><span class="suf">tons</span></div>
+        </div>
+        <div class="row">
+          <div class="meta"><div class="k">Annual tonnage</div><div class="h">Total waste per year</div></div>
+          <div class="control"><input value="100"><span class="suf">tons</span></div>
+        </div>
+      </div>
+
+      <div class="assump">
+        <div class="at">Adjustable assumptions</div>
+        <div class="row" style="border:none;padding:9px 0 4px">
+          <div class="meta"><div class="k">Optimized fill target</div><div class="h">Fullness we pull at with monitoring</div></div>
+          <div class="control tunable"><input value="90"><span class="suf">%</span></div>
+        </div>
+        <div class="row" style="border-top:none;border-bottom:1px solid var(--line);padding:4px 0 10px">
+          <div class="meta"><div class="k">WasteNet monitoring fee</div><div class="h">Per box, per month</div></div>
+          <div class="control tunable"><span class="pre">$</span><input value="125"><span class="suf">/mo</span></div>
+        </div>
+        <div class="row" style="border:none;padding:10px 0 0">
+          <div class="meta"><div class="k">Equipment &amp; install</div><div class="h">One-time, year one only</div></div>
+          <div class="control tunable"><span class="pre">$</span><input value="1000"><span class="suf">once</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: results -->
+    <div class="panel result">
+      <div class="panel-h">
+        <span class="n">2</span>
+        <h2>What we save them</h2>
+        <span class="sub">per year, net of our fee</span>
+      </div>
+
+      <div class="hero">
+        <div class="kicker">Net annual savings</div>
+        <div class="big">$1,650</div>
+        <div class="per">after the $1,500/yr monitoring fee</div>
+        <div class="pct">20% off their current haul bill</div>
+      </div>
+
+      <div class="gauges">
+        <div class="gauge">
+          <div class="gl"><span class="t">How full they haul today</span><span class="v">4.8 / 8 tons</span></div>
+          <div class="track"><div class="fill now"><span class="in">60%</span></div><span class="cap">payload</span></div>
+        </div>
+        <div class="gauge">
+          <div class="gl"><span class="t">How full we'd haul</span><span class="v">7.2 / 8 tons</span></div>
+          <div class="track"><div class="fill opt"><span class="in">90%</span></div><span class="cap">payload</span></div>
+        </div>
+      </div>
+
+      <div class="ledger">
+        <div class="lrow"><span class="lk">Today &mdash; <b>21 pulls/yr</b><span class="pill">calendar schedule</span></span><span class="lv">$15,450</span></div>
+        <div class="lrow"><span class="lk">With WasteNet &mdash; <b>14 pulls/yr</b><span class="pill">pull at optimal fill</span></span><span class="lv">$12,300</span></div>
+        <div class="lrow"><span class="lk">Gross savings</span><span class="lv" style="color:var(--save)">&minus;$3,150</span></div>
+        <div class="lrow fee"><span class="lk">WasteNet fee (annual)</span><span class="lv">+$1,500</span></div>
+        <div class="lrow net"><span class="lk">Net savings, each year</span><span class="lv">$1,650 / yr</span></div>
+        <div class="yr1">
+          <div class="lrow fee y"><span class="lk">Equipment &amp; install <span class="pill">one-time, year 1</span></span><span class="lv">+$1,000</span></div>
+          <div class="lrow y1net"><span class="lk">Year-one net savings</span><span class="lv">$650</span></div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn">Reset</button>
+        <button class="btn primary">Generate proposal &rarr;</button>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="note">Savings come entirely from <b>fewer hauls</b> &mdash; disposal tonnage is unchanged. Numbers shown are illustrative placeholders.</div>
+
+</div>
+</body>
+</html>
