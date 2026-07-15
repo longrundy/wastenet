@@ -289,8 +289,7 @@ var WN_PAGES = [
   ]},
   { group: 'Communications', items: [
     { id: 'contacts',   label: 'Contacts',          href: 'contacts.html' },
-    { id: 'templates',  label: 'Email Templates',   href: 'templates.html' },
-    { id: 'compose',    label: 'Compose',           href: 'messages.html' }
+    { id: 'templates',  label: 'Email Templates',   href: 'templates.html' }
   ]},
   { group: 'Tools', items: [
     { id: 'calculator', label: 'Savings Calculator', href: 'calculator.html' }
