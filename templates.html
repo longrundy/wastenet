@@ -270,13 +270,15 @@ function htmlVals(dateLong, boxLines, link){
    labelled SAMPLE values so the preview shows what a recipient sees - green
    date, green bulleted site - rather than raw [tokens]. The sample values are
    never saved; only the raw template text is. */
-function previewInner(subject, body){
-  var vals = htmlVals(
+function sampleVals(){
+  return htmlVals(
     "Friday, July 18, 2026",
     ["Houston Zoo (TRASH) - 1513 Cambridge St - Houston, TX 77030"],
     ""
   );
-  return fillHtml(body, vals);
+}
+function previewInner(subject, body){
+  return fillHtml(body, sampleVals());
 }
 
 function toast(msg, isErr){
@@ -311,7 +313,7 @@ function audienceNote(pill){
 }
 
 function placeholdersFor(pill){
-  if(pill === "Notice") return ["[pickup date]", "[service description]"];
+  if(pill === "Notice") return ["[pickup date]", "[box description]"];
   if(pill === "Batch")  return ["[pickup date]", "[service description]"];
   return [];
 }
@@ -367,7 +369,7 @@ function refreshPreview(){
   var body = bodyEl ? bodyEl.value : "";
   var host = document.getElementById("preview");
   if(!host) return;
-  var subjLine = '<div style="font-size:12px;color:#8A8F8A;padding:0 0 8px;">Subject: <b style="color:#1A1D1A;">' + esc(subj) + '</b></div>';
+  var subjLine = '<div style="font-size:12px;color:#8A8F8A;padding:0 0 8px;">Subject: <b style="color:#1A1D1A;">' + fillHtml(subj, sampleVals()) + '</b></div>';
   var sampleNote = (state.mode === "template" && (subj.indexOf("[") !== -1 || body.indexOf("[") !== -1))
     ? '<div style="font-size:11px;color:#8A8F8A;padding:0 0 8px;">Placeholders shown with sample values &mdash; the real date and site(s) fill in per box when this sends.</div>'
     : "";
