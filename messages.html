@@ -26,11 +26,11 @@
   *{box-sizing:border-box;}
   body{margin:0; background:var(--page); color:var(--ink); font-family:var(--font);
        font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;}
-  .wrap{max-width:860px; margin:0 auto; padding:22px 20px 80px;}
+  .wrap{max-width:820px; margin:0 auto; padding:20px 16px 80px;}
 
   /* ---- header ---- */
   .header-bar{display:flex; align-items:center; gap:10px; background:var(--card);
-    border:0.5px solid var(--line); border-radius:var(--r-card); padding:12px 14px; margin-bottom:18px;}
+    border:0.5px solid var(--line); border-radius:var(--r-card); padding:12px 16px; margin-bottom:16px;}
   .brand-name{font-size:17px; font-weight:800; letter-spacing:0.04em; color:var(--green);}
   .brand-logo{height:24px; width:auto; display:block; flex:0 0 auto;}
   .brand-div{width:1px; height:16px; background:var(--line-strong);}
@@ -141,8 +141,6 @@
   <div class="header-bar">
     <img class="brand-logo" src="wastenet-logo.png?v=2026-07-15" alt="WasteNet">
     <div data-wn-nav data-label="Compose"></div>
-    <div class="spacer"></div>
-    <button class="btn" id="backBtn">&larr; Monitoring Dashboard</button>
   </div>
 
   <div class="banner" id="banner"></div>
@@ -878,10 +876,6 @@ function loadAll(){
 }
 
 function boot(){
-  document.getElementById("backBtn").addEventListener("click", function(){
-    window.location.href = "wastenet-monitor.html";
-  });
-
   var lockIn = document.getElementById("lockIn");
   var lockBtn = document.getElementById("lockBtn");
   function unlock(){
