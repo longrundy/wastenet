@@ -728,10 +728,10 @@
       <div data-wn-nav data-label="Accounting Dashboard"></div>
     </div>
     <div class="sections">
-      <button class="sec" data-sec="agents">Agents</button>
+      <button class="sec on" data-sec="agents">Agents</button>
       <button class="sec" data-sec="financials">Financials</button>
       <button class="sec" data-sec="billing">Billing</button>
-      <button class="sec on" data-sec="receivables">Receivables</button>
+      <button class="sec" data-sec="receivables">Receivables</button>
       <button class="sec" data-sec="payments">Payments</button>
       <button class="sec" data-sec="deposits">Deposits</button>
     </div>
@@ -768,10 +768,10 @@
     </div>
 
     <div class="sections" id="sections">
-      <button class="sec" data-sec="agents">Agents</button>
+      <button class="sec on" data-sec="agents">Agents</button>
       <button class="sec" data-sec="financials">Financials</button>
       <button class="sec" data-sec="billing">Billing</button>
-      <button class="sec on" data-sec="receivables">Receivables</button>
+      <button class="sec" data-sec="receivables">Receivables</button>
       <button class="sec" data-sec="payments">Payments</button>
       <button class="sec" data-sec="deposits">Deposits</button>
       <!-- One (i) for the section you are looking at. Five buttons each with
@@ -878,7 +878,7 @@ function lockOut(msg){
 }
 
 var state = {
-  section: "receivables",
+  section: "agents",
   invoices: [],      // open only
   paidCount: 0,
   totalCount: 0,
@@ -4445,6 +4445,9 @@ function load(){
       state.totalCount.toLocaleString("en-US") + " invoices";
     renderSummary();
     renderBody();
+    // If we land directly on a lazily-loaded section (Agents is now the
+    // default), fetch its data now the same way clicking the tab would.
+    if(state.section === "agents" && !state.agLoaded && !state.agLoading) loadPayouts("");
   });
 }
 
