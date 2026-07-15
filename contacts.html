@@ -190,11 +190,11 @@
      gap while scrolling under the pinned cards.
    ============================================================ */
 .header{ position:sticky; top:0; z-index:31; }
-.header::after{ content:""; position:absolute; left:0; right:0; bottom:-14px; height:14px; background:var(--page); }
+.header::after{ content:""; position:absolute; left:0; right:0; top:calc(100% + 1px); height:18px; background:var(--page); }
 
 @media (min-width:561px){
   .cbar{ position:sticky; top:var(--cstick,78px); z-index:30; }
-  .cbar::after{ content:""; position:absolute; left:0; right:0; bottom:-12px; height:12px; background:var(--page); }
+  .cbar::after{ content:""; position:absolute; left:0; right:0; top:calc(100% + 1px); height:14px; background:var(--page); }
 }
 
 @media (max-width:560px){
