@@ -176,6 +176,37 @@
              cursor:pointer; font-family:var(--font);}
   .cbox-more:hover{background:var(--green-tint-2); color:var(--green-darker);}
   .cd-act{margin-top:10px;}
+
+/* ============================================================
+   Mobile responsiveness + sticky header  (added 2026-07-15)
+   - Brand bar (.header) freezes on every screen size.
+   - Toolbar (.cbar: title + Add + filters + search) freezes
+     from tablet width up (>=561px covers iPad portrait 768px);
+     on phones (<=560px) it scrolls normally so only the brand
+     bar stays pinned.
+   - The ::after strips are page-coloured masks that cover each
+     card's bottom margin so list rows can't peek through the
+     gap while scrolling under the pinned cards.
+   ============================================================ */
+.header{ position:sticky; top:0; z-index:31; }
+.header::after{ content:""; position:absolute; left:0; right:0; bottom:-14px; height:14px; background:var(--page); }
+
+@media (min-width:561px){
+  .cbar{ position:sticky; top:var(--cstick,78px); z-index:30; }
+  .cbar::after{ content:""; position:absolute; left:0; right:0; bottom:-12px; height:12px; background:var(--page); }
+}
+
+@media (max-width:560px){
+  .header-left{ flex-wrap:wrap; }
+  .csearch{ width:100%; }
+  .cbar-row .cspacer{ display:none; }
+  .cadd-row{ flex-wrap:wrap; }
+  .cadd-in, .cadd-sel{ flex:1 1 100%; }
+  .cadd-box{ flex:1 1 100%; max-width:none; }
+  .cmain .cspacer{ display:none; }
+  .cmail{ flex:1 1 auto; }
+}
+
 </style>
 </head>
 <body>
@@ -604,7 +635,17 @@ function renderContactsAll(){
   document.getElementById("cList").innerHTML = contactsListHtml();
   wireContactsHeader();
   wireContactsList();
+  syncStick();
 }
+
+// Pin point for the sticky toolbar = brand-bar height + its 14px gap.
+// Recomputed on resize so it stays correct if the brand bar wraps.
+function syncStick(){
+  var h = document.querySelector(".header");
+  if(!h) return;
+  document.documentElement.style.setProperty("--cstick", (h.offsetHeight + 14) + "px");
+}
+window.addEventListener("resize", syncStick);
 
 /* Only the list redraws. The header - and the cursor inside the search box -
    stays exactly where it was. */
