@@ -53,6 +53,8 @@
   input:focus, textarea:focus, select:focus{outline:none; border-color:var(--green); box-shadow:0 0 0 2px var(--green-tint);}
   .mb12{margin-bottom:12px;}
 
+  .audience{font-size:12px; line-height:1.55; color:var(--ink-2); background:var(--green-tint-2); border:0.5px solid var(--green-border); border-radius:var(--r-ctl); padding:10px 12px; margin-bottom:14px;}
+  .audience b{color:var(--green-darker); font-weight:600;}
   .ph-row{display:flex; align-items:center; gap:6px; margin-top:8px; flex-wrap:wrap;}
   .ph-lab{font-size:11px; color:var(--ink-3);}
   .ph{font-size:11px; font-family:ui-monospace,Menlo,Consolas,monospace; background:#E6F1FB; color:#0C447C; padding:2px 7px; border-radius:4px;}
@@ -285,6 +287,29 @@ function toast(msg, isErr){
 }
 
 /* ---------- placeholders ---------- */
+/* Who each template actually goes to, stated as the FACT it is - read from
+   how the schedule/notify flow routes, not from a stored setting that could
+   disagree with it. This replaces the old To/Cc role selectors, which were a
+   second source of truth that drifted wrong (a customer notice mislabelled
+   as going to the hauler). The audience is decided by the KIND of email and
+   resolved per box; it is not a per-template choice. */
+function audienceNote(pill){
+  var p = String(pill || "").toLowerCase();
+  var who = "";
+  if(p === "notice"){
+    who = "This goes to the <b>customer</b> (the site contact), so they unlock the gate and expect the truck. " +
+          "One email per customer per date. Recipients are resolved per box &mdash; you edit the wording here, not the address.";
+  } else if(p === "batch"){
+    who = "This goes to the <b>hauler</b> as a service request, and only when several boxes share one hauler and date. " +
+          "A <b>single-box</b> request uses that box\'s own wording from the Service Email Content tab, not this template. " +
+          "Recipients are resolved per box &mdash; you edit the wording here, not the address.";
+  } else {
+    who = "This template is <b>not sent automatically</b> by the schedule or notify flow. " +
+          "You can edit and preview it here, and send it as a one-off from <b>Blank email</b> (choose it as a starting point).";
+  }
+  return '<div class="audience">' + who + '</div>';
+}
+
 function placeholdersFor(pill){
   if(pill === "Notice") return ["[pickup date]", "[service description]"];
   if(pill === "Batch")  return ["[pickup date]", "[service description]"];
@@ -305,23 +330,8 @@ function renderTemplateMode(){
         '<span class="ph-lab">&mdash; keep these; they fill in automatically</span></div>'
     : "";
 
-  var toRole = t.toRole || "Hauler";
-  var ccRole = t.ccRole || "";
-
   var editor =
-    '<div class="row2">' +
-      '<div><div class="field-label">To recipient</div>' +
-        '<select id="toRole">' +
-          '<option value="Hauler"' + (toRole==="Hauler"?" selected":"") + '>Hauler</option>' +
-          '<option value="Customer"' + (toRole==="Customer"?" selected":"") + '>Customer</option>' +
-        '</select></div>' +
-      '<div><div class="field-label">Cc recipient</div>' +
-        '<select id="ccRole">' +
-          '<option value=""' + (ccRole===""?" selected":"") + '>N/A</option>' +
-          '<option value="Customer"' + (ccRole==="Customer"?" selected":"") + '>Customer</option>' +
-          '<option value="Hauler"' + (ccRole==="Hauler"?" selected":"") + '>Hauler</option>' +
-        '</select></div>' +
-    '</div>' +
+    audienceNote(state.current) +
     '<div class="field-label">Subject</div>' +
     '<input type="text" id="subj" class="mb12" value="' + esc(t.subjectTemplate) + '">' +
     '<div class="field-label">Body</div>' +
@@ -378,13 +388,11 @@ function wireTemplateMode(){
     var pill = state.current;
     var subject = document.getElementById("subj").value;
     var body = document.getElementById("bodytext").value;
-    var toRole = document.getElementById("toRole").value;
-    var ccRole = document.getElementById("ccRole").value;
     save.disabled = true; save.textContent = "Saving…";
-    jsonp({ action:"save_template", key:KEY, pill:pill, subject:subject, body:body, toRole:toRole, ccRole:ccRole }, function(data){
+    jsonp({ action:"save_template", key:KEY, pill:pill, subject:subject, body:body }, function(data){
       save.disabled = false; save.textContent = "Save template";
       if(data && data.ok){
-        state.templates[pill] = { subjectTemplate:subject, bodyTemplate:body, toRole:toRole, ccRole:ccRole };
+        state.templates[pill] = { subjectTemplate:subject, bodyTemplate:body };
         toast("Saved. Live now.");
       } else {
         toast((data && data.error) || "Could not save.", true);
@@ -395,7 +403,14 @@ function wireTemplateMode(){
 
 /* ---------- render: blank mode ---------- */
 function renderBlankMode(){
+  var tplOpts = '<option value="">Start from scratch</option>' +
+    state.order.map(function(pill){
+      return '<option value="' + esc(pill) + '">' + esc(pill) + '</option>';
+    }).join("");
+
   var editor =
+    '<div class="field-label">Start from a template <span style="color:var(--ink-3);font-weight:400;">(optional)</span></div>' +
+    '<select id="tplPick" class="mb12">' + tplOpts + '</select>' +
     '<div class="field-label">To</div>' +
     '<div class="lookup mb12"><input type="text" id="toAddr" placeholder="name@example.com"><div class="lookup-drop" id="toDrop"></div></div>' +
     '<div class="row2">' +
@@ -408,7 +423,7 @@ function renderBlankMode(){
     '<textarea id="bodytext" style="height:150px;" placeholder="Type your message"></textarea>' +
     '<div class="btnrow">' +
       '<button class="btn primary" id="sendBtn">Send</button>' +
-      '<span class="hint" style="margin-left:auto;">Sends immediately with the WasteNet footer</span>' +
+      '<span class="hint" style="margin-left:auto;">Sends with the WasteNet footer &middot; copied to office@ for the record</span>' +
     '</div>' +
     previewBlock();
 
@@ -422,6 +437,18 @@ function wireBlankMode(){
   var bt = document.getElementById("bodytext");
   if(subj) subj.oninput = refreshPreview;
   if(bt) bt.oninput = refreshPreview;
+
+  /* Loading a template here is how the seven templates that no automated flow
+     sends (Emptied, Missed, Repair, ...) actually get used: as a starting
+     point for a one-off you address yourself. */
+  var pick = document.getElementById("tplPick");
+  if(pick) pick.onchange = function(){
+    var t = state.templates[pick.value];
+    if(!t) return;
+    document.getElementById("subj").value = t.subjectTemplate || "";
+    document.getElementById("bodytext").value = t.bodyTemplate || "";
+    refreshPreview();
+  };
 
   ["to","cc","bcc"].forEach(function(which){
     var inp = document.getElementById(which + "Addr");
@@ -457,6 +484,14 @@ function wireBlankMode(){
     var to = document.getElementById("toAddr").value.trim();
     var cc = document.getElementById("ccAddr").value.trim();
     var bcc = document.getElementById("bccAddr").value.trim();
+    /* Every WasteNet email is archived by BCC to office@ - the schedule and
+       notify flows already do this, and a one-off must not be the exception,
+       or it vanishes with no record. Appended, so a user cannot forget it and
+       cannot remove it. */
+    var OFFICE_BCC = "office@wastenetinc.com";
+    if(bcc.toLowerCase().indexOf(OFFICE_BCC) === -1){
+      bcc = bcc ? (bcc + ", " + OFFICE_BCC) : OFFICE_BCC;
+    }
     var subject = document.getElementById("subj").value.trim();
     var body = document.getElementById("bodytext").value;
     if(!to){ toast("Add at least one To address.", true); return; }
