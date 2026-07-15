@@ -93,6 +93,10 @@
   .control input:focus{outline:none;border-color:var(--save);background:#fff;box-shadow:0 0 0 3px var(--save-tint)}
   .control .suf{font-size:12.5px;color:var(--label);min-width:34px}
   .control.tunable input{border-style:dashed}
+  .row.computed{background:linear-gradient(90deg,transparent,var(--save-tint));margin:0 -20px;padding-left:20px;padding-right:20px;border-bottom:none}
+  .row.computed .meta .k{color:var(--save-dark)}
+  .cval{font-family:'Space Grotesk';font-size:17px;font-weight:700;color:var(--save-dark);font-variant-numeric:tabular-nums}
+  .cval span{font-size:12.5px;font-weight:500;color:var(--label)}
 
   .assump{
     margin:2px 20px 18px;padding:12px 14px;background:#f7f9f7;
@@ -205,6 +209,10 @@
           <div class="control"><span class="pre">$</span><input value="60"><span class="suf">/ton</span></div>
         </div>
         <div class="row">
+          <div class="meta"><div class="k">Current pulls per year</div><div class="h">Count the haul charges, annualized</div></div>
+          <div class="control"><input value="21"><span class="suf">pulls</span></div>
+        </div>
+        <div class="row">
           <div class="meta"><div class="k">Current tons per pull</div><div class="h">Avg. net weight hauled today</div></div>
           <div class="control"><input value="4.8"><span class="suf">tons</span></div>
         </div>
@@ -212,9 +220,9 @@
           <div class="meta"><div class="k">Box payload capacity</div><div class="h">Full weight this box holds</div></div>
           <div class="control"><input value="8.0"><span class="suf">tons</span></div>
         </div>
-        <div class="row">
-          <div class="meta"><div class="k">Annual tonnage</div><div class="h">Total waste per year</div></div>
-          <div class="control"><input value="100"><span class="suf">tons</span></div>
+        <div class="row computed">
+          <div class="meta"><div class="k">Annual tonnage</div><div class="h">Computed &mdash; 21 pulls &times; 4.8 tons</div></div>
+          <div class="cval">100.8 <span>tons</span></div>
         </div>
       </div>
 
@@ -262,8 +270,8 @@
       </div>
 
       <div class="ledger">
-        <div class="lrow"><span class="lk">Today &mdash; <b>21 pulls/yr</b><span class="pill">calendar schedule</span></span><span class="lv">$15,450</span></div>
-        <div class="lrow"><span class="lk">With WasteNet &mdash; <b>14 pulls/yr</b><span class="pill">pull at optimal fill</span></span><span class="lv">$12,300</span></div>
+        <div class="lrow"><span class="lk">Today &mdash; <b>21 pulls/yr</b><span class="pill">calendar schedule</span></span><span class="lv">$15,498</span></div>
+        <div class="lrow"><span class="lk">With WasteNet &mdash; <b>14 pulls/yr</b><span class="pill">pull at optimal fill</span></span><span class="lv">$12,348</span></div>
         <div class="lrow"><span class="lk">Gross savings</span><span class="lv" style="color:var(--save)">&minus;$3,150</span></div>
         <div class="lrow fee"><span class="lk">WasteNet fee (annual)</span><span class="lv">+$1,500</span></div>
         <div class="lrow net"><span class="lk">Net savings, each year</span><span class="lv">$1,650 / yr</span></div>
