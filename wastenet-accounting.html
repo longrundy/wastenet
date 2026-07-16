@@ -389,9 +389,6 @@
   .stmt-sub{font-size:12px; color:var(--ink-2); margin-top:2px;}
   .stmt-warn{padding:10px 18px; background:var(--amber-tint,#FDF3E3); color:var(--amber-dark);
     font-size:12.5px; font-weight:600; border-bottom:0.5px solid var(--line);}
-  /* The email itself, scrollable, rendered exactly as it will arrive. */
-  .stmt-frame{flex:1 1 auto; width:100%; border:0; background:var(--page);
-              display:block; min-height:0;}
   .stmt-foot{display:flex; align-items:center; gap:10px; padding:13px 18px;
     border-top:0.5px solid var(--line); background:var(--card);}
   .stmt-subj{font-size:12px; color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
@@ -439,7 +436,9 @@
   .st-hint{font-size:11px; color:var(--ink-3); margin-bottom:6px;}
   .st-note{width:100%; font-family:var(--font); font-size:13px; color:var(--ink); border:1px solid var(--line-strong); border-radius:6px; background:var(--card); padding:9px 10px; line-height:1.5; min-height:100px; resize:vertical;}
   .st-note:focus{outline:none; border-color:var(--green); box-shadow:0 0 0 3px var(--green-tint);}
-  .stmt-frame{flex:1 1 auto; width:100%; border:0; background:var(--page); display:block; min-height:0;}
+  .st-frame-wrap{flex:1 1 auto; overflow-y:auto; overflow-x:hidden; padding:0 16px 16px; min-height:0;}
+  .st-frame-inner{position:relative;}
+  .stmt-frame{position:absolute; top:0; left:0; width:624px; border:0; background:#FAFBF8; transform-origin:top left; display:block;}
 
   .agmail-e{font-size:11px; color:var(--green-dark); background:transparent;
             border:none; cursor:pointer; padding:2px 6px; border-radius:var(--r-input);
@@ -1656,6 +1655,28 @@ function srUpdateSummary(){
   var st=state.stmt;
   el.innerHTML='To: <b>'+st.to.length+'</b><span class="sep">\u00b7</span>Cc: <b>'+st.cc.length+'</b><span class="sep">\u00b7</span>Bcc: <b>'+st.bcc.length+'</b> <span style="color:var(--ink-3)">(office@ always added)</span>';
 }
+/* Scale the real 600px email down to fit the (narrower) preview pane, so the
+   whole statement is visible and nothing on the right edge - amounts, disclaimer
+   - clips. The email that actually sends is unchanged; only the preview scales. */
+function fitStmtFrame(){
+  var fr=document.getElementById("stmtFrame"),
+      inner=document.getElementById("stFrameInner"),
+      wrap=document.getElementById("stFrameWrap");
+  if(!fr || !inner || !wrap) return;
+  var LOGICAL=624; // the email's true width (600px card + 12px padding each side)
+  var avail=wrap.clientWidth-32; if(avail<80) avail=80; // pane width minus padding
+  var s=Math.min(1, avail/LOGICAL);
+  var h=0; try{ h = fr.contentDocument ? fr.contentDocument.body.scrollHeight : 0; }catch(e){}
+  if(!h) h=900;
+  fr.style.height=h+"px";
+  fr.style.transform="scale("+s+")";
+  inner.style.width=(LOGICAL*s)+"px";
+  inner.style.height=(h*s)+"px";
+}
+window.addEventListener("resize", function(){
+  var modal=document.getElementById("stmtModal");
+  if(modal && modal.classList.contains("show")) fitStmtFrame();
+});
 document.addEventListener("mousedown", function(e){
   var modal=document.getElementById("stmtModal");
   if(!modal || !modal.classList.contains("show")) return;
@@ -1690,7 +1711,9 @@ function renderStmtModal(){
         '<div class="st-right">'+
           '<div class="st-rhead">Preview \u2014 exactly what goes out</div>'+
           '<div class="st-rsum" id="stRsum"></div>'+
-          '<iframe id="stmtFrame" class="stmt-frame" title="Statement preview"></iframe>'+
+          '<div class="st-frame-wrap" id="stFrameWrap"><div class="st-frame-inner" id="stFrameInner">'+
+            '<iframe id="stmtFrame" class="stmt-frame" title="Statement preview" scrolling="no"></iframe>'+
+          '</div></div>'+
         '</div>'+
       '</div>'+
       '<div class="stmt-foot">'+
@@ -1708,6 +1731,9 @@ function wireStmtModal(){
   var st = state.stmt; if(!st) return;
   var fr = document.getElementById("stmtFrame");
   if(fr){
+    // Re-fit once the document lays out, then again after the logo image loads
+    // (which changes the height).
+    fr.onload = function(){ fitStmtFrame(); setTimeout(fitStmtFrame, 350); };
     fr.srcdoc = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
       '<style>body{margin:0;padding:0;background:#FAFBF8;}</style></head><body>' +
       statementHtml(st._a, st.period, st.note) + '</body></html>';
@@ -1719,7 +1745,7 @@ function wireStmtModal(){
     st.note = this.value;
     // Update the note block inside the iframe in place - no reload, no flicker.
     var d = fr && fr.contentDocument;
-    if(d){ var n = d.getElementById("stmtNote"); if(n) n.innerHTML = noteBlockHtml(st.note); }
+    if(d){ var n = d.getElementById("stmtNote"); if(n){ n.innerHTML = noteBlockHtml(st.note); fitStmtFrame(); } }
   });
 
   var close = function(){ state.stmt = null; renderStmtModal(); };
