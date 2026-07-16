@@ -534,20 +534,29 @@
   .detail{background:var(--panel); border-bottom:0.5px solid var(--line); padding:0 12px 14px 12px; display:none;}
   .detail.show{display:block;}
   .detail-inner{background:var(--card); border:0.5px solid var(--line); border-radius:var(--r-ctl); padding:14px 16px;}
-  /* per-box "Draft an email" footer */
-  .draft{margin-top:14px; border-top:0.5px solid var(--line); padding-top:12px;}
-  .draft-head{font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink-3); font-weight:700; margin-bottom:9px;}
-  .draft-type{font-family:var(--font); font-size:13px; color:var(--ink); border:1px solid var(--line-strong); border-radius:var(--r-ctl); background:var(--card); height:var(--h-ctl); padding:0 30px 0 11px; min-width:230px; appearance:none; cursor:pointer;
-    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23525A60' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>"); background-repeat:no-repeat; background-position:right 10px center;}
+  /* per-box "Draft an email" action panel */
+  .draft-panel{margin-top:14px; background:var(--green-tint-2); border:0.5px solid var(--green-border); border-radius:10px; padding:14px 16px 16px;}
+  .draft-head{display:flex; align-items:center; gap:8px; margin-bottom:12px;}
+  .draft-ico{width:18px; height:18px; color:var(--green-dark); flex:0 0 auto;}
+  .draft-ico svg{width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+  .draft-t{font-size:13.5px; font-weight:700; color:var(--green-darker); letter-spacing:0.01em;}
+  .draft-row{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+  .draft-type{font-family:var(--font); font-size:13px; font-weight:500; color:var(--ink); border:1.5px solid var(--green-border); border-radius:var(--r-ctl); background:var(--card); height:34px; padding:0 32px 0 12px; min-width:240px; appearance:none; cursor:pointer;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%233B6D11' stroke-width='2.2'><path d='M6 9l6 6 6-6'/></svg>"); background-repeat:no-repeat; background-position:right 11px center;}
+  .draft-type:focus{outline:none; border-color:var(--green); box-shadow:0 0 0 3px var(--green-tint);}
+  .draft-btn{height:34px; padding:0 18px; border-radius:var(--r-ctl); border:0; background:var(--green); color:#fff; font-family:var(--font); font-size:13px; font-weight:600; cursor:pointer; display:none; align-items:center; gap:6px; white-space:nowrap;}
+  .draft-btn.show{display:inline-flex;}
+  .draft-btn:hover{background:var(--green-dark);}
   .draft-review{margin-top:12px; font-size:12.5px; display:none;}
   .draft-review.show{display:block;}
-  .draft-auto{background:var(--green-tint-2); border:0.5px solid var(--green-border); border-radius:var(--r-ctl); padding:10px 12px;}
+  .draft-auto{background:var(--card); border:0.5px solid var(--green-border); border-radius:var(--r-ctl); padding:10px 12px;}
   .draft-auto .rrow{display:flex; gap:8px; align-items:baseline; margin-bottom:3px;}
   .draft-auto .rrow:last-child{margin-bottom:0;}
-  .draft-auto .rk{color:var(--ink-3); min-width:26px;}
+  .draft-auto .rk{color:var(--ink-3); min-width:26px; font-weight:600;}
   .draft-auto .rv{color:var(--ink); font-weight:500;}
   .draft-auto .noaddr{color:#A32D2D; font-weight:600;}
-  .draft-note{color:var(--ink-3); font-size:12px;}
+  .draft-note{color:var(--ink-2); font-size:12.5px;}
+  .draft-soon{margin-top:10px; font-size:12px; color:var(--green-dark); font-weight:500;}
   /* per-row kebab menu */
   .kebab-wrap{position:relative; flex:0 0 auto;}
   .kebab{width:26px; height:26px; border-radius:6px; border:0.5px solid transparent; background:transparent; color:var(--ink-3); font-size:17px; line-height:1; cursor:pointer; display:grid; place-items:center; padding:0;}
@@ -1622,9 +1631,15 @@ function detailHtml(b){
         return '<option value="'+esc(name)+'">'+esc(name)+'</option>';
       }).join("") +
       '<option value="Blank">Blank email \u2014 custom</option>';
-    draftRow = '<div class="draft">'+
-      '<div class="draft-head">Draft an email</div>'+
-      '<select class="draft-type" data-box="'+esc(b.id)+'">'+opts+'</select>'+
+    draftRow = '<div class="draft-panel">'+
+      '<div class="draft-head">'+
+        '<span class="draft-ico"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z"/><path d="M4 7l8 6 8-6"/></svg></span>'+
+        '<span class="draft-t">Draft an email</span>'+
+      '</div>'+
+      '<div class="draft-row">'+
+        '<select class="draft-type" data-box="'+esc(b.id)+'">'+opts+'</select>'+
+        '<button class="draft-btn" type="button" data-box="'+esc(b.id)+'">Draft &rarr;</button>'+
+      '</div>'+
       '<div class="draft-review"></div>'+
     '</div>';
   }
@@ -2550,15 +2565,32 @@ function wireRows(){
       if(open){ menu.classList.add("show"); kb.classList.add("on"); }
     });
   });
-  // "Draft an email" dropdown: on pick, show the recipients it resolves to
-  // (review only in this step). Changing a select does not bubble to the row.
+  // "Draft an email" dropdown: on pick, show the recipients it resolves to and
+  // reveal the Draft button (review only in this step). Changing a select does
+  // not bubble to the row.
   listEl.querySelectorAll(".draft-type").forEach(function(sel){
     sel.addEventListener("change", function(){
-      var wrap = sel.closest(".draft");
-      var review = wrap ? wrap.querySelector(".draft-review") : null;
-      if(!review) return;
+      var panel = sel.closest(".draft-panel");
+      if(!panel) return;
+      var review = panel.querySelector(".draft-review");
+      var btn = panel.querySelector(".draft-btn");
+      var soon = panel.querySelector(".draft-soon");
+      if(soon) soon.parentNode.removeChild(soon);
       review.innerHTML = draftReviewHtml(sel.getAttribute("data-box"), sel.value);
       review.className = sel.value ? "draft-review show" : "draft-review";
+      if(btn) btn.className = sel.value ? "draft-btn show" : "draft-btn";
+    });
+  });
+  // Draft button: the compose screen is the next build; for now it confirms the
+  // button is wired and that the recipients above are what it will use.
+  listEl.querySelectorAll(".draft-btn").forEach(function(bt){
+    bt.addEventListener("click", function(e){
+      e.stopPropagation();
+      var panel = bt.closest(".draft-panel");
+      if(!panel) return;
+      var soon = panel.querySelector(".draft-soon");
+      if(!soon){ soon = document.createElement("div"); soon.className = "draft-soon"; panel.appendChild(soon); }
+      soon.textContent = "Compose screen is the next build \u2014 the recipients above are what it will use.";
     });
   });
   listEl.querySelectorAll(".move-strip").forEach(function(st){
