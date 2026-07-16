@@ -13,16 +13,15 @@
 // and monitor-sentinel detection - via captureFullPullHistory(), a pure
 // DOM read that returns { date, days, pctFullRaw, cycles, weight } per
 // pull (raw, undecoded - the dashboard decodes the Percent Full codes on
-// read). Rows are stashed on each result as pullHistory, then at the end
-// of the run sendPullHistory() POSTs the whole batch to the Apps Script's
-// pull_history endpoint (type:"pull_history"), which dedups by BoxId+Date
-// and appends only new pulls. A synchronous XHR is used so the write
-// completes before the run ends, on BOTH normal and --test/--box runs
-// (the history POST fires BEFORE the noUpload early-return, so a --test 5
-// can verify it without touching today's main scan tab). Every piece is
-// wrapped so a capture or POST failure can never affect the scan: the
-// monitoring read, serviceNeeded, bucketing, and the results upload are
-// all completely untouched. This is pure data collection bolted on.
+// read). Those rows ride along on each result as pullHistory, saved into
+// state.results. The RUNNER (runner.js) reads them out of the finished
+// state and POSTs them server-side (Node https, following Apps Script's
+// redirect) to the pull_history endpoint, which dedups by BoxId+Date. The
+// POST is deliberately NOT done in-page: a cross-origin POST to Apps
+// Script is blocked in headless Chromium. Every piece is wrapped so a
+// capture failure can never affect the scan: the monitoring read,
+// serviceNeeded, bucketing, and the results upload are all untouched.
+// This is pure data collection bolted on.
 //
 // v4.17 CHANGE: LAST-CYCLE THRESHOLD - added low-cadence ("rarely cycles")
 // awareness so genuinely low-volume boxes stop false-flagging as stale. The
@@ -1722,49 +1721,6 @@
       });
   }
 
-  // v4.18: PULL HISTORY POST. Gathers every box's captured pull history
-  // into one batch and sends it to the Apps Script's pull_history endpoint
-  // (type:"pull_history"), which dedups by BoxId+Date and appends only new
-  // pulls. Entirely separate from the results upload and the daily-tab
-  // flow. A SYNCHRONOUS XHR is used deliberately: it guarantees the write
-  // completes before finishScan returns, on any run type, without relying
-  // on the runner keeping the page alive after the run - and even if the
-  // cross-origin response body can't be read, xhr.send() has already
-  // delivered the payload, so the server-side append still happens. Its
-  // caller wraps it in try/catch, so a failure here can never affect the
-  // scan or the results upload.
-  function sendPullHistory(sortedResults) {
-    if (!GOOGLE_SHEETS_WEBHOOK_URL) return;
-    const rows = [];
-    for (const r of sortedResults) {
-      const hist = r.pullHistory || [];
-      for (const h of hist) {
-        rows.push({
-          boxId: r.boxId,
-          date: h.date,
-          days: h.days,
-          pctFullRaw: h.pctFullRaw,
-          cycles: h.cycles,
-          weight: h.weight,
-        });
-      }
-    }
-    if (rows.length === 0) {
-      log('Pull history: nothing captured to send.');
-      return;
-    }
-    log('Pull history: sending ' + rows.length + ' row(s) from ' + sortedResults.length + ' box(es)...');
-    try {
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', GOOGLE_SHEETS_WEBHOOK_URL, false); // synchronous - delivery guaranteed before run ends
-      xhr.setRequestHeader('Content-Type', 'text/plain');
-      xhr.send(JSON.stringify({ type: 'pull_history', rows: rows }));
-      log('Pull history response: ' + (xhr.responseText || '(no readable body - payload still delivered)'));
-    } catch (err) {
-      log('Pull history POST error: ' + (err && err.message ? err.message : String(err)));
-    }
-  }
-
   function finishScan(results) {
     const sortedResults = sortResultsByServicePriority(results);
 
@@ -1833,16 +1789,12 @@
         + rescued.map((r) => r.boxId + ' (recorded ' + r.recordedDaysAgo + 'd ago)').join(', '));
     }
 
-    // v4.18: PULL HISTORY POST fires here - BEFORE the noUpload early-
-    // return below - so it runs on BOTH normal and --test/--box runs. That
-    // lets a --test 5 verify history capture end-to-end while the noUpload
-    // guard still keeps today's main scan tab untouched. Wrapped so a
-    // failure never affects the scan or the results upload.
-    try {
-      sendPullHistory(sortedResults);
-    } catch (e) {
-      log('Pull history capture failed (scan unaffected): ' + (e && e.message ? e.message : String(e)));
-    }
+    // v4.18: pull history rides along inside state.results (each result's
+    // pullHistory field, set at capture time) and is POSTed server-side by
+    // the runner AFTER it reads the finished state - NOT from inside this
+    // page. An in-page cross-origin POST to Apps Script is blocked in
+    // headless Chromium; the runner's Node https path follows the redirect
+    // and delivers reliably. Nothing to send from here.
 
     // Targeted/diagnostic run (runner --box): the flag rode through the
     // whole scan in the persisted state, so read it here and DO NOT write
@@ -2542,9 +2494,9 @@
       monitorReasonCode,
       monitorPrevSentinel,
       // v4.18: full pull history for this box (raw rows from the Last-N-
-      // Days table). Additive - carried alongside the existing fields and
-      // consumed only by sendPullHistory at end-of-run; nothing in the
-      // monitoring/bucketing path reads it.
+      // Days table). Additive - carried inside state.results and consumed
+      // only by the runner's server-side POST after the run; nothing in
+      // the monitoring/bucketing path reads it.
       pullHistory: captureFullPullHistory(),
       advisory,
       lastCycleHours: lastCycleHours === null ? null : Math.round(lastCycleHours * 10) / 10,
