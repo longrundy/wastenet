@@ -534,11 +534,7 @@
   .detail{background:var(--panel); border-bottom:0.5px solid var(--line); padding:0 12px 14px 12px; display:none;}
   .detail.show{display:block;}
   .detail-inner{background:var(--card); border:0.5px solid var(--line); border-radius:var(--r-ctl); padding:14px 16px;}
-  /* per-box "Draft an email" launch button */
-  .draftzone{margin-top:14px; border-top:0.5px solid var(--line); padding-top:14px;}
-  .draft-launch{display:inline-flex; align-items:center; gap:9px; height:38px; padding:0 20px; border-radius:var(--r-ctl); border:0; background:var(--green); color:#fff; font-family:var(--font); font-size:14px; font-weight:600; cursor:pointer;}
-  .draft-launch:hover{background:var(--green-dark);}
-  .draft-launch svg{flex:0 0 auto;}
+  /* (per-box draft/move now live as row icons - see .row-acts below) */
   /* compose modal */
   .cmodal{position:fixed; inset:0; background:rgba(20,30,25,0.45); z-index:200; display:none; align-items:flex-start; justify-content:center; padding:34px 16px; overflow-y:auto;}
   .cmodal.show{display:flex;}
@@ -639,15 +635,14 @@
   .cmp-ta .opt:hover{background:var(--panel);}
   .cmp-ta .opt b{font-weight:600;}
   .cmp-ta .opt .role{margin-left:auto; font-size:10px; color:var(--ink-3);}
-  /* per-row kebab menu */
-  .kebab-wrap{position:relative; flex:0 0 auto;}
-  .kebab{width:26px; height:26px; border-radius:6px; border:0.5px solid transparent; background:transparent; color:var(--ink-3); font-size:17px; line-height:1; cursor:pointer; display:grid; place-items:center; padding:0;}
-  .kebab:hover{background:var(--panel); border-color:var(--line); color:var(--ink-2);}
-  .kebab.on{background:var(--green-tint); border-color:var(--green-border); color:var(--green-darker);}
-  .kmenu{position:absolute; top:32px; right:0; background:var(--card); border:0.5px solid var(--line-strong); border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,0.10); padding:5px; min-width:172px; z-index:15; display:none;}
-  .kmenu.show{display:block;}
-  .kitem{display:flex; align-items:center; gap:9px; width:100%; text-align:left; background:none; border:0; font-family:var(--font); font-size:13px; color:var(--ink); padding:8px 10px; border-radius:6px; cursor:pointer;}
-  .kitem:hover{background:var(--panel);}
+  /* per-row action icons: Draft an email (envelope) + Move this box */
+  .row-acts{display:flex; align-items:center; gap:4px; flex:0 0 auto;}
+  .rowicon{position:relative; width:28px; height:28px; border-radius:6px; border:0.5px solid transparent; background:transparent; color:var(--ink-3); cursor:pointer; display:grid; place-items:center; padding:0;}
+  .rowicon:hover{background:var(--green-tint); border-color:var(--green-border); color:var(--green-darker);}
+  .rowicon svg{width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;}
+  .rowicon .tip{position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%); background:#2b312c; color:#fff; font-size:11px; white-space:nowrap; padding:4px 8px; border-radius:5px; opacity:0; pointer-events:none; transition:opacity .12s; z-index:20;}
+  .rowicon .tip::after{content:""; position:absolute; top:100%; left:50%; transform:translateX(-50%); border:4px solid transparent; border-top-color:#2b312c;}
+  .rowicon:hover .tip{opacity:1;}
   .dstats{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:12px;}
   .dstat{background:var(--panel); border-radius:var(--r-ctl); padding:9px 11px;}
   .dstat-top{display:flex; align-items:center; justify-content:space-between; gap:6px;}
@@ -1527,13 +1522,13 @@ function rowHtml(b, missed, bucketTag, showHaul){
           : '')+
       '</div>'+
       fillBlock+
-      '<div class="kebab-wrap">'+
-        '<button class="kebab" type="button" aria-label="More actions">\u22EE</button>'+
-        '<div class="kmenu">'+
-          '<button class="kitem" data-move="'+esc(b.id)+'">'+
-            (movedIn(b) || dismissedNow(b) ? "Review the override\u2026" : "Move this box\u2026")+
-          '</button>'+
-        '</div>'+
+      '<div class="row-acts">'+
+        '<button class="rowicon" type="button" data-draft="'+esc(b.id)+'" aria-label="Draft an email">'+
+          '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>'+
+          '<span class="tip">Draft an email</span></button>'+
+        '<button class="rowicon" type="button" data-move="'+esc(b.id)+'" aria-label="Move this box">'+
+          '<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M10 13h6m0 0-2.2-2.2M16 13l-2.2 2.2"/></svg>'+
+          '<span class="tip">'+(movedIn(b) || dismissedNow(b) ? "Review the override" : "Move this box")+'</span></button>'+
       '</div>'+
       '<div class="chev">▾</div>'+
     '</div>'+
@@ -1704,19 +1699,9 @@ function detailHtml(b){
   }
   rows += '<div class="drow"><span class="dk">Full name</span><span class="dv">'+esc(b.fullDesc)+'</span></div>';
 
-  // Per-box "Draft an email": a single button that opens the compose window,
-  // where the email type is chosen (a template or Blank) and everything -
-  // recipients, subject, body - is edited in one place. "Move this box" lives
-  // in the row's kebab menu.
+  // "Draft an email" and "Move this box" now live as icons on the row itself
+  // (envelope + move), so the detail panel no longer carries them.
   var draftRow = "";
-  if(state.templateOrder.length){
-    draftRow = '<div class="draftzone">'+
-      '<button class="draft-launch" type="button" data-box="'+esc(b.id)+'">'+
-        '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v12H4z"/><path d="M4 7l8 6 8-6"/></svg>'+
-        'Draft an email'+
-      '</button>'+
-    '</div>';
-  }
 
   return '<div class="detail'+(open?' show':'')+'" data-detail="'+esc(b.id)+'">'+
     '<div class="detail-inner">'+
@@ -2626,25 +2611,13 @@ function wireRows(){
       render();
     });
   });
-  // Per-row kebab: toggle its own menu, close any other. stopPropagation so the
-  // row does not expand. The menu's "Move" item carries data-move, so it is
-  // wired by the loop above.
-  listEl.querySelectorAll(".kebab").forEach(function(kb){
-    kb.addEventListener("click", function(e){
-      e.stopPropagation();
-      var menu = kb.parentNode.querySelector(".kmenu");
-      var open = menu && !menu.classList.contains("show");
-      listEl.querySelectorAll(".kmenu.show").forEach(function(m){ m.classList.remove("show"); });
-      listEl.querySelectorAll(".kebab.on").forEach(function(k){ k.classList.remove("on"); });
-      if(open){ menu.classList.add("show"); kb.classList.add("on"); }
-    });
-  });
-  // "Draft an email" launch button: open the compose window for this box. Type
-  // (template or Blank) is chosen inside. Does not bubble to the row.
-  listEl.querySelectorAll(".draft-launch").forEach(function(bt){
+  // Row "Draft an email" icon: open the compose window for this box. The move
+  // icon carries data-move and is wired by the loop above. Neither bubbles to
+  // the row (stopPropagation), so clicking an icon does not expand the detail.
+  listEl.querySelectorAll("button[data-draft]").forEach(function(bt){
     bt.addEventListener("click", function(e){
       e.stopPropagation();
-      openCompose(bt.getAttribute("data-box"));
+      openCompose(bt.getAttribute("data-draft"));
     });
   });
   listEl.querySelectorAll(".move-strip").forEach(function(st){
@@ -3445,13 +3418,6 @@ function closeCompose(){
   modal.querySelector(".cmp-card").innerHTML = "";
 }
 
-
-/* Close any open per-row kebab menu when clicking elsewhere. The kebab button's
-   own handler stops propagation, so this fires only for outside clicks. */
-document.addEventListener("click", function(){
-  var els = document.querySelectorAll(".kmenu.show, .kebab.on");
-  for(var i=0;i<els.length;i++) els[i].classList.remove("show","on");
-});
 
 /* ---------- lock screen ---------- (nav lives in logic.js) */
 (function(){
