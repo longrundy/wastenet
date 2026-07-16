@@ -534,20 +534,29 @@
   .detail{background:var(--panel); border-bottom:0.5px solid var(--line); padding:0 12px 14px 12px; display:none;}
   .detail.show{display:block;}
   .detail-inner{background:var(--card); border:0.5px solid var(--line); border-radius:var(--r-ctl); padding:14px 16px;}
-  /* per-box email template pills */
-  .tpl-row{margin-top:14px; border-top:0.5px solid var(--line); padding-top:12px;}
-  .tpl-head{font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink-3); font-weight:700; margin-bottom:9px;}
-  .tpl-pills{display:flex; flex-wrap:wrap; gap:8px;}
-  .tpl-pill{font-size:12.5px; font-weight:500; color:var(--ink-2); background:var(--card); border:0.5px solid var(--line-strong); border-radius:var(--r-pill); padding:6px 14px; cursor:pointer; font-family:inherit;}
-  .tpl-pill:hover{background:var(--green-tint); border-color:var(--green-border); color:var(--green-darker);}
-  .tpl-pill.on{background:var(--green); border-color:var(--green); color:#fff;}
-  .tpl-review{margin-top:11px; font-size:12.5px; color:var(--ink-2); display:none;}
-  .tpl-review.show{display:block;}
-  .tpl-review .rrow{display:flex; gap:8px; align-items:baseline; margin-bottom:3px;}
-  .tpl-review .rk{color:var(--ink-3); min-width:26px;}
-  .tpl-review .rv{color:var(--ink-2); font-weight:500;}
-  .tpl-review .noaddr{color:#A32D2D; font-weight:600;}
-  .tpl-review .hint{color:var(--ink-3); margin-top:6px; font-size:11.5px;}
+  /* per-box "Draft an email" footer */
+  .draft{margin-top:14px; border-top:0.5px solid var(--line); padding-top:12px;}
+  .draft-head{font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink-3); font-weight:700; margin-bottom:9px;}
+  .draft-type{font-family:var(--font); font-size:13px; color:var(--ink); border:1px solid var(--line-strong); border-radius:var(--r-ctl); background:var(--card); height:var(--h-ctl); padding:0 30px 0 11px; min-width:230px; appearance:none; cursor:pointer;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23525A60' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>"); background-repeat:no-repeat; background-position:right 10px center;}
+  .draft-review{margin-top:12px; font-size:12.5px; display:none;}
+  .draft-review.show{display:block;}
+  .draft-auto{background:var(--green-tint-2); border:0.5px solid var(--green-border); border-radius:var(--r-ctl); padding:10px 12px;}
+  .draft-auto .rrow{display:flex; gap:8px; align-items:baseline; margin-bottom:3px;}
+  .draft-auto .rrow:last-child{margin-bottom:0;}
+  .draft-auto .rk{color:var(--ink-3); min-width:26px;}
+  .draft-auto .rv{color:var(--ink); font-weight:500;}
+  .draft-auto .noaddr{color:#A32D2D; font-weight:600;}
+  .draft-note{color:var(--ink-3); font-size:12px;}
+  /* per-row kebab menu */
+  .kebab-wrap{position:relative; flex:0 0 auto;}
+  .kebab{width:26px; height:26px; border-radius:6px; border:0.5px solid transparent; background:transparent; color:var(--ink-3); font-size:17px; line-height:1; cursor:pointer; display:grid; place-items:center; padding:0;}
+  .kebab:hover{background:var(--panel); border-color:var(--line); color:var(--ink-2);}
+  .kebab.on{background:var(--green-tint); border-color:var(--green-border); color:var(--green-darker);}
+  .kmenu{position:absolute; top:32px; right:0; background:var(--card); border:0.5px solid var(--line-strong); border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,0.10); padding:5px; min-width:172px; z-index:15; display:none;}
+  .kmenu.show{display:block;}
+  .kitem{display:flex; align-items:center; gap:9px; width:100%; text-align:left; background:none; border:0; font-family:var(--font); font-size:13px; color:var(--ink); padding:8px 10px; border-radius:6px; cursor:pointer;}
+  .kitem:hover{background:var(--panel);}
   .dstats{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:12px;}
   .dstat{background:var(--panel); border-radius:var(--r-ctl); padding:9px 11px;}
   .dstat-top{display:flex; align-items:center; justify-content:space-between; gap:6px;}
@@ -1425,6 +1434,14 @@ function rowHtml(b, missed, bucketTag, showHaul){
           : '')+
       '</div>'+
       fillBlock+
+      '<div class="kebab-wrap">'+
+        '<button class="kebab" type="button" aria-label="More actions">\u22EE</button>'+
+        '<div class="kmenu">'+
+          '<button class="kitem" data-move="'+esc(b.id)+'">'+
+            (movedIn(b) || dismissedNow(b) ? "Review the override\u2026" : "Move this box\u2026")+
+          '</button>'+
+        '</div>'+
+      '</div>'+
       '<div class="chev">▾</div>'+
     '</div>'+
     bookStripHtml(b)+
@@ -1594,32 +1611,27 @@ function detailHtml(b){
   }
   rows += '<div class="drow"><span class="dk">Full name</span><span class="dv">'+esc(b.fullDesc)+'</span></div>';
 
-  // Per-box email template pills. Clicking one reveals the recipients it would
-  // resolve to (this step is review-only; compose + send come next).
-  var pillRow = "";
+  // Per-box "Draft an email": one dropdown (templates + Blank). Selecting a
+  // named template shows the recipients it resolves to; compose + send are the
+  // next steps. "Move this box" now lives in the row's kebab menu, so the
+  // detail footer is just this.
+  var draftRow = "";
   if(state.templateOrder.length){
-    pillRow = '<div class="tpl-row">'+
-      '<div class="tpl-head">Email templates</div>'+
-      '<div class="tpl-pills">'+
-        state.templateOrder.map(function(name){
-          return '<button type="button" class="tpl-pill" data-tpl="'+esc(name)+'" data-box="'+esc(b.id)+'">'+esc(name)+'</button>';
-        }).join("")+
-      '</div>'+
-      '<div class="tpl-review"></div>'+
+    var opts = '<option value="">Choose a template\u2026</option>' +
+      state.templateOrder.map(function(name){
+        return '<option value="'+esc(name)+'">'+esc(name)+'</option>';
+      }).join("") +
+      '<option value="Blank">Blank email \u2014 custom</option>';
+    draftRow = '<div class="draft">'+
+      '<div class="draft-head">Draft an email</div>'+
+      '<select class="draft-type" data-box="'+esc(b.id)+'">'+opts+'</select>'+
+      '<div class="draft-review"></div>'+
     '</div>';
   }
 
   return '<div class="detail'+(open?' show':'')+'" data-detail="'+esc(b.id)+'">'+
     '<div class="detail-inner">'+
-      stats + rows + pillRow +
-      /* This used to read "Scheduling, notifications, and confirmations aren't
-         wired yet." They are, as of today - and a false note sitting inside the
-         tool is worse than no note, because a new person would believe it. */
-      '<div class="dormant-note">'+
-        '<button class="move-btn" data-move="'+esc(b.id)+'">'+
-          (movedIn(b) || dismissedNow(b) ? "Review the override" : "Move this box\u2026") +
-        '</button>'+
-      '</div>'+
+      stats + rows + draftRow +
     '</div>'+
   '</div>';
 }
@@ -2525,6 +2537,30 @@ function wireRows(){
       render();
     });
   });
+  // Per-row kebab: toggle its own menu, close any other. stopPropagation so the
+  // row does not expand. The menu's "Move" item carries data-move, so it is
+  // wired by the loop above.
+  listEl.querySelectorAll(".kebab").forEach(function(kb){
+    kb.addEventListener("click", function(e){
+      e.stopPropagation();
+      var menu = kb.parentNode.querySelector(".kmenu");
+      var open = menu && !menu.classList.contains("show");
+      listEl.querySelectorAll(".kmenu.show").forEach(function(m){ m.classList.remove("show"); });
+      listEl.querySelectorAll(".kebab.on").forEach(function(k){ k.classList.remove("on"); });
+      if(open){ menu.classList.add("show"); kb.classList.add("on"); }
+    });
+  });
+  // "Draft an email" dropdown: on pick, show the recipients it resolves to
+  // (review only in this step). Changing a select does not bubble to the row.
+  listEl.querySelectorAll(".draft-type").forEach(function(sel){
+    sel.addEventListener("change", function(){
+      var wrap = sel.closest(".draft");
+      var review = wrap ? wrap.querySelector(".draft-review") : null;
+      if(!review) return;
+      review.innerHTML = draftReviewHtml(sel.getAttribute("data-box"), sel.value);
+      review.className = sel.value ? "draft-review show" : "draft-review";
+    });
+  });
   listEl.querySelectorAll(".move-strip").forEach(function(st){
     st.addEventListener("click", function(e){ e.stopPropagation(); });
   });
@@ -2971,42 +3007,33 @@ document.addEventListener("click", function(){
   }
 })();
 
-/* Per-box template pill -> reveal the recipients this template's email would
-   resolve to for this box, live from master_contacts. Review only in this
-   step; compose + send come next. Delegated so it survives list re-renders. */
-document.addEventListener("click", function(e){
-  var pill = e.target.closest ? e.target.closest(".tpl-pill") : null;
-  if(!pill) return;
-  var tpl = pill.getAttribute("data-tpl");
-  var boxId = pill.getAttribute("data-box");
-  var row = pill.closest(".tpl-row");
-  if(!row) return;
-  var review = row.querySelector(".tpl-review");
-  var pills = row.querySelectorAll(".tpl-pill");
-  var already = pill.classList.contains("on");
-  for(var i=0;i<pills.length;i++) pills[i].classList.remove("on");
-  if(already){ review.className = "tpl-review"; review.innerHTML = ""; return; }
-  pill.classList.add("on");
-
-  var rule = PILL_TO[tpl];
-  var recip = boxRecip(boxId);
-  var html = "";
-  if(!rule){
-    html = '<div class="hint">No recipient rule set for &ldquo;' + esc(tpl) + '&rdquo; yet.</div>';
-  } else {
-    var line = function(label, role){
-      var val = recip[role];
-      return '<div class="rrow"><span class="rk">' + label + '</span>' +
-        (val ? '<span class="rv">' + esc(val) + '</span>'
-             : '<span class="noaddr">no ' + role + ' on file for this box</span>') +
-      '</div>';
-    };
-    html = line("To", rule.to);
-    if(rule.cc) html += line("Cc", rule.cc);
-    html += '<div class="hint">Review only \u2014 composing and sending turn on in the next step.</div>';
+/* The recipients (or note) shown under the "Draft an email" dropdown when a
+   type is picked. Named templates resolve To/Cc live from master_contacts per
+   Lon's map; Blank defers recipient choice to the compose step (next). Review
+   only in this step - nothing sends. */
+function draftReviewHtml(boxId, type){
+  if(!type) return "";
+  if(type === "Blank"){
+    return '<div class="draft-note">Custom email &mdash; you\u2019ll choose recipients and write the message when you draft it (next step).</div>';
   }
-  review.innerHTML = html;
-  review.className = "tpl-review show";
+  var rule = PILL_TO[type];
+  if(!rule) return '<div class="draft-note">No recipient rule set for &ldquo;'+esc(type)+'&rdquo; yet.</div>';
+  var recip = boxRecip(boxId);
+  var line = function(label, role){
+    var val = recip[role];
+    return '<div class="rrow"><span class="rk">'+label+'</span>'+
+      (val ? '<span class="rv">'+esc(val)+'</span>'
+           : '<span class="noaddr">no '+role+' on file for this box</span>')+
+    '</div>';
+  };
+  return '<div class="draft-auto">'+line("To", rule.to)+(rule.cc?line("Cc",rule.cc):'')+'</div>';
+}
+
+/* Close any open per-row kebab menu when clicking elsewhere. The kebab button's
+   own handler stops propagation, so this fires only for outside clicks. */
+document.addEventListener("click", function(){
+  var els = document.querySelectorAll(".kmenu.show, .kebab.on");
+  for(var i=0;i<els.length;i++) els[i].classList.remove("show","on");
 });
 
 /* ---------- lock screen ---------- (nav lives in logic.js) */
