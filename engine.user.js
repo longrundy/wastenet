@@ -1,11 +1,28 @@
 // ==UserScript==
 // @name         WasteNet Box Monitor Scan
 // @namespace    wastenet
-// @version      4.17
+// @version      4.18
 // @match        http://h1.ces-web.com/*
 // @match        https://h1.ces-web.com/*
 // @grant        none
 // ==/UserScript==
+//
+// v4.18 CHANGE: PULL HISTORY CAPTURE (additive, isolated). On each box
+// the scan now also reads EVERY completed pull row from the same Last-N-
+// Days history table (LastNDays1_Table1) it already reads for last-service
+// and monitor-sentinel detection - via captureFullPullHistory(), a pure
+// DOM read that returns { date, days, pctFullRaw, cycles, weight } per
+// pull (raw, undecoded - the dashboard decodes the Percent Full codes on
+// read). Rows are stashed on each result as pullHistory, then at the end
+// of the run sendPullHistory() POSTs the whole batch to the Apps Script's
+// pull_history endpoint (type:"pull_history"), which dedups by BoxId+Date
+// and appends only new pulls. A synchronous XHR is used so the write
+// completes before the run ends, on BOTH normal and --test/--box runs
+// (the history POST fires BEFORE the noUpload early-return, so a --test 5
+// can verify it without touching today's main scan tab). Every piece is
+// wrapped so a capture or POST failure can never affect the scan: the
+// monitoring read, serviceNeeded, bucketing, and the results upload are
+// all completely untouched. This is pure data collection bolted on.
 //
 // v4.17 CHANGE: LAST-CYCLE THRESHOLD - added low-cadence ("rarely cycles")
 // awareness so genuinely low-volume boxes stop false-flagging as stale. The
@@ -777,6 +794,47 @@
       daysSinceService = Math.round((today - svc) / 86400000);
     }
     return { daysSinceService, lastServiceDate, lastPercentRaw, prevPercentRaw };
+  }
+
+  // v4.18: PULL HISTORY CAPTURE. Reads EVERY completed pull row from the
+  // Last-N-Days history table (LastNDays1_Table1) for the box currently on
+  // screen and returns an array of { date, days, pctFullRaw, cycles,
+  // weight }, newest-first, or [] when the table is absent. A pull row =
+  // a valid M/D/YYYY date AND a non-blank Percent Full cell. That blank-
+  // Percent-Full test is what skips today's running-status row and any
+  // scheduled-but-unfulfilled request (both have blank Percent Full),
+  // while KEEPING 75000 monitor-not-reporting sentinels (Percent Full is
+  // present for those, and they are meaningful history). Values are taken
+  // RAW - no decoding of the packed Percent Full codes happens here; the
+  // dashboard decodes on read so the code table can evolve without a re-
+  // scrape. Pure DOM read, wrapped so it never throws and never influences
+  // serviceNeeded or bucketing. Same table, same parsing discipline as
+  // getServiceHistoryInfo above - it simply reads ALL rows instead of the
+  // newest two.
+  function captureFullPullHistory() {
+    try {
+      const table = document.getElementById('LastNDays1_Table1');
+      if (!table) return [];
+      const out = [];
+      for (const tr of table.querySelectorAll('tr')) {
+        const tds = [...tr.children].filter((c) => c.tagName === 'TD');
+        if (tds.length < 4) continue;
+        const date = (tds[0].textContent || '').trim();
+        if (!/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(date)) continue; // header/other
+        const pctFullRaw = (tds[2].textContent || '').trim();
+        if (pctFullRaw === '') continue; // not a completed pull (running/scheduled row)
+        out.push({
+          date,
+          days: (tds[1].textContent || '').trim(),
+          pctFullRaw,
+          cycles: (tds[3].textContent || '').trim(),
+          weight: tds[4] ? (tds[4].textContent || '').trim() : '',
+        });
+      }
+      return out;
+    } catch (e) {
+      return [];
+    }
   }
 
   // v4.10: MONITOR-NOT-REPORTING sentinel classifier. CES records the
@@ -1664,6 +1722,49 @@
       });
   }
 
+  // v4.18: PULL HISTORY POST. Gathers every box's captured pull history
+  // into one batch and sends it to the Apps Script's pull_history endpoint
+  // (type:"pull_history"), which dedups by BoxId+Date and appends only new
+  // pulls. Entirely separate from the results upload and the daily-tab
+  // flow. A SYNCHRONOUS XHR is used deliberately: it guarantees the write
+  // completes before finishScan returns, on any run type, without relying
+  // on the runner keeping the page alive after the run - and even if the
+  // cross-origin response body can't be read, xhr.send() has already
+  // delivered the payload, so the server-side append still happens. Its
+  // caller wraps it in try/catch, so a failure here can never affect the
+  // scan or the results upload.
+  function sendPullHistory(sortedResults) {
+    if (!GOOGLE_SHEETS_WEBHOOK_URL) return;
+    const rows = [];
+    for (const r of sortedResults) {
+      const hist = r.pullHistory || [];
+      for (const h of hist) {
+        rows.push({
+          boxId: r.boxId,
+          date: h.date,
+          days: h.days,
+          pctFullRaw: h.pctFullRaw,
+          cycles: h.cycles,
+          weight: h.weight,
+        });
+      }
+    }
+    if (rows.length === 0) {
+      log('Pull history: nothing captured to send.');
+      return;
+    }
+    log('Pull history: sending ' + rows.length + ' row(s) from ' + sortedResults.length + ' box(es)...');
+    try {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', GOOGLE_SHEETS_WEBHOOK_URL, false); // synchronous - delivery guaranteed before run ends
+      xhr.setRequestHeader('Content-Type', 'text/plain');
+      xhr.send(JSON.stringify({ type: 'pull_history', rows: rows }));
+      log('Pull history response: ' + (xhr.responseText || '(no readable body - payload still delivered)'));
+    } catch (err) {
+      log('Pull history POST error: ' + (err && err.message ? err.message : String(err)));
+    }
+  }
+
   function finishScan(results) {
     const sortedResults = sortResultsByServicePriority(results);
 
@@ -1730,6 +1831,17 @@
     if (rescued.length) {
       log('  v4.16 guard suppressed ' + rescued.length + ' would-be false positive(s) via service-history record: '
         + rescued.map((r) => r.boxId + ' (recorded ' + r.recordedDaysAgo + 'd ago)').join(', '));
+    }
+
+    // v4.18: PULL HISTORY POST fires here - BEFORE the noUpload early-
+    // return below - so it runs on BOTH normal and --test/--box runs. That
+    // lets a --test 5 verify history capture end-to-end while the noUpload
+    // guard still keeps today's main scan tab untouched. Wrapped so a
+    // failure never affects the scan or the results upload.
+    try {
+      sendPullHistory(sortedResults);
+    } catch (e) {
+      log('Pull history capture failed (scan unaffected): ' + (e && e.message ? e.message : String(e)));
     }
 
     // Targeted/diagnostic run (runner --box): the flag rode through the
@@ -2429,6 +2541,11 @@
       monitorNotReporting,
       monitorReasonCode,
       monitorPrevSentinel,
+      // v4.18: full pull history for this box (raw rows from the Last-N-
+      // Days table). Additive - carried alongside the existing fields and
+      // consumed only by sendPullHistory at end-of-run; nothing in the
+      // monitoring/bucketing path reads it.
+      pullHistory: captureFullPullHistory(),
       advisory,
       lastCycleHours: lastCycleHours === null ? null : Math.round(lastCycleHours * 10) / 10,
       notes: (scheduledPickup ? 'SCHEDULED: CES shows a pickup scheduled for '
