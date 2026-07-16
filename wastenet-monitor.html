@@ -534,29 +534,11 @@
   .detail{background:var(--panel); border-bottom:0.5px solid var(--line); padding:0 12px 14px 12px; display:none;}
   .detail.show{display:block;}
   .detail-inner{background:var(--card); border:0.5px solid var(--line); border-radius:var(--r-ctl); padding:14px 16px;}
-  /* per-box "Draft an email" action panel */
-  .draft-panel{margin-top:14px; background:var(--green-tint-2); border:0.5px solid var(--green-border); border-radius:10px; padding:14px 16px 16px;}
-  .draft-head{display:flex; align-items:center; gap:8px; margin-bottom:12px;}
-  .draft-ico{width:18px; height:18px; color:var(--green-dark); flex:0 0 auto;}
-  .draft-ico svg{width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
-  .draft-t{font-size:13.5px; font-weight:700; color:var(--green-darker); letter-spacing:0.01em;}
-  .draft-row{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
-  .draft-type{font-family:var(--font); font-size:13px; font-weight:500; color:var(--ink); border:1.5px solid var(--green-border); border-radius:var(--r-ctl); background:var(--card); height:34px; padding:0 32px 0 12px; min-width:240px; appearance:none; cursor:pointer;
-    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%233B6D11' stroke-width='2.2'><path d='M6 9l6 6 6-6'/></svg>"); background-repeat:no-repeat; background-position:right 11px center;}
-  .draft-type:focus{outline:none; border-color:var(--green); box-shadow:0 0 0 3px var(--green-tint);}
-  .draft-btn{height:34px; padding:0 18px; border-radius:var(--r-ctl); border:0; background:var(--green); color:#fff; font-family:var(--font); font-size:13px; font-weight:600; cursor:pointer; display:none; align-items:center; gap:6px; white-space:nowrap;}
-  .draft-btn.show{display:inline-flex;}
-  .draft-btn:hover{background:var(--green-dark);}
-  .draft-review{margin-top:12px; font-size:12.5px; display:none;}
-  .draft-review.show{display:block;}
-  .draft-auto{background:var(--card); border:0.5px solid var(--green-border); border-radius:var(--r-ctl); padding:10px 12px;}
-  .draft-auto .rrow{display:flex; gap:8px; align-items:baseline; margin-bottom:3px;}
-  .draft-auto .rrow:last-child{margin-bottom:0;}
-  .draft-auto .rk{color:var(--ink-3); min-width:26px; font-weight:600;}
-  .draft-auto .rv{color:var(--ink); font-weight:500;}
-  .draft-auto .noaddr{color:#A32D2D; font-weight:600;}
-  .draft-note{color:var(--ink-2); font-size:12.5px;}
-  .draft-soon{margin-top:10px; font-size:12px; color:var(--green-dark); font-weight:500;}
+  /* per-box "Draft an email" launch button */
+  .draftzone{margin-top:14px; border-top:0.5px solid var(--line); padding-top:14px;}
+  .draft-launch{display:inline-flex; align-items:center; gap:9px; height:38px; padding:0 20px; border-radius:var(--r-ctl); border:0; background:var(--green); color:#fff; font-family:var(--font); font-size:14px; font-weight:600; cursor:pointer;}
+  .draft-launch:hover{background:var(--green-dark);}
+  .draft-launch svg{flex:0 0 auto;}
   /* compose modal */
   .cmodal{position:fixed; inset:0; background:rgba(20,30,25,0.45); z-index:200; display:none; align-items:flex-start; justify-content:center; padding:34px 16px; overflow-y:auto;}
   .cmodal.show{display:flex;}
@@ -565,6 +547,12 @@
   .cmp-title{font-size:14px; font-weight:700; color:var(--green-darker);}
   .cmp-x{background:none; border:0; font-family:var(--font); font-size:12.5px; color:var(--ink-2); cursor:pointer;}
   .cmp-body{padding:16px 18px; max-height:none;}
+  .cmp-typebar{display:flex; align-items:center; gap:10px; background:var(--green-tint-2); border:0.5px solid var(--green-border); border-radius:10px; padding:11px 13px; margin-bottom:16px;}
+  .cmp-typebar label{font-size:12px; font-weight:600; color:var(--green-darker);}
+  .cmp-type{flex:1; font-family:var(--font); font-size:13px; font-weight:500; color:var(--ink); border:1.5px solid var(--green-border); border-radius:var(--r-ctl); background:var(--card); height:34px; padding:0 32px 0 12px; appearance:none; cursor:pointer;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%233B6D11' stroke-width='2.2'><path d='M6 9l6 6 6-6'/></svg>"); background-repeat:no-repeat; background-position:right 11px center;}
+  .cmp-type:focus{outline:none; border-color:var(--green); box-shadow:0 0 0 3px var(--green-tint);}
+  .cmp-empty{color:var(--ink-3); font-size:12.5px; text-align:center; padding:22px 10px;}
   .cmp-field{margin-bottom:12px;}
   .cmp-field label{display:block; font-size:12px; color:var(--ink-2); margin-bottom:4px;}
   .cmp-input{width:100%; font-family:var(--font); font-size:13px; color:var(--ink); border:1px solid var(--line-strong); border-radius:6px; background:var(--card); height:32px; padding:0 10px;}
@@ -1680,27 +1668,17 @@ function detailHtml(b){
   }
   rows += '<div class="drow"><span class="dk">Full name</span><span class="dv">'+esc(b.fullDesc)+'</span></div>';
 
-  // Per-box "Draft an email": one dropdown (templates + Blank). Selecting a
-  // named template shows the recipients it resolves to; compose + send are the
-  // next steps. "Move this box" now lives in the row's kebab menu, so the
-  // detail footer is just this.
+  // Per-box "Draft an email": a single button that opens the compose window,
+  // where the email type is chosen (a template or Blank) and everything -
+  // recipients, subject, body - is edited in one place. "Move this box" lives
+  // in the row's kebab menu.
   var draftRow = "";
   if(state.templateOrder.length){
-    var opts = '<option value="">Choose a template\u2026</option>' +
-      state.templateOrder.map(function(name){
-        return '<option value="'+esc(name)+'">'+esc(name)+'</option>';
-      }).join("") +
-      '<option value="Blank">Blank email \u2014 custom</option>';
-    draftRow = '<div class="draft-panel">'+
-      '<div class="draft-head">'+
-        '<span class="draft-ico"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z"/><path d="M4 7l8 6 8-6"/></svg></span>'+
-        '<span class="draft-t">Draft an email</span>'+
-      '</div>'+
-      '<div class="draft-row">'+
-        '<select class="draft-type" data-box="'+esc(b.id)+'">'+opts+'</select>'+
-        '<button class="draft-btn" type="button" data-box="'+esc(b.id)+'">Draft &rarr;</button>'+
-      '</div>'+
-      '<div class="draft-review"></div>'+
+    draftRow = '<div class="draftzone">'+
+      '<button class="draft-launch" type="button" data-box="'+esc(b.id)+'">'+
+        '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v12H4z"/><path d="M4 7l8 6 8-6"/></svg>'+
+        'Draft an email'+
+      '</button>'+
     '</div>';
   }
 
@@ -2625,31 +2603,12 @@ function wireRows(){
       if(open){ menu.classList.add("show"); kb.classList.add("on"); }
     });
   });
-  // "Draft an email" dropdown: on pick, show the recipients it resolves to and
-  // reveal the Draft button (review only in this step). Changing a select does
-  // not bubble to the row.
-  listEl.querySelectorAll(".draft-type").forEach(function(sel){
-    sel.addEventListener("change", function(){
-      var panel = sel.closest(".draft-panel");
-      if(!panel) return;
-      var review = panel.querySelector(".draft-review");
-      var btn = panel.querySelector(".draft-btn");
-      var soon = panel.querySelector(".draft-soon");
-      if(soon) soon.parentNode.removeChild(soon);
-      review.innerHTML = draftReviewHtml(sel.getAttribute("data-box"), sel.value);
-      review.className = sel.value ? "draft-review show" : "draft-review";
-      if(btn) btn.className = sel.value ? "draft-btn show" : "draft-btn";
-    });
-  });
-  // Draft button: open the compose modal for the selected type. Draft view only
-  // - the modal's Send is disabled until the final step.
-  listEl.querySelectorAll(".draft-btn").forEach(function(bt){
+  // "Draft an email" launch button: open the compose window for this box. Type
+  // (template or Blank) is chosen inside. Does not bubble to the row.
+  listEl.querySelectorAll(".draft-launch").forEach(function(bt){
     bt.addEventListener("click", function(e){
       e.stopPropagation();
-      var panel = bt.closest(".draft-panel");
-      var sel = panel ? panel.querySelector(".draft-type") : null;
-      if(!sel || !sel.value) return;
-      openCompose(bt.getAttribute("data-box"), sel.value);
+      openCompose(bt.getAttribute("data-box"));
     });
   });
   listEl.querySelectorAll(".move-strip").forEach(function(st){
@@ -3123,7 +3082,12 @@ var COMPOSE_LOGO = "https://dashboard.wastenetinc.com/WastenetLogo.png";
 var COMPOSE_DISCLAIMER =
   "This email and any files transmitted with it are confidential and intended solely for the " +
   "use of the individual or entity to whom they are addressed. If you have received this email " +
-  "in error, please notify the sender immediately and delete it from your system.";
+  "in error, please notify the system manager. This message contains confidential information " +
+  "and is intended only for the individual named. If you are not the named addressee, you should " +
+  "not disseminate, distribute, or copy this email. Please notify the sender immediately by email " +
+  "if you have received this email by mistake and delete this email from your system. If you are " +
+  "not the intended recipient, you are notified that disclosing, copying, distributing, or taking " +
+  "any action in reliance on the contents of this information is strictly prohibited.";
 
 function boxById(id){
   id = normBoxId(id);
@@ -3298,22 +3262,59 @@ document.addEventListener("mousedown", function(e){
   if(!e.target.closest(".cmp-rmenu, .cmp-ta, [data-radd], [data-rin]")) closeRecipMenus();
 });
 
-function openCompose(boxId, type){
-  var box = boxById(boxId);
-  var tpl = (state.templates && state.templates[type]) || null;
-  compose = { boxId:boxId, type:type, months:{}, year:"2026", to:[], cc:[], bcc:[], _book:buildAddressBook() };
+function openCompose(boxId){
+  compose = { boxId:boxId, type:null, months:{}, year:"2026", to:[], cc:[], bcc:[], _book:buildAddressBook() };
+
+  var typeOpts = '<option value="">Choose a template\u2026</option>' +
+    state.templateOrder.map(function(n){ return '<option value="'+esc(n)+'">'+esc(n)+'</option>'; }).join("") +
+    '<option value="Blank">Blank email \u2014 custom</option>';
+
+  var body_ =
+    '<div class="cmp-head"><div class="cmp-title">Draft an email &middot; #'+esc(boxId)+'</div>'+
+      '<button class="cmp-x" type="button" id="cmpClose">Cancel</button></div>'+
+    '<div class="cmp-body">'+
+      '<div class="cmp-typebar"><label>Email type</label>'+
+        '<select class="cmp-type" id="cmpType">'+typeOpts+'</select></div>'+
+      '<div id="cmpForm"></div>'+
+    '</div>'+
+    '<div class="cmp-foot"><span class="cmp-note">Editing here never changes the saved template \u00b7 office@ auto-BCC\u2019d</span>'+
+      '<button class="cmp-btn" type="button" id="cmpCancel">Close</button>'+
+      '<button class="cmp-btn primary" type="button" id="cmpSend" disabled title="Sending turns on in the final step">Send</button></div>';
+
+  var modal = document.getElementById("composeModal");
+  modal.querySelector(".cmp-card").innerHTML = body_;
+  modal.classList.add("show");
+
+  document.getElementById("cmpClose").addEventListener("click", closeCompose);
+  document.getElementById("cmpCancel").addEventListener("click", closeCompose);
+  document.getElementById("cmpType").addEventListener("change", function(){ loadComposeType(this.value); });
+  loadComposeType("");
+}
+
+// (Re)build the compose form for the chosen type. A named template pre-loads its
+// recipients (as removable tokens), subject and body; Blank starts empty;
+// switching type reloads fresh. Editing here never touches the saved template.
+function loadComposeType(type){
+  compose.type = type || null;
+  compose.to = []; compose.cc = []; compose.bcc = []; compose.months = {}; compose.year = "2026";
+  var form = document.getElementById("cmpForm");
+  if(!form) return;
+
+  if(!type){
+    form.innerHTML = '<div class="cmp-empty">Pick an email type above \u2014 a template to start from, or Blank for a custom message.</div>';
+    return;
+  }
 
   var isBlank = (type === "Blank");
+  var tpl = (state.templates && state.templates[type]) || null;
   var rule = PILL_TO[type];
-  var recip = boxRecip(boxId);
-  // Named templates pre-load their resolved recipients as tokens; Blank starts empty.
+  var recip = boxRecip(compose.boxId);
   if(!isBlank && rule){
     splitEmails(recip[rule.to]).forEach(function(e){ compose.to.push(e); });
     if(rule.cc) splitEmails(recip[rule.cc]).forEach(function(e){ compose.cc.push(e); });
   }
-  var subject = tpl ? (tpl.subjectTemplate || "") : "";
-  var body    = tpl ? (tpl.bodyTemplate || "")    : "";
-  if(isBlank){ subject = ""; body = ""; }
+  var subject = (!isBlank && tpl) ? (tpl.subjectTemplate || "") : "";
+  var body    = (!isBlank && tpl) ? (tpl.bodyTemplate || "")    : "";
 
   var picker = "";
   if(type === "Weights"){
@@ -3325,38 +3326,22 @@ function openCompose(boxId, type){
       '</div><div class="cmp-months-ro" id="cmpMonthsRO"></div></div>';
   }
 
-  var body_ =
-    '<div class="cmp-head"><div class="cmp-title">'+esc(isBlank?"Blank email":type)+' &middot; #'+esc(boxId)+'</div>'+
-      '<button class="cmp-x" type="button" id="cmpClose">Cancel</button></div>'+
-    '<div class="cmp-body">'+
-      '<div class="cmp-rfield" data-f="to"><span class="rlabel">To</span><div class="cmp-rbox" id="cmp-to-box"></div></div>'+
-      '<div class="cmp-rfield" data-f="cc"><span class="rlabel">Cc</span><div class="cmp-rbox" id="cmp-cc-box"></div></div>'+
-      '<div class="cmp-rfield" data-f="bcc"><span class="rlabel">Bcc</span><div class="cmp-rbox" id="cmp-bcc-box"></div></div>'+
-      picker+
-      '<div class="cmp-field"><label>Subject</label>'+
-        '<input class="cmp-input" id="cmpSubj" value="'+esc(subject)+'"></div>'+
-      '<div class="cmp-field"><label>Body</label>'+
-        '<textarea class="cmp-input cmp-textarea" id="cmpBody">'+esc(body)+'</textarea></div>'+
-      '<div class="cmp-prev-head">Preview \u2014 exactly what goes out (auto-BCC office@)</div>'+
-      '<div class="cmp-preview" id="cmpPreview"></div>'+
-    '</div>'+
-    '<div class="cmp-foot"><span class="cmp-note">Draft view \u2014 sending is the final step, not wired yet.</span>'+
-      '<button class="cmp-btn" type="button" id="cmpCancel">Close</button>'+
-      '<button class="cmp-btn primary" type="button" id="cmpSend" disabled title="Sending turns on in the final step">Send</button></div>';
+  form.innerHTML =
+    '<div class="cmp-rfield" data-f="to"><span class="rlabel">To</span><div class="cmp-rbox" id="cmp-to-box"></div></div>'+
+    '<div class="cmp-rfield" data-f="cc"><span class="rlabel">Cc</span><div class="cmp-rbox" id="cmp-cc-box"></div></div>'+
+    '<div class="cmp-rfield" data-f="bcc"><span class="rlabel">Bcc</span><div class="cmp-rbox" id="cmp-bcc-box"></div></div>'+
+    picker+
+    '<div class="cmp-field"><label>Subject</label><input class="cmp-input" id="cmpSubj" value="'+esc(subject)+'"></div>'+
+    '<div class="cmp-field"><label>Body</label><textarea class="cmp-input cmp-textarea" id="cmpBody">'+esc(body)+'</textarea></div>'+
+    '<div class="cmp-prev-head">Preview \u2014 exactly what goes out (auto-BCC office@)</div>'+
+    '<div class="cmp-preview" id="cmpPreview"></div>';
 
-  var modal = document.getElementById("composeModal");
-  modal.querySelector(".cmp-card").innerHTML = body_;
-  modal.classList.add("show");
-
-  // wire
   document.getElementById("cmpSubj").addEventListener("input", refreshComposePreview);
   document.getElementById("cmpBody").addEventListener("input", refreshComposePreview);
-  document.getElementById("cmpClose").addEventListener("click", closeCompose);
-  document.getElementById("cmpCancel").addEventListener("click", closeCompose);
   renderRecip("to"); renderRecip("cc"); renderRecip("bcc");
   if(type === "Weights"){
     document.getElementById("cmpYear").addEventListener("change", function(){ compose.year = this.value; refreshComposePreview(); });
-    modal.querySelectorAll(".cmp-mo").forEach(function(mo){
+    form.querySelectorAll(".cmp-mo").forEach(function(mo){
       mo.addEventListener("click", function(){
         var i = +mo.getAttribute("data-mo");
         compose.months[i] = !compose.months[i];
@@ -3367,33 +3352,13 @@ function openCompose(boxId, type){
   }
   refreshComposePreview();
 }
+
 function closeCompose(){
   var modal = document.getElementById("composeModal");
   modal.classList.remove("show");
   modal.querySelector(".cmp-card").innerHTML = "";
 }
 
-/* The recipients (or note) shown under the "Draft an email" dropdown when a
-   type is picked. Named templates resolve To/Cc live from master_contacts per
-   Lon's map; Blank defers recipient choice to the compose step (next). Review
-   only in this step - nothing sends. */
-function draftReviewHtml(boxId, type){
-  if(!type) return "";
-  if(type === "Blank"){
-    return '<div class="draft-note">Custom email &mdash; you\u2019ll choose recipients and write the message when you draft it (next step).</div>';
-  }
-  var rule = PILL_TO[type];
-  if(!rule) return '<div class="draft-note">No recipient rule set for &ldquo;'+esc(type)+'&rdquo; yet.</div>';
-  var recip = boxRecip(boxId);
-  var line = function(label, role){
-    var val = recip[role];
-    return '<div class="rrow"><span class="rk">'+label+'</span>'+
-      (val ? '<span class="rv">'+esc(val)+'</span>'
-           : '<span class="noaddr">no '+role+' on file for this box</span>')+
-    '</div>';
-  };
-  return '<div class="draft-auto">'+line("To", rule.to)+(rule.cc?line("Cc",rule.cc):'')+'</div>';
-}
 
 /* Close any open per-row kebab menu when clicking elsewhere. The kebab button's
    own handler stops propagation, so this fires only for outside clicks. */
