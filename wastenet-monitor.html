@@ -557,6 +557,41 @@
   .draft-auto .noaddr{color:#A32D2D; font-weight:600;}
   .draft-note{color:var(--ink-2); font-size:12.5px;}
   .draft-soon{margin-top:10px; font-size:12px; color:var(--green-dark); font-weight:500;}
+  /* compose modal */
+  .cmodal{position:fixed; inset:0; background:rgba(20,30,25,0.45); z-index:200; display:none; align-items:flex-start; justify-content:center; padding:34px 16px; overflow-y:auto;}
+  .cmodal.show{display:flex;}
+  .cmp-card{background:var(--card); border:0.5px solid var(--line); border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,0.25); width:100%; max-width:640px; overflow:hidden;}
+  .cmp-head{display:flex; align-items:center; justify-content:space-between; padding:14px 18px; background:var(--green-tint-2); border-bottom:0.5px solid var(--green-border);}
+  .cmp-title{font-size:14px; font-weight:700; color:var(--green-darker);}
+  .cmp-x{background:none; border:0; font-family:var(--font); font-size:12.5px; color:var(--ink-2); cursor:pointer;}
+  .cmp-body{padding:16px 18px; max-height:none;}
+  .cmp-field{margin-bottom:12px;}
+  .cmp-field label{display:block; font-size:12px; color:var(--ink-2); margin-bottom:4px;}
+  .cmp-input{width:100%; font-family:var(--font); font-size:13px; color:var(--ink); border:1px solid var(--line-strong); border-radius:6px; background:var(--card); height:32px; padding:0 10px;}
+  .cmp-input:focus{outline:none; border-color:var(--green); box-shadow:0 0 0 3px var(--green-tint);}
+  .cmp-textarea{height:auto; min-height:150px; padding:9px 10px; line-height:1.5; resize:vertical;}
+  .cmp-chips{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;}
+  .cmp-chip{font-size:11px; color:var(--ink-2); background:var(--card); border:0.5px solid var(--line-strong); border-radius:var(--r-pill); padding:3px 10px; cursor:pointer;}
+  .cmp-chip:hover{background:var(--green-tint); border-color:var(--green-border); color:var(--green-darker);}
+  .cmp-picker{background:var(--green-tint-2); border:0.5px solid var(--green-border); border-radius:var(--r-ctl); padding:12px 14px; margin-bottom:12px;}
+  .cmp-picker-h{font-size:12px; font-weight:600; color:var(--green-darker); margin-bottom:10px;}
+  .cmp-yr-row{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
+  .cmp-lab{font-size:12px; color:var(--ink-2);}
+  .cmp-year{font-family:var(--font); font-size:12.5px; border:1px solid var(--line-strong); border-radius:6px; height:28px; padding:0 8px; background:var(--card);}
+  .cmp-months{display:grid; grid-template-columns:repeat(6,1fr); gap:7px;}
+  .cmp-mo{font-size:12px; text-align:center; padding:7px 2px; border-radius:6px; border:0.5px solid var(--line-strong); background:var(--card); color:var(--ink-2); cursor:pointer; font-family:var(--font);}
+  .cmp-mo.on{background:var(--green); border-color:var(--green); color:#fff; font-weight:600;}
+  .cmp-months-ro{margin-top:9px; font-size:12px; color:var(--ink-2);}
+  .cmp-months-ro b{color:var(--green-dark);}
+  .cmp-months-ro .muted{color:var(--ink-3); font-style:italic;}
+  .cmp-prev-head{font-size:12px; color:var(--ink-2); margin:16px 0 8px; border-top:0.5px solid var(--line); padding-top:14px;}
+  .cmp-preview{border:0.5px solid var(--line); border-radius:var(--r-ctl); overflow:hidden;}
+  .cmp-prev-subj{font-size:12px; color:var(--ink-2); padding:10px 12px; background:var(--panel); border-bottom:0.5px solid var(--line);}
+  .cmp-foot{display:flex; align-items:center; gap:10px; padding:12px 18px; border-top:0.5px solid var(--line);}
+  .cmp-note{font-size:11.5px; color:var(--ink-3); margin-right:auto;}
+  .cmp-btn{height:32px; padding:0 16px; border-radius:var(--r-ctl); border:0.5px solid var(--line-strong); background:var(--card); color:var(--ink); font-family:var(--font); font-size:13px; cursor:pointer;}
+  .cmp-btn.primary{background:var(--green); border-color:var(--green); color:#fff; font-weight:600;}
+  .cmp-btn.primary:disabled{opacity:0.45; cursor:not-allowed;}
   /* per-row kebab menu */
   .kebab-wrap{position:relative; flex:0 0 auto;}
   .kebab{width:26px; height:26px; border-radius:6px; border:0.5px solid transparent; background:transparent; color:var(--ink-3); font-size:17px; line-height:1; cursor:pointer; display:grid; place-items:center; padding:0;}
@@ -722,6 +757,8 @@
   </div>
 
 </div>
+
+<div id="composeModal" class="cmodal"><div class="cmp-card"></div></div>
 
 <!-- ONE copy of the explanations, shared by all three pages. Not inlined -
      an inlined copy is a copy, and copies drift. This is the whole point. -->
@@ -2581,16 +2618,15 @@ function wireRows(){
       if(btn) btn.className = sel.value ? "draft-btn show" : "draft-btn";
     });
   });
-  // Draft button: the compose screen is the next build; for now it confirms the
-  // button is wired and that the recipients above are what it will use.
+  // Draft button: open the compose modal for the selected type. Draft view only
+  // - the modal's Send is disabled until the final step.
   listEl.querySelectorAll(".draft-btn").forEach(function(bt){
     bt.addEventListener("click", function(e){
       e.stopPropagation();
       var panel = bt.closest(".draft-panel");
-      if(!panel) return;
-      var soon = panel.querySelector(".draft-soon");
-      if(!soon){ soon = document.createElement("div"); soon.className = "draft-soon"; panel.appendChild(soon); }
-      soon.textContent = "Compose screen is the next build \u2014 the recipients above are what it will use.";
+      var sel = panel ? panel.querySelector(".draft-type") : null;
+      if(!sel || !sel.value) return;
+      openCompose(bt.getAttribute("data-box"), sel.value);
     });
   });
   listEl.querySelectorAll(".move-strip").forEach(function(st){
@@ -3038,6 +3074,188 @@ document.addEventListener("click", function(){
     onScroll();
   }
 })();
+
+/* ---------- compose (draft an email for one box) ----------
+   Clicking "Draft" opens a modal with the editable email and a live preview of
+   exactly what goes out. The body/subject keep their [placeholders]; the
+   preview fills them from THIS box (location, suggested date) and, for Weights,
+   the month picker. Nothing sends here - that is the final step. Email-shell
+   helpers are ported from the Templates page so the preview matches reality. */
+var COMPOSE_LOGO = "https://dashboard.wastenetinc.com/wastenet-logo.png";
+var COMPOSE_DISCLAIMER =
+  "This email and any files transmitted with it are confidential and intended solely for the " +
+  "use of the individual or entity to whom they are addressed. If you have received this email " +
+  "in error, please notify the sender immediately and delete it from your system.";
+
+function boxById(id){
+  id = normBoxId(id);
+  for(var i=0;i<state.rows.length;i++){ if(String(state.rows[i].id) === id) return state.rows[i]; }
+  return null;
+}
+function boldLiteralSites(html){
+  var lines = String(html).split("\n"), out = [], arming = false;
+  for(var i=0;i<lines.length;i++){
+    var raw = lines[i], flat = raw.trim();
+    if(arming && flat === ""){ arming = false; out.push(raw); continue; }
+    if(arming && flat && flat.indexOf("<") === -1){
+      out.push('<span style="color:#3B6D11;font-weight:bold;">\u2022 ' + flat + '</span>'); continue;
+    }
+    out.push(raw);
+    if(/compactor/i.test(flat) && /:\s*$/.test(flat)) arming = true;
+  }
+  return out.join("\n");
+}
+function composeFill(text, vals){
+  var out = esc(String(text || ""));
+  Object.keys(vals).forEach(function(k){ out = out.split("[" + k + "]").join(vals[k]); });
+  out = boldLiteralSites(out);
+  return out.replace(/\n/g, "<br>");
+}
+function composeShell(innerHtml){
+  return '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FAFBF8;padding:20px 10px;">'+
+    '<tr><td align="center"><table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:#FFFFFF;border:1px solid #E4E7E0;border-radius:8px;">'+
+    '<tr><td style="padding:24px 28px 20px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.65;color:#1A1D1A;">'+innerHtml+'</td></tr>'+
+    '<tr><td style="padding:0 28px 20px;"><img src="'+COMPOSE_LOGO+'" alt="WasteNet" width="150" style="display:block;border:0;"></td></tr>'+
+    '<tr><td style="padding:14px 28px 20px;border-top:1px solid #E4E7E0;font-family:Arial,Helvetica,sans-serif;">'+
+    '<div style="font-size:11px;font-weight:bold;color:#525A60;margin-bottom:5px;">Wasteflo, Inc. d.b.a. WasteNet</div>'+
+    '<div style="font-size:10px;line-height:1.5;color:#8A8F8A;font-style:italic;">'+COMPOSE_DISCLAIMER+'</div>'+
+    '</td></tr></table></td></tr></table>';
+}
+var COMPOSE_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+var compose = { boxId:null, type:null, months:{}, year:"2026" };
+
+// The values this box fills into a draft's placeholders, for the preview.
+function composeVals(box){
+  var loc = box ? String(box.fullDesc || box.desc || "") : "";
+  var green = function(s){ return '<span style="color:#3B6D11;font-weight:bold;">'+esc(s)+'</span>'; };
+  var siteLine = loc ? '<span style="color:#3B6D11;font-weight:bold;">\u2022 '+esc(loc)+'</span>' : "";
+  var v = { "box description":siteLine, "box list":siteLine, "service description":siteLine };
+  var sug = box ? (function(){ try { return suggestedPickupFor(box); } catch(e){ return null; } })() : null;
+  if(sug && sug.label) v["pickup date"] = green(sug.label);
+  if(compose.type === "Weights"){
+    v["year"] = green(compose.year || "2026");
+    var ms = COMPOSE_MONTHS.filter(function(n,i){ return compose.months[i]; }).join(", ");
+    v["months"] = ms ? green(ms) : '[months]';
+  }
+  return v;
+}
+function composeMonthsStr(){ return COMPOSE_MONTHS.filter(function(n,i){ return compose.months[i]; }).join(", "); }
+
+function refreshComposePreview(){
+  var box = boxById(compose.boxId);
+  var subjEl = document.getElementById("cmpSubj"), bodyEl = document.getElementById("cmpBody");
+  var prev = document.getElementById("cmpPreview");
+  if(!subjEl || !bodyEl || !prev) return;
+  var vals = composeVals(box);
+  // subject: plain-fill (no HTML)
+  var subj = String(subjEl.value || "");
+  Object.keys(vals).forEach(function(k){
+    var plain = String(vals[k]).replace(/<[^>]+>/g,"").replace(/^\u2022\s*/,"");
+    subj = subj.split("["+k+"]").join(plain);
+  });
+  var bodyHtml = composeFill(bodyEl.value, vals);
+  prev.innerHTML =
+    '<div class="cmp-prev-subj">Subject: <b>'+esc(subj)+'</b></div>'+
+    composeShell(bodyHtml);
+  // month readout
+  var ro = document.getElementById("cmpMonthsRO");
+  if(ro){ var ms = composeMonthsStr(); ro.innerHTML = ms ? '<b>[months]</b> \u2192 <b>'+esc(ms)+'</b>' : '<span class="muted">Pick the months you need.</span>'; }
+}
+
+function chip(addr, targetId){
+  return '<button type="button" class="cmp-chip" data-addto="'+esc(targetId)+'" data-addr="'+esc(addr)+'">'+esc(addr)+'</button>';
+}
+function openCompose(boxId, type){
+  var box = boxById(boxId);
+  var tpl = (state.templates && state.templates[type]) || null;
+  compose = { boxId:boxId, type:type, months:{}, year:"2026" };
+
+  var isBlank = (type === "Blank");
+  var rule = PILL_TO[type];
+  var recip = boxRecip(boxId);
+  var toVal = "", ccVal = "";
+  if(!isBlank && rule){
+    toVal = recip[rule.to] || "";
+    if(rule.cc) ccVal = recip[rule.cc] || "";
+  }
+  var subject = tpl ? (tpl.subjectTemplate || "") : "";
+  var body    = tpl ? (tpl.bodyTemplate || "")    : "";
+  if(isBlank){ subject = ""; body = ""; }
+
+  // recipient chips available from this box (hauler / customer)
+  var chipsTo = "", chipsCc = "";
+  if(recip.hauler){ chipsTo += chip(recip.hauler, "cmpTo"); chipsCc += chip(recip.hauler, "cmpCc"); }
+  if(recip.customer){ chipsTo += chip(recip.customer, "cmpTo"); chipsCc += chip(recip.customer, "cmpCc"); }
+
+  var picker = "";
+  if(type === "Weights"){
+    picker = '<div class="cmp-picker"><div class="cmp-picker-h">Year &amp; months to request</div>'+
+      '<div class="cmp-yr-row"><span class="cmp-lab">Year</span>'+
+        '<select id="cmpYear" class="cmp-year"><option>2026</option><option>2027</option><option>2028</option></select></div>'+
+      '<div class="cmp-months" id="cmpMonths">'+
+        COMPOSE_MONTHS.map(function(n,i){ return '<button type="button" class="cmp-mo" data-mo="'+i+'">'+esc(n.slice(0,3))+'</button>'; }).join("")+
+      '</div><div class="cmp-months-ro" id="cmpMonthsRO"></div></div>';
+  }
+
+  var body_ =
+    '<div class="cmp-head"><div class="cmp-title">'+esc(isBlank?"Blank email":type)+' &middot; #'+esc(boxId)+'</div>'+
+      '<button class="cmp-x" type="button" id="cmpClose">Cancel</button></div>'+
+    '<div class="cmp-body">'+
+      '<div class="cmp-field"><label>To</label>'+
+        '<input class="cmp-input" id="cmpTo" value="'+esc(toVal)+'" placeholder="name@example.com; another@example.com">'+
+        (chipsTo?'<div class="cmp-chips">'+chipsTo+'</div>':'')+'</div>'+
+      '<div class="cmp-field"><label>Cc</label>'+
+        '<input class="cmp-input" id="cmpCc" value="'+esc(ccVal)+'" placeholder="optional">'+
+        (chipsCc?'<div class="cmp-chips">'+chipsCc+'</div>':'')+'</div>'+
+      picker+
+      '<div class="cmp-field"><label>Subject</label>'+
+        '<input class="cmp-input" id="cmpSubj" value="'+esc(subject)+'"></div>'+
+      '<div class="cmp-field"><label>Body</label>'+
+        '<textarea class="cmp-input cmp-textarea" id="cmpBody">'+esc(body)+'</textarea></div>'+
+      '<div class="cmp-prev-head">Preview \u2014 exactly what goes out (auto-BCC office@)</div>'+
+      '<div class="cmp-preview" id="cmpPreview"></div>'+
+    '</div>'+
+    '<div class="cmp-foot"><span class="cmp-note">Draft view \u2014 sending is the final step, not wired yet.</span>'+
+      '<button class="cmp-btn" type="button" id="cmpCancel">Close</button>'+
+      '<button class="cmp-btn primary" type="button" id="cmpSend" disabled title="Sending turns on in the final step">Send</button></div>';
+
+  var modal = document.getElementById("composeModal");
+  modal.querySelector(".cmp-card").innerHTML = body_;
+  modal.classList.add("show");
+
+  // wire
+  document.getElementById("cmpSubj").addEventListener("input", refreshComposePreview);
+  document.getElementById("cmpBody").addEventListener("input", refreshComposePreview);
+  document.getElementById("cmpClose").addEventListener("click", closeCompose);
+  document.getElementById("cmpCancel").addEventListener("click", closeCompose);
+  modal.querySelectorAll(".cmp-chip").forEach(function(c){
+    c.addEventListener("click", function(){
+      var inp = document.getElementById(c.getAttribute("data-addto"));
+      var addr = c.getAttribute("data-addr");
+      var cur = inp.value.trim();
+      if(cur.split(/[;,]/).map(function(s){return s.trim();}).indexOf(addr) !== -1) return;
+      inp.value = cur ? (cur.replace(/[;,\s]*$/,"") + "; " + addr) : addr;
+      refreshComposePreview();
+    });
+  });
+  if(type === "Weights"){
+    document.getElementById("cmpYear").addEventListener("change", function(){ compose.year = this.value; refreshComposePreview(); });
+    modal.querySelectorAll(".cmp-mo").forEach(function(mo){
+      mo.addEventListener("click", function(){
+        var i = +mo.getAttribute("data-mo");
+        compose.months[i] = !compose.months[i];
+        mo.classList.toggle("on", !!compose.months[i]);
+        refreshComposePreview();
+      });
+    });
+  }
+  refreshComposePreview();
+}
+function closeCompose(){
+  var modal = document.getElementById("composeModal");
+  modal.classList.remove("show");
+  modal.querySelector(".cmp-card").innerHTML = "";
+}
 
 /* The recipients (or note) shown under the "Draft an email" dropdown when a
    type is picked. Named templates resolve To/Cc live from master_contacts per
