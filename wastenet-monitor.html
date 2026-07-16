@@ -542,8 +542,44 @@
   /* compose modal */
   .cmodal{position:fixed; inset:0; background:rgba(20,30,25,0.45); z-index:200; display:none; align-items:flex-start; justify-content:center; padding:34px 16px; overflow-y:auto;}
   .cmodal.show{display:flex;}
-  .cmp-card{background:var(--card); border:0.5px solid var(--line); border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,0.25); width:100%; max-width:640px; overflow:hidden;}
-  .cmp-head{display:flex; align-items:center; justify-content:space-between; padding:14px 18px; background:var(--green-tint-2); border-bottom:0.5px solid var(--green-border);}
+  .cmp-card{background:var(--card); border:0.5px solid var(--line); border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,0.25); width:100%; max-width:1000px; max-height:88vh; display:flex; flex-direction:column; overflow:hidden;}
+  .cmp-head{display:flex; align-items:center; justify-content:space-between; gap:14px; padding:14px 18px; background:var(--green-tint-2); border-bottom:0.5px solid var(--green-border); flex:0 0 auto;}
+  .cmp-title{min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .cmp-title .cmp-desc{font-weight:500; color:var(--ink-2);}
+  .cmp-x{flex:0 0 auto;}
+  .cmp-panes{display:flex; flex:1; min-height:0;}
+  .cmp-left{flex:1.05; overflow-y:auto; padding:16px 18px; border-right:0.5px solid var(--line);}
+  .cmp-right{flex:1; overflow-y:auto; background:var(--panel); display:flex; flex-direction:column;}
+  .cmp-rhead{font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-3); font-weight:700; padding:14px 18px 8px; flex:0 0 auto;}
+  .cmp-prevwrap{padding:0 18px 18px;}
+  @media(max-width:840px){ .cmp-panes{flex-direction:column;} .cmp-left{border-right:0; border-bottom:0.5px solid var(--line);} }
+  /* recipient summary */
+  .cmp-recip-sum{margin:0 18px 12px; background:var(--card); border:0.5px solid var(--line); border-radius:8px; flex:0 0 auto;}
+  .cmp-recip-sum .rs-line{display:flex; align-items:center; gap:6px; padding:9px 12px; cursor:pointer; font-size:12.5px; color:var(--ink-2);}
+  .cmp-recip-sum .rs-part b{color:var(--ink);}
+  .cmp-recip-sum .rs-part.dim{color:var(--ink-3);}
+  .cmp-recip-sum .sep{color:var(--line-strong);}
+  .cmp-recip-sum .rs-car{margin-left:auto; font-size:10px; color:var(--ink-3); transition:transform .15s;}
+  .cmp-recip-sum.open .rs-car{transform:rotate(180deg);}
+  .cmp-recip-sum .rs-detail{display:none; border-top:0.5px solid var(--line); padding:9px 12px; font-size:12px;}
+  .cmp-recip-sum.open .rs-detail{display:block;}
+  .cmp-recip-sum .rd{margin-bottom:5px;}
+  .cmp-recip-sum .rd:last-child{margin-bottom:0;}
+  .cmp-recip-sum .rk{color:var(--ink-3); font-weight:600; margin-right:6px;}
+  .cmp-recip-sum .rv{color:var(--ink);}
+  .cmp-recip-sum .auto{color:var(--ink-3); font-style:italic;}
+  /* preview shell */
+  .cmp-shell{background:#fff; border:1px solid var(--line); border-radius:8px; overflow:hidden;}
+  .cmp-shell-body{padding:22px 24px; font-family:Arial,Helvetica,sans-serif; font-size:13px; line-height:1.65; color:#1A1D1A;}
+  .cmp-shell-logo{padding:0 24px 18px;}
+  .cmp-shell-logo img{height:34px;}
+  .cmp-shell-foot{padding:12px 24px 16px; border-top:1px solid #E4E7E0; font-family:Arial,Helvetica,sans-serif;}
+  .cmp-shell-foot .co{font-size:11px; font-weight:bold; color:#525A60; margin-bottom:6px;}
+  .cmp-disc-toggle{background:none; border:0; font-family:var(--font); font-size:11px; color:#7a8a72; cursor:pointer; padding:0; display:inline-flex; align-items:center; gap:4px;}
+  .cmp-disc-toggle .c{font-size:9px; transition:transform .15s;}
+  .cmp-disc-toggle.open .c{transform:rotate(180deg);}
+  .cmp-disc-body{display:none; font-size:9.5px; line-height:1.5; color:#8A8F8A; font-style:italic; margin-top:7px;}
+  .cmp-disc-body.show{display:block;}
   .cmp-title{font-size:14px; font-weight:700; color:var(--green-darker);}
   .cmp-x{background:none; border:0; font-family:var(--font); font-size:12.5px; color:var(--ink-2); cursor:pointer;}
   .cmp-body{padding:16px 18px; max-height:none;}
@@ -3125,6 +3161,34 @@ function composeShell(innerHtml){
 }
 var COMPOSE_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 var compose = { boxId:null, type:null, months:{}, year:"2026" };
+var composeRsOpen = false, composeDiscOpen = false;
+
+function composeBccAll(){
+  var b = compose.bcc.slice();
+  if(b.map(function(x){ return x.toLowerCase(); }).indexOf("office@wastenetinc.com") === -1) b = b.concat(["office@wastenetinc.com"]);
+  return b;
+}
+function composeRecipSummaryHtml(){
+  if(!compose.type) return "";
+  var bcc = composeBccAll();
+  function part(l, arr){ return arr.length ? '<span class="rs-part">'+l+': <b>'+arr.length+'</b></span>' : '<span class="rs-part dim">'+l+': \u2014</span>'; }
+  function detail(l, arr, note){ return '<div class="rd"><span class="rk">'+l+'</span><span class="rv">'+(arr.length ? esc(arr.join("; ")) : '<span class="auto">none</span>')+(note ? ' <span class="auto">'+note+'</span>' : '')+'</span></div>'; }
+  return '<div class="cmp-recip-sum'+(composeRsOpen ? " open" : "")+'">'+
+    '<div class="rs-line" onclick="toggleComposeRs()">'+part("To", compose.to)+'<span class="sep">\u00b7</span>'+part("Cc", compose.cc)+'<span class="sep">\u00b7</span><span class="rs-part">Bcc: <b>'+bcc.length+'</b></span><span class="rs-car">\u25be</span></div>'+
+    '<div class="rs-detail">'+detail("To", compose.to)+detail("Cc", compose.cc)+detail("Bcc", bcc, "(office@ always added)")+'</div>'+
+  '</div>';
+}
+function toggleComposeRs(){
+  composeRsOpen = !composeRsOpen;
+  var el = document.querySelector(".cmp-recip-sum");
+  if(el) el.classList.toggle("open", composeRsOpen);
+}
+function toggleComposeDisc(){
+  composeDiscOpen = !composeDiscOpen;
+  var t = document.querySelector(".cmp-disc-toggle"), b = document.querySelector(".cmp-disc-body");
+  if(t){ t.classList.toggle("open", composeDiscOpen); var l = t.querySelector(".lbl"); if(l) l.textContent = (composeDiscOpen ? "Hide" : "Show")+" legal disclaimer"; }
+  if(b) b.classList.toggle("show", composeDiscOpen);
+}
 
 // The values this box fills into a draft's placeholders, for the preview.
 function composeVals(box){
@@ -3144,12 +3208,17 @@ function composeVals(box){
 function composeMonthsStr(){ return COMPOSE_MONTHS.filter(function(n,i){ return compose.months[i]; }).join(", "); }
 
 function refreshComposePreview(){
-  var box = boxById(compose.boxId);
-  var subjEl = document.getElementById("cmpSubj"), bodyEl = document.getElementById("cmpBody");
+  var rsum = document.getElementById("cmpRsum");
+  if(rsum) rsum.innerHTML = composeRecipSummaryHtml();
   var prev = document.getElementById("cmpPreview");
-  if(!subjEl || !bodyEl || !prev) return;
+  if(!prev) return;
+  var subjEl = document.getElementById("cmpSubj"), bodyEl = document.getElementById("cmpBody");
+  if(!subjEl || !bodyEl){
+    prev.innerHTML = '<div class="cmp-empty">Pick an email type to see the preview build here.</div>';
+    return;
+  }
+  var box = boxById(compose.boxId);
   var vals = composeVals(box);
-  // subject: plain-fill (no HTML)
   var subj = String(subjEl.value || "");
   Object.keys(vals).forEach(function(k){
     var plain = String(vals[k]).replace(/<[^>]+>/g,"").replace(/^\u2022\s*/,"");
@@ -3158,8 +3227,14 @@ function refreshComposePreview(){
   var bodyHtml = composeFill(bodyEl.value, vals);
   prev.innerHTML =
     '<div class="cmp-prev-subj">Subject: <b>'+esc(subj)+'</b></div>'+
-    composeShell(bodyHtml);
-  // month readout
+    '<div class="cmp-shell">'+
+      '<div class="cmp-shell-body">'+bodyHtml+'</div>'+
+      '<div class="cmp-shell-logo"><img src="'+COMPOSE_LOGO+'" alt="WasteNet" onerror="this.parentNode.innerHTML=\'<b style=&quot;color:#5CAA16;font-size:18px&quot;>WASTENET</b>\'"></div>'+
+      '<div class="cmp-shell-foot"><div class="co">Wasteflo, Inc. d.b.a. WasteNet</div>'+
+        '<button type="button" class="cmp-disc-toggle'+(composeDiscOpen?" open":"")+'" onclick="toggleComposeDisc()"><span class="lbl">'+(composeDiscOpen?"Hide":"Show")+' legal disclaimer</span> <span class="c">\u25be</span></button>'+
+        '<div class="cmp-disc-body'+(composeDiscOpen?" show":"")+'">'+COMPOSE_DISCLAIMER+'</div>'+
+      '</div>'+
+    '</div>';
   var ro = document.getElementById("cmpMonthsRO");
   if(ro){ var ms = composeMonthsStr(); ro.innerHTML = ms ? '<b>[months]</b> \u2192 <b>'+esc(ms)+'</b>' : '<span class="muted">Pick the months you need.</span>'; }
 }
@@ -3178,10 +3253,12 @@ function addRecip(which, email){
   email = String(email).trim(); if(!email) return;
   if(compose[which].indexOf(email) === -1) compose[which].push(email);
   renderRecip(which);
+  refreshComposePreview();
 }
 function delRecip(which, email){
   compose[which] = compose[which].filter(function(e){ return e !== email; });
   renderRecip(which);
+  refreshComposePreview();
 }
 function closeRecipMenus(){
   var m = document.querySelectorAll(".cmp-rmenu, .cmp-ta");
@@ -3264,18 +3341,28 @@ document.addEventListener("mousedown", function(e){
 
 function openCompose(boxId){
   compose = { boxId:boxId, type:null, months:{}, year:"2026", to:[], cc:[], bcc:[], _book:buildAddressBook() };
+  composeRsOpen = false; composeDiscOpen = false;
+  var box = boxById(boxId);
+  var desc = box ? String(box.fullDesc || box.desc || "") : "";
 
   var typeOpts = '<option value="">Choose a template\u2026</option>' +
     state.templateOrder.map(function(n){ return '<option value="'+esc(n)+'">'+esc(n)+'</option>'; }).join("") +
     '<option value="Blank">Blank email \u2014 custom</option>';
 
   var body_ =
-    '<div class="cmp-head"><div class="cmp-title">Draft an email &middot; #'+esc(boxId)+'</div>'+
+    '<div class="cmp-head"><div class="cmp-title">Draft an email \u00b7 #'+esc(boxId)+(desc ? ' <span class="cmp-desc">\u2014 '+esc(desc)+'</span>' : '')+'</div>'+
       '<button class="cmp-x" type="button" id="cmpClose">Cancel</button></div>'+
-    '<div class="cmp-body">'+
-      '<div class="cmp-typebar"><label>Email type</label>'+
-        '<select class="cmp-type" id="cmpType">'+typeOpts+'</select></div>'+
-      '<div id="cmpForm"></div>'+
+    '<div class="cmp-panes">'+
+      '<div class="cmp-left">'+
+        '<div class="cmp-typebar"><label>Email type</label>'+
+          '<select class="cmp-type" id="cmpType">'+typeOpts+'</select></div>'+
+        '<div id="cmpForm"></div>'+
+      '</div>'+
+      '<div class="cmp-right">'+
+        '<div class="cmp-rhead">Preview \u2014 exactly what goes out</div>'+
+        '<div id="cmpRsum"></div>'+
+        '<div class="cmp-prevwrap" id="cmpPreview"></div>'+
+      '</div>'+
     '</div>'+
     '<div class="cmp-foot"><span class="cmp-note">Editing here never changes the saved template \u00b7 office@ auto-BCC\u2019d</span>'+
       '<button class="cmp-btn" type="button" id="cmpCancel">Close</button>'+
@@ -3302,6 +3389,7 @@ function loadComposeType(type){
 
   if(!type){
     form.innerHTML = '<div class="cmp-empty">Pick an email type above \u2014 a template to start from, or Blank for a custom message.</div>';
+    refreshComposePreview();
     return;
   }
 
@@ -3332,9 +3420,7 @@ function loadComposeType(type){
     '<div class="cmp-rfield" data-f="bcc"><span class="rlabel">Bcc</span><div class="cmp-rbox" id="cmp-bcc-box"></div></div>'+
     picker+
     '<div class="cmp-field"><label>Subject</label><input class="cmp-input" id="cmpSubj" value="'+esc(subject)+'"></div>'+
-    '<div class="cmp-field"><label>Body</label><textarea class="cmp-input cmp-textarea" id="cmpBody">'+esc(body)+'</textarea></div>'+
-    '<div class="cmp-prev-head">Preview \u2014 exactly what goes out (auto-BCC office@)</div>'+
-    '<div class="cmp-preview" id="cmpPreview"></div>';
+    '<div class="cmp-field"><label>Body</label><textarea class="cmp-input cmp-textarea" id="cmpBody">'+esc(body)+'</textarea></div>';
 
   document.getElementById("cmpSubj").addEventListener("input", refreshComposePreview);
   document.getElementById("cmpBody").addEventListener("input", refreshComposePreview);
