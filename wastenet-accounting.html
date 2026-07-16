@@ -380,7 +380,7 @@
      document inside how tall it wants to be - so with only a max-height the
      card collapsed to the frame's min-height and the preview came out letterbox
      sized. Give the card a real height and flex:1 has something to fill. */
-  .stmt-card{width:min(780px,100%); height:min(90vh, 940px); display:flex; flex-direction:column;
+  .stmt-card{width:min(1000px,100%); height:min(90vh, 940px); display:flex; flex-direction:column;
     background:var(--card); border-radius:var(--r-card); overflow:hidden;
     box-shadow:0 10px 40px rgba(0,0,0,0.22);}
   .stmt-top{display:flex; align-items:center; gap:12px; padding:15px 18px;
@@ -402,6 +402,44 @@
     padding:0 16px; border-radius:var(--r-ctl); border:none; background:var(--green);
     color:#fff; cursor:pointer;}
   .stmt-send:disabled{opacity:0.6; cursor:default;}
+  /* two-pane statement redesign */
+  .st-panes{display:flex; flex:1 1 auto; min-height:0;}
+  .st-left{width:46%; overflow-y:auto; padding:16px 18px; border-right:0.5px solid var(--line); display:flex; flex-direction:column;}
+  .st-right{flex:1; min-width:0; display:flex; flex-direction:column; background:var(--panel);}
+  .st-rhead{font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-3); font-weight:700; padding:12px 16px 8px; flex:0 0 auto;}
+  .st-rsum{margin:0 16px 10px; background:var(--card); border:0.5px solid var(--line); border-radius:8px; padding:9px 12px; font-size:12.5px; color:var(--ink-2); flex:0 0 auto;}
+  .st-rsum b{color:var(--ink);}
+  .st-rsum .sep{color:var(--line-strong); margin:0 5px;}
+  @media(max-width:820px){ .st-panes{flex-direction:column;} .st-left{width:auto; border-right:0; border-bottom:0.5px solid var(--line);} }
+  .st-rfield{position:relative; border:1px solid var(--line-strong); border-radius:10px; padding:8px 8px 9px; margin-bottom:13px; background:var(--card);}
+  .st-rfield.focus{border-color:var(--green); box-shadow:0 0 0 3px var(--green-tint);}
+  .st-rlabel{position:absolute; top:-8px; left:12px; background:var(--card); padding:0 6px; font-size:11px; font-weight:600; color:var(--ink-2);}
+  .st-rbox{display:flex; flex-wrap:wrap; gap:6px; align-items:center; min-height:30px;}
+  .st-tok{display:inline-flex; align-items:center; gap:6px; font-size:12px; background:var(--panel); border:0.5px solid var(--line-strong); border-radius:var(--r-pill); padding:3px 6px 3px 10px; max-width:100%;}
+  .st-tok.agent{background:var(--green-tint); border-color:var(--green-border); color:var(--green-darker);}
+  .st-tok.staff{background:var(--amber-tint); border-color:#E6C99B; color:var(--amber-dark);}
+  .st-tok .a{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:210px;}
+  .st-tok .tx{border:0; background:none; cursor:pointer; color:inherit; opacity:0.55; font-size:14px; line-height:1; padding:0 1px;}
+  .st-tok .tx:hover{opacity:1;}
+  .st-rin{flex:1; min-width:110px; border:0; outline:0; background:none; font-family:var(--font); font-size:13px; color:var(--ink); height:24px;}
+  .st-addbtn{font-size:11.5px; font-weight:600; color:var(--green-dark); background:var(--green-tint-2); border:0.5px solid var(--green-border); border-radius:var(--r-pill); padding:3px 10px; cursor:pointer; white-space:nowrap; font-family:var(--font);}
+  .st-addbtn:hover{background:var(--green-tint);}
+  .st-menu{position:absolute; top:calc(100% - 2px); right:8px; background:var(--card); border:0.5px solid var(--line-strong); border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,0.12); padding:5px; min-width:210px; z-index:10;}
+  .st-menu .sec{font-size:10px; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-3); font-weight:700; padding:6px 8px 3px;}
+  .st-menu .mi{display:flex; align-items:center; gap:8px; width:100%; text-align:left; background:none; border:0; font-family:var(--font); font-size:12.5px; color:var(--ink); padding:7px 8px; border-radius:6px; cursor:pointer;}
+  .st-menu .mi:hover{background:var(--panel);}
+  .st-menu .dot{width:8px; height:8px; border-radius:50%; flex:0 0 auto;}
+  .st-menu .mi .n{margin-left:auto; color:var(--ink-3); font-size:11px;}
+  .st-ta{position:absolute; left:8px; right:8px; top:calc(100% - 2px); background:var(--card); border:0.5px solid var(--line-strong); border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,0.12); padding:5px; z-index:12;}
+  .st-ta .opt{display:flex; align-items:center; gap:8px; padding:7px 9px; border-radius:6px; cursor:pointer; font-size:12.5px;}
+  .st-ta .opt:hover{background:var(--panel);}
+  .st-ta .opt b{font-weight:600;}
+  .st-ta .opt .role{margin-left:auto; font-size:10px; color:var(--ink-3);}
+  .st-note-lab{font-size:12px; font-weight:600; color:var(--ink-2); margin:6px 0 4px;}
+  .st-hint{font-size:11px; color:var(--ink-3); margin-bottom:6px;}
+  .st-note{width:100%; font-family:var(--font); font-size:13px; color:var(--ink); border:1px solid var(--line-strong); border-radius:6px; background:var(--card); padding:9px 10px; line-height:1.5; min-height:100px; resize:vertical;}
+  .st-note:focus{outline:none; border-color:var(--green); box-shadow:0 0 0 3px var(--green-tint);}
+  .stmt-frame{flex:1 1 auto; width:100%; border:0; background:var(--page); display:block; min-height:0;}
 
   .agmail-e{font-size:11px; color:var(--green-dark); background:transparent;
             border:none; cursor:pointer; padding:2px 6px; border-radius:var(--r-input);
@@ -1494,8 +1532,10 @@ function openStmtPreview(agent){
 
   var build = function(){
     state.stmt = {
-      agent: agent, name: a.name, to: cfg.email, period: state.agMonth,
-      html: statementHtml(a, state.agMonth),
+      agent: agent, name: a.name, period: state.agMonth,
+      to: cfg.email ? splitEmails(cfg.email) : [],
+      cc: [], bcc: [BCC], note: "",
+      _a: a, _agentEmail: cfg.email || "", _book: stmtBook(),
       subject: "WasteNet Commission Statement \u2014 " + stmtPeriodLabel(state.agMonth),
       payout: a.payout, boxes: a.boxes, invoices: docs.length,
       sending: false
@@ -1534,45 +1574,125 @@ function openStmtPreview(agent){
   });
 }
 
+/* ---- statement recipients: token fields, +Add, type-ahead (ported from the
+   compose window). Address book = agent emails from Agent Settings + staff. ---- */
+function splitEmails(s){ return String(s || "").split(/[;,]/).map(function(x){ return x.trim(); }).filter(Boolean); }
+var ST_STAFF = "office@wastenetinc.com; lgrundy@wastenetinc.com; kim@wastenetinc.com";
+var ST_ROLE = { agent:{ label:"Agent", dot:"#5CAA16" }, staff:{ label:"Staff (WasteNet)", dot:"#7A5320" } };
+function stmtBook(){
+  var seen = {};
+  Object.keys(state.agSettings || {}).forEach(function(code){
+    splitEmails((state.agSettings[code] || {}).email).forEach(function(e){ var k=e.toLowerCase(); if(!seen[k]) seen[k]={email:e,role:"agent"}; });
+  });
+  splitEmails(ST_STAFF).forEach(function(e){ var k=e.toLowerCase(); if(!seen[k]) seen[k]={email:e,role:"staff"}; });
+  return Object.keys(seen).map(function(k){ return seen[k]; });
+}
+function stmtRole(email){
+  var k=String(email).toLowerCase();
+  var f=((state.stmt && state.stmt._book) || []).filter(function(b){ return b.email.toLowerCase()===k; })[0];
+  return f ? f.role : "agent";
+}
+function noteBlockHtml(note){
+  note = String(note || "").trim();
+  if(!note) return "";
+  return '<div style="margin:0 0 18px;padding:12px 14px;background:#F4FAEC;border:1px solid #C0DD97;border-radius:6px;font-size:13px;line-height:1.6;color:#1A1D1A;white-space:pre-wrap;">'+ esc(note) +'</div>';
+}
+function srCloseMenus(){ var m=document.querySelectorAll(".st-menu,.st-ta"); for(var i=0;i<m.length;i++) m[i].parentNode.removeChild(m[i]); }
+function srAddRecip(which, email){ email=String(email).trim(); if(!email) return; var st=state.stmt; if(st[which].indexOf(email)===-1) st[which].push(email); srRenderRecip(which); srUpdateSummary(); }
+function srDelRecip(which, email){ var st=state.stmt; st[which]=st[which].filter(function(e){ return e!==email; }); srRenderRecip(which); srUpdateSummary(); }
+function srRenderRecip(which){
+  var box=document.getElementById("st-"+which+"-box"); if(!box) return;
+  var st=state.stmt;
+  box.innerHTML = st[which].map(function(e){
+    return '<span class="st-tok '+stmtRole(e)+'"><span class="a" title="'+esc(e)+'">'+esc(e)+'</span>'+
+      '<button type="button" class="tx" data-del="'+esc(which)+'\u0001'+esc(e)+'">\u00d7</button></span>';
+  }).join("")+
+    '<input class="st-rin" data-rin="'+which+'" placeholder="'+(st[which].length?"":"Type a name or address\u2026")+'">'+
+    '<button type="button" class="st-addbtn" data-radd="'+which+'">+ Add \u25be</button>';
+  srWireRecip(which);
+}
+function srWireRecip(which){
+  var box=document.getElementById("st-"+which+"-box"); if(!box) return;
+  box.querySelectorAll("[data-del]").forEach(function(b){ b.addEventListener("click", function(){ var p=b.getAttribute("data-del").split("\u0001"); srDelRecip(p[0],p[1]); }); });
+  var inp=box.querySelector("[data-rin]");
+  inp.addEventListener("input", function(){ srTypeahead(which, inp); });
+  inp.addEventListener("keydown", function(e){ if(e.key==="Enter"&&inp.value.trim()){ e.preventDefault(); srAddRecip(which, inp.value); srCloseMenus(); } });
+  inp.addEventListener("focus", function(){ box.closest(".st-rfield").classList.add("focus"); });
+  inp.addEventListener("blur", function(){ box.closest(".st-rfield").classList.remove("focus"); });
+  box.querySelector("[data-radd]").addEventListener("click", function(e){ e.stopPropagation(); srAddMenu(which, box.querySelector("[data-radd]")); });
+}
+function srAddMenu(which, anchor){
+  srCloseMenus();
+  var st=state.stmt;
+  var roles=[]; if(st._agentEmail) roles.push(["agent", st._agentEmail]); roles.push(["staff", ST_STAFF]);
+  var m=document.createElement("div"); m.className="st-menu";
+  m.innerHTML='<div class="sec">Add</div>'+roles.map(function(r){
+    var meta=ST_ROLE[r[0]], n=splitEmails(r[1]).length;
+    return '<button type="button" class="mi" data-role="'+which+'\u0001'+r[0]+'"><span class="dot" style="background:'+meta.dot+'"></span>'+meta.label+'<span class="n">'+n+'</span></button>';
+  }).join("");
+  anchor.parentNode.appendChild(m);
+  m.querySelectorAll("[data-role]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var p=b.getAttribute("data-role").split("\u0001");
+      var src=(p[1]==="agent") ? st._agentEmail : ST_STAFF;
+      splitEmails(src).forEach(function(e){ srAddRecip(p[0], e); });
+      srCloseMenus();
+    });
+  });
+}
+function srTypeahead(which, inp){
+  srCloseMenus();
+  var q=inp.value.trim().toLowerCase(); if(q.length<2) return;
+  var st=state.stmt;
+  var hits=(st._book||[]).filter(function(b){ return b.email.toLowerCase().indexOf(q)!==-1 && st[which].indexOf(b.email)===-1; }).slice(0,6);
+  if(!hits.length) return;
+  var t=document.createElement("div"); t.className="st-ta";
+  t.innerHTML=hits.map(function(h){ return '<div class="opt" data-pick="'+which+'\u0001'+esc(h.email)+'"><b>'+esc(h.email)+'</b><span class="role">'+esc(h.role)+'</span></div>'; }).join("");
+  inp.closest(".st-rfield").appendChild(t);
+  t.querySelectorAll("[data-pick]").forEach(function(o){ o.addEventListener("mousedown", function(){ var p=o.getAttribute("data-pick").split("\u0001"); srAddRecip(p[0],p[1]); srCloseMenus(); }); });
+}
+function srUpdateSummary(){
+  var el=document.getElementById("stRsum"); if(!el || !state.stmt) return;
+  var st=state.stmt;
+  el.innerHTML='To: <b>'+st.to.length+'</b><span class="sep">\u00b7</span>Cc: <b>'+st.cc.length+'</b><span class="sep">\u00b7</span>Bcc: <b>'+st.bcc.length+'</b> <span style="color:var(--ink-3)">(office@ always added)</span>';
+}
+document.addEventListener("mousedown", function(e){
+  var modal=document.getElementById("stmtModal");
+  if(!modal || !modal.classList.contains("show")) return;
+  if(!e.target.closest(".st-menu,.st-ta,[data-radd],[data-rin]")) srCloseMenus();
+});
+
 function renderStmtModal(){
   var el = document.getElementById("stmtModal");
   var st = state.stmt;
   if(!st){ el.className = "stmt-modal"; el.innerHTML = ""; return; }
   var already = (state.statements || {})[st.agent + "|" + st.period];
+  var first = String(st.name || "").split(" ")[0];
   el.className = "stmt-modal show";
   el.innerHTML =
     '<div class="stmt-card">'+
-      '<div class="stmt-top">'+
-        '<div>'+
-          // The period, in the title. It is the one thing that must be right before
-          // you press send, and the subject line at the far bottom of the modal is
-          // the wrong place to have to go and check it.
-          '<div class="stmt-h">Statement for ' + esc(st.name) + ' \u00b7 ' +
-            esc(stmtPeriodLabel(st.period)) + '</div>'+
-          '<div class="stmt-sub">To ' + esc(st.to) + ' \u00b7 bcc ' + esc(BCC) + '</div>'+
-        '</div>'+
-        '<button class="stmt-x" id="stmtX">Close</button>'+
-      '</div>'+
+      '<div class="stmt-top"><div>'+
+        '<div class="stmt-h">Statement for ' + esc(st.name) + ' \u00b7 ' + esc(stmtPeriodLabel(st.period)) + '</div>'+
+      '</div><button class="stmt-x" id="stmtX">Close</button></div>'+
       (already
-        ? '<div class="stmt-warn">This statement was already sent on ' +
-            esc(usDate(already.at.slice(0,10))) + '. Sending again will deliver a second copy.</div>'
+        ? '<div class="stmt-warn">This statement was already sent on ' + esc(usDate(already.at.slice(0,10))) +
+          '. Sending again will deliver a second copy.</div>'
         : '')+
-      /* AN IFRAME, NOT A DIV.
-       *
-       * This page carries a global rule - table{width:100%; table-layout:fixed}
-       * - that applies to every table on it. Injected into the page, the email's
-       * own tables were being overruled by the dashboard's stylesheet: the 600px
-       * card was stretched to the width of the modal, text stopped wrapping where
-       * it should, and the banner and disclaimer ran off the edge.
-       *
-       * So the preview was never showing the email. It was showing the email with
-       * the dashboard's CSS on top of it - which is not what any recipient will
-       * ever see, and is a worse fault than the overflow it produced. Three
-       * attempts went into fixing the email; the email was fine.
-       *
-       * An iframe has its own document and inherits nothing. What renders in here
-       * is what lands in John's inbox. */
-      '<iframe id="stmtFrame" class="stmt-frame" title="Statement preview"></iframe>'+
+      '<div class="st-panes">'+
+        '<div class="st-left">'+
+          '<div class="st-rfield"><span class="st-rlabel">To</span><div class="st-rbox" id="st-to-box"></div></div>'+
+          '<div class="st-rfield"><span class="st-rlabel">Cc</span><div class="st-rbox" id="st-cc-box"></div></div>'+
+          '<div class="st-rfield"><span class="st-rlabel">Bcc</span><div class="st-rbox" id="st-bcc-box"></div></div>'+
+          '<div class="st-note-lab">Personal note</div>'+
+          '<div class="st-hint">Optional \u2014 appears above the statement. The statement numbers are generated and can\u2019t be edited.</div>'+
+          '<textarea class="st-note" id="stNote" placeholder="Hi ' + esc(first) + ' \u2014 here\u2019s your statement for ' + esc(stmtPeriodLabel(st.period)) + '.">' + esc(st.note || "") + '</textarea>'+
+        '</div>'+
+        '<div class="st-right">'+
+          '<div class="st-rhead">Preview \u2014 exactly what goes out</div>'+
+          '<div class="st-rsum" id="stRsum"></div>'+
+          '<iframe id="stmtFrame" class="stmt-frame" title="Statement preview"></iframe>'+
+        '</div>'+
+      '</div>'+
       '<div class="stmt-foot">'+
         '<span class="stmt-subj">Subject: ' + esc(st.subject) + '</span>'+
         '<span style="flex:1;"></span>'+
@@ -1585,33 +1705,43 @@ function renderStmtModal(){
 }
 
 function wireStmtModal(){
-  /* srcdoc, so the frame gets a real document of its own with none of this
-     page's CSS in it. A plain white body and the email, exactly as sent. */
+  var st = state.stmt; if(!st) return;
   var fr = document.getElementById("stmtFrame");
-  if(fr && state.stmt){
+  if(fr){
     fr.srcdoc = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
       '<style>body{margin:0;padding:0;background:#FAFBF8;}</style></head><body>' +
-      state.stmt.html + '</body></html>';
+      statementHtml(st._a, st.period, st.note) + '</body></html>';
   }
+  srRenderRecip("to"); srRenderRecip("cc"); srRenderRecip("bcc"); srUpdateSummary();
+
+  var note = document.getElementById("stNote");
+  if(note) note.addEventListener("input", function(){
+    st.note = this.value;
+    // Update the note block inside the iframe in place - no reload, no flicker.
+    var d = fr && fr.contentDocument;
+    if(d){ var n = d.getElementById("stmtNote"); if(n) n.innerHTML = noteBlockHtml(st.note); }
+  });
 
   var close = function(){ state.stmt = null; renderStmtModal(); };
-  var x = document.getElementById("stmtX");     if(x) x.onclick = close;
-  var c = document.getElementById("stmtCancel"); if(c) c.onclick = close;
+  var x = document.getElementById("stmtX");      if(x) x.onclick = close;
+  var c = document.getElementById("stmtCancel");  if(c) c.onclick = close;
   var send = document.getElementById("stmtSend");
   if(send) send.onclick = function(){
-    var st = state.stmt;
     if(!st || st.sending) return;
+    if(!st.to.length){ showNote("Add at least one To recipient before sending.", true); return; }
+    var bcc = st.bcc.slice();
+    if(bcc.map(function(x){ return x.toLowerCase(); }).indexOf(BCC.toLowerCase()) === -1) bcc.push(BCC);
     st.sending = true;
     renderStmtModal();
 
     /* Sent by the MONITOR script - SendGrid lives there. */
     jsonpTo(MONITOR_API, {
       action:"send_email", key:KEY,
-      to: st.to, cc: "", bcc: BCC,
+      to: st.to.join(", "), cc: st.cc.join(", "), bcc: bcc.join(", "),
       subject: st.subject,
       body: "Your WasteNet commission statement for " + stmtPeriodLabel(st.period) +
             " is below. Commission is calculated on payments received in this period.",
-      html: st.html
+      html: statementHtml(st._a, st.period, st.note)
     }, function(data){
       if(!(data && data.ok)){
         st.sending = false;
@@ -1619,15 +1749,12 @@ function wireStmtModal(){
         showNote(esc((data && data.error) || "Could not send the statement."), true);
         return;
       }
-      /* The mail is gone. Record it - on the ACCOUNTING script, which owns the
-         Statement Log. If this write fails the statement still went out, so say
-         so plainly rather than implying it did not. */
       jsonp({ action:"statement_sent", key:KEY, agent: st.agent, period: st.period,
-              to: st.to, payout: st.payout, boxes: st.boxes, invoices: st.invoices,
+              to: st.to.join(", "), payout: st.payout, boxes: st.boxes, invoices: st.invoices,
               by: "dashboard" }, function(rec){
         if(!state.statements) state.statements = {};
         state.statements[st.agent + "|" + st.period] =
-          { at: new Date().toISOString(), to: st.to, payout: st.payout };
+          { at: new Date().toISOString(), to: st.to.join(", "), payout: st.payout };
         var name = st.name;
         state.stmt = null;
         renderStmtModal();
@@ -1643,7 +1770,6 @@ function wireStmtModal(){
     });
   };
 }
-
 
 function stmtPeriodLabel(ym){
   var p = String(ym || "").split("-");
@@ -1773,12 +1899,13 @@ function invoiceBlockHtml(i, first){
   '</div>';
 }
 
-function statementHtml(a, period){
+function statementHtml(a, period, note){
   var invs = a.invoices || [];
   var blocks = invs.map(function(i, n){ return invoiceBlockHtml(i, n === 0); }).join("");
   var payTot = invs.reduce(function(t,i){ return t + (i.payout || 0); }, 0);
 
   var inner =
+    '<div id="stmtNote">'+ noteBlockHtml(note) +'</div>'+
     '<div style="font-size:19px;font-weight:bold;color:#1A1D1A;">Commission Statement</div>'+
     '<div style="font-size:15px;color:#525A60;margin-top:3px;">'+ esc(a.name) +' \u00b7 '+
       esc(stmtPeriodLabel(period)) +'</div>'+
