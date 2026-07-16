@@ -534,6 +534,20 @@
   .detail{background:var(--panel); border-bottom:0.5px solid var(--line); padding:0 12px 14px 12px; display:none;}
   .detail.show{display:block;}
   .detail-inner{background:var(--card); border:0.5px solid var(--line); border-radius:var(--r-ctl); padding:14px 16px;}
+  /* per-box email template pills */
+  .tpl-row{margin-top:14px; border-top:0.5px solid var(--line); padding-top:12px;}
+  .tpl-head{font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink-3); font-weight:700; margin-bottom:9px;}
+  .tpl-pills{display:flex; flex-wrap:wrap; gap:8px;}
+  .tpl-pill{font-size:12.5px; font-weight:500; color:var(--ink-2); background:var(--card); border:0.5px solid var(--line-strong); border-radius:var(--r-pill); padding:6px 14px; cursor:pointer; font-family:inherit;}
+  .tpl-pill:hover{background:var(--green-tint); border-color:var(--green-border); color:var(--green-darker);}
+  .tpl-pill.on{background:var(--green); border-color:var(--green); color:#fff;}
+  .tpl-review{margin-top:11px; font-size:12.5px; color:var(--ink-2); display:none;}
+  .tpl-review.show{display:block;}
+  .tpl-review .rrow{display:flex; gap:8px; align-items:baseline; margin-bottom:3px;}
+  .tpl-review .rk{color:var(--ink-3); min-width:26px;}
+  .tpl-review .rv{color:var(--ink-2); font-weight:500;}
+  .tpl-review .noaddr{color:#A32D2D; font-weight:600;}
+  .tpl-review .hint{color:var(--ink-3); margin-top:6px; font-size:11.5px;}
   .dstats{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:12px;}
   .dstat{background:var(--panel); border-radius:var(--r-ctl); padding:9px 11px;}
   .dstat-top{display:flex; align-items:center; justify-content:space-between; gap:6px;}
@@ -729,7 +743,7 @@ function lockOut(msg){
 }
 
 var state = { rows: [], scanTitle: "", openId: null, staleOpen: false, view: "action",
-  tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, staffNotesById: {}, staffNotesUpdById: {}, emptyMarkedById: {}, ledgerById: {}, overrideById: {}, portalById: {}, actionBoxes: [], moveOpenId: null, moveBusy: false, showDismissed: false, bookOpenId: null, bookBusy: false, notesOpenId: null, schedTab: null, clearTab: null };
+  tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, staffNotesById: {}, staffNotesUpdById: {}, emptyMarkedById: {}, ledgerById: {}, overrideById: {}, portalById: {}, actionBoxes: [], moveOpenId: null, moveBusy: false, showDismissed: false, bookOpenId: null, bookBusy: false, notesOpenId: null, schedTab: null, clearTab: null, templates: {}, templateOrder: [], boxContacts: {} };
 
 /* ---------- JSONP ---------- */
 function jsonp(params, cb){
@@ -1580,9 +1594,24 @@ function detailHtml(b){
   }
   rows += '<div class="drow"><span class="dk">Full name</span><span class="dv">'+esc(b.fullDesc)+'</span></div>';
 
+  // Per-box email template pills. Clicking one reveals the recipients it would
+  // resolve to (this step is review-only; compose + send come next).
+  var pillRow = "";
+  if(state.templateOrder.length){
+    pillRow = '<div class="tpl-row">'+
+      '<div class="tpl-head">Email templates</div>'+
+      '<div class="tpl-pills">'+
+        state.templateOrder.map(function(name){
+          return '<button type="button" class="tpl-pill" data-tpl="'+esc(name)+'" data-box="'+esc(b.id)+'">'+esc(name)+'</button>';
+        }).join("")+
+      '</div>'+
+      '<div class="tpl-review"></div>'+
+    '</div>';
+  }
+
   return '<div class="detail'+(open?' show':'')+'" data-detail="'+esc(b.id)+'">'+
     '<div class="detail-inner">'+
-      stats + rows +
+      stats + rows + pillRow +
       /* This used to read "Scheduling, notifications, and confirmations aren't
          wired yet." They are, as of today - and a false note sitting inside the
          tool is worse than no note, because a new person would believe it. */
@@ -2642,6 +2671,66 @@ function load(){
   fetchEmptyMarked();
   fetchLedgerMarks();
   fetchHaulerPortals();
+  fetchTemplates();
+  fetchBoxContacts();
+}
+
+// The email templates (subject/body per kind), same source the Templates page
+// reads. Used to render the per-box template pills in the detail panel. The
+// pills exclude Notice and Batch: those two are sent by the schedule/notify
+// flow automatically, not hand-picked per box. Non-fatal on failure - no
+// templates means no pills, and the rest of the detail is unaffected.
+function fetchTemplates(){
+  jsonp({ action:"email_templates", key:KEY }, function(data){
+    if(data && data.ok){
+      state.templates = data.templates || {};
+      var preferred = ["Emptied","Missed","Premature","Problem","Repair","Usage","Weights","DNA"];
+      var have = Object.keys(state.templates);
+      var ordered = preferred.filter(function(n){ return have.indexOf(n) !== -1; });
+      have.forEach(function(n){
+        if(ordered.indexOf(n) === -1 && n !== "Notice" && n !== "Batch") ordered.push(n);
+      });
+      state.templateOrder = ordered;
+      render();
+    }
+  });
+}
+
+// Per-box recipients, straight off Master Box List (the same master_contacts
+// the Contacts page reads): toRecipients = hauler, ccRecipients = customer.
+// Keyed here by the normalized box id so a pill can resolve who its email
+// would go to. Non-fatal on failure - the map stays empty and pills report
+// "no recipient on file" rather than guessing.
+function fetchBoxContacts(){
+  jsonp({ action:"master_contacts", key:KEY }, function(data){
+    var raw = (data && data.contacts) || {};
+    var m = {};
+    Object.keys(raw).forEach(function(id){ m[normBoxId(id)] = raw[id]; });
+    state.boxContacts = m;
+    render();
+  });
+}
+
+// Which contact a given template's email goes to, per the recipient map Lon
+// set. One definition, read the same way everywhere - not a per-template
+// setting that could drift. "customer" and "hauler" resolve against the box's
+// master_contacts (customer = ccRecipients, hauler = toRecipients).
+var PILL_TO = {
+  "Emptied": { to:"customer" },
+  "Missed":  { to:"hauler", cc:"customer" },
+  "Repair":  { to:"customer" },
+  "Usage":   { to:"hauler", cc:"customer" },
+  "Weights": { to:"hauler" },
+  "DNA":     { to:"customer" }
+};
+
+// Resolve a box's hauler/customer recipient strings (may be empty).
+function boxRecip(boxId){
+  var c = state.boxContacts[normBoxId(boxId)] || {};
+  return {
+    hauler:   String(c.toRecipients || "").trim(),
+    customer: String(c.ccRecipients || "").trim()
+  };
 }
 
 // Fetch what we have told people, per box: the pickup date the service
@@ -2881,6 +2970,44 @@ document.addEventListener("click", function(){
     onScroll();
   }
 })();
+
+/* Per-box template pill -> reveal the recipients this template's email would
+   resolve to for this box, live from master_contacts. Review only in this
+   step; compose + send come next. Delegated so it survives list re-renders. */
+document.addEventListener("click", function(e){
+  var pill = e.target.closest ? e.target.closest(".tpl-pill") : null;
+  if(!pill) return;
+  var tpl = pill.getAttribute("data-tpl");
+  var boxId = pill.getAttribute("data-box");
+  var row = pill.closest(".tpl-row");
+  if(!row) return;
+  var review = row.querySelector(".tpl-review");
+  var pills = row.querySelectorAll(".tpl-pill");
+  var already = pill.classList.contains("on");
+  for(var i=0;i<pills.length;i++) pills[i].classList.remove("on");
+  if(already){ review.className = "tpl-review"; review.innerHTML = ""; return; }
+  pill.classList.add("on");
+
+  var rule = PILL_TO[tpl];
+  var recip = boxRecip(boxId);
+  var html = "";
+  if(!rule){
+    html = '<div class="hint">No recipient rule set for &ldquo;' + esc(tpl) + '&rdquo; yet.</div>';
+  } else {
+    var line = function(label, role){
+      var val = recip[role];
+      return '<div class="rrow"><span class="rk">' + label + '</span>' +
+        (val ? '<span class="rv">' + esc(val) + '</span>'
+             : '<span class="noaddr">no ' + role + ' on file for this box</span>') +
+      '</div>';
+    };
+    html = line("To", rule.to);
+    if(rule.cc) html += line("Cc", rule.cc);
+    html += '<div class="hint">Review only \u2014 composing and sending turn on in the next step.</div>';
+  }
+  review.innerHTML = html;
+  review.className = "tpl-review show";
+});
 
 /* ---------- lock screen ---------- (nav lives in logic.js) */
 (function(){
