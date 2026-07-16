@@ -570,9 +570,6 @@
   .cmp-input{width:100%; font-family:var(--font); font-size:13px; color:var(--ink); border:1px solid var(--line-strong); border-radius:6px; background:var(--card); height:32px; padding:0 10px;}
   .cmp-input:focus{outline:none; border-color:var(--green); box-shadow:0 0 0 3px var(--green-tint);}
   .cmp-textarea{height:auto; min-height:150px; padding:9px 10px; line-height:1.5; resize:vertical;}
-  .cmp-chips{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;}
-  .cmp-chip{font-size:11px; color:var(--ink-2); background:var(--card); border:0.5px solid var(--line-strong); border-radius:var(--r-pill); padding:3px 10px; cursor:pointer;}
-  .cmp-chip:hover{background:var(--green-tint); border-color:var(--green-border); color:var(--green-darker);}
   .cmp-picker{background:var(--green-tint-2); border:0.5px solid var(--green-border); border-radius:var(--r-ctl); padding:12px 14px; margin-bottom:12px;}
   .cmp-picker-h{font-size:12px; font-weight:600; color:var(--green-darker); margin-bottom:10px;}
   .cmp-yr-row{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
@@ -592,6 +589,32 @@
   .cmp-btn{height:32px; padding:0 16px; border-radius:var(--r-ctl); border:0.5px solid var(--line-strong); background:var(--card); color:var(--ink); font-family:var(--font); font-size:13px; cursor:pointer;}
   .cmp-btn.primary{background:var(--green); border-color:var(--green); color:#fff; font-weight:600;}
   .cmp-btn.primary:disabled{opacity:0.45; cursor:not-allowed;}
+  /* token recipient fields */
+  .cmp-rfield{position:relative; border:1px solid var(--line-strong); border-radius:10px; padding:8px 8px 9px; margin-bottom:13px; background:var(--card);}
+  .cmp-rfield.focus{border-color:var(--green); box-shadow:0 0 0 3px var(--green-tint);}
+  .cmp-rfield .rlabel{position:absolute; top:-8px; left:12px; background:var(--card); padding:0 6px; font-size:11px; font-weight:600; color:var(--ink-2); letter-spacing:0.02em;}
+  .cmp-rbox{display:flex; flex-wrap:wrap; gap:6px; align-items:center; min-height:30px;}
+  .cmp-tok{display:inline-flex; align-items:center; gap:6px; font-size:12px; background:var(--panel); border:0.5px solid var(--line-strong); border-radius:var(--r-pill); padding:3px 6px 3px 10px; max-width:100%;}
+  .cmp-tok.hauler{background:var(--green-tint); border-color:var(--green-border); color:var(--green-darker);}
+  .cmp-tok.customer{background:#E7EEF6; border-color:#C3D3E6; color:#274766;}
+  .cmp-tok.staff{background:#F5E9D6; border-color:#E6C99B; color:#7A5320;}
+  .cmp-tok .a{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:240px;}
+  .cmp-tok .tx{border:0; background:none; cursor:pointer; color:inherit; opacity:0.55; font-size:14px; line-height:1; padding:0 1px;}
+  .cmp-tok .tx:hover{opacity:1;}
+  .cmp-rin{flex:1; min-width:120px; border:0; outline:0; background:none; font-family:var(--font); font-size:13px; color:var(--ink); height:24px;}
+  .cmp-addbtn{font-size:11.5px; font-weight:600; color:var(--green-dark); background:var(--green-tint-2); border:0.5px solid var(--green-border); border-radius:var(--r-pill); padding:3px 10px; cursor:pointer; white-space:nowrap; font-family:var(--font);}
+  .cmp-addbtn:hover{background:var(--green-tint);}
+  .cmp-rmenu{position:absolute; top:calc(100% - 2px); right:8px; background:var(--card); border:0.5px solid var(--line-strong); border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,0.12); padding:5px; min-width:210px; z-index:10;}
+  .cmp-rmenu .sec{font-size:10px; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-3); font-weight:700; padding:6px 8px 3px;}
+  .cmp-rmenu .mi{display:flex; align-items:center; gap:8px; width:100%; text-align:left; background:none; border:0; font-family:var(--font); font-size:12.5px; color:var(--ink); padding:7px 8px; border-radius:6px; cursor:pointer;}
+  .cmp-rmenu .mi:hover{background:var(--panel);}
+  .cmp-rmenu .dot{width:8px; height:8px; border-radius:50%; flex:0 0 auto;}
+  .cmp-rmenu .mi .n{margin-left:auto; color:var(--ink-3); font-size:11px;}
+  .cmp-ta{position:absolute; left:8px; right:8px; top:calc(100% - 2px); background:var(--card); border:0.5px solid var(--line-strong); border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,0.12); padding:5px; z-index:12;}
+  .cmp-ta .opt{display:flex; align-items:center; gap:8px; padding:7px 9px; border-radius:6px; cursor:pointer; font-size:12.5px;}
+  .cmp-ta .opt:hover{background:var(--panel);}
+  .cmp-ta .opt b{font-weight:600;}
+  .cmp-ta .opt .role{margin-left:auto; font-size:10px; color:var(--ink-3);}
   /* per-row kebab menu */
   .kebab-wrap{position:relative; flex:0 0 auto;}
   .kebab{width:26px; height:26px; border-radius:6px; border:0.5px solid transparent; background:transparent; color:var(--ink-3); font-size:17px; line-height:1; cursor:pointer; display:grid; place-items:center; padding:0;}
@@ -2828,13 +2851,28 @@ var PILL_TO = {
   "DNA":     { to:"customer" }
 };
 
-// Resolve a box's hauler/customer recipient strings (may be empty).
+// Resolve a box's hauler/customer/staff recipient strings (may be empty).
 function boxRecip(boxId){
   var c = state.boxContacts[normBoxId(boxId)] || {};
   return {
     hauler:   String(c.toRecipients || "").trim(),
-    customer: String(c.ccRecipients || "").trim()
+    customer: String(c.ccRecipients || "").trim(),
+    staff:    String(c.staffRecipients || "").trim()
   };
+}
+function splitEmails(s){ return String(s || "").split(/[;,]/).map(function(x){ return x.trim(); }).filter(Boolean); }
+// A flat address book (email -> role) built from every box's contacts, for the
+// compose type-ahead. Same source the Contacts page reads; assembled here, not
+// copied. First role seen wins for display colour.
+function buildAddressBook(){
+  var seen = {};
+  Object.keys(state.boxContacts || {}).forEach(function(id){
+    var c = state.boxContacts[id] || {};
+    splitEmails(c.toRecipients).forEach(function(e){ var k=e.toLowerCase(); if(!seen[k]) seen[k]={email:e,role:"hauler"}; });
+    splitEmails(c.ccRecipients).forEach(function(e){ var k=e.toLowerCase(); if(!seen[k]) seen[k]={email:e,role:"customer"}; });
+    splitEmails(c.staffRecipients).forEach(function(e){ var k=e.toLowerCase(); if(!seen[k]) seen[k]={email:e,role:"staff"}; });
+  });
+  return Object.keys(seen).map(function(k){ return seen[k]; });
 }
 
 // Fetch what we have told people, per box: the pickup date the service
@@ -3081,7 +3119,7 @@ document.addEventListener("click", function(){
    preview fills them from THIS box (location, suggested date) and, for Weights,
    the month picker. Nothing sends here - that is the final step. Email-shell
    helpers are ported from the Templates page so the preview matches reality. */
-var COMPOSE_LOGO = "https://dashboard.wastenetinc.com/wastenet-logo.png";
+var COMPOSE_LOGO = "https://dashboard.wastenetinc.com/WastenetLogo.png";
 var COMPOSE_DISCLAIMER =
   "This email and any files transmitted with it are confidential and intended solely for the " +
   "use of the individual or entity to whom they are addressed. If you have received this email " +
@@ -3162,30 +3200,120 @@ function refreshComposePreview(){
   if(ro){ var ms = composeMonthsStr(); ro.innerHTML = ms ? '<b>[months]</b> \u2192 <b>'+esc(ms)+'</b>' : '<span class="muted">Pick the months you need.</span>'; }
 }
 
-function chip(addr, targetId){
-  return '<button type="button" class="cmp-chip" data-addto="'+esc(targetId)+'" data-addr="'+esc(addr)+'">'+esc(addr)+'</button>';
+var RECIP_ROLE = {
+  hauler:   { label:"Hauler",   cls:"hauler",   dot:"#5CAA16" },
+  customer: { label:"Customer", cls:"customer", dot:"#274766" },
+  staff:    { label:"Staff",    cls:"staff",    dot:"#7A5320" }
+};
+function recipRole(email){
+  var k = String(email).toLowerCase();
+  var f = (compose._book || []).filter(function(b){ return b.email.toLowerCase() === k; })[0];
+  return f ? f.role : null;
 }
+function addRecip(which, email){
+  email = String(email).trim(); if(!email) return;
+  if(compose[which].indexOf(email) === -1) compose[which].push(email);
+  renderRecip(which);
+}
+function delRecip(which, email){
+  compose[which] = compose[which].filter(function(e){ return e !== email; });
+  renderRecip(which);
+}
+function closeRecipMenus(){
+  var m = document.querySelectorAll(".cmp-rmenu, .cmp-ta");
+  for(var i=0;i<m.length;i++) m[i].parentNode.removeChild(m[i]);
+}
+function renderRecip(which){
+  var box = document.getElementById("cmp-"+which+"-box");
+  if(!box) return;
+  var toks = compose[which].map(function(e){
+    var r = recipRole(e), cls = r ? (" "+RECIP_ROLE[r].cls) : "";
+    return '<span class="cmp-tok'+cls+'"><span class="a" title="'+esc(e)+'">'+esc(e)+'</span>'+
+      '<button type="button" class="tx" data-del="'+esc(which)+'\u0001'+esc(e)+'">\u00d7</button></span>';
+  }).join("");
+  box.innerHTML = toks +
+    '<input class="cmp-rin" data-rin="'+which+'" placeholder="'+(compose[which].length?"":"Type a name or address\u2026")+'">'+
+    '<button type="button" class="cmp-addbtn" data-radd="'+which+'">+ Add \u25be</button>';
+  wireRecip(which);
+}
+function wireRecip(which){
+  var box = document.getElementById("cmp-"+which+"-box");
+  if(!box) return;
+  box.querySelectorAll("[data-del]").forEach(function(b){
+    b.addEventListener("click", function(){ var p = b.getAttribute("data-del").split("\u0001"); delRecip(p[0], p[1]); });
+  });
+  var inp = box.querySelector("[data-rin]");
+  inp.addEventListener("input", function(){ showRecipTypeahead(which, inp); });
+  inp.addEventListener("keydown", function(e){ if(e.key === "Enter" && inp.value.trim()){ e.preventDefault(); addRecip(which, inp.value); closeRecipMenus(); } });
+  inp.addEventListener("focus", function(){ box.closest(".cmp-rfield").classList.add("focus"); });
+  inp.addEventListener("blur", function(){ box.closest(".cmp-rfield").classList.remove("focus"); });
+  box.querySelector("[data-radd]").addEventListener("click", function(e){
+    e.stopPropagation(); openRecipAddMenu(which, box.querySelector("[data-radd]"));
+  });
+}
+function openRecipAddMenu(which, anchor){
+  closeRecipMenus();
+  var recip = boxRecip(compose.boxId);
+  var roles = [["hauler",recip.hauler],["customer",recip.customer],["staff",recip.staff]].filter(function(r){ return r[1]; });
+  if(!roles.length){ return; }
+  var m = document.createElement("div"); m.className = "cmp-rmenu";
+  m.innerHTML = '<div class="sec">Add this box\u2019s</div>' +
+    roles.map(function(r){
+      var meta = RECIP_ROLE[r[0]], n = splitEmails(r[1]).length;
+      return '<button type="button" class="mi" data-role="'+which+'\u0001'+r[0]+'">'+
+        '<span class="dot" style="background:'+meta.dot+'"></span>'+meta.label+
+        '<span class="n">'+n+'</span></button>';
+    }).join("");
+  anchor.parentNode.appendChild(m);
+  m.querySelectorAll("[data-role]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var p = b.getAttribute("data-role").split("\u0001");
+      splitEmails(boxRecip(compose.boxId)[p[1]]).forEach(function(e){ addRecip(p[0], e); });
+      closeRecipMenus();
+    });
+  });
+}
+function showRecipTypeahead(which, inp){
+  closeRecipMenus();
+  var q = inp.value.trim().toLowerCase(); if(q.length < 2) return;
+  var hits = (compose._book || []).filter(function(b){
+    return b.email.toLowerCase().indexOf(q) !== -1 && compose[which].indexOf(b.email) === -1;
+  }).slice(0, 6);
+  if(!hits.length) return;
+  var t = document.createElement("div"); t.className = "cmp-ta";
+  t.innerHTML = hits.map(function(h){
+    return '<div class="opt" data-pick="'+which+'\u0001'+esc(h.email)+'"><b>'+esc(h.email)+'</b><span class="role">'+esc(h.role)+'</span></div>';
+  }).join("");
+  inp.closest(".cmp-rfield").appendChild(t);
+  t.querySelectorAll("[data-pick]").forEach(function(o){
+    o.addEventListener("mousedown", function(){ var p = o.getAttribute("data-pick").split("\u0001"); addRecip(p[0], p[1]); closeRecipMenus(); });
+  });
+}
+
+// Close recipient menus/type-ahead when clicking outside them (only while the
+// compose modal is open). Attached once.
+document.addEventListener("mousedown", function(e){
+  var modal = document.getElementById("composeModal");
+  if(!modal || !modal.classList.contains("show")) return;
+  if(!e.target.closest(".cmp-rmenu, .cmp-ta, [data-radd], [data-rin]")) closeRecipMenus();
+});
+
 function openCompose(boxId, type){
   var box = boxById(boxId);
   var tpl = (state.templates && state.templates[type]) || null;
-  compose = { boxId:boxId, type:type, months:{}, year:"2026" };
+  compose = { boxId:boxId, type:type, months:{}, year:"2026", to:[], cc:[], bcc:[], _book:buildAddressBook() };
 
   var isBlank = (type === "Blank");
   var rule = PILL_TO[type];
   var recip = boxRecip(boxId);
-  var toVal = "", ccVal = "";
+  // Named templates pre-load their resolved recipients as tokens; Blank starts empty.
   if(!isBlank && rule){
-    toVal = recip[rule.to] || "";
-    if(rule.cc) ccVal = recip[rule.cc] || "";
+    splitEmails(recip[rule.to]).forEach(function(e){ compose.to.push(e); });
+    if(rule.cc) splitEmails(recip[rule.cc]).forEach(function(e){ compose.cc.push(e); });
   }
   var subject = tpl ? (tpl.subjectTemplate || "") : "";
   var body    = tpl ? (tpl.bodyTemplate || "")    : "";
   if(isBlank){ subject = ""; body = ""; }
-
-  // recipient chips available from this box (hauler / customer)
-  var chipsTo = "", chipsCc = "";
-  if(recip.hauler){ chipsTo += chip(recip.hauler, "cmpTo"); chipsCc += chip(recip.hauler, "cmpCc"); }
-  if(recip.customer){ chipsTo += chip(recip.customer, "cmpTo"); chipsCc += chip(recip.customer, "cmpCc"); }
 
   var picker = "";
   if(type === "Weights"){
@@ -3201,12 +3329,9 @@ function openCompose(boxId, type){
     '<div class="cmp-head"><div class="cmp-title">'+esc(isBlank?"Blank email":type)+' &middot; #'+esc(boxId)+'</div>'+
       '<button class="cmp-x" type="button" id="cmpClose">Cancel</button></div>'+
     '<div class="cmp-body">'+
-      '<div class="cmp-field"><label>To</label>'+
-        '<input class="cmp-input" id="cmpTo" value="'+esc(toVal)+'" placeholder="name@example.com; another@example.com">'+
-        (chipsTo?'<div class="cmp-chips">'+chipsTo+'</div>':'')+'</div>'+
-      '<div class="cmp-field"><label>Cc</label>'+
-        '<input class="cmp-input" id="cmpCc" value="'+esc(ccVal)+'" placeholder="optional">'+
-        (chipsCc?'<div class="cmp-chips">'+chipsCc+'</div>':'')+'</div>'+
+      '<div class="cmp-rfield" data-f="to"><span class="rlabel">To</span><div class="cmp-rbox" id="cmp-to-box"></div></div>'+
+      '<div class="cmp-rfield" data-f="cc"><span class="rlabel">Cc</span><div class="cmp-rbox" id="cmp-cc-box"></div></div>'+
+      '<div class="cmp-rfield" data-f="bcc"><span class="rlabel">Bcc</span><div class="cmp-rbox" id="cmp-bcc-box"></div></div>'+
       picker+
       '<div class="cmp-field"><label>Subject</label>'+
         '<input class="cmp-input" id="cmpSubj" value="'+esc(subject)+'"></div>'+
@@ -3228,16 +3353,7 @@ function openCompose(boxId, type){
   document.getElementById("cmpBody").addEventListener("input", refreshComposePreview);
   document.getElementById("cmpClose").addEventListener("click", closeCompose);
   document.getElementById("cmpCancel").addEventListener("click", closeCompose);
-  modal.querySelectorAll(".cmp-chip").forEach(function(c){
-    c.addEventListener("click", function(){
-      var inp = document.getElementById(c.getAttribute("data-addto"));
-      var addr = c.getAttribute("data-addr");
-      var cur = inp.value.trim();
-      if(cur.split(/[;,]/).map(function(s){return s.trim();}).indexOf(addr) !== -1) return;
-      inp.value = cur ? (cur.replace(/[;,\s]*$/,"") + "; " + addr) : addr;
-      refreshComposePreview();
-    });
-  });
+  renderRecip("to"); renderRecip("cc"); renderRecip("bcc");
   if(type === "Weights"){
     document.getElementById("cmpYear").addEventListener("change", function(){ compose.year = this.value; refreshComposePreview(); });
     modal.querySelectorAll(".cmp-mo").forEach(function(mo){
