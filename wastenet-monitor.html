@@ -568,7 +568,7 @@
   .cmp-shell{background:#fff; border:1px solid var(--line); border-radius:8px; overflow:hidden;}
   .cmp-shell-body{padding:22px 24px; font-family:Arial,Helvetica,sans-serif; font-size:13px; line-height:1.65; color:#1A1D1A;}
   .cmp-shell-logo{padding:0 24px 18px;}
-  .cmp-shell-logo img{height:34px;}
+  .cmp-shell-logo img{width:150px; height:auto; display:block;}
   .cmp-shell-foot{padding:12px 24px 16px; border-top:1px solid #E4E7E0; font-family:Arial,Helvetica,sans-serif;}
   .cmp-shell-foot .co{font-size:11px; font-weight:bold; color:#525A60; margin-bottom:6px;}
   .cmp-disc-toggle{background:none; border:0; font-family:var(--font); font-size:11px; color:#7a8a72; cursor:pointer; padding:0; display:inline-flex; align-items:center; gap:4px;}
@@ -3203,9 +3203,9 @@ function refreshComposePreview(){
     '<div class="cmp-shell">'+
       '<div class="cmp-shell-body">'+bodyHtml+'</div>'+
       '<div class="cmp-shell-logo"><img src="'+COMPOSE_LOGO+'" alt="WasteNet" onerror="this.parentNode.innerHTML=\'<b style=&quot;color:#5CAA16;font-size:18px&quot;>WASTENET</b>\'"></div>'+
-      '<div class="cmp-shell-foot"><div class="co">Wasteflo, Inc. d.b.a. WasteNet</div>'+
+      '<div class="cmp-shell-foot">'+
         '<button type="button" class="cmp-disc-toggle'+(composeDiscOpen?" open":"")+'" onclick="toggleComposeDisc()"><span class="lbl">'+(composeDiscOpen?"Hide":"Show")+' legal disclaimer</span> <span class="c">\u25be</span></button>'+
-        '<div class="cmp-disc-body'+(composeDiscOpen?" show":"")+'">'+COMPOSE_DISCLAIMER+'</div>'+
+        '<div class="cmp-disc-body'+(composeDiscOpen?" show":"")+'"><div class="co">Wasteflo, Inc. d.b.a. WasteNet</div>'+COMPOSE_DISCLAIMER+'</div>'+
       '</div>'+
     '</div>';
   var ro = document.getElementById("cmpMonthsRO");
