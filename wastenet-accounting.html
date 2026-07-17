@@ -447,6 +447,18 @@
   .stmt-card-send{width:min(480px,100%); height:auto; max-height:90vh;}
   .st-send-body{padding:18px 18px 8px; overflow-y:auto;}
   .st-send-body .st-rfield:first-child{margin-top:4px;}
+  /* Brand-green header on the statement modals (view + send), by variable so it
+     matches the logo and the rest of the page. Footer stays light so the green
+     Send / Email button still stands out. */
+  .stmt-top{background:var(--green);}
+  .stmt-top .stmt-h{color:#fff;}
+  .stmt-top .stmt-sub{color:rgba(255,255,255,0.88);}
+  .stmt-top .stmt-x{color:#fff; background:transparent; border-color:rgba(255,255,255,0.55);}
+  .stmt-top .stmt-x:hover{background:rgba(255,255,255,0.14);}
+  /* Send footer: subject on its own full-width line so it never truncates. */
+  .stmt-foot-send{flex-direction:column; align-items:stretch; gap:9px;}
+  .stmt-foot-send .stmt-subj-full{font-size:12px; color:var(--ink-2); white-space:normal; word-break:break-word;}
+  .stmt-foot-send .stmt-foot-actions{display:flex; justify-content:flex-end; gap:10px;}
 
   .agmail-e{font-size:11px; color:var(--green-dark); background:transparent;
             border:none; cursor:pointer; padding:2px 6px; border-radius:var(--r-input);
@@ -1585,13 +1597,34 @@ function openStmtPreview(agent){
    compose window). Address book = agent emails from Agent Settings + staff. ---- */
 function splitEmails(s){ return String(s || "").split(/[;,]/).map(function(x){ return x.trim(); }).filter(Boolean); }
 var ST_STAFF = "office@wastenetinc.com; lgrundy@wastenetinc.com; kim@wastenetinc.com";
+
+/* Staff addresses come from the ONE contacts directory (Master Box List staff
+   column), served by the monitor script's master_contacts endpoint - the same
+   source the Contacts page uses. No hand-typed list to drift out of date. */
+function loadStaff(){
+  if(state.staffLoaded) return;
+  state.staffLoaded = true;
+  jsonpTo(MONITOR_API, { action:"master_contacts", key:KEY }, function(data){
+    var contacts = (data && data.contacts) || {};
+    var seen = {};
+    Object.keys(contacts).forEach(function(boxId){
+      var c = contacts[boxId] || {};
+      splitEmails(c.staffRecipients).forEach(function(e){
+        var k = e.toLowerCase(); if(k && !seen[k]) seen[k] = e;
+      });
+    });
+    state.staffEmails = Object.keys(seen).map(function(k){ return seen[k]; });
+    if(state.stmt) state.stmt._book = stmtBook();   // refresh an open modal
+  });
+}
+function staffStr(){ return (state.staffEmails || []).join("; "); }
 var ST_ROLE = { agent:{ label:"Agent", dot:"#5CAA16" }, staff:{ label:"Staff (WasteNet)", dot:"#7A5320" } };
 function stmtBook(){
   var seen = {};
   Object.keys(state.agSettings || {}).forEach(function(code){
     splitEmails((state.agSettings[code] || {}).email).forEach(function(e){ var k=e.toLowerCase(); if(!seen[k]) seen[k]={email:e,role:"agent"}; });
   });
-  splitEmails(ST_STAFF).forEach(function(e){ var k=e.toLowerCase(); if(!seen[k]) seen[k]={email:e,role:"staff"}; });
+  (state.staffEmails || []).forEach(function(e){ var k=e.toLowerCase(); if(k && !seen[k]) seen[k]={email:e,role:"staff"}; });
   return Object.keys(seen).map(function(k){ return seen[k]; });
 }
 function stmtRole(email){
@@ -1631,7 +1664,7 @@ function srWireRecip(which){
 function srAddMenu(which, anchor){
   srCloseMenus();
   var st=state.stmt;
-  var roles=[]; if(st._agentEmail) roles.push(["agent", st._agentEmail]); roles.push(["staff", ST_STAFF]);
+  var roles=[]; if(st._agentEmail) roles.push(["agent", st._agentEmail]); roles.push(["staff", staffStr()]);
   var m=document.createElement("div"); m.className="st-menu";
   m.innerHTML='<div class="sec">Add</div>'+roles.map(function(r){
     var meta=ST_ROLE[r[0]], n=splitEmails(r[1]).length;
@@ -1641,7 +1674,7 @@ function srAddMenu(which, anchor){
   m.querySelectorAll("[data-role]").forEach(function(b){
     b.addEventListener("click", function(){
       var p=b.getAttribute("data-role").split("\u0001");
-      var src=(p[1]==="agent") ? st._agentEmail : ST_STAFF;
+      var src=(p[1]==="agent") ? st._agentEmail : staffStr();
       splitEmails(src).forEach(function(e){ srAddRecip(p[0], e); });
       srCloseMenus();
     });
@@ -1722,12 +1755,13 @@ function renderStmtModal(){
           '<div class="st-hint">Optional \u2014 appears above the statement. The statement numbers are generated and can\u2019t be edited.</div>'+
           '<textarea class="st-note" id="stNote" placeholder="Hi ' + esc(first) + ' \u2014 here\u2019s your statement for ' + esc(stmtPeriodLabel(st.period)) + '.">' + esc(st.note || "") + '</textarea>'+
         '</div>'+
-        '<div class="stmt-foot">'+
-          '<span class="stmt-subj">Subject: ' + esc(st.subject) + '</span>'+
-          '<span style="flex:1;"></span>'+
-          '<button class="stmt-x" id="stmtBack">Cancel</button>'+
-          '<button class="stmt-send" id="stmtSend"' + (st.sending ? " disabled" : "") + '>'+
-            (st.sending ? "Sending\u2026" : "Send") + '</button>'+
+        '<div class="stmt-foot stmt-foot-send">'+
+          '<div class="stmt-subj-full">Subject: ' + esc(st.subject) + '</div>'+
+          '<div class="stmt-foot-actions">'+
+            '<button class="stmt-x" id="stmtBack">Cancel</button>'+
+            '<button class="stmt-send" id="stmtSend"' + (st.sending ? " disabled" : "") + '>'+
+              (st.sending ? "Sending\u2026" : "Send") + '</button>'+
+          '</div>'+
         '</div>'+
       '</div>';
     wireStmtModal();
@@ -1764,7 +1798,7 @@ function wireStmtModal(){
     fr.onload = function(){ fitStmtFrame(); setTimeout(fitStmtFrame, 350); };
     fr.srcdoc = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
       '<style>body{margin:0;padding:0;background:#FAFBF8;}</style></head><body>' +
-      statementHtml(st._a, st.period, st.note) + '</body></html>';
+      statementHtml(st._a, st.period, st.note, {preview:true}) + '</body></html>';
   }
   if(mode === "send"){ srRenderRecip("to"); srRenderRecip("cc"); srRenderRecip("bcc"); srUpdateSummary(); }
 
@@ -1957,7 +1991,8 @@ function invoiceBlockHtml(i, first){
   '</div>';
 }
 
-function statementHtml(a, period, note){
+function statementHtml(a, period, note, opts){
+  var preview = !!(opts && opts.preview);   // review view omits logo + disclaimer
   var invs = a.invoices || [];
   var blocks = invs.map(function(i, n){ return invoiceBlockHtml(i, n === 0); }).join("");
   var payTot = invs.reduce(function(t,i){ return t + (i.payout || 0); }, 0);
@@ -2007,11 +2042,12 @@ function statementHtml(a, period, note){
        * it wider, so nothing can escape it. */
       '<table width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;table-layout:fixed;background:#FFFFFF;border:1px solid #E4E7E0;border-radius:8px;">'+
         '<tr><td style="padding:26px 30px 22px;font-family:Arial,Helvetica,sans-serif;color:#1A1D1A;word-wrap:break-word;">'+ inner +'</td></tr>'+
+        (preview ? '' :
         '<tr><td style="padding:0 30px 22px;"><img src="'+ LOGO +'" alt="WasteNet" width="150" style="display:block;border:0;"></td></tr>'+
         '<tr><td style="padding:16px 30px 22px;border-top:1px solid #E4E7E0;font-family:Arial,Helvetica,sans-serif;word-wrap:break-word;">'+
           '<div style="font-size:11px;font-weight:bold;color:#525A60;margin-bottom:5px;">Wasteflo, Inc. d.b.a. WasteNet</div>'+
           '<div style="font-size:10px;line-height:1.5;color:#8A8F8A;font-style:italic;">'+ DISCLAIMER +'</div>'+
-        '</td></tr>'+
+        '</td></tr>')+
       '</table>'+
     '</td></tr></table>';
 }
@@ -4331,6 +4367,7 @@ function renderBody(){
   if(state.section === "agents"){
     el.innerHTML = renderAgents();
     wireAgents();
+    loadStaff();
     measurePin();
     return;
   }
