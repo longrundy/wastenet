@@ -152,6 +152,7 @@
   .crole{font-size:10px; font-weight:600; padding:2px 8px; border-radius:var(--r-pill); white-space:nowrap;}
   .crole-hauler{background:var(--green-tint); color:var(--green-darker);}
   .crole-customer{background:#E7EEF6; color:#274766;}
+  .crole-corp{background:#EDE7F6; color:#4A2E83;}
   .crole-staff{background:#F5E9D6; color:var(--amber-dark);}
   .cboxn{font-size:11px; color:var(--ink-3); width:58px; flex:0 0 58px; text-align:right;}
   .cdetail{padding:0 14px 14px 50px;}
@@ -424,6 +425,7 @@ function buildDirectory(contacts, rows){
     var c = contacts[boxId] || {};
     splitEmails(c.toRecipients).forEach(function(e){ add(e, "hauler", boxId); });
     splitEmails(c.ccRecipients).forEach(function(e){ add(e, "customer", boxId); });
+    splitEmails(c.corpRecipients).forEach(function(e){ add(e, "corp", boxId); });
     splitEmails(c.staffRecipients).forEach(function(e){ add(e, "staff", boxId); });
   });
 
@@ -444,7 +446,7 @@ function buildDirectory(contacts, rows){
 /* ---------- the header. Rendered ONCE, so the search keeps focus. ---------- */
 function contactsHeaderHtml(){
   var dir = state.cDir || [];
-  var counts = { all: dir.length, hauler:0, customer:0, staff:0 };
+  var counts = { all: dir.length, hauler:0, customer:0, corp:0, staff:0 };
   dir.forEach(function(c){ c.roles.forEach(function(r){ counts[r]++; }); });
 
   var chip = function(k, label){
@@ -462,7 +464,7 @@ function contactsHeaderHtml(){
       "</div>" +
       '<div class="cbar-row">' +
         chip("all","Everyone") + chip("hauler","Haulers") +
-        chip("customer","Customers") + chip("staff","WasteNet") +
+        chip("customer","Customers") + chip("corp","Corporate") + chip("staff","WasteNet") +
         '<span class="cspacer"></span>' +
         '<div class="csearch"><i class="search-ico">\u2315</i>' +
           '<input type="text" id="cSearch" placeholder="Name, address, hauler, box #\u2026" ' +
@@ -532,7 +534,7 @@ function contactRowHtml(c){
           '<span class="cat">@' + esc(c.domain) + "</span></span>" +
         '<span class="cspacer"></span>' +
         c.roles.sort().map(function(r){
-          return '<span class="crole crole-' + r + '">' + r + "</span>";
+          return '<span class="crole crole-' + r + '">' + (r === "corp" ? "corporate" : r) + "</span>";
         }).join("") +
         '<span class="cboxn">' + c.boxes.length + " box" + (c.boxes.length===1?"":"es") + "</span>" +
       "</div>" +
@@ -604,6 +606,7 @@ function contactAddHtml(){
         '<select id="cAddRole" class="cadd-sel">' +
           '<option value="hauler">Hauler</option>' +
           '<option value="customer">Customer</option>' +
+          '<option value="corp">Corporate customer</option>' +
           '<option value="staff">WasteNet staff</option>' +
         "</select>" +
       "</div>" +
