@@ -10,6 +10,7 @@
     --green-tint:#EAF3DE; --green-tint-2:#F4FAEC; --green-border:#C0DD97;
     --amber:#EF9F27; --amber-dark:#854F0B;
     --red:#E24B4A; --red-dark:#A32D2D; --red-tint:#FCEBEB;
+    --blue:#2F6DB4; --blue-tint:#EAF1FB; --blue-border:#B9D2F0; --blue-ink:#264F7C; --blue-ink-strong:#173A5E;
     --ink:#1A1D1A; --ink-2:#525A60; --ink-3:#8A8F8A;
     --line:#E4E7E0; --line-strong:#CFD4CA;
     --card:#FFFFFF; --panel:#F6F7F3; --page:#FAFBF8;
@@ -24,6 +25,9 @@
   .header-bar{display:flex; align-items:center; gap:12px; background:var(--card); border:0.5px solid var(--line); border-radius:var(--r-card); padding:12px 16px;}
   .sticky-head{position:sticky; top:0; z-index:31; background:var(--page); padding-bottom:16px;}
   .editor-card{background:var(--card); border:0.5px solid var(--line); border-radius:var(--r-card); padding:14px 16px 16px; margin-bottom:16px;}
+  .page-note{background:var(--green-tint-2); border:0.5px solid var(--green-border); border-radius:var(--r-card); padding:12px 15px; margin-bottom:16px; font-size:13px; line-height:1.55; color:var(--ink-2);}
+  .page-note b{color:var(--green-darker);}
+  .page-note .pn-title{display:block; font-size:13px; font-weight:600; color:var(--green-darker); margin-bottom:3px;}
   .brand{display:flex; align-items:center; gap:12px;}
   .brand-name{font-size:16px; font-weight:700; color:var(--green-dark); letter-spacing:0.02em;}
   .brand-logo{height:24px; width:auto; display:block; flex:0 0 auto;}
@@ -50,6 +54,21 @@
   .tbar-right .btn{white-space:nowrap;}
   .tpl-select:focus{outline:none; border-color:var(--green); box-shadow:0 0 0 2px var(--green-tint);}
   .tbar-hint{font-size:12.5px; color:var(--ink-2);}
+  /* redesigned toolbar: three template controls grouped in one tint; blank email set apart */
+  .tgroup{display:inline-flex; align-items:center; gap:8px; background:var(--green-tint-2); border:0.5px solid var(--green-border); border-radius:var(--r-menu); padding:7px 9px;}
+  .tg-btn{font-family:var(--font); font-size:12.5px; height:var(--h-ctl); padding:0 15px; border-radius:var(--r-ctl); border:0.5px solid var(--line-strong); background:var(--card); color:var(--ink); cursor:pointer; white-space:nowrap;}
+  .tg-btn:hover:not(:disabled){background:var(--panel);}
+  .tg-btn.on{background:var(--green-tint); border-color:var(--green-border); color:var(--green-darker); font-weight:500;}
+  .tg-btn:disabled{opacity:0.45; cursor:default;}
+  .tg-select{font-family:var(--font); font-size:12.5px; height:var(--h-ctl); min-width:130px; max-width:220px; padding:0 30px 0 12px; border:0.5px solid var(--line-strong); border-radius:var(--r-ctl); background:var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238A8F8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center; -webkit-appearance:none; -moz-appearance:none; appearance:none; cursor:pointer; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .tg-select:focus{outline:none; border-color:var(--green); box-shadow:0 0 0 2px var(--green-tint);}
+  .tg-select:disabled{opacity:0.45; cursor:default;}
+  .blank-btn{margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-family:var(--font); font-size:12.5px; font-weight:500; height:var(--h-ctl); padding:0 16px; border-radius:var(--r-ctl); border:0.5px solid var(--blue); background:var(--card); color:var(--blue); cursor:pointer; white-space:nowrap;}
+  .blank-btn:hover{background:var(--blue-tint);}
+  .blank-btn.on{background:var(--blue); border-color:var(--blue); color:#fff;}
+  .blank-btn .bi{display:inline-flex; align-items:center;}
+  .blank-note{background:var(--blue-tint); border:0.5px solid var(--blue-border); border-radius:var(--r-menu); padding:11px 14px; margin-bottom:14px; font-size:12.5px; line-height:1.55; color:var(--blue-ink);}
+  .blank-note b{color:var(--blue-ink-strong);}
   .tedit-full{max-width:780px;}
   /* Preview opens big and spacious in an overlay, not squeezed beside the editor. */
   .tpv-modal{position:fixed; inset:0; z-index:200; display:none; align-items:center; justify-content:center; padding:24px; background:rgba(26,29,26,0.45);}
@@ -146,6 +165,11 @@
         <div data-wn-nav data-label="Email Templates"></div>
       </div>
     </div>
+  </div>
+
+  <div class="page-note">
+    <span class="pn-title">This page is for editing templates &mdash; it doesn&rsquo;t send anything.</span>
+    Here you can change the wording of your email templates and save it. To actually <b>use</b> a template, go to the <b>Monitoring Dashboard</b> and click the email icon (&#9993;) on any box &mdash; that&rsquo;s where a message is drafted and sent.
   </div>
 
   <div class="editor-card">
@@ -350,13 +374,20 @@ function placeholdersFor(pill){
 }
 
 /* ---------- render: template mode ---------- */
-function toolbarHtml(rightHtml){
+function toolbarHtml(){
+  var isTpl = (state.mode === "template");
+  var optsHtml = state.order.map(function(pill){
+    return '<option value="' + esc(pill) + '"' + (state.current === pill ? ' selected' : '') + '>' + esc(pill) + '</option>';
+  }).join("");
   return '<div class="tbar">' +
-    '<div class="modebar">' +
-      '<button class="mode' + (state.mode === "template" ? " on" : "") + '" id="modeTpl">Email templates</button>' +
-      '<button class="mode' + (state.mode === "blank" ? " on" : "") + '" id="modeBlank">Blank email</button>' +
+    '<div class="tgroup">' +
+      '<button class="tg-btn' + (isTpl ? " on" : "") + '" id="modeTpl">Email templates</button>' +
+      '<select class="tg-select" id="tplPick"' + (isTpl ? "" : " disabled") + '>' + optsHtml + '</select>' +
+      '<button class="tg-btn" id="newTplBtn"' + (isTpl ? "" : " disabled") + '>+ New template</button>' +
     '</div>' +
-    '<div class="tbar-right">' + (rightHtml || "") + '</div>' +
+    '<button class="blank-btn' + (isTpl ? "" : " on") + '" id="modeBlank">' +
+      '<span class="bi"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></span>' +
+      'Compose blank email</button>' +
   '</div>';
 }
 function wireModeToggle(){
@@ -365,10 +396,6 @@ function wireModeToggle(){
 }
 
 function renderTemplateMode(){
-  var optsHtml = state.order.map(function(pill){
-    return '<option value="' + esc(pill) + '"' + (state.current === pill ? ' selected' : '') + '>' + esc(pill) + '</option>';
-  }).join("");
-
   var t = state.templates[state.current] || { subjectTemplate:"", bodyTemplate:"", toRole:"Hauler", ccRole:"" };
   var phs = placeholdersFor(state.current);
   var phHtml = phs.length
@@ -391,10 +418,7 @@ function renderTemplateMode(){
     '</div>';
 
   document.getElementById("body").innerHTML =
-    toolbarHtml(
-      '<select class="tpl-select" id="tplPick">' + optsHtml + '</select>' +
-      '<button class="btn" id="newTplBtn">+ New template</button>'
-    ) +
+    toolbarHtml() +
     '<div class="tedit-full">' + editor + '</div>' +
     '<div class="tpv-modal" id="tpvModal"></div>';
   document.getElementById("previewHost").innerHTML = "";
@@ -519,7 +543,8 @@ function renderBlankMode(){
     : '';
   state.blankSent = null;
   document.getElementById("body").innerHTML =
-    toolbarHtml('<span class="tbar-hint">compose a one-off email</span>') +
+    toolbarHtml() +
+    '<div class="blank-note"><b>Blank email</b> \u2014 this isn\u2019t a template. It\u2019s a free-form email tool for sending a one-off message from your WasteNet address that isn\u2019t tied to any template or box.</div>' +
     sentBanner +
     '<div class="tedit-full">' + editor + '</div>' +
     '<div class="tpv-modal" id="tpvModal"></div>';
