@@ -2464,14 +2464,25 @@ function parseFrostCsv(text) {
   if (!lines.length) return { rows: [], error: 'The file is empty.' };
 
   var head = splitCsvLine(lines[0]).map(function (h) { return h.trim().toLowerCase(); });
+  // Frost's export used to label the date column "Transaction Date"; the
+  // current export just says "Date". Accept either so a format change on the
+  // bank's side never silently rejects every deposit again.
   var iDate = head.indexOf('transaction date');
+  if (iDate === -1) iDate = head.indexOf('date');
   var iType = head.indexOf('type');
+  // Two description columns can be present: the short "Description" ("Bama
+  // Foods") and the full "Long description" ("BAMA FOODS LTD P TRADE PAY ...").
+  // Payer bank names match the FRONT of the long string, so prefer it for
+  // matching; keep the short one for a friendlier on-screen label.
+  var iLong = head.indexOf('long description');
   var iDesc = head.indexOf('description');
   var iAmt  = head.indexOf('amount');
 
   if (iDate === -1 || iAmt === -1) {
-    return { rows: [], error: 'That does not look like a Frost export - no Transaction Date / Amount columns.' };
+    return { rows: [], error: 'That does not look like a Frost export - no Date / Amount columns.' };
   }
+
+  var iMatch = iLong !== -1 ? iLong : iDesc;   // string payersFor() front-matches on
 
   var rows = [];
   for (var i = 1; i < lines.length; i++) {
@@ -2485,11 +2496,15 @@ function parseFrostCsv(text) {
     var m = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     var iso = m ? (m[3] + '-' + pad2(m[1]) + '-' + pad2(m[2])) : d;
 
+    var matchStr  = iMatch !== -1 ? String(c[iMatch] || '').trim() : '';
+    var shortStr  = iDesc  !== -1 ? String(c[iDesc]  || '').trim() : '';
+
     rows.push({
-      date:   iso,
-      type:   String(c[iType] || '').trim(),
-      desc:   String(c[iDesc] || '').trim(),
-      amount: amt
+      date:      iso,
+      type:      iType !== -1 ? String(c[iType] || '').trim() : '',
+      desc:      matchStr || shortStr,          // used by payersFor (front-match)
+      shortDesc: shortStr || matchStr,          // friendlier label for display
+      amount:    amt
     });
   }
   rows.sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
