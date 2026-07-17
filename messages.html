@@ -403,9 +403,14 @@ function confirmButton(link){
 
 /* The values, as markup. Date bold, every location bold - the two things a
    hauler is actually scanning for. */
-function htmlVals(dateLong, boxLines, link){
-  var list = boxLines.map(function(l){
-    return '<span style="color:#3B6D11;font-weight:bold;">\u2022 ' + esc(l) + '</span>';
+function htmlVals(dateLong, boxLines, link, poLines){
+  poLines = poLines || [];
+  var list = boxLines.map(function(l, i){
+    var line = '<span style="color:#3B6D11;font-weight:bold;">\u2022 ' + esc(l) + '</span>';
+    if(poLines[i]){
+      line += '<br><span style="color:#444441;display:inline-block;padding-left:18px;">PO ' + esc(poLines[i]) + '</span>';
+    }
+    return line;
   }).join("<br>");
   return {
     // Same green as the locations. The date and the sites are the two things a
@@ -511,6 +516,26 @@ function buildQueue(){
     });
   })();
 
+  /* One box list, one shape - used by requests, notices and corporate alike.
+     Returns parallel arrays (green description line + its PO) plus a plain-text
+     version with the PO indented under each line. PO is opt-in: notices pass
+     nothing, so stores never see a PO; requests and corporate ask for it. */
+  function boxListParts(idList, opts){
+    opts = opts || {};
+    var descs = [], pos = [];
+    idList.forEach(function(id){
+      var r = state.rows[id] || {};
+      var d = (r.desc || ("Box " + id));
+      if(opts.withBoxNum) d += "  \u2014  box " + id;
+      descs.push(d);
+      pos.push(opts.withPO ? (poFor[id] || "") : "");
+    });
+    var plain = descs.map(function(d, i){
+      return "\u2022 " + d + (pos[i] ? "\n    PO " + pos[i] : "");
+    }).join("\n");
+    return { descs: descs, pos: pos, plain: plain };
+  }
+
   /* ---- 1. Service requests: grouped by RECIPIENT + date ----
      Not by haul code. The haul code is a label; the recipient list is what
      actually determines who gets an envelope. Two boxes under one haul code
@@ -540,10 +565,7 @@ function buildQueue(){
        tab - David wrote those per box and they say things a generic template
        cannot. Several boxes use the Batch template, because a per-box body
        cannot list boxes it does not know about. */
-    var lines = g.ids.map(function(id){
-      var r = state.rows[id] || {};
-      return (r.desc || ("Box " + id)) + "  \u2014  box " + id + (poFor[id] ? "  \u2014  PO " + poFor[id] : "");
-    });
+    var bl = boxListParts(g.ids, { withBoxNum:true, withPO:true });
     var tSub, tBody;
     if(multi){
       var t = state.templates["batch"] || {};
@@ -559,12 +581,12 @@ function buildQueue(){
     var subject = fill(tSub, { "pickup date": fmtLong(g.date) });
     var body = fill(tBody, {
       "pickup date": fmtLong(g.date),
-      "box list": lines.join("\n"),
-      "box description": lines.join("\n"),
-      "service description": lines.join("\n"),
+      "box list": bl.plain,
+      "box description": bl.plain,
+      "service description": bl.plain,
       "confirm link": link
     });
-    var inner = fillHtml(tBody, htmlVals(fmtLong(g.date), lines, link));
+    var inner = fillHtml(tBody, htmlVals(fmtLong(g.date), bl.descs, link, bl.pos));
 
     // Some per-box bodies have no [confirm link] slot at all. Append rather than
     // ship a hauler a request they have no way to confirm.
@@ -636,21 +658,18 @@ function buildQueue(){
   Object.keys(notG).forEach(function(k){
     var g = notG[k];
     var t = state.templates["notice"] || {};
-    var lines = g.ids.map(function(id){
-      var r = state.rows[id] || {};
-      return r.desc || ("Box " + id);
-    });
+    var bl = boxListParts(g.ids);
     // No confirm link on a notice. The customer is not the one confirming - the
     // hauler is - and a button that quietly confirmed on a customer's click
     // would let a site manager confirm a pickup no hauler ever agreed to.
-    var vals = { "pickup date": fmtLong(g.date), "service description": lines.join("\n"),
-                 "box description": lines.join("\n"), "box list": lines.join("\n") };
+    var vals = { "pickup date": fmtLong(g.date), "service description": bl.plain,
+                 "box description": bl.plain, "box list": bl.plain };
     q.push({
       id: "not|" + k, kind: "notice",
       to: g.to, cc: [], ids: g.ids, date: g.date,
       subject: fill(t.subject, vals),
       body: fill(t.body, vals),
-      html: emailShell(fillHtml(t.body, htmlVals(fmtLong(g.date), lines, ""))),
+      html: emailShell(fillHtml(t.body, htmlVals(fmtLong(g.date), bl.descs, "", bl.pos))),
       event: "CUSTOMER NOTIFIED", label: "notice"
     });
   });
@@ -699,24 +718,20 @@ function buildQueue(){
       var nb = raleysStoreNum(b); nb = (nb == null ? Infinity : nb);
       return (na - nb) || String(a).localeCompare(String(b), undefined, { numeric:true });
     });
-    var lines = ordered.map(function(id){
-      var r = state.rows[id] || {};
-      var sn = raleysStoreNum(id);
-      var label = (sn != null ? sn : (r.desc || ("Box " + id)));
-      return label + " Raley\u2019s \u2014 PO " + poFor[id];
-    });
-    // Reuse the Notice template with a PO-annotated box list; office@ is BCC'd
-    // for the record at send. A dedicated corporate template can replace this
-    // wording later with no structural change - only the box list differs.
+    var bl = boxListParts(ordered, { withPO:true });
+    // Reuse the Notice template; office@ is BCC'd for the record at send. Same
+    // box-list shape as requests and notices - full description in green, PO
+    // indented beneath. A dedicated corporate template can replace this wording
+    // later with no structural change.
     var t = state.templates["notice"] || {};
-    var vals = { "pickup date": fmtLong(g.date), "service description": lines.join("\n"),
-                 "box description": lines.join("\n"), "box list": lines.join("\n") };
+    var vals = { "pickup date": fmtLong(g.date), "service description": bl.plain,
+                 "box description": bl.plain, "box list": bl.plain };
     q.push({
       id: "corp|" + k, kind: "corporate",
       to: g.to, cc: [], ids: ordered, date: g.date,
       subject: fill(t.subject, vals),
       body: fill(t.body, vals),
-      html: emailShell(fillHtml(t.body, htmlVals(fmtLong(g.date), lines, ""))),
+      html: emailShell(fillHtml(t.body, htmlVals(fmtLong(g.date), bl.descs, "", bl.pos))),
       event: "", ledger: false, label: "corporate"
     });
   });
