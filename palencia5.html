@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<title>Yards to green</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;min-height:100dvh;display:flex;justify-content:center;align-items:flex-start;
+    background:radial-gradient(120% 80% at 50% -10%,#1d252d 0%,#10151a 60%,#0b0f13 100%);
+    color:#eef1ee;font-family:Inter,system-ui,sans-serif}
+  .wrap{width:100%;max-width:420px;padding:26px 18px 40px;text-align:center}
+  .lab{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:3px;
+    font-size:14px;color:#57c257;font-weight:600}
+  .big{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:150px;line-height:.9;margin:6px 0 0}
+  .unit{font-family:'Barlow Condensed',sans-serif;letter-spacing:2px;color:#93a2ad;font-size:16px;margin-top:-4px}
+  .status{background:#222b34;border:1px solid #33404c;border-radius:10px;padding:11px 13px;
+    font-size:13px;line-height:1.5;margin:20px 0 14px;display:flex;gap:9px;align-items:flex-start;text-align:left}
+  .fix{width:9px;height:9px;border-radius:50%;background:#e8863b;margin-top:4px;flex:none}
+  .fix.live{background:#57c257;animation:ping 1.6s ease-out infinite}
+  @keyframes ping{0%{box-shadow:0 0 0 0 rgba(87,194,87,.5)}100%{box-shadow:0 0 0 9px rgba(87,194,87,0)}}
+  .status b{color:#fff}
+  button{font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:.6px;text-transform:uppercase;
+    font-size:15px;color:#0c1013;background:#57c257;border:none;border-radius:11px;padding:14px;cursor:pointer;width:100%}
+  .test{margin-top:22px;border-top:1px solid #22303a;padding-top:14px}
+  .row{display:flex;gap:8px;margin-top:8px}
+  input{flex:1;background:#0e1216;border:1px solid #33404c;border-radius:8px;color:#eef1ee;
+    padding:10px;font-family:'Barlow Condensed',sans-serif;font-size:15px}
+  input::placeholder{color:#5f6f7b}
+  .ghost{background:#1a2027;color:#eef1ee;border:1px solid #33404c}
+  .fine{font-size:11px;color:#5f6f7b;margin-top:12px;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="lab">Yards to green</div>
+  <div class="big" id="val">&mdash;</div>
+  <div class="unit">yards to center</div>
+
+  <div class="status"><span class="fix" id="fix"></span><span id="msg">Tap below and allow location. Works best outdoors with open sky.</span></div>
+  <button id="go">Use my location</button>
+
+  <div class="test">
+    <div class="row">
+      <input id="lat" placeholder="test lat"/>
+      <input id="lng" placeholder="test lng"/>
+    </div>
+    <div class="row"><button class="ghost" id="calc">Compute from typed spot</button></div>
+    <p class="fine">Green center: 30.014938, -81.378439. If the button is blocked inside an app, open this file in Safari or Chrome.</p>
+  </div>
+</div>
+<script>
+const T={lat:30.014937949774136,lng:-81.37843920493921};
+const R=6371000, YD=1.0936133;
+function yards(a){const t=x=>x*Math.PI/180;
+  const dLat=t(T.lat-a.lat),dLng=t(T.lng-a.lng);
+  const s=Math.sin(dLat/2)**2+Math.cos(t(a.lat))*Math.cos(t(T.lat))*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s))*YD;}
+const val=document.getElementById('val'),fix=document.getElementById('fix'),msg=document.getElementById('msg');
+document.getElementById('go').onclick=()=>{
+  if(!('geolocation' in navigator)){msg.innerHTML='No GPS on this device &mdash; use the typed box below.';return;}
+  msg.innerHTML='Locating&hellip;';
+  navigator.geolocation.watchPosition(p=>{
+    val.textContent=Math.round(yards({lat:p.coords.latitude,lng:p.coords.longitude}));
+    fix.classList.add('live');
+    msg.innerHTML='<b>Live GPS</b> &middot; accuracy &plusmn;'+Math.round((p.coords.accuracy||0)*YD)+' yds';
+  },e=>{fix.classList.remove('live');
+    msg.innerHTML='Couldn&rsquo;t read GPS ('+e.message+'). Open in a browser, or use the typed box below.';
+  },{enableHighAccuracy:true,maximumAge:1000,timeout:12000});
+};
+document.getElementById('calc').onclick=()=>{
+  const a={lat:parseFloat(lat.value),lng:parseFloat(lng.value)};
+  if(isNaN(a.lat)||isNaN(a.lng)){msg.innerHTML='Type a valid lat and lng.';return;}
+  val.textContent=Math.round(yards(a));fix.classList.remove('live');msg.innerHTML='<b>Computed</b> from typed spot.';
+};
+</script>
+</body>
+</html>
