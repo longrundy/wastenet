@@ -1585,7 +1585,7 @@ function openStmtPreview(agent){
     state.stmt = {
       agent: agent, name: a.name, period: state.agMonth,
       to: cfg.email ? splitEmails(cfg.email) : [],
-      cc: [], bcc: [BCC], note: "",
+      cc: [], bcc: [], note: "",
       _a: a, _agentEmail: cfg.email || "", _book: stmtBook(),
       subject: "WasteNet Commission Statement \u2014 " + stmtPeriodLabel(state.agMonth),
       payout: a.payout, boxes: a.boxes, invoices: docs.length,
