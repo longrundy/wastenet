@@ -2800,10 +2800,19 @@ function matchDeposits(deposits, openInvoices, payments, payerMap) {
     var names  = isAch ? payers.map(function (p) { return p.customer; }) : checkCustomers;
 
     if (!isAch && d.desc) {
+      // A bare "Deposit" is Frost's generic label for a teller/mobile cheque
+      // slip - there is no payer detail in the export by nature, and there
+      // never will be. That is a CHECK, not a mystery. A row that actually
+      // names someone we don't recognise is different: it wants adding to the
+      // Payer Map. checkSlip separates the two so the buckets can.
+      var bareDeposit = /^deposit\b/i.test(String(d.desc).trim());
       return {
-        deposit: d, kind: 'unknown', candidates: [], recorded: null,
-        why: 'The statement names a payer nobody recognises. If this is a customer, ' +
-             'add the name to the Payer Map tab and it will be matched from here on.'
+        deposit: d, kind: 'unknown', checkSlip: bareDeposit, candidates: [], recorded: null,
+        why: bareDeposit
+          ? 'A physical cheque deposit - the export carries no payer detail for these. ' +
+            'Record it by hand from the cheques on the slip.'
+          : 'The statement names a payer nobody recognises. If this is a customer, ' +
+            'add the name to the Payer Map tab and it will be matched from here on.'
       };
     }
 
@@ -3468,24 +3477,31 @@ function renderDeposits(){
   var isWork = function(r){
     return (r.kind === "ach" || r.kind === "check") && !r.recorded && r.candidates.length;
   };
+  // Anonymous cheque slips - no payer in the export by nature. Their own
+  // pile, so they stop burying the genuine anomalies below.
+  var isChecks = function(r){
+    return r.kind === "unknown" && r.checkSlip === true;
+  };
   var isStuck = function(r){
     return ((r.kind === "ach" || r.kind === "check") && !r.recorded && !r.candidates.length)
-           || r.kind === "unknown";
+           || (r.kind === "unknown" && !r.checkSlip);
   };
   var isDone = function(r){
     return r.kind === "paylink" || r.kind === "internal" || !!r.recorded;
   };
 
   var counts = {
-    todo:  all.filter(isWork).length,
-    stuck: all.filter(isStuck).length,
-    done:  all.filter(isDone).length
+    todo:   all.filter(isWork).length,
+    checks: all.filter(isChecks).length,
+    stuck:  all.filter(isStuck).length,
+    done:   all.filter(isDone).length
   };
 
   var rows = all;
-  if(state.dFilter === "todo")  rows = all.filter(isWork);
-  if(state.dFilter === "stuck") rows = all.filter(isStuck);
-  if(state.dFilter === "done")  rows = all.filter(isDone);
+  if(state.dFilter === "todo")   rows = all.filter(isWork);
+  if(state.dFilter === "checks") rows = all.filter(isChecks);
+  if(state.dFilter === "stuck")  rows = all.filter(isStuck);
+  if(state.dFilter === "done")   rows = all.filter(isDone);
 
   var chip = function(k, label, n){
     return '<button class="bchip' + (state.dFilter===k?" on":"") + '" data-df="' + k + '">' +
@@ -3502,6 +3518,7 @@ function renderDeposits(){
     var tag, why = r.why || "";
     if(r.kind === "paylink")        tag = '<span class="chip chip-cur">pay-link \u00b7 done</span>';
     else if(r.kind === "internal")  tag = '<span class="chip chip-60">internal</span>';
+    else if(r.kind === "unknown" && r.checkSlip) tag = '<span class="chip chip-60">check deposit</span>';
     else if(r.kind === "unknown")   tag = '<span class="chip chip-90">unknown payer</span>';
     else if(r.recorded)             tag = '<span class="chip chip-cur">recorded \u2713</span>';
     else if(r.tooMany)              tag = '<span class="chip chip-60">can\'t tell</span>';
@@ -3578,10 +3595,11 @@ function renderDeposits(){
           '<div class="fbar-t">' + all.length + ' deposits ' +
             '<span class="amt">\u00b7 ' + moneyShort(total) + ' shown</span></div>' +
           '<div class="bfilter">' +
-            chip("todo",  "To record", counts.todo) +
-            chip("stuck", "Unexplained", counts.stuck) +
-            chip("done",  "Nothing to do", counts.done) +
-            chip("all",   "All",       all.length) +
+            chip("todo",   "To record", counts.todo) +
+            chip("checks", "Checks", counts.checks) +
+            chip("stuck",  "Unexplained", counts.stuck) +
+            chip("done",   "Nothing to do", counts.done) +
+            chip("all",    "All",       all.length) +
           '</div>' +
           '<button class="btn" id="dReset">Start over</button>' +
         '</div>' +
