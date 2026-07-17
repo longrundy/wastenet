@@ -440,6 +440,14 @@
   .st-frame-inner{position:relative;}
   .stmt-frame{position:absolute; top:0; left:0; width:624px; border:0; background:#FAFBF8; transform-origin:top left; display:block;}
 
+  /* View mode: statement centred with room around it, not squeezed in a pane. */
+  .st-frame-wrap-full{flex:1 1 auto; overflow-y:auto; overflow-x:hidden; padding:18px 20px; min-height:0; background:var(--panel);}
+  .st-frame-wrap-full .st-frame-inner{margin:0 auto;}
+  /* Send mode: a compact box - recipients and note only, no second preview. */
+  .stmt-card-send{width:min(480px,100%); height:auto; max-height:90vh;}
+  .st-send-body{padding:18px 18px 8px; overflow-y:auto;}
+  .st-send-body .st-rfield:first-child{margin-top:4px;}
+
   .agmail-e{font-size:11px; color:var(--green-dark); background:transparent;
             border:none; cursor:pointer; padding:2px 6px; border-radius:var(--r-input);
             font-family:var(--font); flex:0 0 auto;}
@@ -1687,20 +1695,26 @@ function renderStmtModal(){
   var el = document.getElementById("stmtModal");
   var st = state.stmt;
   if(!st){ el.className = "stmt-modal"; el.innerHTML = ""; return; }
+  var mode = st.mode || "view";   // view first, then send - no second preview
   var already = (state.statements || {})[st.agent + "|" + st.period];
   var first = String(st.name || "").split(" ")[0];
   el.className = "stmt-modal show";
-  el.innerHTML =
-    '<div class="stmt-card">'+
-      '<div class="stmt-top"><div>'+
-        '<div class="stmt-h">Statement for ' + esc(st.name) + ' \u00b7 ' + esc(stmtPeriodLabel(st.period)) + '</div>'+
-      '</div><button class="stmt-x" id="stmtX">Close</button></div>'+
-      (already
-        ? '<div class="stmt-warn">This statement was already sent on ' + esc(usDate(already.at.slice(0,10))) +
-          '. Sending again will deliver a second copy.</div>'
-        : '')+
-      '<div class="st-panes">'+
-        '<div class="st-left">'+
+
+  var warn = already
+    ? '<div class="stmt-warn">This statement was already sent on ' + esc(usDate(already.at.slice(0,10))) +
+      '. Sending again will deliver a second copy.</div>'
+    : '';
+
+  if(mode === "send"){
+    // Reviewed already - so no preview here, just recipients + note + send.
+    el.innerHTML =
+      '<div class="stmt-card stmt-card-send">'+
+        '<div class="stmt-top"><div>'+
+          '<div class="stmt-h">Email statement</div>'+
+          '<div class="stmt-sub">' + esc(st.name) + ' \u00b7 ' + esc(stmtPeriodLabel(st.period)) + '</div>'+
+        '</div><button class="stmt-x" id="stmtX">Close</button></div>'+
+        warn +
+        '<div class="st-send-body">'+
           '<div class="st-rfield"><span class="st-rlabel">To</span><div class="st-rbox" id="st-to-box"></div></div>'+
           '<div class="st-rfield"><span class="st-rlabel">Cc</span><div class="st-rbox" id="st-cc-box"></div></div>'+
           '<div class="st-rfield"><span class="st-rlabel">Bcc</span><div class="st-rbox" id="st-bcc-box"></div></div>'+
@@ -1708,20 +1722,33 @@ function renderStmtModal(){
           '<div class="st-hint">Optional \u2014 appears above the statement. The statement numbers are generated and can\u2019t be edited.</div>'+
           '<textarea class="st-note" id="stNote" placeholder="Hi ' + esc(first) + ' \u2014 here\u2019s your statement for ' + esc(stmtPeriodLabel(st.period)) + '.">' + esc(st.note || "") + '</textarea>'+
         '</div>'+
-        '<div class="st-right">'+
-          '<div class="st-rhead">Preview \u2014 exactly what goes out</div>'+
-          '<div class="st-rsum" id="stRsum"></div>'+
-          '<div class="st-frame-wrap" id="stFrameWrap"><div class="st-frame-inner" id="stFrameInner">'+
-            '<iframe id="stmtFrame" class="stmt-frame" title="Statement preview" scrolling="no"></iframe>'+
-          '</div></div>'+
+        '<div class="stmt-foot">'+
+          '<span class="stmt-subj">Subject: ' + esc(st.subject) + '</span>'+
+          '<span style="flex:1;"></span>'+
+          '<button class="stmt-x" id="stmtBack">Cancel</button>'+
+          '<button class="stmt-send" id="stmtSend"' + (st.sending ? " disabled" : "") + '>'+
+            (st.sending ? "Sending\u2026" : "Send") + '</button>'+
         '</div>'+
-      '</div>'+
+      '</div>';
+    wireStmtModal();
+    return;
+  }
+
+  // VIEW: the statement in full glory, room to read it, before deciding to send.
+  el.innerHTML =
+    '<div class="stmt-card">'+
+      '<div class="stmt-top"><div>'+
+        '<div class="stmt-h">Statement for ' + esc(st.name) + ' \u00b7 ' + esc(stmtPeriodLabel(st.period)) + '</div>'+
+      '</div><button class="stmt-x" id="stmtX">Close</button></div>'+
+      warn +
+      '<div class="st-frame-wrap st-frame-wrap-full" id="stFrameWrap"><div class="st-frame-inner" id="stFrameInner">'+
+        '<iframe id="stmtFrame" class="stmt-frame" title="Statement preview" scrolling="no"></iframe>'+
+      '</div></div>'+
       '<div class="stmt-foot">'+
-        '<span class="stmt-subj">Subject: ' + esc(st.subject) + '</span>'+
+        '<span class="stmt-subj">Statements go to ' + esc((st.to && st.to[0]) || "\u2014") + '</span>'+
         '<span style="flex:1;"></span>'+
-        '<button class="stmt-x" id="stmtCancel">Cancel</button>'+
-        '<button class="stmt-send" id="stmtSend"' + (st.sending ? " disabled" : "") + '>'+
-          (st.sending ? "Sending\u2026" : "Send it") + '</button>'+
+        '<button class="stmt-x" id="stmtCancel">Close</button>'+
+        '<button class="stmt-send" id="stmtToSend">Email statement \u2192</button>'+
       '</div>'+
     '</div>';
   wireStmtModal();
@@ -1729,6 +1756,7 @@ function renderStmtModal(){
 
 function wireStmtModal(){
   var st = state.stmt; if(!st) return;
+  var mode = st.mode || "view";
   var fr = document.getElementById("stmtFrame");
   if(fr){
     // Re-fit once the document lays out, then again after the logo image loads
@@ -1738,7 +1766,7 @@ function wireStmtModal(){
       '<style>body{margin:0;padding:0;background:#FAFBF8;}</style></head><body>' +
       statementHtml(st._a, st.period, st.note) + '</body></html>';
   }
-  srRenderRecip("to"); srRenderRecip("cc"); srRenderRecip("bcc"); srUpdateSummary();
+  if(mode === "send"){ srRenderRecip("to"); srRenderRecip("cc"); srRenderRecip("bcc"); srUpdateSummary(); }
 
   var note = document.getElementById("stNote");
   if(note) note.addEventListener("input", function(){
@@ -1751,6 +1779,10 @@ function wireStmtModal(){
   var close = function(){ state.stmt = null; renderStmtModal(); };
   var x = document.getElementById("stmtX");      if(x) x.onclick = close;
   var c = document.getElementById("stmtCancel");  if(c) c.onclick = close;
+  var toSend = document.getElementById("stmtToSend");
+  if(toSend) toSend.onclick = function(){ st.mode = "send"; renderStmtModal(); };
+  var back = document.getElementById("stmtBack");
+  if(back) back.onclick = function(){ st.mode = "view"; renderStmtModal(); };
   var send = document.getElementById("stmtSend");
   if(send) send.onclick = function(){
     if(!st || st.sending) return;
@@ -2003,7 +2035,7 @@ function agEmailHtml(a){
          with no argument behind it - exactly the thing an agent would query. */
       (em && state.agMonth
         ? '<button class="stmt-btn" data-stmt="' + esc(a.agent) + '">' +
-            (sentInfo ? "Sent \u00b7 send again" : "Email statement \u2197") + '</button>' +
+            (sentInfo ? "View statement \u00b7 sent" : "View statement") + '</button>' +
           (sentInfo ? '<span class="stmt-sent">sent ' + esc(usDate(sentInfo.at.slice(0,10))) + '</span>' : '')
         : '') +
     '</div>' +
