@@ -617,6 +617,7 @@
   .cmp-tok{display:inline-flex; align-items:center; gap:6px; font-size:12px; background:var(--panel); border:0.5px solid var(--line-strong); border-radius:var(--r-pill); padding:3px 6px 3px 10px; max-width:100%;}
   .cmp-tok.hauler{background:var(--green-tint); border-color:var(--green-border); color:var(--green-darker);}
   .cmp-tok.customer{background:#E7EEF6; border-color:#C3D3E6; color:#274766;}
+  .cmp-tok.corp{background:#EDE7F6; border-color:#D6C7EE; color:#4A2E83;}
   .cmp-tok.staff{background:#F5E9D6; border-color:#E6C99B; color:#7A5320;}
   .cmp-tok .a{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:240px;}
   .cmp-tok .tx{border:0; background:none; cursor:pointer; color:inherit; opacity:0.55; font-size:14px; line-height:1; padding:0 1px;}
@@ -2838,6 +2839,7 @@ function boxRecip(boxId){
   return {
     hauler:   String(c.toRecipients || "").trim(),
     customer: String(c.ccRecipients || "").trim(),
+    corp:     String(c.corpRecipients || "").trim(),
     staff:    String(c.staffRecipients || "").trim()
   };
 }
@@ -2851,6 +2853,7 @@ function buildAddressBook(){
     var c = state.boxContacts[id] || {};
     splitEmails(c.toRecipients).forEach(function(e){ var k=e.toLowerCase(); if(!seen[k]) seen[k]={email:e,role:"hauler"}; });
     splitEmails(c.ccRecipients).forEach(function(e){ var k=e.toLowerCase(); if(!seen[k]) seen[k]={email:e,role:"customer"}; });
+    splitEmails(c.corpRecipients).forEach(function(e){ var k=e.toLowerCase(); if(!seen[k]) seen[k]={email:e,role:"corp"}; });
     splitEmails(c.staffRecipients).forEach(function(e){ var k=e.toLowerCase(); if(!seen[k]) seen[k]={email:e,role:"staff"}; });
   });
   return Object.keys(seen).map(function(k){ return seen[k]; });
@@ -3228,6 +3231,7 @@ function refreshComposePreview(){
 var RECIP_ROLE = {
   hauler:   { label:"Hauler",   cls:"hauler",   dot:"#5CAA16" },
   customer: { label:"Customer", cls:"customer", dot:"#274766" },
+  corp:     { label:"Corporate", cls:"corp",    dot:"#4A2E83" },
   staff:    { label:"Staff",    cls:"staff",    dot:"#7A5320" }
 };
 function recipRole(email){
@@ -3281,7 +3285,7 @@ function wireRecip(which){
 function openRecipAddMenu(which, anchor){
   closeRecipMenus();
   var recip = boxRecip(compose.boxId);
-  var roles = [["hauler",recip.hauler],["customer",recip.customer],["staff",recip.staff]].filter(function(r){ return r[1]; });
+  var roles = [["hauler",recip.hauler],["customer",recip.customer],["corp",recip.corp],["staff",recip.staff]].filter(function(r){ return r[1]; });
   if(!roles.length){ return; }
   var m = document.createElement("div"); m.className = "cmp-rmenu";
   m.innerHTML = '<div class="sec">Add this box\u2019s</div>' +
