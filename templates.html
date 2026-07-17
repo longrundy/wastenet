@@ -39,6 +39,8 @@
   .cols{display:grid; grid-template-columns:180px 1fr; gap:20px;}
   /* two-pane template editor: dropdown + New on top, edit left, preview right */
   .tbar{display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap;}
+  .tbar .modebar{margin-bottom:0;}
+  .tbar-right{margin-left:auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
   .tpl-select{height:var(--h-ctl); padding:0 30px 0 11px; border:1px solid var(--line-strong);
     border-radius:var(--r-input); background:var(--card); font-family:var(--font); font-size:13px;
     font-weight:600; color:var(--ink); min-width:160px; cursor:pointer;}
@@ -143,11 +145,6 @@
   </div>
 
   <div class="editor-card">
-    <div class="modebar">
-      <button class="mode on" id="modeTpl">Saved template</button>
-      <button class="mode" id="modeBlank">Blank email</button>
-    </div>
-
     <div id="body">
       <div class="empty-state"><span class="spinner"></span>Loading templates&hellip;</div>
     </div>
@@ -343,6 +340,20 @@ function placeholdersFor(pill){
 }
 
 /* ---------- render: template mode ---------- */
+function toolbarHtml(rightHtml){
+  return '<div class="tbar">' +
+    '<div class="modebar">' +
+      '<button class="mode' + (state.mode === "template" ? " on" : "") + '" id="modeTpl">Saved template</button>' +
+      '<button class="mode' + (state.mode === "blank" ? " on" : "") + '" id="modeBlank">Blank email</button>' +
+    '</div>' +
+    '<div class="tbar-right">' + (rightHtml || "") + '</div>' +
+  '</div>';
+}
+function wireModeToggle(){
+  var mt = document.getElementById("modeTpl"); if(mt) mt.onclick = function(){ setMode("template"); };
+  var mb = document.getElementById("modeBlank"); if(mb) mb.onclick = function(){ setMode("blank"); };
+}
+
 function renderTemplateMode(){
   var optsHtml = state.order.map(function(pill){
     return '<option value="' + esc(pill) + '"' + (state.current === pill ? ' selected' : '') + '>' + esc(pill) + '</option>';
@@ -361,7 +372,7 @@ function renderTemplateMode(){
     '<div class="field-label">Subject</div>' +
     '<input type="text" id="subj" class="mb12" value="' + esc(t.subjectTemplate) + '">' +
     '<div class="field-label">Body</div>' +
-    '<textarea id="bodytext" style="height:150px;">' + esc(t.bodyTemplate) + '</textarea>' +
+    '<textarea id="bodytext" style="height:340px;">' + esc(t.bodyTemplate) + '</textarea>' +
     phHtml +
     '<div class="btnrow">' +
       '<button class="btn primary" id="saveBtn">Save template</button>' +
@@ -370,11 +381,10 @@ function renderTemplateMode(){
     '</div>';
 
   document.getElementById("body").innerHTML =
-    '<div class="tbar">' +
+    toolbarHtml(
       '<select class="tpl-select" id="tplPick">' + optsHtml + '</select>' +
-      '<span class="tbar-hint">choose a template to edit</span>' +
-      '<button class="btn" id="newTplBtn" style="margin-left:auto;">+ New template</button>' +
-    '</div>' +
+      '<button class="btn" id="newTplBtn">+ New template</button>'
+    ) +
     '<div class="tedit-full">' + editor + '</div>' +
     '<div class="tpv-modal" id="tpvModal"></div>';
   document.getElementById("previewHost").innerHTML = "";
@@ -428,6 +438,7 @@ function refreshPreview(){
 }
 
 function wireTemplateMode(){
+  wireModeToggle();
   var pick = document.getElementById("tplPick");
   if(pick) pick.onchange = function(){ state.current = this.value; renderTemplateMode(); };
 
@@ -490,19 +501,25 @@ function renderBlankMode(){
     '<div class="field-label">Subject</div>' +
     '<input type="text" id="subj" class="mb12" placeholder="Subject line">' +
     '<div class="field-label">Body</div>' +
-    '<textarea id="bodytext" style="height:150px;" placeholder="Type your message"></textarea>' +
+    '<textarea id="bodytext" style="height:340px;" placeholder="Type your message"></textarea>' +
     '<div class="btnrow">' +
       '<button class="btn primary" id="sendBtn">Send</button>' +
+      '<button class="btn" id="previewBtn">Preview</button>' +
       '<span class="hint" style="margin-left:auto;">Sends with the WasteNet footer &middot; copied to office@ for the record</span>' +
     '</div>';
 
-  document.getElementById("body").innerHTML = '<div>' + editor + '</div>';
-  document.getElementById("previewHost").innerHTML = previewBlock();
+  document.getElementById("body").innerHTML =
+    toolbarHtml('<span class="tbar-hint">compose a one-off email</span>') +
+    '<div class="tedit-full">' + editor + '</div>' +
+    '<div class="tpv-modal" id="tpvModal"></div>';
+  document.getElementById("previewHost").innerHTML = "";
   wireBlankMode();
-  refreshPreview();
 }
 
 function wireBlankMode(){
+  wireModeToggle();
+  var pv = document.getElementById("previewBtn");
+  if(pv) pv.onclick = openPreviewModal;
   var subj = document.getElementById("subj");
   var bt = document.getElementById("bodytext");
   if(subj) subj.oninput = refreshPreview;
@@ -603,7 +620,7 @@ function loadContacts(){
     var c = (data && data.contacts) || {};
     Object.keys(c).forEach(function(boxId){
       var row = c[boxId] || {};
-      [["toRecipients","customer"],["ccRecipients","customer cc"],["serviceToRecipients","hauler"],["serviceCcRecipients","hauler cc"]].forEach(function(pair){
+      [["toRecipients","customer"],["ccRecipients","customer cc"],["serviceToRecipients","hauler"],["serviceCcRecipients","hauler cc"],["staffRecipients","staff"]].forEach(function(pair){
         String(row[pair[0]] || "").split(/[;,]/).forEach(function(addr){
           addr = addr.trim();
           if(addr && addr.indexOf("@") !== -1 && !seen[addr.toLowerCase()]){
@@ -621,8 +638,6 @@ function loadContacts(){
 /* ---------- mode switch ---------- */
 function setMode(m){
   state.mode = m;
-  document.getElementById("modeTpl").className = "mode" + (m==="template" ? " on" : "");
-  document.getElementById("modeBlank").className = "mode" + (m==="blank" ? " on" : "");
   if(m === "template"){
     if(state.loaded) renderTemplateMode();
     else document.getElementById("body").innerHTML = '<div class="empty-state"><span class="spinner"></span>Loading templates&hellip;</div>';
@@ -634,8 +649,6 @@ function setMode(m){
 
 /* ---------- boot ---------- */
 function boot(){
-  document.getElementById("modeTpl").onclick = function(){ setMode("template"); };
-  document.getElementById("modeBlank").onclick = function(){ setMode("blank"); };
   loadTemplates();
 }
 
