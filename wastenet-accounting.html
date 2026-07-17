@@ -909,6 +909,38 @@ function jsonpTo(base, params, cb){
   sc.onerror = function(){ cleanup(); cb({ ok:false, error:"Could not reach the server." }); };
   document.body.appendChild(sc);
 }
+
+/* Send a statement via POST to the MONITOR script. The email HTML is far too
+   large to fit in a GET URL (a many-invoice statement blows past the length
+   limit), so it rides in the POST body. A cross-origin POST to Apps Script
+   can't return a readable response, so each send is tagged with a one-time
+   sendId and the real outcome is polled back via ?action=send_result. */
+function postSendEmail(payload, cb){
+  var sendId = "snd_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  payload.type = "send_email";
+  payload.sendId = sendId;
+  var done = false;
+  var finish = function(res){ if(done) return; done = true; cb(res); };
+  try{
+    fetch(MONITOR_API, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    }).then(function(){ pollSendResult(sendId, 0, finish); })
+      .catch(function(){ pollSendResult(sendId, 0, finish); });
+  } catch(e){ pollSendResult(sendId, 0, finish); }
+}
+function pollSendResult(sendId, tries, cb){
+  if(tries >= 8){
+    cb({ ok:false, error:"The statement was submitted, but the result could not be confirmed. Check the office@ inbox before resending." });
+    return;
+  }
+  jsonpTo(MONITOR_API, { action:"send_result", id:sendId, key:KEY }, function(data){
+    if(data && data.found && data.result){ cb(data.result); return; }
+    setTimeout(function(){ pollSendResult(sendId, tries + 1, cb); }, 1500);
+  });
+}
 var MONITOR_URL = "wastenet-monitor.html";
 
 /* Access code. NOT hardcoded - this file's source is public on GitHub,
@@ -1826,9 +1858,11 @@ function wireStmtModal(){
     st.sending = true;
     renderStmtModal();
 
-    /* Sent by the MONITOR script - SendGrid lives there. */
-    jsonpTo(MONITOR_API, {
-      action:"send_email", key:KEY,
+    /* Sent by the MONITOR script - SendGrid lives there. POSTed, not sent as a
+       GET URL, because a many-invoice statement's HTML is far too large for a
+       URL; the outcome is read back by token inside postSendEmail. */
+    postSendEmail({
+      key:KEY,
       to: st.to.join(", "), cc: st.cc.join(", "), bcc: bcc.join(", "),
       subject: st.subject,
       body: "Your WasteNet commission statement for " + stmtPeriodLabel(st.period) +
