@@ -588,27 +588,23 @@ function buildQueue(){
     });
     var inner = fillHtml(tBody, htmlVals(fmtLong(g.date), bl.descs, link, bl.pos));
 
+    /* PO BEFORE the confirm block, so on David's per-box bodies - which type
+       the site in as literal text with no [box list] slot - it lands right
+       under that site line, in the same indented non-green style the generated
+       box lists use. boldLiteralSites has already run inside fillHtml above, so
+       this appended span is never swept into the green. Skipped when the box
+       list already carried the PO (batched requests), so it never doubles up. */
+    var poMiss = g.ids.filter(function(id){ return poFor[id] && body.indexOf(poFor[id]) === -1; });
+    poMiss.forEach(function(id){
+      body += "\n    PO " + poFor[id];
+      inner += '<br><span style="color:#444441;display:inline-block;padding-left:18px;">PO ' + esc(poFor[id]) + '</span>';
+    });
+
     // Some per-box bodies have no [confirm link] slot at all. Append rather than
     // ship a hauler a request they have no way to confirm.
     if(body.indexOf(link) === -1){
       body += "\n\nTo confirm this service is scheduled, click below and enter your name - no reply needed:\n" + link;
       inner += "<br><br>To confirm this service is scheduled, click below and enter your name - no reply needed:" + confirmButton(link);
-    }
-
-    /* The PO must reach whoever schedules - the hauler directly, or Myrna who
-       reads it off on the call. Batched requests already carry it in the box
-       list above; a single-box request uses David's per-box body, which may
-       have no box list, so append the PO here when it isn't already in the
-       body. The check keeps it from doubling up when the box list showed it. */
-    var poMiss = g.ids.filter(function(id){ return poFor[id] && body.indexOf(poFor[id]) === -1; });
-    if(poMiss.length){
-      var pls = poMiss.map(function(id){
-        var sn = raleysStoreNum(id);
-        return (sn != null ? sn + " Raley\u2019s" : ((state.rows[id] || {}).desc || ("Box " + id))) + " \u2014 PO " + poFor[id];
-      });
-      var head = "Purchase order" + (pls.length > 1 ? "s" : "") + ":";
-      body += "\n\n" + head + "\n" + pls.join("\n");
-      inner += "<br><br>" + head + "<br>" + pls.map(esc).join("<br>");
     }
 
     q.push({
