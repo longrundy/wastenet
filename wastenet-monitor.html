@@ -2810,17 +2810,8 @@ function fetchServiceContentAudit(){
   var el = document.getElementById("syncStrip");
   if(!el) return;
   jsonp({ action:"service_content_audit", key:KEY }, function(data){
-    if(!data || !data.ok){ el.className = ""; el.innerHTML = ""; return; }
+    if(!data || !data.ok || data.inSync){ el.className = ""; el.innerHTML = ""; return; }
     el.className = "sync-strip";
-    if(data.inSync){
-      el.innerHTML =
-        '<div class="sync-ok">' +
-          '<span class="sync-dot">\u2713</span>' +
-          '<span class="sync-t">Service content in sync</span>' +
-          '<span class="sync-sub">' + data.masterCount + ' boxes \u00b7 ' + data.serviceCount + ' templates</span>' +
-        '</div>';
-      return;
-    }
     var rows = "";
     if(data.needContent && data.needContent.length){
       rows +=
