@@ -203,6 +203,12 @@ var state = {
 
 var PLACEHOLDER_TEMPLATES = { "Notice": 1, "Batch": 1 };
 
+/* System templates whose CONTENT still lives in the Email Templates tab and is
+   read by the batching flow, but which must NOT be pickable or editable from
+   this page. Loaded into state.templates so the map stays complete, but kept
+   out of state.order (the dropdown) and blocked in the New-template handler. */
+var HIDDEN_TEMPLATES = { "Batch": 1 };
+
 /* ============================================================
    THE EMAIL RENDERER - copied VERBATIM from messages.html, which
    is the flow that actually sends these. There must be exactly one
@@ -452,6 +458,7 @@ function wireTemplateMode(){
     if(name === null) return;
     name = name.trim();
     if(!name) return;
+    if(HIDDEN_TEMPLATES[name]){ toast("\u201C" + name + "\u201D is a reserved system template and can\u2019t be edited here.", true); return; }
     if(state.templates[name]){ state.current = name; renderTemplateMode(); toast("That template already exists \u2014 opened it.", true); return; }
     state.templates[name] = { subjectTemplate:"", bodyTemplate:"" };
     if(state.order.indexOf(name) === -1) state.order.push(name);
@@ -605,8 +612,8 @@ function loadTemplates(){
     state.order = [];
     var t = data.templates || {};
     var preferred = ["Notice","Batch","Emptied","Missed","Premature","Problem","Repair","Usage","Weights"];
-    preferred.forEach(function(p){ if(t[p]){ state.templates[p] = t[p]; state.order.push(p); } });
-    Object.keys(t).forEach(function(p){ if(state.order.indexOf(p) === -1){ state.templates[p] = t[p]; state.order.push(p); } });
+    preferred.forEach(function(p){ if(t[p]){ state.templates[p] = t[p]; if(!HIDDEN_TEMPLATES[p]) state.order.push(p); } });
+    Object.keys(t).forEach(function(p){ if(!state.templates[p]) state.templates[p] = t[p]; if(!HIDDEN_TEMPLATES[p] && state.order.indexOf(p) === -1) state.order.push(p); });
     state.loaded = true;
     if(!state.current && state.order.length) state.current = state.order[0];
     if(state.mode === "template") renderTemplateMode();
