@@ -37,6 +37,17 @@
   .mode.on{background:var(--green-tint); color:var(--green-darker); font-weight:500;}
 
   .cols{display:grid; grid-template-columns:180px 1fr; gap:20px;}
+  /* two-pane template editor: dropdown + New on top, edit left, preview right */
+  .tbar{display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap;}
+  .tpl-select{height:var(--h-ctl); padding:0 30px 0 11px; border:1px solid var(--line-strong);
+    border-radius:var(--r-input); background:var(--card); font-family:var(--font); font-size:13px;
+    font-weight:600; color:var(--ink); min-width:160px; cursor:pointer;}
+  .tpl-select:focus{outline:none; border-color:var(--green); box-shadow:0 0 0 2px var(--green-tint);}
+  .tbar-hint{font-size:12.5px; color:var(--ink-2);}
+  .tcols{display:grid; grid-template-columns:minmax(320px,360px) minmax(0,1fr); gap:18px; align-items:start;}
+  .tprev{overflow-x:auto;}
+  .tprev .preview-wrap{margin-bottom:0;}
+  @media(max-width:860px){ .tcols{grid-template-columns:1fr;} }
   .tlist-head{font-size:11px; color:var(--ink-3); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;}
   .tlist{display:flex; flex-direction:column; gap:1px;}
   .titem{font-size:13px; padding:7px 10px; border-radius:var(--r-ctl); color:var(--ink-2); cursor:pointer; border:0; background:transparent; text-align:left; font-family:var(--font); width:100%;}
@@ -324,8 +335,8 @@ function placeholdersFor(pill){
 
 /* ---------- render: template mode ---------- */
 function renderTemplateMode(){
-  var listHtml = state.order.map(function(pill){
-    return '<button class="titem' + (state.current === pill ? " on" : "") + '" data-pill="' + esc(pill) + '">' + esc(pill) + '</button>';
+  var optsHtml = state.order.map(function(pill){
+    return '<option value="' + esc(pill) + '"' + (state.current === pill ? ' selected' : '') + '>' + esc(pill) + '</option>';
   }).join("");
 
   var t = state.templates[state.current] || { subjectTemplate:"", bodyTemplate:"", toRole:"Hauler", ccRole:"" };
@@ -349,11 +360,16 @@ function renderTemplateMode(){
     '</div>';
 
   document.getElementById("body").innerHTML =
-    '<div class="cols">' +
-      '<div class="side-right"><div class="tlist-head">Templates</div><div class="tlist">' + listHtml + '</div></div>' +
-      '<div>' + editor + '</div>' +
+    '<div class="tbar">' +
+      '<select class="tpl-select" id="tplPick">' + optsHtml + '</select>' +
+      '<span class="tbar-hint">choose a template to edit</span>' +
+      '<button class="btn" id="newTplBtn" style="margin-left:auto;">+ New template</button>' +
+    '</div>' +
+    '<div class="tcols">' +
+      '<div class="tedit">' + editor + '</div>' +
+      '<div class="tprev">' + previewBlock() + '</div>' +
     '</div>';
-  document.getElementById("previewHost").innerHTML = previewBlock();
+  document.getElementById("previewHost").innerHTML = "";   // preview now lives in the right pane
 
   wireTemplateMode();
   refreshPreview();
@@ -381,9 +397,23 @@ function refreshPreview(){
 }
 
 function wireTemplateMode(){
-  document.querySelectorAll(".titem").forEach(function(el){
-    el.onclick = function(){ state.current = el.getAttribute("data-pill"); renderTemplateMode(); };
-  });
+  var pick = document.getElementById("tplPick");
+  if(pick) pick.onchange = function(){ state.current = this.value; renderTemplateMode(); };
+
+  var newBtn = document.getElementById("newTplBtn");
+  if(newBtn) newBtn.onclick = function(){
+    var name = prompt("Name for the new template (e.g. Reminder, Holiday Notice):", "");
+    if(name === null) return;
+    name = name.trim();
+    if(!name) return;
+    if(state.templates[name]){ state.current = name; renderTemplateMode(); toast("That template already exists \u2014 opened it.", true); return; }
+    state.templates[name] = { subjectTemplate:"", bodyTemplate:"" };
+    if(state.order.indexOf(name) === -1) state.order.push(name);
+    state.current = name;
+    renderTemplateMode();
+    toast("New template \u2014 write it, then Save to keep it.");
+  };
+
   var subj = document.getElementById("subj");
   var bt = document.getElementById("bodytext");
   if(subj) subj.oninput = refreshPreview;
