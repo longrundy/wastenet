@@ -345,7 +345,7 @@ function placeholdersFor(pill){
 function toolbarHtml(rightHtml){
   return '<div class="tbar">' +
     '<div class="modebar">' +
-      '<button class="mode' + (state.mode === "template" ? " on" : "") + '" id="modeTpl">Saved template</button>' +
+      '<button class="mode' + (state.mode === "template" ? " on" : "") + '" id="modeTpl">Email templates</button>' +
       '<button class="mode' + (state.mode === "blank" ? " on" : "") + '" id="modeBlank">Blank email</button>' +
     '</div>' +
     '<div class="tbar-right">' + (rightHtml || "") + '</div>' +
@@ -486,14 +486,7 @@ function wireTemplateMode(){
 
 /* ---------- render: blank mode ---------- */
 function renderBlankMode(){
-  var tplOpts = '<option value="">Start from scratch</option>' +
-    state.order.map(function(pill){
-      return '<option value="' + esc(pill) + '">' + esc(pill) + '</option>';
-    }).join("");
-
   var editor =
-    '<div class="field-label">Start from a template <span style="color:var(--ink-3);font-weight:400;">(optional)</span></div>' +
-    '<select id="tplPick" class="mb12">' + tplOpts + '</select>' +
     '<div class="field-label">To</div>' +
     '<div class="lookup mb12"><input type="text" id="toAddr" placeholder="name@example.com"><div class="lookup-drop" id="toDrop"></div></div>' +
     '<div class="row2">' +
@@ -530,15 +523,6 @@ function wireBlankMode(){
   /* Loading a template here is how the seven templates that no automated flow
      sends (Emptied, Missed, Repair, ...) actually get used: as a starting
      point for a one-off you address yourself. */
-  var pick = document.getElementById("tplPick");
-  if(pick) pick.onchange = function(){
-    var t = state.templates[pick.value];
-    if(!t) return;
-    document.getElementById("subj").value = t.subjectTemplate || "";
-    document.getElementById("bodytext").value = t.bodyTemplate || "";
-    refreshPreview();
-  };
-
   ["to","cc","bcc"].forEach(function(which){
     var inp = document.getElementById(which + "Addr");
     var drop = document.getElementById(which + "Drop");
