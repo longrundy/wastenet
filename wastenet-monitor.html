@@ -253,6 +253,20 @@
   .date-opt.cur{background:var(--green-tint); color:var(--green-darker); font-weight:600;}
   .date-opt .latest-pill{font-size:9px; background:var(--green); color:#fff; padding:1px 6px; border-radius:var(--r-pill); margin-left:6px;}
   .past-banner{background:#FAEEDA; border:0.5px solid #FAC775; color:var(--amber-dark); padding:9px 14px; border-radius:var(--r-card); font-size:12px; font-weight:500; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  /* service-content sync check strip (under the buckets) */
+  .sync-strip{margin-bottom:16px;}
+  .sync-ok{display:inline-flex; align-items:center; gap:9px; background:var(--green-tint-2); border:0.5px solid var(--green-border); border-radius:10px; padding:8px 13px; font-size:12.5px;}
+  .sync-ok .sync-dot{width:15px; height:15px; border-radius:50%; background:var(--green); color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:10px;}
+  .sync-ok .sync-t{color:var(--green-darker); font-weight:500;}
+  .sync-ok .sync-sub{color:#639922;}
+  .sync-warn{background:#FDF6EC; border:0.5px solid #F0C889; border-radius:10px; padding:11px 14px;}
+  .sync-warn-head{display:flex; align-items:center; gap:9px; margin-bottom:9px;}
+  .sync-warn-head .sync-dot{width:15px; height:15px; border-radius:50%; background:var(--amber); color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700;}
+  .sync-warn-head .sync-t{color:#854F0B; font-weight:600; font-size:13px;}
+  .sync-row{background:#fff; border:0.5px solid #EBDCC4; border-radius:8px; padding:8px 11px;}
+  .sync-row + .sync-row{margin-top:7px;}
+  .sync-row-t{font-size:12.5px; color:#854F0B; font-weight:500; margin-bottom:2px;}
+  .sync-row-ids{font-size:12px; color:#6b6b66; word-break:break-word;}
   .past-banner button{font-size:11px; font-weight:600; color:#fff; background:var(--green); border:none; padding:5px 12px; border-radius:var(--r-ctl); cursor:pointer;}
   .icon-btn{width:var(--h-ctl); padding:0;}
 
@@ -792,6 +806,8 @@
     <div id="scoreSentinel" style="height:0; margin:0; padding:0;"></div>
     <div class="summary" id="summary"></div>
   </div>
+
+  <div id="syncStrip"></div>
 
   <div class="banner" id="banner"></div>
 
@@ -2782,6 +2798,51 @@ function load(){
   fetchHaulerPortals();
   fetchTemplates();
   fetchBoxContacts();
+  fetchServiceContentAudit();
+}
+
+/* Service-content sync check: compares the Master Box List against the Service
+   Email Content tab and shows a strip under the buckets. Quiet green when they
+   match; amber with the exact Box IDs when a box was added (needs content) or
+   removed (orphaned row). Non-fatal - on any failure the strip just stays
+   empty, exactly as it looks today, rather than blocking the dashboard. */
+function fetchServiceContentAudit(){
+  var el = document.getElementById("syncStrip");
+  if(!el) return;
+  jsonp({ action:"service_content_audit", key:KEY }, function(data){
+    if(!data || !data.ok){ el.className = ""; el.innerHTML = ""; return; }
+    el.className = "sync-strip";
+    if(data.inSync){
+      el.innerHTML =
+        '<div class="sync-ok">' +
+          '<span class="sync-dot">\u2713</span>' +
+          '<span class="sync-t">Service content in sync</span>' +
+          '<span class="sync-sub">' + data.masterCount + ' boxes \u00b7 ' + data.serviceCount + ' templates</span>' +
+        '</div>';
+      return;
+    }
+    var rows = "";
+    if(data.needContent && data.needContent.length){
+      rows +=
+        '<div class="sync-row">' +
+          '<div class="sync-row-t">' + data.needContent.length + ' box' + (data.needContent.length===1?"":"es") + ' need service content</div>' +
+          '<div class="sync-row-ids">' + esc(data.needContent.join(", ")) + ' \u2014 a request for ' + (data.needContent.length===1?"this":"these") + ' would send with no wording or account code</div>' +
+        '</div>';
+    }
+    if(data.orphaned && data.orphaned.length){
+      rows +=
+        '<div class="sync-row">' +
+          '<div class="sync-row-t">' + data.orphaned.length + ' orphaned template row' + (data.orphaned.length===1?"":"s") + '</div>' +
+          '<div class="sync-row-ids">' + esc(data.orphaned.join(", ")) + ' \u2014 box no longer on the Master Box List; safe to clear</div>' +
+        '</div>';
+    }
+    el.innerHTML =
+      '<div class="sync-warn">' +
+        '<div class="sync-warn-head"><span class="sync-dot">!</span>' +
+          '<span class="sync-t">Service content out of sync</span></div>' +
+        rows +
+      '</div>';
+  });
 }
 
 // The email templates (subject/body per kind), same source the Templates page
