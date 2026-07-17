@@ -481,6 +481,36 @@ function buildQueue(){
   var q = [];
   var ids = Object.keys(state.want);
 
+  /* ---- Raley's PO map: computed ONCE for the whole batch ----
+     The PO a store shows on the corporate email MUST equal the PO the hauler
+     (or Myrna, who reads it off and relays it on the call) gets on the service
+     request - corporate hands the hauler a PO to reference. So there is one
+     authority here, and both the requests (section 1) and the corporate email
+     (section 3) read poFor[id]. Grouped by pickup date, store-number ascending
+     fixes each store's letter (A, B, C...). Every Raley's box with a real
+     pickup date gets a PO, even one missing its column-L contact - that box
+     still needs a PO on its request; the missing-L blocked row (section 3)
+     just tells you corporate won't get it until L is filled. */
+  var poFor = {};
+  (function(){
+    var byDate = {};
+    ids.forEach(function(id){
+      if(!isRaleys(id)) return;
+      var r = state.rows[id] || {};
+      if(channelOf(r) === "portal" && !r.schDate) return; // no booked date, no PO yet
+      var dt = pickupFor(id);
+      (byDate[dt] = byDate[dt] || []).push(id);
+    });
+    Object.keys(byDate).forEach(function(dt){
+      var stem = yymmdd(dt);
+      byDate[dt].slice().sort(function(a,b){
+        var na = raleysStoreNum(a); na = (na == null ? Infinity : na);
+        var nb = raleysStoreNum(b); nb = (nb == null ? Infinity : nb);
+        return (na - nb) || String(a).localeCompare(String(b), undefined, { numeric:true });
+      }).forEach(function(id, idx){ poFor[id] = stem + poLetter(idx); });
+    });
+  })();
+
   /* ---- 1. Service requests: grouped by RECIPIENT + date ----
      Not by haul code. The haul code is a label; the recipient list is what
      actually determines who gets an envelope. Two boxes under one haul code
@@ -512,7 +542,7 @@ function buildQueue(){
        cannot list boxes it does not know about. */
     var lines = g.ids.map(function(id){
       var r = state.rows[id] || {};
-      return (r.desc || ("Box " + id)) + "  \u2014  box " + id;
+      return (r.desc || ("Box " + id)) + "  \u2014  box " + id + (poFor[id] ? "  \u2014  PO " + poFor[id] : "");
     });
     var tSub, tBody;
     if(multi){
@@ -541,6 +571,22 @@ function buildQueue(){
     if(body.indexOf(link) === -1){
       body += "\n\nTo confirm this service is scheduled, click below and enter your name - no reply needed:\n" + link;
       inner += "<br><br>To confirm this service is scheduled, click below and enter your name - no reply needed:" + confirmButton(link);
+    }
+
+    /* The PO must reach whoever schedules - the hauler directly, or Myrna who
+       reads it off on the call. Batched requests already carry it in the box
+       list above; a single-box request uses David's per-box body, which may
+       have no box list, so append the PO here when it isn't already in the
+       body. The check keeps it from doubling up when the box list showed it. */
+    var poMiss = g.ids.filter(function(id){ return poFor[id] && body.indexOf(poFor[id]) === -1; });
+    if(poMiss.length){
+      var pls = poMiss.map(function(id){
+        var sn = raleysStoreNum(id);
+        return (sn != null ? sn + " Raley\u2019s" : ((state.rows[id] || {}).desc || ("Box " + id))) + " \u2014 PO " + poFor[id];
+      });
+      var head = "Purchase order" + (pls.length > 1 ? "s" : "") + ":";
+      body += "\n\n" + head + "\n" + pls.join("\n");
+      inner += "<br><br>" + head + "<br>" + pls.map(esc).join("<br>");
     }
 
     q.push({
@@ -653,12 +699,11 @@ function buildQueue(){
       var nb = raleysStoreNum(b); nb = (nb == null ? Infinity : nb);
       return (na - nb) || String(a).localeCompare(String(b), undefined, { numeric:true });
     });
-    var stem = yymmdd(g.date);
-    var lines = ordered.map(function(id, idx){
+    var lines = ordered.map(function(id){
       var r = state.rows[id] || {};
       var sn = raleysStoreNum(id);
       var label = (sn != null ? sn : (r.desc || ("Box " + id)));
-      return label + " Raley\u2019s \u2014 PO " + stem + poLetter(idx);
+      return label + " Raley\u2019s \u2014 PO " + poFor[id];
     });
     // Reuse the Notice template with a PO-annotated box list; office@ is BCC'd
     // for the record at send. A dedicated corporate template can replace this
