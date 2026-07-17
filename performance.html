@@ -23,8 +23,10 @@
   html,body{margin:0; padding:0;}
   body{font-family:var(--font); background:var(--page); color:var(--ink); font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased;}
   .wrap{max-width:820px; margin:0 auto; padding:20px 16px 80px;}
-  .header{display:flex; align-items:center; gap:10px; padding:14px 0 12px;}
-  .perf-sticky{position:sticky; top:0; z-index:50; background:var(--page); border-bottom:0.5px solid var(--line); margin-bottom:12px;}
+  .topcard{border:0.5px solid var(--line); border-radius:var(--r-card); background:var(--card); padding:12px 16px 15px;}
+  .header{display:flex; align-items:center; gap:10px;}
+  .perf-sticky{position:sticky; top:0; z-index:50; background:var(--page); margin-bottom:12px;}
+  .perf-sticky .topcard{margin-bottom:14px;}
   .header-left{display:flex; align-items:center; gap:10px;}
   .brand-logo{height:24px; width:auto; display:block; flex:0 0 auto;}
   .empty-state{text-align:center; padding:60px 20px; color:var(--ink-2);}
@@ -58,6 +60,7 @@
      buttons compress to a single-line, smaller-battery form so they stay in
      reach without taking up the screen. */
   .perf-sticky.slim .perf-title{display:none;}
+  .perf-sticky.slim .topcard{margin-bottom:10px;}
   .perf-sticky.slim .tier-btn{padding:6px 11px; display:flex; align-items:center; gap:9px;}
   .perf-sticky.slim .tier-bat{margin:0; height:15px;}
   .perf-sticky.slim .tier-bat svg{width:28px; height:14px;}
@@ -96,7 +99,7 @@
 <div class="wrap" id="app" style="display:none;">
   <div id="perfSentinel" style="height:1px;"></div>
   <div class="perf-sticky" id="perfSticky">
-    <div class="header">
+    <div class="topcard header">
       <div class="header-left">
         <img class="brand-logo" src="wastenet-logo.png?v=2026-07-15" alt="WasteNet">
         <div data-wn-nav data-label="Box Performance"></div>
