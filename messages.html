@@ -444,6 +444,39 @@ function pickupFor(id){
   return state.want[id];
 }
 
+/* ---- Raley's corporate-notice helpers ----
+   A box is Raley's if its description matches the forgiving R- store pattern
+   (any case, any spacing around the dash) OR any recipient address on the box
+   contains "raleys". Two independent signals - a typo has to break both to
+   slip through, and the blocked-row net below catches anything that trips
+   neither. */
+function isRaleys(id){
+  var r = state.rows[id] || {};
+  if(/\bR\s*-\s*\d/i.test(String(r.desc || ""))) return true;
+  var c = state.contacts[id] || {};
+  var blob = [c.toRecipients, c.ccRecipients, c.corpRecipients, c.staffRecipients,
+              c.serviceToRecipients, c.serviceCcRecipients].join(" ");
+  return /raleys/i.test(blob);
+}
+/* Store number off the R- value in the description (R- 412 -> 412). Null when
+   a box is Raley's by email only, with no R- number to read - such a box sorts
+   last and labels by its description instead of a number. */
+function raleysStoreNum(id){
+  var r = state.rows[id] || {};
+  var m = String(r.desc || "").match(/\bR\s*-\s*(\d+)/i);
+  return m ? parseInt(m[1], 10) : null;
+}
+/* Pickup date YYYY-MM-DD -> YYMMDD PO stem (2026-07-20 -> 260720). */
+function yymmdd(ymd){ return String(ymd || "").replace(/-/g, "").slice(2); }
+/* 0-based index -> A, B, ... Z, AA, AB ... (bijective base-26). The past-Z
+   roll never happens in practice - never 26 Raley's stores on one day - but it
+   guarantees the PO can never collide or come back blank even if it did. */
+function poLetter(n){
+  var s = ""; n = n + 1;
+  while(n > 0){ var rem = (n - 1) % 26; s = String.fromCharCode(65 + rem) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+
 function buildQueue(){
   var q = [];
   var ids = Object.keys(state.want);
@@ -576,6 +609,73 @@ function buildQueue(){
     });
   });
 
+  /* ---- 3. Raley's corporate master email: one per corporate contact + date ----
+     Raley's requires a PO per store. Corporate gets ONE email listing every
+     Raley's store on that date, each with its PO; the individual stores are
+     notified normally in section 2 above (no PO, no corporate content, no
+     awareness of the other stores). One "notify" action produces both.
+
+     A Raley's box with no corporate contact in column L blocks here so a
+     missing L contact is visible, never silent. A Raley's box missing its H
+     store contact still blocks its OWN store notice in section 2, but still
+     appears here - the PO only needs the store number, not the store's email.
+
+     This email is a RECORD (office@ is BCC'd as always), so it does not write
+     the ledger: the per-store notices above are what light the Notified marks.
+     ledger:false tells sendAll to send it with no boxId/event. */
+  var corpG = {};
+  ids.forEach(function(id){
+    if(!isRaleys(id)) return;
+    var c = state.contacts[id] || {};
+    var r = state.rows[id] || {};
+    var ch = channelOf(r);
+    // A portal box with nothing booked yet has no real pickup date - it waits,
+    // same as its store notice does, rather than minting a PO against no date.
+    if(ch === "portal" && !r.schDate) return;
+    var corp = addrs(c.corpRecipients);
+    var dt = pickupFor(id);
+    if(!corp.length){
+      blocked.push({ id:"blk|nocorp|"+id, ids:[id], date:dt,
+        why:"Raley\u2019s box with no corporate contact in column L. Add one so the PO notice can reach corporate.",
+        who:(r.desc || ("Box " + id)) + " \u00b7 Raley\u2019s, no corporate contact" });
+      return;
+    }
+    var k = addrKey(corp) + "|" + dt;
+    (corpG[k] = corpG[k] || { to:corp, date:dt, ids:[] }).ids.push(id);
+  });
+
+  Object.keys(corpG).forEach(function(k){
+    var g = corpG[k];
+    // Store number ascending fixes the PO letter order, so the same store keeps
+    // the same PO every time this regenerates.
+    var ordered = g.ids.slice().sort(function(a,b){
+      var na = raleysStoreNum(a); na = (na == null ? Infinity : na);
+      var nb = raleysStoreNum(b); nb = (nb == null ? Infinity : nb);
+      return (na - nb) || String(a).localeCompare(String(b), undefined, { numeric:true });
+    });
+    var stem = yymmdd(g.date);
+    var lines = ordered.map(function(id, idx){
+      var r = state.rows[id] || {};
+      var sn = raleysStoreNum(id);
+      var label = (sn != null ? sn : (r.desc || ("Box " + id)));
+      return label + " Raley\u2019s \u2014 PO " + stem + poLetter(idx);
+    });
+    // Reuse the Notice template with a PO-annotated box list; office@ is BCC'd
+    // for the record at send. A dedicated corporate template can replace this
+    // wording later with no structural change - only the box list differs.
+    var t = state.templates["notice"] || {};
+    var vals = { "pickup date": fmtLong(g.date), "service description": lines.join("\n"),
+                 "box description": lines.join("\n"), "box list": lines.join("\n") };
+    q.push({
+      id: "corp|" + k, kind: "corporate",
+      to: g.to, cc: [], ids: ordered, date: g.date,
+      subject: fill(t.subject, vals),
+      body: fill(t.body, vals),
+      html: emailShell(fillHtml(t.body, htmlVals(fmtLong(g.date), lines, ""))),
+      event: "", ledger: false, label: "corporate"
+    });
+  });
+
   q.sort(function(a,b){
     if(a.kind !== b.kind) return a.kind === "request" ? -1 : 1;
     return (a.date + a.to.join()).localeCompare(b.date + b.to.join());
@@ -658,6 +758,7 @@ function render(){
 
   var reqs = q.filter(function(e){ return e.kind === "request"; });
   var nots = q.filter(function(e){ return e.kind === "notice"; });
+  var corps = q.filter(function(e){ return e.kind === "corporate"; });
 
   var html = '<div class="summary">' +
     '<h1>Ready to send</h1>' +
@@ -678,6 +779,10 @@ function render(){
   if(nots.length){
     html += '<div class="sec">Customer notices \u00b7 ' + nots.length + ' \u00b7 grouped by contact and date</div>';
     html += nots.map(cardHtml).join("");
+  }
+  if(corps.length){
+    html += '<div class="sec">Raley\u2019s corporate \u00b7 ' + corps.length + ' \u00b7 PO list, grouped by corporate contact and date</div>';
+    html += corps.map(cardHtml).join("");
   }
   if(blocked.length){
     html += '<div class="sec">Cannot send \u00b7 ' + blocked.length + '</div>';
@@ -761,7 +866,11 @@ function sendAll(){
       // to show and once to send - is how a preview starts quietly lying.
       subject: e.subject, body: e.body, html: e.html,
       // The ledger row rides along with the send - see sendEmailViaSendGrid.
-      boxId: e.ids.join(","), event: e.event, pickupDate: e.date, tab: state.tab
+      // A record-only email (ledger:false, e.g. the Raley's corporate master)
+      // sends with no boxId/event so it writes no ledger row - the per-store
+      // notices are what light the Notified marks.
+      boxId: e.ledger === false ? "" : e.ids.join(","),
+      event: e.ledger === false ? "" : e.event, pickupDate: e.date, tab: state.tab
     }, function(data){
       if(data && data.ok){
         state.sent[e.id] = "ok";
