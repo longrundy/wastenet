@@ -41,6 +41,8 @@
   .tbar{display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap;}
   .tbar .modebar{margin-bottom:0;}
   .tbar-right{margin-left:auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .sent-banner{display:flex; align-items:center; gap:9px; background:var(--green-tint); border:0.5px solid var(--green-border); color:var(--green-darker); border-radius:var(--r-ctl); padding:11px 14px; font-size:13.5px; font-weight:500; margin-bottom:16px; transition:opacity .4s;}
+  .sent-check{display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:50%; background:var(--green-dark); color:#fff; font-size:12px; flex:0 0 auto;}
   .tpl-select{height:var(--h-ctl); padding:0 30px 0 11px; border:1px solid var(--line-strong);
     border-radius:var(--r-input); background:var(--card); font-family:var(--font); font-size:13px;
     font-weight:600; color:var(--ink); width:auto; min-width:160px; max-width:260px; cursor:pointer;}
@@ -503,8 +505,15 @@ function renderBlankMode(){
       '<span class="hint" style="margin-left:auto;">Sends with the WasteNet footer &middot; copied to office@ for the record</span>' +
     '</div>';
 
+  var sentBanner = state.blankSent
+    ? '<div class="sent-banner"><span class="sent-check">\u2713</span>Email sent' +
+      (state.blankSent.addr ? ' to <b>' + esc(state.blankSent.addr) + '</b>' : '') +
+      '. The form below is ready for the next one.</div>'
+    : '';
+  state.blankSent = null;
   document.getElementById("body").innerHTML =
     toolbarHtml('<span class="tbar-hint">compose a one-off email</span>') +
+    sentBanner +
     '<div class="tedit-full">' + editor + '</div>' +
     '<div class="tpv-modal" id="tpvModal"></div>';
   document.getElementById("previewHost").innerHTML = "";
@@ -513,6 +522,8 @@ function renderBlankMode(){
 
 function wireBlankMode(){
   wireModeToggle();
+  var sb = document.querySelector(".sent-banner");
+  if(sb) setTimeout(function(){ sb.style.opacity = "0"; setTimeout(function(){ if(sb.parentNode) sb.parentNode.removeChild(sb); }, 400); }, 7000);
   var pv = document.getElementById("previewBtn");
   if(pv) pv.onclick = openPreviewModal;
   var subj = document.getElementById("subj");
@@ -576,8 +587,12 @@ function wireBlankMode(){
     send.disabled = true; send.textContent = "Sending…";
     jsonp({ action:"send_email", key:KEY, to:to, cc:cc, bcc:bcc, subject:subject, body:body, html:html }, function(data){
       send.disabled = false; send.textContent = "Send";
-      if(data && data.ok){ toast("Sent."); }
-      else { toast((data && data.error) || "Could not send.", true); }
+      if(data && data.ok){
+        state.blankSent = { addr: (to.split(",")[0] || "").trim() };
+        renderBlankMode();   // clear the form and show a clear 'sent' banner
+      } else {
+        toast((data && data.error) || "Could not send.", true);
+      }
     });
   };
 }
