@@ -653,7 +653,7 @@ function loadContacts(){
     var c = (data && data.contacts) || {};
     Object.keys(c).forEach(function(boxId){
       var row = c[boxId] || {};
-      [["toRecipients","customer"],["ccRecipients","customer cc"],["serviceToRecipients","hauler"],["serviceCcRecipients","hauler cc"],["staffRecipients","staff"]].forEach(function(pair){
+      [["toRecipients","customer"],["ccRecipients","customer cc"],["corpRecipients","corporate"],["serviceToRecipients","hauler"],["serviceCcRecipients","hauler cc"],["staffRecipients","staff"]].forEach(function(pair){
         String(row[pair[0]] || "").split(/[;,]/).forEach(function(addr){
           addr = addr.trim();
           if(addr && addr.indexOf("@") !== -1 && !seen[addr.toLowerCase()]){
