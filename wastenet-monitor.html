@@ -863,8 +863,8 @@ body{padding-left:236px;}
 .mdh-name{font-size:20px;font-weight:700;letter-spacing:-.01em;line-height:1.2;}
 .mdh-num{font-size:15px;font-weight:600;color:var(--ink-3);}
 .mdh-sub{font-size:13px;color:var(--ink-2);margin-top:4px;}
-.mon-detail .dicon{display:none;}
-.mon-detail .dstat-top{justify-content:flex-start;}
+
+
 .mon-rows .row-name{flex-direction:column;align-items:flex-start;gap:1px;}
 .mon-rows .row-name-text{font-weight:600;font-size:14.5px;}
 .mon-rows .row-site{display:block;font-weight:400;color:var(--ink-2);font-size:12.5px;}
@@ -1050,6 +1050,14 @@ body{padding-left:280px !important;}
   drop-shadow(-0.75px 0 0 #3f7050)
   drop-shadow(0 0.75px 0 #3f7050)
   drop-shadow(0 -0.75px 0 #3f7050);}
+</style>
+<style id="wn-compact">
+.mon-rows .box-cell{display:none !important;}
+.mon-rows .row{padding:9px 24px !important;}
+.mon-rows .row-name-text{font-size:13.5px !important;}
+.mon-rows .row-site{font-size:12px !important;}
+.mon-rows .row-meta{margin-top:2px !important;}
+.mon-rows .steps{gap:8px;}
 </style>
 </head>
 <body>
@@ -1823,7 +1831,7 @@ function rowHtml(b, missed, bucketTag, showHaul){
     metaInner = '<span class="missed-flag">⚠ missed pickup'+(b.puDate?' · expected '+esc(shortDay(b.puDate)):'')+'</span>' + bTag;
   } else {
     metaInner = '<span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span>'+
-      ((bucketTag || showHaul) ? ' · '+esc(b.haulCode) : '')+' · '+esc(b.channel)+'</span>' + bTag +
+      ((bucketTag || showHaul) ? ' · '+esc(b.haulCode) : '')+' · '+esc(b.channel)+'</span>' + bTag + stepsHtml(b) + (onSchedulePage() ? emailPillHtml(b) : "") +
       (movedIn(b) ? '<span class="moved-tag">moved in</span>' : '') +
       (dismissedNow(b) ? '<span class="moved-tag">dismissed</span>' : '') +
       (alsoStale(b) ? '<span class="also-stale-tag">also not cycling</span>' : '');
@@ -1941,7 +1949,6 @@ function monDetailPane(){
   if(!b) return '<div class="mon-detail-empty">Select a box to see its full detail and actions.</div>';
   var _fc=fillColor(b.pct,b.trig);
   var _p=(b.pct==null?null:Math.max(0,Math.min(100,Math.round(b.pct))));
-  var _wf=stepsHtml(b)+(onSchedulePage()?emailPillHtml(b):"");
   var _parts=String(b.desc||'').split(' \u00b7 ');
   var _cust=_parts[0]||('Box '+b.id);
   var _site=_parts.slice(1).join(' \u00b7 ');
@@ -1954,8 +1961,7 @@ function monDetailPane(){
          detailHtml(b)+
          '<button class="mdh-compose" type="button" data-draft="'+esc(b.id)+'">'+
            '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5 12 13l8.5-6.5"/></svg>'+
-           ' Compose service email</button>'+
-         (_wf?'<div class="mdh-wf"><span class="mdh-wf-t">Scheduling</span>'+_wf+'</div>':'');
+           ' Compose service email</button>';
 }
 function monAutoPick(){
   // When a bucket has no selection (fresh view / load, but NOT an explicit close),
@@ -2049,7 +2055,6 @@ function detailHtml(b){
       '</div>' : '')+
       '</span></div>';
   }
-  rows += '<div class="drow"><span class="dk">Full name</span><span class="dv">'+esc(b.fullDesc)+'</span></div>';
 
   // "Draft an email" and "Move this box" now live as icons on the row itself
   // (envelope + move), so the detail panel no longer carries them.
@@ -2346,7 +2351,7 @@ function render(){
       if(ob){
         var pp=String(ob.desc||'').split(' \u00b7 '); var cu=pp[0]||('Box '+ob.id); var si=pp.slice(1).join(' \u00b7 ');
         var su=si+((ob.haulCode&&ob.haulCode!=='\u2014')?((si?' \u00b7 ':'')+ob.haulCode):'');
-        bhead='<div class="mtb-title">'+esc(cu)+' <span class="mtb-num">#'+esc(ob.id)+'</span></div>'+(su?'<div class="mtb-sub">'+esc(su)+'</div>':'');
+        bhead='<div class="mtb-title">'+esc(cu)+' <span class="mtb-num">#'+esc(ob.id)+'</span></div>'+'<div class="mtb-sub">'+esc(ob.fullDesc||su)+'</div>';
       }
     }
     tb.innerHTML='<div class="mtb-cell mtb-list"><div class="mtb-title">'+esc(title)+'</div>'+(draft?'<div class="mtb-note">'+draft+'</div>':'')+'</div>'+
