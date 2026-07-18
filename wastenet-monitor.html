@@ -819,6 +819,27 @@ body{padding-left:236px;}
 .gauge-bars{display:inline-flex;align-items:flex-end;gap:2px;height:19px;}
 .gauge-bars i{width:5px;border-radius:1.5px;display:block;}
 .gauge-trig{text-align:right;font-size:10px;color:var(--ink-3);margin-top:5px;}
+.mon-detail-head{border-radius:var(--r-card);border-bottom:0.5px solid var(--line);margin-bottom:12px;}
+.mon-detail .detail-inner{border-radius:var(--r-card);border-top:0.5px solid var(--line);}
+.mdh-hero{background:var(--panel);border:0.5px solid var(--line);border-radius:var(--r-card);padding:16px 18px;margin-bottom:12px;text-align:center;}
+.mdh-fill{font-size:38px;font-weight:700;line-height:1;letter-spacing:-.02em;}
+.mdh-cap{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-top:6px;}
+.mdh-track{height:8px;background:var(--track);border-radius:5px;margin-top:13px;overflow:hidden;}
+.mdh-track span{display:block;height:8px;border-radius:5px;}
+.mdh-compose{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;background:var(--ink);color:#fff;border:none;border-radius:var(--r-ctl);padding:12px;font:600 13.5px var(--font);cursor:pointer;margin-bottom:12px;}
+.mdh-compose:hover{background:#000;}
+/* box-number cell on the left of each card (console-mockup look) */
+.mon-rows .plain-list > .row::before{
+  content:attr(data-id); flex:0 0 46px; align-self:stretch;
+  display:flex; align-items:center; justify-content:center;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:15px; font-weight:700;
+  color:var(--ink-2); background:var(--panel); border:0.5px solid var(--line);
+  border-radius:var(--r-ctl); margin-right:2px;
+}
+.mon-rows .plain-list > .row.open::before{background:var(--green-tint); color:var(--green-dark); border-color:var(--green-border);}
+.mon-rows .row-name-text{font-size:14.5px; font-weight:600;}
+.mon-rows .row-meta{margin-top:3px;}
+.mon-rows .box-id-strong{color:var(--ink-3); font-weight:600;}
 </style>
 </head>
 <body>
@@ -1711,8 +1732,18 @@ function monDetailPane(){
   var rows=state.rows||[], b=null;
   for(var i=0;i<rows.length;i++){ if(String(rows[i].id)===String(state.openId)){ b=rows[i]; break; } }
   if(!b) return '<div class="mon-detail-empty">Select a box to see its full detail and actions.</div>';
+  var _fc=fillColor(b.pct,b.trig);
+  var _p=(b.pct==null?null:Math.max(0,Math.min(100,Math.round(b.pct))));
   return '<div class="mon-detail-head"><span class="mdh-id">#'+esc(b.id)+'</span>'+
          '<span class="mdh-site">'+esc(b.desc||'')+'</span></div>'+
+         '<div class="mdh-hero">'+
+           '<div class="mdh-fill" style="color:'+(_p==null?'var(--ink-3)':_fc.txt)+';">'+(_p==null?'\u2014':_p+'%')+'</div>'+
+           '<div class="mdh-cap">Fill level'+(b.trig!=null?' \u00b7 trigger '+Math.round(b.trig)+'%':'')+'</div>'+
+           (_p==null?'':'<div class="mdh-track"><span style="width:'+_p+'%;background:'+_fc.bar+';"></span></div>')+
+         '</div>'+
+         '<button class="mdh-compose" type="button" data-draft="'+esc(b.id)+'">'+
+           '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5 12 13l8.5-6.5"/></svg>'+
+           ' Compose service email</button>'+
          detailHtml(b);
 }
 function monAutoPick(){
