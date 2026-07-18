@@ -856,6 +856,10 @@ body{padding-left:236px;}
 .mon-detail .dstat{min-width:0;}
 .mon-detail .dstat .v{white-space:nowrap;}
 .mon-detail .dstat .k{white-space:normal;}
+.mdh-wf{background:var(--card);border:0.5px solid var(--line);border-radius:var(--r-card);padding:14px 16px;margin-bottom:12px;}
+.mdh-wf-t{display:block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-bottom:11px;}
+.mon-detail .steps{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:12px;}
+.mon-detail .em-pill{display:inline-flex;align-items:center;gap:10px;}
 </style>
 </head>
 <body>
@@ -1631,8 +1635,7 @@ function rowHtml(b, missed, bucketTag, showHaul){
     metaInner = '<span class="missed-flag">⚠ missed pickup'+(b.puDate?' · expected '+esc(shortDay(b.puDate)):'')+'</span>' + bTag;
   } else {
     metaInner = '<span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span>'+
-      ((bucketTag || showHaul) ? ' · '+esc(b.haulCode) : '')+' · '+esc(b.channel)+'</span>' + bTag + stepsHtml(b) +
-      (onSchedulePage() ? emailPillHtml(b) : "") +
+      ((bucketTag || showHaul) ? ' · '+esc(b.haulCode) : '')+' · '+esc(b.channel)+'</span>' + bTag +
       (movedIn(b) ? '<span class="moved-tag">moved in</span>' : '') +
       (dismissedNow(b) ? '<span class="moved-tag">dismissed</span>' : '') +
       (alsoStale(b) ? '<span class="also-stale-tag">also not cycling</span>' : '');
@@ -1750,6 +1753,7 @@ function monDetailPane(){
   if(!b) return '<div class="mon-detail-empty">Select a box to see its full detail and actions.</div>';
   var _fc=fillColor(b.pct,b.trig);
   var _p=(b.pct==null?null:Math.max(0,Math.min(100,Math.round(b.pct))));
+  var _wf=stepsHtml(b)+(onSchedulePage()?emailPillHtml(b):"");
   return '<div class="mon-detail-head"><span class="mdh-id">#'+esc(b.id)+'</span>'+
          '<span class="mdh-site">'+esc(b.desc||'')+'</span></div>'+
          '<div class="mdh-hero">'+
@@ -1760,6 +1764,7 @@ function monDetailPane(){
          '<button class="mdh-compose" type="button" data-draft="'+esc(b.id)+'">'+
            '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5 12 13l8.5-6.5"/></svg>'+
            ' Compose service email</button>'+
+         (_wf?'<div class="mdh-wf"><span class="mdh-wf-t">Scheduling</span>'+_wf+'</div>':'')+
          detailHtml(b);
 }
 function monAutoPick(){
