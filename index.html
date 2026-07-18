@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet index · build 2026-07-13-b · Contacts + How this works -->
+<!-- wastenet index · build 2026-07-18-a · fixed-position logo (no jump on unlock) -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -41,11 +41,18 @@
   body{
     font-family:var(--font); background:var(--page); color:var(--ink);
     font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased;
-    min-height:100%; display:flex; align-items:center; justify-content:center;
+    min-height:100%; display:flex; align-items:flex-start; justify-content:center;
     padding:24px;
   }
 
-  .stage{width:min(560px,100%); text-align:center;}
+  /* The stage is anchored from the TOP, not vertically centred. Centring the
+     whole block means the logo rides up ~45px on unlock, when the small
+     access-code box is replaced by the two taller picker cards. Pinning the
+     stage to a fixed height instead keeps the logo in one place across both
+     states, so unlock is a clean swap of what sits BELOW the logo.
+     35vh reproduces where the logo used to land in the unlocked view; the
+     -24px cancels the body's top padding so the maths reads as "logo top = 35vh". */
+  .stage{width:min(560px,100%); text-align:center; margin-top:calc(35vh - 24px);}
   .logo{width:200px; height:auto; margin:0 auto 32px; display:block;}
 
   /* lock */
