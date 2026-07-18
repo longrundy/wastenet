@@ -809,8 +809,8 @@ body{padding-left:236px;}
 /* --- rows as individual cards (console-mockup look) --- */
 .mon-rows .plain-list{border:none;border-radius:0;overflow:visible;background:transparent;}
 .mon-rows .plain-list > .row{background:var(--card);border:0.5px solid var(--line);border-radius:var(--r-card);margin-bottom:8px;padding:14px 16px;transition:border-color .12s, box-shadow .12s, transform .12s;}
-.mon-rows .plain-list > .row:hover{border-color:var(--line-strong);box-shadow:0 3px 12px rgba(20,30,25,.07);}
-.mon-rows .plain-list > .row.open{border-color:var(--green);box-shadow:0 0 0 1px var(--green);background:var(--card);}
+.mon-rows .row:hover{border-color:var(--line-strong);box-shadow:0 3px 12px rgba(20,30,25,.07);}
+.mon-rows .row.open{border-color:var(--green);box-shadow:0 0 0 1px var(--green);background:var(--card);}
 .mon-rows .plain-list > .row:last-child{margin-bottom:0;}
 .mon-rows .section-note{margin:2px 2px 12px;}
 .fill-wrap{flex:0 0 122px;}
@@ -980,7 +980,7 @@ body{padding-left:280px !important;}
 .mon-rows .box-cell{flex:0 0 54px;align-self:stretch;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:var(--panel);border:0.5px solid var(--line);border-radius:var(--r-ctl);margin-right:2px;}
 .mon-rows .box-cell-n{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:15px;font-weight:700;color:var(--ink-2);line-height:1;}
 .mon-rows .box-cell-l{font-size:8px;font-weight:700;letter-spacing:.14em;color:var(--ink-3);line-height:1;}
-.mon-rows .plain-list > .row.open .box-cell{background:var(--green-tint);border-color:var(--green-border);}
+.mon-rows .row.open .box-cell{background:var(--green-tint);border-color:var(--green-border);}
 .mon-rows .plain-list > .row.open .box-cell-n{color:var(--green-dark);}
 </style>
 <style id="wn-5050">
@@ -1015,12 +1015,12 @@ body{padding-left:280px !important;}
 /* list column is its own light panel; rows FILL the space (no cards) */
 .mon-rows{background:var(--list-bg) !important;padding:0 !important;border-right:none !important;}
 .mon-rows .plain-list{background:transparent !important;border:none !important;border-radius:0 !important;overflow:visible !important;}
-.mon-rows .plain-list > .row{background:transparent !important;border:none !important;border-bottom:1px solid var(--line) !important;border-right:1px solid var(--line) !important;border-radius:0 !important;margin-bottom:0 !important;box-shadow:none !important;padding:16px 24px !important;}
-.mon-rows .plain-list > .row:hover{background:rgba(20,40,20,.035) !important;box-shadow:none !important;}
+.mon-rows .row{background:transparent !important;border:none !important;border-bottom:1px solid var(--line) !important;border-right:1px solid var(--line) !important;border-radius:0 !important;margin-bottom:0 !important;box-shadow:none !important;padding:16px 24px !important;}
+.mon-rows .row:hover{background:rgba(20,40,20,.035) !important;box-shadow:none !important;}
 .mon-rows .section-note{padding:14px 24px 4px;margin:0;}
 /* SELECTED row: detail color, divider broken so it bleeds into the detail like a tab */
-.mon-rows .plain-list > .row.open{background:var(--sel) !important;border-right-color:transparent !important;box-shadow:none !important;}
-.mon-rows .plain-list > .row.open .box-cell{background:#fff !important;border-color:var(--sel-border) !important;}
+.mon-rows .row.open{background:var(--sel) !important;border-right-color:transparent !important;box-shadow:none !important;}
+.mon-rows .row.open .box-cell{background:#fff !important;border-color:var(--sel-border) !important;}
 /* detail column + its header wear the SAME selection color */
 .mon-detail{background:var(--sel) !important;padding:20px 24px 40px !important;border-right:none !important;}
 .mtb-detail{background:var(--sel) !important;}
@@ -1032,6 +1032,9 @@ body{padding-left:280px !important;}
 .mon-detail-empty{background:#fff !important;border-color:var(--sel-border) !important;}
 /* list-side header on its own light panel */
 .mtb-list{background:var(--list-bg) !important;}
+.mon-rows .sfold-body{border:none !important;border-radius:0 !important;background:transparent !important;overflow:visible !important;}
+.mon-rows .sfold-tabs{padding:0 24px !important;}
+.mon-rows .sfold{margin-top:6px;}
 </style>
 </head>
 <body>
