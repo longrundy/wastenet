@@ -57,9 +57,30 @@
   .summary h1{font-size:17px; font-weight:600; margin:0;}
   .summary .count{font-size:13px; color:var(--ink-2);}
 
-  .sec{font-size:12px; font-weight:600; color:var(--ink-2); margin:22px 0 10px;
-       text-transform:uppercase; letter-spacing:0.04em;}
-  .sec:first-of-type{margin-top:0;}
+  /* ---- group = one section (service / notice / corporate / blocked) ----
+     Each section is its own card: a colour-coded rail down the side, a tinted
+     header band on top, and the email rows nested inside as divided rows
+     rather than separate cards. The colour is the grouping cue - green for
+     service (the brand's "go do something" colour), blue for notices, purple
+     for corporate, red for held-back. Row chrome is stripped inside a group so
+     the section reads as one object. */
+  .grp{display:flex; border:0.5px solid var(--line-strong); border-radius:var(--r-card);
+       overflow:hidden; background:var(--card); margin-bottom:16px;}
+  .grp:last-child{margin-bottom:0;}
+  .grp-rail{width:5px; flex:0 0 auto;}
+  .grp-body{flex:1; min-width:0;}
+  .grp-head{display:flex; align-items:center; gap:10px; padding:12px 14px;}
+  .grp-ic{flex:0 0 auto; display:flex; align-items:center;}
+  .grp-ic svg{width:17px; height:17px; display:block;}
+  .grp-lbl{flex:1; min-width:0;}
+  .grp-t{font-size:13.5px; font-weight:600;}
+  .grp-s{font-size:11px; margin-top:1px;}
+  .grp-n{font-size:11px; font-weight:600; background:var(--card); border:0.5px solid;
+         border-radius:var(--r-pill); padding:2px 10px; white-space:nowrap; flex:0 0 auto;}
+  /* rows lose their own border / radius / margin inside a group and are split
+     by hairlines instead. First row sits flush under the header's own border. */
+  .grp-body .qc{border:0; border-radius:0; margin:0; overflow:visible;}
+  .grp-body .qc + .qc{border-top:0.5px solid var(--line);}
 
   /* ---- one card = one email ---- */
   .qc{border:0.5px solid var(--line); border-radius:var(--r-card); background:var(--card);
@@ -744,6 +765,16 @@ function buildQueue(){
 
 /* ================= RENDER ================= */
 
+/* The box description(s) behind an email. One box for most rows; the rare
+   multi-box row (Raley's corporate PO groups) joins them and lets the line
+   ellipsis if it runs long - the full list is in the expanded preview. */
+function descFor(e){
+  return e.ids.map(function(id){
+    var r = state.rows[id] || {};
+    return r.desc || ("Box " + id);
+  }).join(", ");
+}
+
 function cardHtml(e){
   var on = !!state.checked[e.id];
   var done = state.sent[e.id];
@@ -775,7 +806,10 @@ function cardHtml(e){
       '<span class="qc-chk' + (done ? " on dead" : (on ? " on" : "")) + '" data-chk="' + esc(e.id) + '">' +
         (on || done ? "\u2713" : "") + '</span>' +
       '<div class="qc-mid">' +
-        '<div class="qc-to">' + esc(e.to.join(", ")) + '</div>' +
+        // Box description, not the recipient list - this is what tells you which
+        // customer the row is. The addresses still show in the To: field when the
+        // row is expanded, so nothing is lost, it just moves off the closed row.
+        '<div class="qc-to">' + esc(descFor(e)) + '</div>' +
         '<div class="qc-sub">' + esc(e.subject) + '</div>' +
       '</div>' + right +
     '</div>' + body +
@@ -791,6 +825,43 @@ function blockedHtml(b){
         '<div class="qc-sub">' + esc(b.why) + '</div>' +
       '</div>' +
       '<span class="qc-date">' + esc(fmtDate(b.date)) + '</span>' +
+    '</div>' +
+  '</div>';
+}
+
+/* Per-section colour + icon. Rail is the solid accent; bg/bd tint the header;
+   t/s are title/subtitle text; c is the count-chip text (all from the same
+   ramp so each section is one colour, not a rainbow within itself). */
+var ICON_TRUCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6.5h9.5v9H3z"/><path d="M12.5 9.5H16l3.5 3.5v2.5h-7z"/><circle cx="7" cy="17.5" r="1.6"/><circle cx="16.5" cy="17.5" r="1.6"/></svg>';
+var ICON_BELL  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8.5a6 6 0 0 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5"/><path d="M10.2 20a2 2 0 0 0 3.6 0"/></svg>';
+var ICON_STORE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3.5" width="14" height="17" rx="1"/><path d="M9 7.5h2M13 7.5h2M9 11.5h2M13 11.5h2M10 20.5v-4h4v4"/></svg>';
+var ICON_ALERT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l8.5 15H3.5z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>';
+
+var GROUPS = {
+  request:   {rail:"#5CAA16", bg:"#EAF3DE", bd:"#C0DD97", t:"#173404", s:"#3B6D11", c:"#27500A",
+              icon:ICON_TRUCK, sub:"grouped by hauler and date"},
+  notice:    {rail:"#378ADD", bg:"#E6F1FB", bd:"#B5D4F4", t:"#042C53", s:"#185FA5", c:"#0C447C",
+              icon:ICON_BELL,  sub:"grouped by contact and date"},
+  corporate: {rail:"#7F77DD", bg:"#EEEDFE", bd:"#CECBF6", t:"#26215C", s:"#534AB7", c:"#3C3489",
+              icon:ICON_STORE, sub:"PO list \u00b7 grouped by corporate contact and date"},
+  blocked:   {rail:"#E24B4A", bg:"#FCEBEB", bd:"#F7C1C1", t:"#501313", s:"#791F1F", c:"#A32D2D",
+              icon:ICON_ALERT, sub:"held back \u2014 resolve before sending"}
+};
+
+function groupHtml(kind, title, count, rowsHtml){
+  var g = GROUPS[kind];
+  return '<div class="grp">' +
+    '<div class="grp-rail" style="background:' + g.rail + ';"></div>' +
+    '<div class="grp-body">' +
+      '<div class="grp-head" style="background:' + g.bg + '; border-bottom:0.5px solid ' + g.bd + ';">' +
+        '<span class="grp-ic" style="color:' + g.c + ';">' + g.icon + '</span>' +
+        '<div class="grp-lbl">' +
+          '<div class="grp-t" style="color:' + g.t + ';">' + esc(title) + '</div>' +
+          '<div class="grp-s" style="color:' + g.s + ';">' + esc(g.sub) + '</div>' +
+        '</div>' +
+        '<span class="grp-n" style="color:' + g.c + '; border-color:' + g.bd + ';">' + count + '</span>' +
+      '</div>' +
+      rowsHtml +
     '</div>' +
   '</div>';
 }
@@ -828,22 +899,10 @@ function render(){
     '</button>' +
   '</div>';
 
-  if(reqs.length){
-    html += '<div class="sec">Service requests \u00b7 ' + reqs.length + ' \u00b7 grouped by hauler and date</div>';
-    html += reqs.map(cardHtml).join("");
-  }
-  if(nots.length){
-    html += '<div class="sec">Customer notices \u00b7 ' + nots.length + ' \u00b7 grouped by contact and date</div>';
-    html += nots.map(cardHtml).join("");
-  }
-  if(corps.length){
-    html += '<div class="sec">Raley\u2019s corporate \u00b7 ' + corps.length + ' \u00b7 PO list, grouped by corporate contact and date</div>';
-    html += corps.map(cardHtml).join("");
-  }
-  if(blocked.length){
-    html += '<div class="sec">Cannot send \u00b7 ' + blocked.length + '</div>';
-    html += blocked.map(blockedHtml).join("");
-  }
+  if(reqs.length)    html += groupHtml("request",   "Service requests",       reqs.length,    reqs.map(cardHtml).join(""));
+  if(nots.length)    html += groupHtml("notice",    "Customer notices",       nots.length,    nots.map(cardHtml).join(""));
+  if(corps.length)   html += groupHtml("corporate", "Raley\u2019s corporate", corps.length,   corps.map(cardHtml).join(""));
+  if(blocked.length) html += groupHtml("blocked",   "Cannot send",            blocked.length, blocked.map(blockedHtml).join(""));
 
   main.innerHTML = html;
   wire();
