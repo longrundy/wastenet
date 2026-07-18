@@ -46,7 +46,7 @@
   .tbar .modebar{margin-bottom:0;}
   .tbar-right{margin-left:auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
   .sent-banner{display:flex; align-items:center; gap:9px; background:var(--green-tint); border:0.5px solid var(--green-border); color:var(--green-darker); border-radius:var(--r-ctl); padding:11px 14px; font-size:13.5px; font-weight:500; margin-bottom:16px; transition:opacity .4s;}
-  .sent-check{display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:50%; background:var(--green-dark); color:#fff; font-size:12px; flex:0 0 auto;}
+  .sent-check{display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:50%; background:var(--green); color:#fff; font-size:12px; flex:0 0 auto;}
   .tpl-select{height:var(--h-ctl); padding:0 30px 0 11px; border:1px solid var(--line-strong);
     border-radius:var(--r-input); background:var(--card); font-family:var(--font); font-size:13px;
     font-weight:600; color:var(--ink); width:auto; min-width:160px; max-width:260px; cursor:pointer;}
@@ -139,8 +139,8 @@
   .btnrow{display:flex; gap:8px; margin-top:16px; align-items:center;}
   .btn{font-family:var(--font); font-size:13px; height:var(--h-ctl); padding:0 16px; border-radius:var(--r-ctl); border:0.5px solid var(--line-strong); background:var(--card); color:var(--ink); cursor:pointer;}
   .btn:hover{background:var(--panel);}
-  .btn.primary{background:var(--green-dark); border-color:var(--green-dark); color:#fff; font-weight:500;}
-  .btn.primary:hover{background:var(--green-darker);}
+  .btn.primary{background:var(--green); border-color:var(--green); color:#fff; font-weight:500;}
+  .btn.primary:hover{background:var(--green-dark); border-color:var(--green-dark);}
   .btn:disabled{opacity:0.5; cursor:default;}
   .hint{font-size:12px; color:var(--ink-3);}
 
@@ -166,7 +166,8 @@
   .lock-brand{font-size:18px; font-weight:700; color:var(--green-dark); margin-bottom:6px;}
   .lock-sub{font-size:13px; color:var(--ink-2); margin-bottom:16px;}
   .lock-in{width:100%; height:36px; margin-bottom:10px;}
-  .lock-btn{width:100%; height:36px; background:var(--green-dark); color:#fff; border:0; border-radius:var(--r-ctl); font-size:14px; cursor:pointer;}
+  .lock-btn{width:100%; height:36px; background:var(--green); color:#fff; border:0; border-radius:var(--r-ctl); font-size:14px; cursor:pointer;}
+  .lock-btn:hover{background:var(--green-dark);}
   .lock-err{color:var(--red-dark); font-size:12px; margin-top:8px;}
 
   .empty-state{padding:40px 20px; text-align:center; color:var(--ink-3);}
