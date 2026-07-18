@@ -813,6 +813,12 @@ body{padding-left:236px;}
 .mon-rows .plain-list > .row.open{border-color:var(--green);box-shadow:0 0 0 1px var(--green);background:var(--card);}
 .mon-rows .plain-list > .row:last-child{margin-bottom:0;}
 .mon-rows .section-note{margin:2px 2px 12px;}
+.fill-wrap{flex:0 0 122px;}
+.gauge-row{display:flex;align-items:flex-end;justify-content:flex-end;gap:10px;}
+.gauge-pct{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;}
+.gauge-bars{display:inline-flex;align-items:flex-end;gap:2px;height:19px;}
+.gauge-bars i{width:5px;border-radius:1.5px;display:block;}
+.gauge-trig{text-align:right;font-size:10px;color:var(--ink-3);margin-top:5px;}
 </style>
 </head>
 <body>
@@ -1529,15 +1535,14 @@ function triggerReason(b){
 function fillIndicator(b, fc, pctW, trigL){
   // Fill reading exists → the recessed fill bar is the hero.
   if(b.pct != null){
+    var _n=10, _on=Math.max(0,Math.min(_n,Math.round(b.pct/10))), _bars='';
+    for(var _k=0;_k<_n;_k++){ _bars += '<i style="height:'+(5+_k*1.35).toFixed(1)+'px;background:'+(_k<_on?fc.bar:'var(--track)')+';"></i>'; }
     return '<div class="fill-wrap">'+
-      '<div class="track">'+
-        '<div class="fill" style="width:'+pctW+'%;background:'+fc.bar+';"></div>'+
-        (trigL!=null?'<div class="trig" style="left:'+trigL+'%;"></div>':'')+
+      '<div class="gauge-row">'+
+        '<span class="gauge-pct" style="color:'+fc.txt+';">'+Math.round(b.pct)+'%</span>'+
+        '<span class="gauge-bars">'+_bars+'</span>'+
       '</div>'+
-      '<div class="fill-labels">'+
-        '<span class="fill-pct" style="color:'+fc.txt+';">'+Math.round(b.pct)+'%</span>'+
-        '<span class="fill-trig">'+(b.trig==null?'':'trig '+Math.round(b.trig))+'</span>'+
-      '</div>'+
+      (b.trig==null?'':'<div class="gauge-trig">trig '+Math.round(b.trig)+'</div>')+
     '</div>';
   }
   // No fill reading → surface the real trigger reason instead of an empty bar.
