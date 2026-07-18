@@ -68,6 +68,35 @@
   .blank-btn.on{background:var(--blue); border-color:var(--blue); color:#fff;}
   .blank-btn .bi{display:inline-flex; align-items:center;}
   .blank-note{background:var(--blue-tint); border:0.5px solid var(--blue-border); border-radius:var(--r-menu); padding:11px 14px; margin-bottom:14px; font-size:12.5px; line-height:1.55; color:var(--blue-ink);}
+
+  /* ---- service emails (per-box) ---- */
+  .svc-controls{display:flex; gap:10px; align-items:center; margin:14px 0; flex-wrap:wrap;}
+  .svc-search{flex:1; min-width:220px; height:var(--h-ctl); padding:0 12px; border:1px solid var(--line-strong); border-radius:var(--r-input); font-family:var(--font); font-size:13px; color:var(--ink);}
+  .svc-search:focus{outline:none; border-color:var(--green); box-shadow:0 0 0 2px var(--green-tint);}
+  .svc-toggle{display:inline-flex; align-items:center; gap:7px; font-size:12.5px; color:var(--ink-2); height:var(--h-ctl); padding:0 13px; border:0.5px solid var(--line-strong); border-radius:var(--r-ctl); background:var(--card); cursor:pointer; white-space:nowrap; font-family:var(--font);}
+  .svc-toggle.on{background:#FAEEDA; border-color:#EF9F27; color:#854F0B; font-weight:500;}
+  .svc-count{font-size:12px; color:var(--ink-3); white-space:nowrap;}
+  .svc-pane{display:flex; gap:16px; align-items:flex-start;}
+  .svc-list{width:330px; flex:0 0 330px; max-height:600px; overflow-y:auto; border:0.5px solid var(--line); border-radius:var(--r-card); background:var(--card); padding:6px;}
+  .svc-grp{font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:var(--ink-3); padding:11px 10px 4px; font-weight:600;}
+  .svc-grp:first-child{padding-top:4px;}
+  .svc-item{display:flex; align-items:center; gap:9px; width:100%; text-align:left; border:0; background:transparent; font-family:var(--font); padding:7px 10px; border-radius:var(--r-ctl); cursor:pointer; color:var(--ink);}
+  .svc-item:hover{background:var(--panel);}
+  .svc-item.on{background:var(--green-tint);}
+  .svc-item .sid{font-weight:600; font-size:12px; flex:0 0 auto; color:var(--ink);}
+  .svc-item.on .sid{color:var(--green-darker);}
+  .svc-item .sd{flex:1; min-width:0; font-size:12px; color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .svc-item.on .sd{color:var(--green-darker);}
+  .svc-need{flex:0 0 auto; font-size:10px; padding:1px 7px; border-radius:var(--r-pill); background:#FAEEDA; color:#854F0B; border:0.5px solid #EF9F27; white-space:nowrap;}
+  .svc-editor{flex:1; min-width:0;}
+  .svc-hint{padding:48px 24px; text-align:center; color:var(--ink-3); font-size:13px; line-height:1.6; border:0.5px dashed var(--line-strong); border-radius:var(--r-card);}
+  .svc-boxhead{font-size:14px; font-weight:600; color:var(--ink); margin-bottom:2px; line-height:1.35;}
+  .svc-boxsub{font-size:12px; color:var(--ink-3); margin-bottom:14px;}
+  .svc-empty-list{padding:26px 14px; text-align:center; color:var(--ink-3); font-size:12.5px;}
+  @media(max-width:760px){
+    .svc-pane{flex-direction:column;}
+    .svc-list{width:100%; flex:0 0 auto; max-height:340px;}
+  }
   .blank-note b{color:var(--blue-ink-strong);}
   .tedit-full{max-width:780px;}
   /* Preview opens big and spacious in an overlay, not squeezed beside the editor. */
@@ -222,7 +251,14 @@ var state = {
   current: null,        // selected pill
   loaded: false,
   contacts: [],         // flattened [{email,label}] for blank-mode lookup
-  contactsLoaded: false
+  contactsLoaded: false,
+  // service emails (per-box Service Email Content)
+  svcLoaded: false,
+  svcBoxes: [],         // [{id, desc, customer, subject, body}]
+  svcById: {},          // id -> box
+  svcCurrent: null,     // selected box id
+  svcQuery: "",         // search text
+  svcNeedsOnly: false   // filter to boxes with no custom content
 };
 
 var PLACEHOLDER_TEMPLATES = { "Notice": 1, "Batch": 1 };
@@ -376,22 +412,27 @@ function placeholdersFor(pill){
 /* ---------- render: template mode ---------- */
 function toolbarHtml(){
   var isTpl = (state.mode === "template");
+  var isSvc = (state.mode === "service");
   var optsHtml = state.order.map(function(pill){
     return '<option value="' + esc(pill) + '"' + (state.current === pill ? ' selected' : '') + '>' + esc(pill) + '</option>';
   }).join("");
+  // The template dropdown + New belong to template mode only; the two mode
+  // buttons stay visible in every mode so you can switch between them.
   return '<div class="tbar">' +
     '<div class="tgroup">' +
       '<button class="tg-btn' + (isTpl ? " on" : "") + '" id="modeTpl">Email templates</button>' +
-      '<select class="tg-select" id="tplPick"' + (isTpl ? "" : " disabled") + '>' + optsHtml + '</select>' +
-      '<button class="tg-btn" id="newTplBtn"' + (isTpl ? "" : " disabled") + '>+ New template</button>' +
+      (isTpl ? '<select class="tg-select" id="tplPick">' + optsHtml + '</select>' +
+               '<button class="tg-btn" id="newTplBtn">+ New template</button>' : '') +
+      '<button class="tg-btn' + (isSvc ? " on" : "") + '" id="modeSvc">Service emails</button>' +
     '</div>' +
-    '<button class="blank-btn' + (isTpl ? "" : " on") + '" id="modeBlank">' +
+    '<button class="blank-btn' + (state.mode === "blank" ? " on" : "") + '" id="modeBlank">' +
       '<span class="bi"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></span>' +
       'Compose blank email</button>' +
   '</div>';
 }
 function wireModeToggle(){
   var mt = document.getElementById("modeTpl"); if(mt) mt.onclick = function(){ setMode("template"); };
+  var ms = document.getElementById("modeSvc"); if(ms) ms.onclick = function(){ setMode("service"); };
   var mb = document.getElementById("modeBlank"); if(mb) mb.onclick = function(){ setMode("blank"); };
 }
 
@@ -433,7 +474,7 @@ function openPreviewModal(){
   var el = document.getElementById("tpvModal");
   if(!el) return;
   var subjLine = 'Subject: <b>' + fillHtml(subj, sampleVals()) + '</b>';
-  var sampleNote = (state.mode === "template" && (subj.indexOf("[") !== -1 || body.indexOf("[") !== -1))
+  var sampleNote = (state.mode !== "blank" && (subj.indexOf("[") !== -1 || body.indexOf("[") !== -1))
     ? '<div class="tpv-note">Placeholders shown with sample values \u2014 the real date and site(s) fill in per box when this sends.</div>'
     : "";
   el.innerHTML =
@@ -465,7 +506,7 @@ function refreshPreview(){
   var host = document.getElementById("preview");
   if(!host) return;
   var subjLine = '<div style="font-size:12px;color:#8A8F8A;padding:0 0 8px;">Subject: <b style="color:#1A1D1A;">' + fillHtml(subj, sampleVals()) + '</b></div>';
-  var sampleNote = (state.mode === "template" && (subj.indexOf("[") !== -1 || body.indexOf("[") !== -1))
+  var sampleNote = (state.mode !== "blank" && (subj.indexOf("[") !== -1 || body.indexOf("[") !== -1))
     ? '<div style="font-size:11px;color:#8A8F8A;padding:0 0 8px;">Placeholders shown with sample values &mdash; the real date and site(s) fill in per box when this sends.</div>'
     : "";
   host.innerHTML = subjLine + sampleNote + emailShell(previewInner(subj, body));
@@ -629,6 +670,191 @@ function wireBlankMode(){
   };
 }
 
+/* ---------- render: service emails (per-box) ----------
+   The picker is fed by two endpoints that already exist: `latest` for the box
+   list + descriptions, and `master_contacts` for each box's own subject/body
+   off the Service Email Content tab. Save writes back through a new
+   `save_service_content` action. Grouping and the needs-content flag are
+   computed here on the client. */
+
+// A rough "customer" heading from a description, for grouping the list. Cuts at
+// the first store number, bracket, or " - "; Raley's (R-) and Myrna boxes get
+// their own bucket. Navigation aid only - search covers the exact match.
+function customerKey(desc){
+  var d = String(desc || "").trim();
+  if(!d) return "Other";
+  if(/^R-/i.test(d)) return "Raley\u2019s";
+  if(/^MYRNA\b/i.test(d)) return "Myrna";
+  var cut = d.length;
+  [d.indexOf(" - "), d.search(/[\[(]/), d.search(/\d/)].forEach(function(i){ if(i > 0 && i < cut) cut = i; });
+  var key = d.slice(0, cut).replace(/[\s\-\u2013\u2014]+$/, "").trim();
+  return key || "Other";
+}
+
+function svcNeeds(b){ return !(String(b.subject).trim() || String(b.body).trim()); }
+
+function svcFiltered(){
+  var q = state.svcQuery.trim().toLowerCase();
+  return state.svcBoxes.filter(function(b){
+    if(state.svcNeedsOnly && !svcNeeds(b)) return false;
+    if(!q) return true;
+    return b.id.indexOf(q) !== -1 || b.desc.toLowerCase().indexOf(q) !== -1 || b.customer.toLowerCase().indexOf(q) !== -1;
+  });
+}
+
+function loadService(){
+  if(state.svcLoaded){ renderServiceMode(); return; }
+  document.getElementById("body").innerHTML = '<div class="empty-state"><span class="spinner"></span>Loading boxes&hellip;</div>';
+  jsonp({ action:"latest", key:KEY }, function(scan){
+    var rows = (scan && scan.rows) || [];
+    var boxes = [];
+    rows.forEach(function(r){
+      var id = String(parseInt(r["Box ID"], 10));
+      if(!id || id === "NaN") return;
+      boxes.push({ id:id, desc:String(r["Description"] || ""), subject:"", body:"" });
+    });
+    jsonp({ action:"master_contacts", key:KEY }, function(data){
+      var craw = (data && data.contacts) || {};
+      // Normalise contact keys - some return as floats like "760.0".
+      var cmap = {};
+      Object.keys(craw).forEach(function(k){ cmap[String(parseInt(k, 10))] = craw[k]; });
+      boxes.forEach(function(b){
+        var row = cmap[b.id] || {};
+        b.subject  = String(row.subjectTemplate || "");
+        b.body     = String(row.bodyTemplate || "");
+        b.customer = customerKey(b.desc);
+      });
+      boxes.sort(function(a, b){
+        var c = a.customer.toLowerCase().localeCompare(b.customer.toLowerCase());
+        return c ? c : (parseInt(a.id, 10) - parseInt(b.id, 10));
+      });
+      state.svcBoxes = boxes;
+      state.svcById = {};
+      boxes.forEach(function(b){ state.svcById[b.id] = b; });
+      state.svcLoaded = true;
+      if(state.mode === "service") renderServiceMode();
+    });
+  });
+}
+
+function renderServiceMode(){
+  document.getElementById("body").innerHTML =
+    toolbarHtml() +
+    '<div class="svc-controls">' +
+      '<input type="text" class="svc-search" id="svcSearch" placeholder="Search by box number or customer\u2026" value="' + esc(state.svcQuery) + '">' +
+      '<button class="svc-toggle' + (state.svcNeedsOnly ? " on" : "") + '" id="svcNeedsBtn">Needs content</button>' +
+      '<span class="svc-count" id="svcCount"></span>' +
+    '</div>' +
+    '<div class="svc-pane">' +
+      '<div class="svc-list" id="svcList"></div>' +
+      '<div class="svc-editor" id="svcEditor"></div>' +
+    '</div>' +
+    '<div class="tpv-modal" id="tpvModal"></div>';
+  document.getElementById("previewHost").innerHTML = "";
+  renderSvcList();
+  renderSvcEditor();
+  wireServiceMode();
+}
+
+function renderSvcList(){
+  var host = document.getElementById("svcList");
+  if(!host) return;
+  var list = svcFiltered();
+  var cnt = document.getElementById("svcCount");
+  if(cnt) cnt.textContent = list.length + (list.length === 1 ? " box" : " boxes");
+  if(!list.length){ host.innerHTML = '<div class="svc-empty-list">No boxes match.</div>'; return; }
+  var html = "", lastGrp = null;
+  list.forEach(function(b){
+    if(b.customer !== lastGrp){ html += '<div class="svc-grp">' + esc(b.customer) + '</div>'; lastGrp = b.customer; }
+    var need = svcNeeds(b) ? '<span class="svc-need">needs content</span>' : '';
+    html += '<button class="svc-item' + (state.svcCurrent === b.id ? " on" : "") + '" data-box="' + esc(b.id) + '">' +
+      '<span class="sid">' + esc(b.id) + '</span>' +
+      '<span class="sd">' + esc(b.desc) + '</span>' + need +
+    '</button>';
+  });
+  host.innerHTML = html;
+}
+
+function renderSvcEditor(){
+  var host = document.getElementById("svcEditor");
+  if(!host) return;
+  var b = state.svcById[state.svcCurrent];
+  if(!b){
+    host.innerHTML = '<div class="svc-hint">Search for a box on the left, then pick it to edit the service email that goes out for that box.<br>Most never change &mdash; the list flags any box that has <b>no custom wording yet</b>.</div>';
+    return;
+  }
+  host.innerHTML =
+    '<div class="svc-boxhead">Box ' + esc(b.id) + ' &mdash; ' + esc(b.desc) + '</div>' +
+    '<div class="svc-boxsub">' + esc(b.customer) + (svcNeeds(b) ? ' \u00b7 no custom wording yet' : '') + '</div>' +
+    '<div class="ph-row"><span class="ph-lab">Placeholders:</span>' +
+      '<span class="ph">[pickup date]</span><span class="ph">[box description]</span>' +
+      '<span class="ph-lab">&mdash; keep these; they fill in automatically when a request sends</span></div>' +
+    '<div class="field-label">Subject</div>' +
+    '<input type="text" id="subj" class="mb12" value="' + esc(b.subject) + '">' +
+    '<div class="field-label">Body</div>' +
+    '<textarea id="bodytext" style="height:340px;">' + esc(b.body) + '</textarea>' +
+    '<div class="btnrow">' +
+      '<button class="btn primary" id="svcSaveBtn">Save service email</button>' +
+      '<button class="btn" id="previewBtn">Preview</button>' +
+      '<span class="hint" style="margin-left:auto;">Saved changes go live immediately</span>' +
+    '</div>';
+  wireSvcEditor();
+}
+
+function wireServiceMode(){
+  wireModeToggle();
+  var s = document.getElementById("svcSearch");
+  if(s) s.oninput = function(){ state.svcQuery = this.value; renderSvcList(); };
+  var nb = document.getElementById("svcNeedsBtn");
+  if(nb) nb.onclick = function(){ state.svcNeedsOnly = !state.svcNeedsOnly; nb.className = "svc-toggle" + (state.svcNeedsOnly ? " on" : ""); renderSvcList(); };
+  var list = document.getElementById("svcList");
+  if(list) list.onclick = function(e){
+    var el = e.target;
+    while(el && el !== list && !el.getAttribute("data-box")) el = el.parentNode;
+    if(!el || el === list) return;
+    var id = el.getAttribute("data-box");
+    if(!id) return;
+    state.svcCurrent = id;
+    // Repaint highlight in place so the list keeps its scroll position.
+    var items = list.querySelectorAll(".svc-item");
+    for(var i = 0; i < items.length; i++){
+      items[i].className = "svc-item" + (items[i].getAttribute("data-box") === id ? " on" : "");
+    }
+    renderSvcEditor();
+  };
+  wireSvcEditor();
+}
+
+function wireSvcEditor(){
+  var subj = document.getElementById("subj");
+  var bt = document.getElementById("bodytext");
+  if(subj) subj.oninput = refreshPreview;
+  if(bt) bt.oninput = refreshPreview;
+  var pv = document.getElementById("previewBtn");
+  if(pv) pv.onclick = openPreviewModal;
+  var save = document.getElementById("svcSaveBtn");
+  if(save) save.onclick = saveService;
+}
+
+function saveService(){
+  var b = state.svcById[state.svcCurrent];
+  if(!b) return;
+  var subject = document.getElementById("subj").value;
+  var body = document.getElementById("bodytext").value;
+  var save = document.getElementById("svcSaveBtn");
+  save.disabled = true; save.textContent = "Saving\u2026";
+  jsonp({ action:"save_service_content", key:KEY, boxId:b.id, subject:subject, body:body }, function(data){
+    save.disabled = false; save.textContent = "Save service email";
+    if(data && data.ok){
+      b.subject = subject; b.body = body;
+      toast("Saved. Live now.");
+      renderSvcList();
+    } else {
+      toast((data && data.error) || "Could not save.", true);
+    }
+  });
+}
+
 /* ---------- loaders ---------- */
 function loadTemplates(){
   jsonp({ action:"email_templates", key:KEY }, function(data){
@@ -674,6 +900,8 @@ function setMode(m){
   if(m === "template"){
     if(state.loaded) renderTemplateMode();
     else document.getElementById("body").innerHTML = '<div class="empty-state"><span class="spinner"></span>Loading templates&hellip;</div>';
+  } else if(m === "service"){
+    loadService();
   } else {
     loadContacts();
     renderBlankMode();
