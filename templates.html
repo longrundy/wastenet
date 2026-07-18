@@ -711,7 +711,12 @@ function loadService(){
     rows.forEach(function(r){
       var id = String(parseInt(r["Box ID"], 10));
       if(!id || id === "NaN") return;
-      boxes.push({ id:id, desc:String(r["Description"] || ""), subject:"", body:"" });
+      var desc = String(r["Description"] || "");
+      // Inactive boxes carry an X-/Y-/Z- prefix on the description (the same rule
+      // the scanner and Inactive Boxes tab use). They aren't serviced, so they
+      // must not show up here as boxes "needing content".
+      if(/^[xyz]\s*-/i.test(desc.trim())) return;
+      boxes.push({ id:id, desc:desc, subject:"", body:"" });
     });
     jsonp({ action:"master_contacts", key:KEY }, function(data){
       var craw = (data && data.contacts) || {};
