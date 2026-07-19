@@ -1748,31 +1748,35 @@ function openStmtPreview(agent, mode){
 
   if(!docs.length){ build(); return; }
 
-  // Shown on the agent's own row, not in the page banner. renderBody() redraws
-  // the agent list, which is where the strip lives.
-  state.stmtFetching = agent;
-  renderBody();
+  // ensureAgentLines already fetched the detail when the agent was selected. Only
+  // fetch what is genuinely missing - and if nothing is, go straight to the send
+  // box (no re-fetch, no "loading" strip, no empty banner).
+  state.stmtLines = state.stmtLines || {};
+  var missing = docs.filter(function(d){ return !(d in state.stmtLines); });
+  if(!missing.length){ build(); return; }
 
-  jsonp({ action:"invoice_lines", key:KEY, docs: docs.join(",") }, function(data){
+  state.stmtFetching = agent;
+
+  jsonp({ action:"invoice_lines", key:KEY, docs: missing.join(","), }, function(data){
     state.stmtFetching = null;
     /* If the detail did not load, DO NOT quietly render a statement without it.
        A statement missing its itemisation still looks complete - the totals are
        all there - and the one person who would notice is the agent, after it
        has been sent. */
     if(!data || !data.ok){
-      renderBody();   // clear the strip before saying why
+      refreshAgStmt();
       showNote(esc((data && data.error) || "Could not load the invoice detail.") +
                " The statement has not been drafted.", true);
       return;
     }
-    state.stmtLines = data.lines || {};
+    var L = data.lines || {};
+    for(var k in L){ state.stmtLines[k] = L[k]; }
+    missing.forEach(function(d){ if(!(d in state.stmtLines)) state.stmtLines[d] = null; });
     if(data.missing && data.missing.length){
       showNote("No stored line items for invoice(s) " + esc(data.missing.join(", ")) +
                ". They will appear on the statement as a total only.", true);
-    } else {
-      showNote("", false);
     }
-    renderBody();     // the strip goes
+    refreshAgStmt();
     build();          // the draft opens
   });
 }
@@ -4925,6 +4929,7 @@ document.querySelectorAll(".sec").forEach(function(el){
    to report a send would blank the dashboard under a message about one agent. */
 function showNote(msg, isErr){
   var b = document.getElementById("banner");
+  if(!msg){ b.className = "banner"; b.innerHTML = ""; return; }
   b.innerHTML = msg;
   b.className = "banner show" + (isErr ? "" : " ok");
   if(!isErr) setTimeout(function(){
