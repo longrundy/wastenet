@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-accounting · build 2026-07-19-a receivables master-detail (invoice pane) -->
+<!-- wastenet-accounting · build 2026-07-19-b payments master-detail (invoice pane) -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -959,6 +959,15 @@ body{padding-left:280px !important;}
 .rc-iv-head{margin-bottom:14px; padding-bottom:12px; border-bottom:0.5px solid var(--line);}
 .rc-iv-title{font-size:15px; font-weight:600; color:var(--green-darker);}
 .rc-iv-sub{font-size:12px; color:var(--ink-2); margin-top:3px;}
+/* Payments columns - Date / Customer / Invoice / Amount, all in the gray list. */
+.pm-date{width:84px; flex:0 0 84px; color:var(--ink-2); font-size:11.5px; white-space:nowrap;}
+.pm-cust{flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13.5px;}
+.pm-inv{width:64px; flex:0 0 64px; font-weight:600; color:var(--green-dark); font-size:12px;}
+.pm-amt{width:100px; flex:0 0 100px; text-align:right; font-size:13px; font-weight:600; white-space:nowrap;}
+.rc-head .pm-date, .rc-head .pm-cust, .rc-head .pm-inv, .rc-head .pm-amt{font-size:10.5px; font-weight:600; color:var(--ink-2);}
+.pm-folder .agrow.open .pm-inv{color:var(--green-darker);}
+.pm-unapplied .aghead{cursor:default;}
+.pm-unapplied .aghead:hover{background:transparent !important;}
 @media(max-width:720px){
   .rc-folder .ag-topbar{grid-template-columns:1fr;}
   .rc-folder .ag-hd-detail{display:none;}
@@ -1220,6 +1229,7 @@ var state = {
   colSearch: "",
   colSortKey: "date",
   colSortDir: "desc",
+  pmSel: "",           // payments: which invoice is showing in the green pane
   year: "",           // which year is loaded
   years: [],          // [{year,total}] newest first
   payByYear: {},      // year -> payment rows, so month switching is free
@@ -2808,7 +2818,7 @@ function ensureAgentLines(agent){
 /* ---------- payments ---------- */
 function renderCollections(){
   if(!state.colLoaded){
-    return '<div class="empty-state"><span class="spinner"></span>Loading payments&hellip;</div>';
+    return '<div class="empty-state"><span class="spinner"></span>Loading payments\u2026</div>';
   }
   if(!state.months.length){
     return '<div class="empty-state">No payments found.</div>';
@@ -2817,13 +2827,23 @@ function renderCollections(){
   /* months in the loaded year, newest first */
   var shown = state.months.filter(function(m){ return m.month.slice(0,4) === state.year; });
 
-  var tabs = '<div class="folder-tabs">' + shown.map(function(m){
-    return '<button class="ftab' + (state.month === m.month ? " sel" : "") + '" ' +
-           'data-month="' + m.month + '">' + monthShort(m.month) + '</button>';
-  }).join("") + '</div>';
+  /* Each option carries what that year collected, so the totals are visible
+     in the list itself. Sits in the tabs row, left of the months - same as
+     the year dropdown on Billing. */
+  var yrOpts = state.years.map(function(y){
+    return '<option value="' + y.year + '"' + (state.year === y.year ? " selected" : "") + '>' +
+             y.year + '  \u00b7  ' + moneyShort(y.total) + '</option>';
+  }).join("");
 
-  /* Payments for the loaded year are already here - slice by month with
-     no round trip. */
+  var tabs = '<div class="folder-tabs">' +
+    '<select class="ftab-yr" id="yrSel" aria-label="Year">' + yrOpts + '</select>' +
+    shown.map(function(m){
+      return '<button class="ftab' + (state.month === m.month ? " sel" : "") + '" ' +
+             'data-month="' + m.month + '">' + monthShort(m.month) + '</button>';
+    }).join("") + '</div>';
+
+  /* Payments for the loaded year are already here - slice by month with no
+     round trip. */
   var rows = (state.payByYear[state.year] || []).filter(function(p){
     return String(p.txnDate).slice(0,7) === state.month;
   });
@@ -2850,61 +2870,104 @@ function renderCollections(){
     return 0;
   });
 
+  /* Land on the first payment that is tied to an invoice - a credit or an
+     unapplied prepayment has no invoice to show on the right. */
+  var docd = rows.filter(function(p){ return p.docNumber; }).map(function(p){ return String(p.docNumber); });
+  if(!state.pmSel || docd.indexOf(String(state.pmSel)) === -1){
+    state.pmSel = docd.length ? docd[0] : "";
+  }
+
   var caret = function(k){
     if(state.colSortKey !== k) return "";
     return ' <span class="sc">' + (state.colSortDir === "asc" ? "\u25B2" : "\u25BC") + '</span>';
   };
 
   var head =
-    '<thead><tr>' +
-      '<th data-csort="date"   style="width:17%">Date'     + caret("date")   + '</th>' +
-      '<th data-csort="cust"   style="width:42%">Customer' + caret("cust")   + '</th>' +
-      '<th data-csort="inv"    style="width:18%">Invoice'  + caret("inv")    + '</th>' +
-      '<th data-csort="amount" style="width:23%" class="num">Amount' + caret("amount") + '</th>' +
-    '</tr></thead>';
+    '<div class="rc-head">' +
+      '<span class="pm-date" data-pmsort="date">Date'     + caret("date")   + '</span>' +
+      '<span class="pm-cust" data-pmsort="cust">Customer' + caret("cust")   + '</span>' +
+      '<span class="pm-inv"  data-pmsort="inv">Invoice'   + caret("inv")    + '</span>' +
+      '<span class="pm-amt"  data-pmsort="amount">Amount' + caret("amount") + '</span>' +
+    '</div>';
 
-  var tbody;
+  var body;
   if(!rows.length){
-    tbody = '<tbody><tr><td colspan="4" style="text-align:center; padding:26px 8px; color:var(--ink-2);">No payments in this month.</td></tr></tbody>';
+    body = head + '<div class="empty-state">' +
+      (state.colSearch ? "No payment matches that." : "No payments in this month.") + '</div>';
   } else {
-    tbody = '<tbody>' + rows.map(function(p){
-      /* No invoice link = a credit or prepayment. Shown plainly rather
-         than hidden - the money did arrive. */
-      var inv = p.docNumber
-        ? invLink(p.docNumber, p.qboId)
-        : '<span class="chip chip-30">unapplied</span>';
-      return '<tr>' +
-        '<td class="muted">' + esc(usDate(p.txnDate)) + '</td>' +
-        '<td title="' + esc(p.customer) + '">' + esc(p.customer) + '</td>' +
-        '<td>' + inv + '</td>' +
-        '<td class="num">' + money(p.amount) + '</td>' +
-      '</tr>';
-    }).join("") + '</tbody>';
+    body = head + rows.map(function(p){
+      var cells =
+        '<span class="pm-date">' + esc(usDate(p.txnDate)) + '</span>' +
+        '<span class="pm-cust" title="' + esc(p.customer) + '">' + esc(p.customer) + '</span>';
+      if(p.docNumber){
+        var sel = String(p.docNumber) === String(state.pmSel);
+        return '<div class="agrow' + (sel ? " open" : "") + '" data-pmrow="' + esc(p.docNumber) + '">' +
+          '<div class="aghead">' + cells +
+            '<span class="pm-inv">' + esc(p.docNumber) + '</span>' +
+            '<span class="pm-amt">' + money(p.amount) + '</span>' +
+          '</div>' +
+        '</div>';
+      }
+      /* Credit / prepayment - no invoice, so the row is not selectable. */
+      return '<div class="agrow pm-unapplied">' +
+          '<div class="aghead">' + cells +
+            '<span class="pm-inv"><span class="chip chip-30">unapplied</span></span>' +
+            '<span class="pm-amt">' + money(p.amount) + '</span>' +
+          '</div>' +
+        '</div>';
+    }).join("");
   }
 
   var total = rows.reduce(function(s,p){ return s + (Number(p.amount)||0); }, 0);
+  var noteLine = monthLabel(state.month) + ' \u00b7 ' + rows.length +
+    ' payment' + (rows.length === 1 ? "" : "s") + ' \u00b7 ' + moneyShort(total);
 
-  /* Each option carries what that year collected, so the totals are
-     visible in the list itself - and the closed pill shows the selected
-     year's total without costing another line of chrome. */
-  var yrOpts = state.years.map(function(y){
-    return '<option value="' + y.year + '"' + (state.year === y.year ? " selected" : "") + '>' +
-             y.year + '  \u00b7  ' + moneyShort(y.total) + '</option>';
-  }).join("");
+  var green;
+  if(state.pmSel && ivCache[state.pmSel]){
+    green = rcPaneHtml(ivCache[state.pmSel]);
+  } else if(state.pmSel){
+    green = '<div class="empty-state"><span class="spinner"></span>Loading invoice\u2026</div>';
+  } else {
+    green = '<div class="ag-pane-empty">Select a payment on the left to view its invoice here.</div>';
+  }
 
-  return '<div class="folder">' +
-      '<div class="pinhead" id="pinhead">' +
-        tabs +
-        '<div class="fbar">' +
-          '<select class="yrsel" id="yrSel" aria-label="Year">' + yrOpts + '</select>' +
-          '<div class="fbar-t">' + monthLabel(state.month) +
-            ' <span class="amt">\u00b7 ' + rows.length + ' payments \u00b7 ' + moneyShort(total) + '</span></div>' +
-          '<input class="search" id="colSearch" type="text" placeholder="Search customer or #" value="' + esc(state.colSearch) + '">' +
+  return '<div class="folder rc-folder pm-folder">' +
+      '<div class="ag-topbar">' +
+        '<div class="ag-hd ag-hd-list">' +
+          '<div class="ag-hd-drow"><div class="ag-hd-title">Payments</div>' +
+            '<input class="search bsearch-hd" id="colSearch" type="text" placeholder="Search customer or #" value="' + esc(state.colSearch) + '"></div>' +
+          '<div class="ag-hd-note">' + noteLine + '</div>' +
         '</div>' +
+        '<div class="ag-hd ag-hd-detail"><div class="ag-hd-title">Invoice View</div></div>' +
       '</div>' +
-      '<div class="folder-lower"><table>' + head + tbody + '</table></div>' +
+      '<div class="ag-split"><div class="ag-list-col">' +
+        '<div class="pinhead" id="pinhead">' + tabs + '</div>' +
+        '<div class="folder-lower">' + body + '</div>' +
+      '</div>' +
+      '<aside class="ag-detail" id="pmPane">' + green + '</aside></div>' +
     '</div>';
 }
+
+/* Payment invoice into the green pane - same card renderer Receivables uses. */
+function loadPmInvoice(doc){
+  var pane = document.getElementById("pmPane");
+  if(!pane || !doc) return;
+  if(ivCache[doc]){ pane.innerHTML = rcPaneHtml(ivCache[doc]); return; }
+  pane.innerHTML = '<div class="empty-state"><span class="spinner"></span>Loading invoice\u2026</div>';
+  jsonp({ action:"invoice", key:KEY, doc:doc }, function(data){
+    if(String(state.pmSel) !== String(doc)) return;
+    var p = document.getElementById("pmPane");
+    if(!p) return;
+    if(!data || !data.ok){
+      p.innerHTML = '<div class="ag-pane-empty">' +
+        esc((data && data.error) || "Could not load that invoice.") + '</div>';
+      return;
+    }
+    ivCache[doc] = data;
+    p.innerHTML = rcPaneHtml(data);
+  });
+}
+
 
 /* ==================================================================
    DEPOSIT MATCHER
@@ -4967,6 +5030,7 @@ function wireCollections(){
 
       state.year = y;
       state.colSearch = "";
+      state.pmSel = "";
 
       // Default to the newest month in that year.
       var inYear = state.months.filter(function(m){ return m.month.slice(0,4) === y; });
@@ -4990,20 +5054,32 @@ function wireCollections(){
       if(m === state.month) return;
       state.month = m;
       state.colSearch = "";
+      state.pmSel = "";
       renderSummary();
       renderBody();
     };
   });
 
-  document.querySelectorAll("th[data-csort]").forEach(function(el){
+  /* Sortable column labels in the gray list. */
+  document.querySelectorAll("[data-pmsort]").forEach(function(el){
     el.onclick = function(){
-      var k = el.getAttribute("data-csort");
+      var k = el.getAttribute("data-pmsort");
       if(state.colSortKey === k){
         state.colSortDir = state.colSortDir === "asc" ? "desc" : "asc";
       } else {
         state.colSortKey = k;
         state.colSortDir = (k === "cust" || k === "inv") ? "asc" : "desc";
       }
+      renderBody();
+    };
+  });
+
+  /* Click a payment row -> its invoice paints in the green pane. */
+  document.querySelectorAll(".agrow[data-pmrow] .aghead").forEach(function(el){
+    el.onclick = function(){
+      var doc = el.parentNode.getAttribute("data-pmrow");
+      if(String(doc) === String(state.pmSel)) return;
+      state.pmSel = String(doc);
       renderBody();
     };
   });
@@ -5017,7 +5093,10 @@ function wireCollections(){
       if(again){ again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
     };
   }
+
+  if(state.pmSel && !ivCache[state.pmSel]) loadPmInvoice(state.pmSel);
 }
+
 
 /* Fetch a whole year (~700 rows). Months are then switched on the
    client with no further requests. */
