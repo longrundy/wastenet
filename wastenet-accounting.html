@@ -2128,7 +2128,7 @@ function stmtDay(d){
   return mons[Number(p[1]) - 1] + " " + Number(p[2]);
 }
 
-function invoiceBlockHtml(i, first){
+function invoiceBlockHtml(i, first, linkable){
   var sum = invoiceLineSummary(i.doc, i.monitoring);
   var base = (i.monitoring || 0) - (i.fees || 0);
 
@@ -2166,7 +2166,7 @@ function invoiceBlockHtml(i, first){
           fmt(i.payout) +'</td>'+
       '</tr>'+
       '<tr><td colspan="2" style="font-size:11.5px;color:#8A8F8A;padding-top:3px;">'+
-        'Invoice '+ esc(i.doc) +' &nbsp;\u00b7&nbsp; invoiced '+ esc(stmtDay(i.invDate)) +
+        'Invoice '+ (linkable ? invLink(i.doc, i.qboId) : esc(i.doc)) +' &nbsp;\u00b7&nbsp; invoiced '+ esc(stmtDay(i.invDate)) +
         ' &nbsp;\u00b7&nbsp; <b style="color:#3B6D11;">paid '+ esc(stmtDay(i.date)) +'</b>'+
       '</td></tr>'+
       '<tr><td colspan="2" style="padding-top:8px;">'+
@@ -2186,8 +2186,9 @@ function invoiceBlockHtml(i, first){
 
 function statementHtml(a, period, note, opts){
   var preview = !!(opts && opts.preview);   // review view omits logo + disclaimer
+  var linkable = !!(opts && opts.linkable);  // clickable invoice # (dashboard review only)
   var invs = a.invoices || [];
-  var blocks = invs.map(function(i, n){ return invoiceBlockHtml(i, n === 0); }).join("");
+  var blocks = invs.map(function(i, n){ return invoiceBlockHtml(i, n === 0, linkable); }).join("");
   var payTot = invs.reduce(function(t,i){ return t + (i.payout || 0); }, 0);
 
   var inner =
@@ -2443,7 +2444,7 @@ function renderAgents(){
           '</div>' +
           (state.stmtFetching===a.agent ? '<div class="agfetch"><span class="agspin"></span>Loading itemization\u2026</div>' : '') +
           flag +
-          '<div class="ag-stmt-doc">' + statementHtml(a, state.agMonth, "", {preview:true}) + '</div>';
+          '<div class="ag-stmt-doc">' + statementHtml(a, state.agMonth, "", {preview:true, linkable:true}) + '</div>';
       } else {
         _agDetail[a.agent] = agEmailHtml(a) + math + flag + table;
       }
@@ -2616,7 +2617,7 @@ function refreshAgStmt(){
   var a = (md.agents || []).filter(function(x){ return x.agent === agent; })[0];
   if(!a) return;
   var doc = document.querySelector(".ag-detail .ag-stmt-doc");
-  if(doc) doc.innerHTML = statementHtml(a, state.agMonth, "", {preview:true});
+  if(doc) doc.innerHTML = statementHtml(a, state.agMonth, "", {preview:true, linkable:true});
   var note = document.querySelector(".ag-detail .agfetch");
   if(note) note.parentNode.removeChild(note);
 }
