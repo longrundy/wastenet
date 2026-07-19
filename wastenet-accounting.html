@@ -953,7 +953,10 @@ body{padding-left:280px !important;}
 .rc-folder .agrow.open .rc-inv{color:var(--green-darker);}
 .rc-folder .folder-lower{padding:0 !important;}
 .rc-folder .empty-state{padding:26px 24px; color:var(--ink-2);}
-.rc-iv-head{margin-bottom:14px;}
+.rc-iv-card{background:#fff; border:0.5px solid var(--line);
+  border-radius:12px; box-shadow:0 2px 14px rgba(20,40,20,.10);
+  padding:20px 22px 22px; max-width:680px; margin:2px auto 0;}
+.rc-iv-head{margin-bottom:14px; padding-bottom:12px; border-bottom:0.5px solid var(--line);}
 .rc-iv-title{font-size:15px; font-weight:600; color:var(--green-darker);}
 .rc-iv-sub{font-size:12px; color:var(--ink-2); margin-top:3px;}
 @media(max-width:720px){
@@ -1800,11 +1803,13 @@ function rcPaneHtml(d){
   var sub = (h.txnDate ? "Dated " + usDate(h.txnDate) : "") +
             (h.dueDate ? " \u00b7 due " + usDate(h.dueDate) : "") +
             (h.status  ? " \u00b7 " + esc(h.status) : "");
-  return '<div class="rc-iv-head">' +
-      '<div class="rc-iv-title">Invoice ' + esc(h.docNumber || "") +
-        (h.customer ? ' \u00b7 ' + esc(h.customer) : "") + '</div>' +
-      (sub ? '<div class="rc-iv-sub">' + sub + '</div>' : "") +
-    '</div>' + buildInvoiceBody(d);
+  return '<div class="rc-iv-card">' +
+      '<div class="rc-iv-head">' +
+        '<div class="rc-iv-title">Invoice ' + esc(h.docNumber || "") +
+          (h.customer ? ' \u00b7 ' + esc(h.customer) : "") + '</div>' +
+        (sub ? '<div class="rc-iv-sub">' + sub + '</div>' : "") +
+      '</div>' + buildInvoiceBody(d) +
+    '</div>';
 }
 
 function loadRcInvoice(doc){
