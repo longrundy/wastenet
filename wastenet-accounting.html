@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-accounting · build 2026-07-19-d freeze header bar + unify colour (billing/recv/pmt) -->
+<!-- wastenet-accounting · build 2026-07-19-e financials notes-card width, card buffer, single rail divider -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -997,6 +997,15 @@ body{padding-left:280px !important;}
   .rc-folder .pinhead, .bill-folder .pinhead{position:static !important; top:auto !important;}
   .bill-folder .bhead{position:static !important; top:auto !important;}
 }
+</style>
+<style id="wn-acct-fin-tweaks">
+/* Notes card matches the invoice-view card width used on the other pages. */
+.fin-notes-card{max-width:680px; margin:2px auto 0;}
+/* Breathing room on the four stat cards - a buffer left of Revenue and right
+   of Gross Margin (the console layout had zeroed the column padding). */
+.fin-list-col .fincards{padding-left:16px; padding-right:16px;}
+/* One divider between the dashboard picker and the sections, not two. */
+.wn-rail__sections{border-top:none;}
 </style>
 <style id="wn-acct-billing2">
 .ag-hd-list .bsearch-hd{flex:0 0 auto;width:190px;max-width:46%;padding:5px 10px;font-size:12px;}
