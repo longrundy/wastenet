@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-accounting · build 2026-07-13-i · agent email on Agent Settings -->
+<!-- wastenet-accounting · build 2026-07-19-a receivables master-detail (invoice pane) -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -929,6 +929,42 @@ body{padding-left:280px !important;}
 .b-detail-name .dba{font-weight:400;font-size:12px;color:var(--ink-3);margin-left:7px;}
 .ag-detail .bxline{margin-bottom:8px;}
 </style>
+<style id="wn-acct-recv">
+/* Receivables master-detail - same idiom as Billing/Agents. The five columns
+   live in the gray list; the selected invoice renders in the green pane. */
+.rc-folder .pinhead{position:static !important; top:auto !important;}
+.rc-head{display:flex; align-items:center; gap:10px; padding:8px 24px;
+         position:sticky; top:80px; z-index:6; background:var(--list-bg);
+         border-bottom:0.5px solid var(--line-strong);
+         font-size:10.5px; font-weight:600; color:var(--ink-2); white-space:nowrap;}
+.rc-head [data-rsort]{cursor:pointer;}
+.rc-head [data-rsort]:hover{color:var(--ink);}
+.rc-head .sc{color:var(--ink-3); font-size:9px;}
+.rc-inv{width:52px; flex:0 0 52px; font-weight:600; color:var(--green-dark); font-size:12px;}
+.rc-cust{flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13.5px;}
+.rc-due{width:76px; flex:0 0 76px; font-size:11.5px; color:var(--ink-2); white-space:nowrap;}
+.rc-bal{width:92px; flex:0 0 92px; text-align:right; font-size:13px; font-weight:600; white-space:nowrap;}
+.rc-age{width:64px; flex:0 0 64px; text-align:right;}
+.rc-head .rc-inv, .rc-head .rc-cust, .rc-head .rc-due, .rc-head .rc-bal, .rc-head .rc-age{
+  font-size:10.5px; font-weight:600; color:var(--ink-2);}
+.rc-folder .agrow[data-rcrow]{border-bottom:1px solid var(--line) !important; border-right:1px solid var(--line) !important;}
+.rc-folder .agrow.open{background:var(--sel) !important; border-right-color:transparent !important;}
+.rc-folder .aghead{padding:12px 24px !important;}
+.rc-folder .agrow.open .rc-inv{color:var(--green-darker);}
+.rc-folder .folder-lower{padding:0 !important;}
+.rc-folder .empty-state{padding:26px 24px; color:var(--ink-2);}
+.rc-iv-head{margin-bottom:14px;}
+.rc-iv-title{font-size:15px; font-weight:600; color:var(--green-darker);}
+.rc-iv-sub{font-size:12px; color:var(--ink-2); margin-top:3px;}
+@media(max-width:720px){
+  .rc-folder .ag-topbar{grid-template-columns:1fr;}
+  .rc-folder .ag-hd-detail{display:none;}
+  .rc-folder .ag-split{grid-template-columns:1fr;}
+  .rc-folder .ag-list-col{border-right:none;}
+  .rc-head{position:static; top:auto;}
+  .rc-folder .ag-detail{position:static !important; top:auto !important; max-height:none !important;}
+}
+</style>
 <style id="wn-acct-billing2">
 .ag-hd-list .bsearch-hd{flex:0 0 auto;width:190px;max-width:46%;padding:5px 10px;font-size:12px;}
 .ag-hd-brow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:5px;min-width:0;}
@@ -1169,6 +1205,7 @@ var state = {
   search: "",
   sortKey: "age",
   sortDir: "desc",
+  rcSel: "",         // receivables: which invoice is showing in the green pane
 
   // collections
   months: [],          // [{month,total,count}] newest first
@@ -1404,16 +1441,9 @@ function openInvoice(doc){
   });
 }
 
-function paintInvoice(d){
+function buildInvoiceBody(d){
   var h = d.invoice || {};
   var lines = d.lines || [];
-
-  document.getElementById("ivtitle").textContent =
-    "Invoice " + (h.docNumber || "") + " \u00b7 " + (h.customer || "");
-  document.getElementById("ivsub").textContent =
-    (h.txnDate ? "Dated " + usDate(h.txnDate) : "") +
-    (h.dueDate ? " \u00b7 due " + usDate(h.dueDate) : "") +
-    (h.status ? " \u00b7 " + h.status : "");
 
   var stats = '<div class="ivsum">' +
     '<div class="ivstat"><div class="ivstat-n">$' + fmt(h.total) + '</div>' +
@@ -1473,7 +1503,18 @@ function paintInvoice(d){
       'no commission. Everything else is a monitored box.</div>'
     : '';
 
-  document.getElementById("ivbody").innerHTML = stats + table + paid + note;
+  return stats + table + paid + note;
+}
+
+function paintInvoice(d){
+  var h = d.invoice || {};
+  document.getElementById("ivtitle").textContent =
+    "Invoice " + (h.docNumber || "") + " \u00b7 " + (h.customer || "");
+  document.getElementById("ivsub").textContent =
+    (h.txnDate ? "Dated " + usDate(h.txnDate) : "") +
+    (h.dueDate ? " \u00b7 due " + usDate(h.dueDate) : "") +
+    (h.status ? " \u00b7 " + h.status : "");
+  document.getElementById("ivbody").innerHTML = buildInvoiceBody(d);
 }
 
 (function(){
@@ -1637,12 +1678,9 @@ function renderSummary(){
 function renderReceivables(){
   var open = state.invoices;
 
-  var counts = {};
-  BUCKETS.forEach(function(b){ counts[b.key] = 0; });
-  open.forEach(function(i){ counts[bucketOf(i)] += 1; });
-
-  /* Five folder tabs. No counts on them - the green bar below reports
-     the count and the dollar total for whichever tab is open. */
+  /* Five aging folders across the top of the gray column, above the column
+     header. No counts on them - the summary line in the fixed header reports
+     the count and dollar total for whichever tab is open. */
   var tabs = '<div class="folder-tabs">' + BUCKETS.map(function(b){
     return '<button class="ftab' + (state.age === b.key ? " sel" : "") + '" data-age="' + b.key + '">' +
              b.label + '</button>';
@@ -1673,50 +1711,121 @@ function renderReceivables(){
     return 0;
   });
 
+  /* Land on the top invoice of the open bucket. If the selected invoice is no
+     longer in this bucket (switched tab) or was filtered out by a search, fall
+     to whatever now sits on top - the same "land on the first row" rule Agents
+     uses for John Lydick. */
+  var docs = rows.map(function(i){ return String(i.docNumber); });
+  if(!state.rcSel || docs.indexOf(String(state.rcSel)) === -1){
+    state.rcSel = rows.length ? String(rows[0].docNumber) : "";
+  }
+
   var caret = function(k){
     if(state.sortKey !== k) return "";
     return ' <span class="sc">' + (state.sortDir === "asc" ? "\u25B2" : "\u25BC") + '</span>';
   };
 
   var head =
-    '<thead><tr>' +
-      '<th data-sort="inv"     style="width:13%">Invoice'  + caret("inv")  + '</th>' +
-      '<th data-sort="cust"    style="width:36%">Customer' + caret("cust") + '</th>' +
-      '<th data-sort="due"     style="width:17%">Due'      + caret("due")  + '</th>' +
-      '<th data-sort="balance" style="width:18%" class="num">Balance' + caret("balance") + '</th>' +
-      '<th data-sort="age"     style="width:16%" class="num">Age' + caret("age") + '</th>' +
-    '</tr></thead>';
+    '<div class="rc-head">' +
+      '<span class="rc-inv"  data-rsort="inv">Invoice'   + caret("inv")     + '</span>' +
+      '<span class="rc-cust" data-rsort="cust">Customer' + caret("cust")    + '</span>' +
+      '<span class="rc-due"  data-rsort="due">Due'       + caret("due")     + '</span>' +
+      '<span class="rc-bal"  data-rsort="balance">Balance' + caret("balance") + '</span>' +
+      '<span class="rc-age"  data-rsort="age">Age'       + caret("age")     + '</span>' +
+    '</div>';
 
-  var tbody;
+  var body;
   if(!rows.length){
-    tbody = '<tbody><tr><td colspan="5" style="text-align:center; padding:26px 8px; color:var(--ink-2);">Nothing in this bucket.</td></tr></tbody>';
+    body = head + '<div class="empty-state">' +
+      (state.search ? "No invoice matches that." : "Nothing in this bucket.") + '</div>';
   } else {
-    tbody = '<tbody>' + rows.map(function(i){
-      return '<tr>' +
-        '<td>' + invLink(i.docNumber, i.qboId) + '</td>' +
-        '<td title="' + esc(i.customer) + '">' + esc(i.customer) + '</td>' +
-        '<td class="muted">' + (i.dueDate ? esc(usDate(i.dueDate)) : "\u2014") + '</td>' +
-        '<td class="num">' + money(i.balance) + '</td>' +
-        '<td class="num">' + chipFor(i) + '</td>' +
-      '</tr>';
-    }).join("") + '</tbody>';
+    body = head + rows.map(function(i){
+      var sel = String(i.docNumber) === String(state.rcSel);
+      return '<div class="agrow' + (sel ? " open" : "") + '" data-rcrow="' + esc(i.docNumber) + '">' +
+        '<div class="aghead">' +
+          '<span class="rc-inv">' + esc(i.docNumber) + '</span>' +
+          '<span class="rc-cust" title="' + esc(i.customer) + '">' + esc(i.customer) + '</span>' +
+          '<span class="rc-due">' + (i.dueDate ? esc(shortDate(i.dueDate)) : "\u2014") + '</span>' +
+          '<span class="rc-bal">' + money(i.balance) + '</span>' +
+          '<span class="rc-age">' + chipFor(i) + '</span>' +
+        '</div>' +
+      '</div>';
+    }).join("");
   }
 
-  var cur = BUCKETS.filter(function(b){ return b.key === state.age; })[0];
   var owed = rows.reduce(function(s,i){ return s + (Number(i.balance)||0); }, 0);
+  var cur  = BUCKETS.filter(function(b){ return b.key === state.age; })[0];
+  var noteLine = cur.label + ' \u00b7 ' + rows.length + ' invoice' + (rows.length === 1 ? "" : "s") +
+                 ' \u00b7 ' + moneyShort(owed);
 
-  return '<div class="folder">' +
-      '<div class="pinhead" id="pinhead">' +
-        tabs +
-        '<div class="fbar">' +
-          '<div class="fbar-t">' + cur.label +
-            ' <span class="amt">\u00b7 ' + rows.length + ' invoices \u00b7 ' + moneyShort(owed) + '</span></div>' +
-          '<input class="search" id="search" type="text" placeholder="Search customer or #" value="' + esc(state.search) + '">' +
+  var green;
+  if(state.rcSel && ivCache[state.rcSel]){
+    green = rcPaneHtml(ivCache[state.rcSel]);
+  } else if(state.rcSel){
+    green = '<div class="empty-state"><span class="spinner"></span>Loading invoice\u2026</div>';
+  } else {
+    green = '<div class="ag-pane-empty">Select an invoice on the left to view it here.</div>';
+  }
+
+  return '<div class="folder rc-folder">' +
+      '<div class="ag-topbar">' +
+        '<div class="ag-hd ag-hd-list">' +
+          '<div class="ag-hd-drow"><div class="ag-hd-title">Receivables</div>' +
+            '<input class="search bsearch-hd" id="search" type="text" placeholder="Search customer or #" value="' + esc(state.search) + '"></div>' +
+          '<div class="ag-hd-note">' + noteLine + '</div>' +
         '</div>' +
+        '<div class="ag-hd ag-hd-detail"><div class="ag-hd-title">Invoice View</div></div>' +
       '</div>' +
-      '<div class="folder-lower"><table>' + head + tbody + '</table></div>' +
+      '<div class="ag-split"><div class="ag-list-col">' +
+        '<div class="pinhead" id="pinhead">' + tabs + '</div>' +
+        '<div class="folder-lower">' + body + '</div>' +
+      '</div>' +
+      '<aside class="ag-detail" id="rcPane">' + green + '</aside></div>' +
     '</div>';
 }
+
+/* Short date for the tight gray column - two-digit year, so 07/25/2026 reads
+   07/25/26 and Due never crowds Balance. */
+function shortDate(s){
+  s = String(s || "");
+  if(s.length < 10) return s;
+  if(!/^\d{4}$/.test(s.slice(0,4))) return s;
+  return s.slice(5,7) + "/" + s.slice(8,10) + "/" + s.slice(2,4);
+}
+
+/* The invoice detail, painted into the green pane instead of a pop-up. Same
+   renderer the modal uses (buildInvoiceBody), with a heading naming it above. */
+function rcPaneHtml(d){
+  var h = d.invoice || {};
+  var sub = (h.txnDate ? "Dated " + usDate(h.txnDate) : "") +
+            (h.dueDate ? " \u00b7 due " + usDate(h.dueDate) : "") +
+            (h.status  ? " \u00b7 " + esc(h.status) : "");
+  return '<div class="rc-iv-head">' +
+      '<div class="rc-iv-title">Invoice ' + esc(h.docNumber || "") +
+        (h.customer ? ' \u00b7 ' + esc(h.customer) : "") + '</div>' +
+      (sub ? '<div class="rc-iv-sub">' + sub + '</div>' : "") +
+    '</div>' + buildInvoiceBody(d);
+}
+
+function loadRcInvoice(doc){
+  var pane = document.getElementById("rcPane");
+  if(!pane || !doc) return;
+  if(ivCache[doc]){ pane.innerHTML = rcPaneHtml(ivCache[doc]); return; }
+  pane.innerHTML = '<div class="empty-state"><span class="spinner"></span>Loading invoice\u2026</div>';
+  jsonp({ action:"invoice", key:KEY, doc:doc }, function(data){
+    if(String(state.rcSel) !== String(doc)) return;   // a newer row was clicked
+    var p = document.getElementById("rcPane");
+    if(!p) return;
+    if(!data || !data.ok){
+      p.innerHTML = '<div class="ag-pane-empty">' +
+        esc((data && data.error) || "Could not load that invoice.") + '</div>';
+      return;
+    }
+    ivCache[doc] = data;
+    p.innerHTML = rcPaneHtml(data);
+  });
+}
+
 
 /* ---------- coming soon panels ---------- */
 function soonPanel(icon, title, desc, bullets, note){
@@ -4794,22 +4903,35 @@ window.addEventListener("resize", measurePin);
 
 /* ---------- events ---------- */
 function wireBody(){
-  document.querySelectorAll(".ftab").forEach(function(el){
+  /* Aging folders. Switching a bucket re-lands on that bucket's top invoice -
+     renderReceivables handles the re-selection. */
+  document.querySelectorAll(".ftab[data-age]").forEach(function(el){
     el.onclick = function(){
       state.age = el.getAttribute("data-age");
       renderBody();
     };
   });
 
-  document.querySelectorAll("th[data-sort]").forEach(function(el){
+  /* Sortable column labels in the gray list. */
+  document.querySelectorAll("[data-rsort]").forEach(function(el){
     el.onclick = function(){
-      var k = el.getAttribute("data-sort");
+      var k = el.getAttribute("data-rsort");
       if(state.sortKey === k){
         state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
       } else {
         state.sortKey = k;
         state.sortDir = (k === "cust" || k === "inv") ? "asc" : "desc";
       }
+      renderBody();
+    };
+  });
+
+  /* Click a row -> that invoice paints in the green pane on the right. */
+  document.querySelectorAll(".agrow[data-rcrow] .aghead").forEach(function(el){
+    el.onclick = function(){
+      var doc = el.parentNode.getAttribute("data-rcrow");
+      if(String(doc) === String(state.rcSel)) return;
+      state.rcSel = String(doc);
       renderBody();
     };
   });
@@ -4823,7 +4945,13 @@ function wireBody(){
       if(again){ again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
     };
   }
+
+  /* If the landed / selected invoice is not cached yet, fetch it into the pane
+     now. Cached selections render inline during renderReceivables, so typing in
+     the search box does not reload the pane on every keystroke. */
+  if(state.rcSel && !ivCache[state.rcSel]) loadRcInvoice(state.rcSel);
 }
+
 
 function wireCollections(){
   var yr = document.getElementById("yrSel");
