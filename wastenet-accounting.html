@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-accounting · build 2026-07-19-b payments master-detail (invoice pane) -->
+<!-- wastenet-accounting · build 2026-07-19-c deposits fixed header + notes card -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -968,6 +968,10 @@ body{padding-left:280px !important;}
 .pm-folder .agrow.open .pm-inv{color:var(--green-darker);}
 .pm-unapplied .aghead{cursor:default;}
 .pm-unapplied .aghead:hover{background:transparent !important;}
+/* Deposits - input in the gray column, the QuickBooks note in a green card. */
+.dz-pad{padding:26px 24px 40px;}
+.dz-note{font-size:12.5px; line-height:1.65; color:var(--ink-2);}
+.dz-note b{color:var(--ink);}
 @media(max-width:720px){
   .rc-folder .ag-topbar{grid-template-columns:1fr;}
   .rc-folder .ag-hd-detail{display:none;}
@@ -4012,28 +4016,37 @@ function renderDeposits(){
     return '<div class="empty-state"><span class="spinner"></span>Loading invoices&hellip;</div>';
   }
 
-  /* Nothing pasted yet - explain the job, then get out of the way. */
+  /* Nothing pasted yet - explain the job, then get out of the way. The input
+     lives in the gray column; the note about not touching QuickBooks sits in
+     its own card in the green "Notes" pane on the right. */
   if(!state.dRows.length){
-    return '<div class="folder"><div class="folder-lower" style="padding:30px 22px;">' +
-      '<div class="dz" id="dropZone">' +
-        '<div class="dz-t">Drop the Frost CSV here</div>' +
-        '<div class="dz-d">Or paste it below. Export from Frost Connect \u2014 ' +
-          'account activity, CSV. Money going out is ignored.</div>' +
-        '<input type="file" id="dFile" accept=".csv,text/csv" style="display:none;">' +
-        '<button class="btn" id="dPickFile" style="margin-top:14px;">Choose a file</button>' +
-      '</div>' +
-      '<textarea class="dpaste" id="dPaste" rows="5" ' +
-        'placeholder="\u2026or paste the CSV text here"></textarea>' +
-      '<div style="text-align:right; margin-top:9px;">' +
-        '<button class="btn" id="dGo">Match deposits</button>' +
-      '</div>' +
-      '<div class="dnote">' +
-        '<b>Nothing here touches QuickBooks.</b> This works out which open invoices ' +
-        'each deposit paid and shows you. Recording the payment stays a human ' +
-        'decision, made in QuickBooks.' +
-      '</div>' +
-    '</div></div>';
+    return '<div class="folder rc-folder dz-folder">' +
+        '<div class="ag-topbar">' +
+          '<div class="ag-hd ag-hd-list"><div class="ag-hd-title">Deposits</div></div>' +
+          '<div class="ag-hd ag-hd-detail"><div class="ag-hd-title">Notes</div></div>' +
+        '</div>' +
+        '<div class="ag-split"><div class="ag-list-col"><div class="dz-pad">' +
+          '<div class="dz" id="dropZone">' +
+            '<div class="dz-t">Drop the Frost CSV here</div>' +
+            '<div class="dz-d">Or paste it below. Export from Frost Connect \u2014 ' +
+              'account activity, CSV. Money going out is ignored.</div>' +
+            '<input type="file" id="dFile" accept=".csv,text/csv" style="display:none;">' +
+            '<button class="btn" id="dPickFile" style="margin-top:14px;">Choose a file</button>' +
+          '</div>' +
+          '<textarea class="dpaste" id="dPaste" rows="5" ' +
+            'placeholder="\u2026or paste the CSV text here"></textarea>' +
+          '<div style="text-align:right; margin-top:9px;">' +
+            '<button class="btn" id="dGo">Match deposits</button>' +
+          '</div>' +
+        '</div></div>' +
+        '<aside class="ag-detail"><div class="rc-iv-card"><div class="dz-note">' +
+          '<b>Nothing here touches QuickBooks.</b> This works out which open invoices ' +
+          'each deposit paid and shows you. Recording the payment stays a human ' +
+          'decision, made in QuickBooks.' +
+        '</div></div></aside></div>' +
+      '</div>';
   }
+
 
   var all = state.dMatched;
   var isWork = function(r){
