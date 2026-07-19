@@ -2396,24 +2396,7 @@ function renderAgents(){
 
       /* Name the invoices. "2 invoices contain a flagged line" is a dead
          end; "inv 6018 (Jun 2026), inv 5962 (Mar 2026)" can be looked up. */
-      var flag = '';
-      if(a.review){
-        var rl = (a.reviewList || []).slice();
-        rl.sort(function(x,y){ return String(y.date).localeCompare(String(x.date)); });
-
-        var listed = rl.slice(0, 6).map(function(r){
-          return 'inv ' + invLink(r.doc, r.qboId) + ' \u00b7 ' + esc(usDate(r.date)) +
-                 ' \u00b7 ' + esc(String(r.customer).slice(0, 28));
-        }).join('<br>');
-
-        flag = '<div class="agflag">' +
-          '<b>' + a.review + ' invoice(s) here contain a line the engine judged to be a ' +
-          'one-time fee from its price rather than its wording.</b> Those lines earn no ' +
-          'commission. Worth a look if this figure seems light.<br><br>' +
-          listed +
-          (rl.length > 6 ? '<br>\u2026and ' + (rl.length - 6) + ' more' : '') +
-          '</div>';
-      }
+      var flag = '';   // non-commissionable lines are already itemized in the statement below — no banner needed
 
       /* Year view: a month-by-month breakdown is what's useful.
          Month view: the individual invoices behind the number. */
