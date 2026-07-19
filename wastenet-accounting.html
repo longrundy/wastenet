@@ -721,6 +721,7 @@
 }
 
 .finsvg{ width:100%; height:auto; display:block; }
+.finband{ fill:rgba(30,60,30,0.045); }
 .fingrid{ stroke:#e6e6df; stroke-width:1; }
 .finax{ fill:#8a8983; font-size:11px; }
 .b-rev{  fill:#2a78d6; }
@@ -737,7 +738,7 @@
   display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
   gap:10px; margin-top:14px;
 }
-.fincell{ background:#F5F6F1; border-radius:8px; padding:10px 12px; }
+.fincell{ background:#fff; border:1px solid #dbe0d6; border-radius:8px; padding:11px 13px; }
 .fin-l{ font-size:12px; color:var(--muted); }
 .fin-n{ font-size:20px; font-weight:500; margin-top:2px; }
 .fin-s{ font-size:11px; color:var(--muted); margin-top:2px; }
@@ -4164,6 +4165,14 @@ function finChart(rows){
   var s = '<svg class="finsvg" viewBox="0 0 ' + W + ' ' + H + '" ' +
           'role="img" aria-label="Revenue, CES cost, agent commissions and gross margin by month">';
 
+  // A faint band behind every other month, so it reads clearly which three bars
+  // belong to one month.
+  rows.forEach(function(r, i){
+    if(i % 2 === 1){
+      s += '<rect class="finband" x="' + (L + gw * i) + '" y="' + T + '" width="' + gw + '" height="' + ih + '"/>';
+    }
+  });
+
   var g, gy, gv;
   for(g = 0; g <= 4; g++){
     gy = T + (ih / 4) * g;
@@ -4488,9 +4497,9 @@ function renderFinancials(){
   var cards =
     '<div class="fincards">' +
       finCard("Revenue",      moneyShort(tRev),   "100%",      "",  dRev.txt,   dRev.cls) +
-      finCard("CES expense",  moneyShort(tCes),   pct(tCes),   "",  dCes.txt,   dCes.cls) +
-      finCard("Agent commissions", moneyShort(tComm), pct(tComm), "", dComm.txt, dComm.cls) +
-      finCard("Gross margin", moneyShort(tGross), pct(tGross), "",  dGross.txt, dGross.cls) +
+      finCard("CES Expense",  moneyShort(tCes),   pct(tCes),   "",  dCes.txt,   dCes.cls) +
+      finCard("Agent Commissions", moneyShort(tComm), pct(tComm), "", dComm.txt, dComm.cls) +
+      finCard("Gross Margin", moneyShort(tGross), pct(tGross), "",  dGross.txt, dGross.cls) +
     '</div>';
 
   /* Say plainly what is missing and what is not counted. A financial page that
