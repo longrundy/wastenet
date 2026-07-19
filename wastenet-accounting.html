@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-accounting · build 2026-07-19-e financials notes-card width, card buffer, single rail divider -->
+<!-- wastenet-accounting · build 2026-07-19-f billing fees-and-notes in a card -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -3761,7 +3761,7 @@ function renderBilling(){
     var sdba = (selRow.customer &&
                 selRow.customer.trim().toLowerCase() !== String(selRow.shorthand).trim().toLowerCase())
       ? ' <span class="dba">' + esc(selRow.customer) + '</span>' : '';
-    green = '<div class="b-detail">' +
+    green = '<div class="rc-iv-card b-detail">' +
         '<div class="b-detail-name">' + esc(selRow.shorthand) + sdba + '</div>' +
         _bDetail[selRow.shorthand] +
       '</div>';
