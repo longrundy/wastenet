@@ -1175,7 +1175,10 @@ var state = {
 function agMonthData(){
   var y = state.agByYear[state.agYear] || {};
 
-  if(state.agMonth) return y[state.agMonth] || { agents: [], unmapped: [] };
+  if(state.agMonth){ var _m = y[state.agMonth]; if(!_m) return { agents: [], unmapped: [] };
+    var _c = {}; for(var _k in _m){ _c[_k] = _m[_k]; }
+    _c.agents = (_m.agents || []).slice().sort(function(a,b){ return String(a.name||a.agent||"").localeCompare(String(b.name||b.agent||"")); });
+    return _c; }
 
   /* --- roll the whole year up --- */
   var acc = {}, orphans = {};
@@ -1226,7 +1229,7 @@ function agMonthData(){
     a.boxes      = Math.round(a.boxes * 100) / 100;
     a.months.reverse();   // newest first
     return a;
-  }).sort(function(a,b){ return b.payout - a.payout; });
+  }).sort(function(a,b){ return String(a.name||a.agent||"").localeCompare(String(b.name||b.agent||"")); });
 
   var unmapped = Object.keys(orphans).map(function(c){
     return {
