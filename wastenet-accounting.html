@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-accounting · build 2026-07-19-c deposits fixed header + notes card -->
+<!-- wastenet-accounting · build 2026-07-19-d freeze header bar + unify colour (billing/recv/pmt) -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -979,6 +979,23 @@ body{padding-left:280px !important;}
   .rc-folder .ag-list-col{border-right:none;}
   .rc-head{position:static; top:auto;}
   .rc-folder .ag-detail{position:static !important; top:auto !important; max-height:none !important;}
+}
+</style>
+<style id="wn-acct-freeze">
+/* Freeze the fixed header, the tabs, AND the light-gray column-header bar; only
+   the rows scroll. Identical on Billing, Receivables and Payments, and the
+   column-header bar is the same colour (--card) on all three. */
+.rc-head{background:var(--card); position:sticky; top:calc(80px + var(--pinh)); z-index:15;}
+.rc-folder .pinhead, .bill-folder .pinhead{
+  position:sticky !important; top:80px !important; z-index:20 !important;
+  background:var(--list-bg) !important; padding-bottom:0 !important;}
+.bill-folder .bhead{
+  background:var(--card) !important; position:sticky !important;
+  top:calc(80px + var(--pinh)) !important; z-index:15 !important;}
+@media(max-width:720px){
+  .rc-head{position:static; top:auto;}
+  .rc-folder .pinhead, .bill-folder .pinhead{position:static !important; top:auto !important;}
+  .bill-folder .bhead{position:static !important; top:auto !important;}
 }
 </style>
 <style id="wn-acct-billing2">
@@ -3743,7 +3760,7 @@ function renderBilling(){
     green = '<div class="ag-pane-empty">Select a customer to add a one-time fee or note.</div>';
   }
 
-  return '<div class="folder">' +
+  return '<div class="folder bill-folder">' +
       '<div class="ag-topbar">' +
         '<div class="ag-hd ag-hd-list">' +
           '<div class="ag-hd-drow"><div class="ag-hd-title">Billing</div>' +
