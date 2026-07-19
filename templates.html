@@ -77,15 +77,15 @@
   .svc-toggle.on{background:#FAEEDA; border-color:#EF9F27; color:#854F0B; font-weight:500;}
   .svc-count{font-size:12px; color:var(--ink-3); white-space:nowrap;}
   .svc-pane{display:flex; gap:16px; align-items:flex-start;}
-  .svc-list{width:330px; flex:0 0 330px; max-height:600px; overflow-y:auto; border:0.5px solid var(--line); border-radius:var(--r-card); background:var(--card); padding:6px;}
-  .svc-grp{font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:var(--ink-3); padding:11px 10px 4px; font-weight:600;}
+  .svc-list{width:auto; margin:8px -22px 0; max-height:none; overflow:visible; border:0; border-radius:0; background:transparent; padding:0;}
+  .svc-grp{font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-3); padding:15px 22px 5px; font-weight:700; background:var(--list-bg);}
   .svc-grp:first-child{padding-top:4px;}
-  .svc-item{display:flex; align-items:center; gap:9px; width:100%; text-align:left; border:0; background:transparent; font-family:var(--font); padding:7px 10px; border-radius:var(--r-ctl); cursor:pointer; color:var(--ink);}
+  .svc-item{display:flex; align-items:center; gap:12px; width:100%; text-align:left; border:0; border-bottom:0.5px solid var(--line); background:transparent; font-family:var(--font); padding:12px 22px; border-radius:0; cursor:pointer; color:var(--ink);}
   .svc-item:hover{background:var(--panel);}
   .svc-item.on{background:var(--green-tint);}
-  .svc-item .sid{font-weight:600; font-size:12px; flex:0 0 auto; color:var(--ink);}
+  .svc-item .sid{font-weight:600; font-size:13px; flex:0 0 auto; color:var(--ink);}
   .svc-item.on .sid{color:var(--green-darker);}
-  .svc-item .sd{flex:1; min-width:0; font-size:12px; color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .svc-item .sd{flex:1; min-width:0; font-size:13px; color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .svc-item.on .sd{color:var(--green-darker);}
   .svc-need{flex:0 0 auto; font-size:10px; padding:1px 7px; border-radius:var(--r-pill); background:#FAEEDA; color:#854F0B; border:0.5px solid #EF9F27; white-space:nowrap;}
   .svc-editor{flex:1; min-width:0;}
@@ -95,7 +95,7 @@
   .svc-empty-list{padding:26px 14px; text-align:center; color:var(--ink-3); font-size:12.5px;}
   @media(max-width:760px){
     .svc-pane{flex-direction:column;}
-    .svc-list{width:100%; flex:0 0 auto; max-height:340px;}
+    .svc-list{margin-left:0; margin-right:0; max-height:none;}
   }
   .blank-note b{color:var(--blue-ink-strong);}
   .tedit-full{max-width:780px;}
