@@ -641,9 +641,9 @@
 
   /* Quarterly customers who aren't due. Said out loud, because a name simply
      missing from the list looks like a mistake. */
-  .bskip{margin:0 0 10px; padding:9px 12px; font-size:11.5px; line-height:1.6;
-         background:var(--panel); border:0.5px solid var(--line-strong);
-         border-radius:var(--r-ctl); color:var(--ink-2);}
+  .bskip{margin:0 0 8px; padding:9px 24px; font-size:11.5px; line-height:1.55;
+         background:#FCF7DE; border:none; border-bottom:1px solid #E5D89A;
+         border-radius:0; color:#6b5d1a;}
   .bskip b{color:var(--ink);}
 
   /* Editable, but only for the month being billed. A past month is a record
@@ -934,6 +934,9 @@ body{padding-left:280px !important;}
 .ag-hd-brow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:5px;min-width:0;}
 .ag-hd-brow .ag-hd-note{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
 .ag-hd-brow .bfilter{margin:0;flex:0 0 auto;}
+</style>
+<style id="wn-acct-billing3">
+.ag-list-col .bhead{padding-left:24px !important;padding-right:24px !important;}
 </style>
 </head>
 <body>
@@ -3564,7 +3567,7 @@ function renderBilling(){
         '<div class="ag-hd ag-hd-list">' +
           '<div class="ag-hd-drow"><div class="ag-hd-title">Billing</div>' +
             '<input class="search bsearch-hd" id="bSearch" type="text" placeholder="Search customer or #" value="' + esc(state.bSearch) + '"></div>' +
-          '<div class="ag-hd-brow"><span class="ag-hd-note">' + noteLine + '</span>' + chips + '</div>' +
+          '<div class="ag-hd-note">' + noteLine + '</div>' +
         '</div>' +
         '<div class="ag-hd ag-hd-detail"><div class="ag-hd-title">Additional Fees and Notes</div></div>' +
       '</div>' +
