@@ -187,7 +187,7 @@ body{padding:0;padding-left:280px;display:block;background:var(--list-bg);}
 .wn-rail .wn-trigger.wn-open{background:rgba(92,170,22,0.18);border-color:#5CAA16;color:#fff;}
 .wn-rail .wn-caret{color:#9fc0a8;}
 .wn-rail .wn-drop{left:0;right:0;min-width:0;width:auto;z-index:200;box-sizing:border-box;}
-.wn-rail__actions{margin-top:auto;padding:16px 14px;border-top:1px solid #265c39;display:flex;flex-direction:column;gap:9px;}
+.wn-rail__actions{padding:16px 14px 4px;display:flex;flex-direction:column;gap:9px;}
 .cal-btn{width:100%;height:42px;border-radius:9px;font-family:'Inter',system-ui,sans-serif;font-size:13.5px;font-weight:600;cursor:pointer;border:1px solid transparent;}
 .cal-btn.primary{background:#5CAA16;color:#fff;border-color:#5CAA16;}
 .cal-btn.primary:hover{background:#4c9110;border-color:#4c9110;}
@@ -206,10 +206,11 @@ body{padding:0;padding-left:280px;display:block;background:var(--list-bg);}
 .ag-split{display:grid;grid-template-columns:1fr 1fr;align-items:stretch;}
 .ag-list-col{background:var(--list-bg);border-right:1px solid var(--line);min-width:0;padding:20px 24px 44px;}
 .ag-detail{position:sticky;top:66px;align-self:start;max-height:calc(100vh - 66px);overflow-y:auto;background:var(--sel);padding:20px 24px 44px;}
-.rc-iv-card{background:var(--card);border:0.5px solid var(--line);border-radius:14px;box-shadow:var(--shadow);margin:0 auto;overflow:hidden;}
-.cal-card,.cal-result{padding:0;}
+.rc-iv-card{background:var(--card);border:0.5px solid var(--line);border-radius:14px;box-shadow:var(--shadow);margin:0 auto;overflow:hidden;max-width:480px;}
+.cal-card{padding:0;}
+.cal-result{padding:0 0 20px;}
 .cal-note-top{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--label);margin-bottom:10px;font-weight:600;}
-.ag-detail .note{margin-top:14px;}
+.ag-detail .note{margin-top:14px;max-width:480px;margin-left:auto;margin-right:auto;}
 @media(max-width:920px){
   .wn-rail{position:static;width:auto;height:auto;flex-direction:column;overflow:visible;}
   body{padding-left:0;}
