@@ -236,7 +236,9 @@ body{padding-left:280px !important;}
 .ag-list-col{background:var(--list-bg);border-right:1px solid var(--line);min-width:0;padding:18px 22px 44px;}
 .ag-detail{position:sticky;top:64px;align-self:start;max-height:calc(100vh - 64px);overflow-y:auto;background:var(--sel);padding:18px 22px 44px;}
 .rc-iv-card{background:#fff;border:0.5px solid var(--line);border-radius:12px;box-shadow:0 2px 14px rgba(20,40,20,.10);padding:16px 18px 18px;margin:0 auto;overflow:hidden;}
-.ag-detail #preview{overflow-x:auto;}
+.ag-detail #preview{overflow-x:hidden;}
+.pv-scale{overflow:hidden;}
+.pv-inner{display:inline-block;transform-origin:top left;}
 .tp-locknote{font-size:11px;color:var(--ink-2);margin-top:10px;text-align:center;}
 @media(max-width:820px){
   #app.wrap{background:var(--list-bg);}
@@ -604,7 +606,21 @@ function refreshPreview(){
   var sampleNote = (state.mode !== "blank" && (subj.indexOf("[") !== -1 || body.indexOf("[") !== -1))
     ? '<div style="font-size:11px;color:#8A8F8A;padding:0 0 8px;">Placeholders shown with sample values &mdash; the real date and site(s) fill in per box when this sends.</div>'
     : "";
-  host.innerHTML = subjLine + sampleNote + emailShell(previewInner(subj, body));
+  host.innerHTML = subjLine + sampleNote + '<div class="pv-scale"><div class="pv-inner">' + emailShell(previewInner(subj, body)) + '</div></div>';
+  scalePreview();
+}
+
+function scalePreview(){
+  var host = document.getElementById("preview"); if(!host) return;
+  var wrap = host.querySelector(".pv-scale"); var inner = host.querySelector(".pv-inner");
+  if(!wrap || !inner) return;
+  inner.style.transform = "none";
+  var natural = inner.offsetWidth || 600;
+  var avail = wrap.clientWidth || natural;
+  var f = Math.min(1, avail / natural);
+  inner.style.transformOrigin = "top left";
+  inner.style.transform = "scale(" + f + ")";
+  wrap.style.height = (inner.offsetHeight * f) + "px";
 }
 
 function wireTemplateMode(){
@@ -1005,6 +1021,7 @@ function setMode(m){
 
 /* ---------- boot ---------- */
 function boot(){
+  window.addEventListener("resize", scalePreview);
   loadTemplates();
 }
 
