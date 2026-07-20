@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-accounting · build 2026-07-20-c deposits results in split shell (sticky header, gray column, green Notes) -->
+<!-- wastenet-accounting · build 2026-07-20-d billing detail header: QuickBooks link button -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -3791,7 +3791,10 @@ function renderBilling(){
             '<input class="search bsearch-hd" id="bSearch" type="text" placeholder="Search customer or #" value="' + esc(state.bSearch) + '"></div>' +
           '<div class="ag-hd-note">' + noteLine + '</div>' +
         '</div>' +
-        '<div class="ag-hd ag-hd-detail"><div class="ag-hd-title">Additional Fees and Notes</div></div>' +
+        '<div class="ag-hd ag-hd-detail"><div class="ag-hd-drow">' +
+          '<div class="ag-hd-title">Additional Fees and Notes</div>' +
+          '<a class="btn" href="https://accounts.intuit.com/app/sign-in" target="_blank" rel="noopener noreferrer" style="text-decoration:none;flex:0 0 auto;">QuickBooks \u2197</a>' +
+        '</div></div>' +
       '</div>' +
       '<div class="ag-split"><div class="ag-list-col">' +
         '<div class="pinhead" id="pinhead">' + tabs + '</div>' +
