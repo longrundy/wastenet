@@ -1103,6 +1103,14 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
 <style id="wn-fixedheader">
 .mon-topbar .mtb-cell{height:94px !important;min-height:0 !important;overflow:hidden;}
 </style>
+<style id="row-icon-move-css">
+.mon-rows .row-mail{width:36px;height:36px;flex:0 0 auto;margin-right:10px;border-radius:8px;border:0.5px solid transparent;background:transparent;color:var(--ink-3);cursor:pointer;display:grid;place-items:center;padding:0;align-self:center;}
+.mon-rows .row-mail:hover{background:var(--green-tint);border-color:var(--green-border);color:var(--green-darker);}
+.mon-rows .row-mail svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;}
+.mon-rows .row-move{width:22px;height:22px;flex:0 0 auto;margin-right:7px;border:none;background:transparent;color:var(--ink-3);cursor:pointer;display:inline-grid;place-items:center;padding:0;vertical-align:middle;border-radius:5px;}
+.mon-rows .row-move:hover{background:var(--green-tint);color:var(--green-darker);}
+.mon-rows .row-move svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;}
+</style>
 <style id="m-poc-css">
 /* ===== mobile proof-of-concept (<=820px): drawer rail + slide-in detail. Desktop untouched. ===== */
 .m-topbar,.m-backdrop,.m-back,.m-dhead{display:none;}
@@ -1862,6 +1870,17 @@ function fillIndicator(b, fc, pctW, trigL){
 // (folder+arrow) - shown on EVERY box in every view, so any box can be emailed
 // about or moved regardless of its bucket. Move still requires a typed reason
 // (moveStripHtml) and a new scan overrides it, so it can't happen silently.
+function rowMailIcon(b){
+  var ymd = (typeof pickupYmdFor === "function" ? (pickupYmdFor(b) || "") : "");
+  return '<button class="row-mail" type="button" data-draft="'+esc(b.id)+'" data-date="'+esc(ymd)+'" aria-label="Draft an email" title="Draft an email">'+
+    '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>'+
+  '</button>';
+}
+function rowMoveIcon(b){
+  return '<button class="row-move" type="button" data-move="'+esc(b.id)+'" aria-label="Move this box" title="'+((movedIn(b)||dismissedNow(b))?"Review the override":"Move this box")+'">'+
+    '<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M10 13h6m0 0-2.2-2.2M16 13l-2.2 2.2"/></svg>'+
+  '</button>';
+}
 function rowActionsHtml(b){
   return '<div class="row-acts">'+
     '<button class="rowicon" type="button" data-draft="'+esc(b.id)+'" aria-label="Draft an email">'+
@@ -1894,7 +1913,7 @@ function rowHtml(b, missed, bucketTag, showHaul){
   if(missed){
     metaInner = '<span class="missed-flag">⚠ missed pickup'+(b.puDate?' · expected '+esc(shortDay(b.puDate)):'')+'</span>' + bTag;
   } else {
-    metaInner = '<span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span>'+
+    metaInner = '<span class="row-id">'+rowMoveIcon(b)+'<span class="box-id-strong">#'+esc(b.id)+'</span>'+
       ((bucketTag || showHaul) ? ' · '+esc(b.haulCode) : '')+' · '+esc(b.channel)+'</span>' + bTag + (onSchedulePage() ? stepsHtml(b) + emailPillHtml(b) : "") +
       (movedIn(b) ? '<span class="moved-tag">moved in</span>' : '') +
       (dismissedNow(b) ? '<span class="moved-tag">dismissed</span>' : '') +
@@ -1904,7 +1923,7 @@ function rowHtml(b, missed, bucketTag, showHaul){
   var fillBlock = fillIndicator(b, fc, pctW, trigL);
 
   return ''+
-    '<div class="row'+(open?' open':'')+(missed?' missed':'')+(movedIn(b)?' moved-in':'')+'" data-id="'+esc(b.id)+'">'+ boxCellHtml(b)+
+    '<div class="row'+(open?' open':'')+(missed?' missed':'')+(movedIn(b)?' moved-in':'')+'" data-id="'+esc(b.id)+'">'+ rowMailIcon(b)+boxCellHtml(b)+
       '<div class="edge" style="background:'+(missed?'#A32D2D':ec)+';"></div>'+
       '<div class="row-main">'+
         (function(){var _dp=String(b.desc||'').split(' \u00b7 ');return '<div class="row-name"><span class="row-name-text">'+esc(_dp[0]||String(b.desc||''))+'</span></div>';})()+
@@ -1916,7 +1935,7 @@ function rowHtml(b, missed, bucketTag, showHaul){
           : '')+
       '</div>'+
       fillBlock+
-      rowActionsHtml(b)+
+      
       '<div class="chev">▾</div>'+
     '</div>'+
     bookStripHtml(b)+
@@ -2736,17 +2755,17 @@ function scheduledRowHtml(b, overdue){
   var open = state.openId === b.id;
   var when = b.scheduledDate ? shortDay(b.scheduledDate) : "date unknown";
   return ''+
-    '<div class="row sched-row'+(open?' open':'')+'" data-id="'+esc(b.id)+'">'+ boxCellHtml(b)+
+    '<div class="row sched-row'+(open?' open':'')+'" data-id="'+esc(b.id)+'">'+ rowMailIcon(b)+boxCellHtml(b)+
       '<div class="edge" style="background:'+(overdue?'#A32D2D':'#378ADD')+';"></div>'+
       '<div class="row-main">'+
         (function(){var _dp=String(b.desc||'').split(' \u00b7 ');return '<div class="row-name"><span class="row-name-text">'+esc(_dp[0]||String(b.desc||''))+'</span></div>';})()+
-        '<div class="row-meta"><span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span> · '+esc(b.haulCode)+' · '+esc(b.channel)+'</span></div>'+
+        '<div class="row-meta"><span class="row-id">'+rowMoveIcon(b)+'<span class="box-id-strong">#'+esc(b.id)+'</span> · '+esc(b.haulCode)+' · '+esc(b.channel)+'</span></div>'+
       '</div>'+
       '<div class="fill-wrap reason '+(overdue?'reason-overdue':'reason-sched-pickup')+'">'+
         '<div class="reason-label">'+(overdue?'past due':'pickup '+esc(when))+'</div>'+
         '<div class="reason-detail">'+(overdue?'pickup was '+esc(when)+' · verify':'scheduled in CES')+'</div>'+
       '</div>'+
-      rowActionsHtml(b)+
+      
       '<div class="chev">▾</div>'+
     '</div>'+
     moveStripHtml(b);
@@ -2757,11 +2776,11 @@ function staleRowHtml(b){
   var open = state.openId === b.id;
   var fresh = (b.lastCycle!=null && b.lastCycle < 72); // stopped within ~3 days = likely a real break
   return ''+
-    '<div class="row stale-row'+(open?' open':'')+'" data-id="'+esc(b.id)+'">'+ boxCellHtml(b)+
+    '<div class="row stale-row'+(open?' open':'')+'" data-id="'+esc(b.id)+'">'+ rowMailIcon(b)+boxCellHtml(b)+
       '<div class="edge" style="background:'+(fresh?'#E24B4A':'#B4B2A9')+';"></div>'+
       '<div class="row-main">'+
         (function(){var _dp=String(b.desc||'').split(' \u00b7 ');return '<div class="row-name"><span class="row-name-text">'+esc(_dp[0]||String(b.desc||''))+'</span></div>';})()+
-        '<div class="row-meta"><span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span> · '+esc(b.haulCode)+' · '+esc(b.channel)+'</span>'+
+        '<div class="row-meta"><span class="row-id">'+rowMoveIcon(b)+'<span class="box-id-strong">#'+esc(b.id)+'</span> · '+esc(b.haulCode)+' · '+esc(b.channel)+'</span>'+
           (fresh?'<span class="fresh-tag">just stopped</span>':'')+
         '</div>'+
       '</div>'+
@@ -2769,7 +2788,7 @@ function staleRowHtml(b){
         '<div class="reason-label">not cycling</div>'+
         '<div class="reason-detail">'+esc(humanHours(b.lastCycle))+' since cycle</div>'+
       '</div>'+
-      rowActionsHtml(b)+
+      
       '<div class="chev">▾</div>'+
     '</div>'+
     moveStripHtml(b);
@@ -2782,11 +2801,11 @@ function monitorRowHtml(b){
   var reason = monitorReasonText(b.monitorReason);
   var detail = b.monitorPrevSentinel ? "dark 2+ cycles" : "just went dark";
   return ''+
-    '<div class="row monitor-row'+(open?' open':'')+'" data-id="'+esc(b.id)+'">'+ boxCellHtml(b)+
+    '<div class="row monitor-row'+(open?' open':'')+'" data-id="'+esc(b.id)+'">'+ rowMailIcon(b)+boxCellHtml(b)+
       '<div class="edge" style="background:#5B6470;"></div>'+
       '<div class="row-main">'+
         (function(){var _dp=String(b.desc||'').split(' \u00b7 ');return '<div class="row-name"><span class="row-name-text">'+esc(_dp[0]||String(b.desc||''))+'</span></div>';})()+
-        '<div class="row-meta"><span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span> · '+esc(b.haulCode)+' · '+esc(b.channel)+'</span>'+
+        '<div class="row-meta"><span class="row-id">'+rowMoveIcon(b)+'<span class="box-id-strong">#'+esc(b.id)+'</span> · '+esc(b.haulCode)+' · '+esc(b.channel)+'</span>'+
           (reason?'<span class="monitor-reason-tag">'+esc(reason)+'</span>':'')+
         '</div>'+
       '</div>'+
@@ -2794,7 +2813,7 @@ function monitorRowHtml(b){
         '<div class="reason-label">monitor down</div>'+
         '<div class="reason-detail">'+esc(detail)+'</div>'+
       '</div>'+
-      rowActionsHtml(b)+
+      
       '<div class="chev">▾</div>'+
     '</div>'+
     moveStripHtml(b);
@@ -2805,11 +2824,11 @@ function monitorRowHtml(b){
 function needsEmptyRowHtml(b){
   var open = state.openId === b.id;
   return ''+
-    '<div class="row needsempty-row'+(open?' open':'')+'" data-id="'+esc(b.id)+'">'+ boxCellHtml(b)+
+    '<div class="row needsempty-row'+(open?' open':'')+'" data-id="'+esc(b.id)+'">'+ rowMailIcon(b)+boxCellHtml(b)+
       '<div class="edge" style="background:#0F8C86;"></div>'+
       '<div class="row-main">'+
         (function(){var _dp=String(b.desc||'').split(' \u00b7 ');return '<div class="row-name"><span class="row-name-text">'+esc(_dp[0]||String(b.desc||''))+'</span></div>';})()+
-        '<div class="row-meta"><span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span> · '+esc(b.haulCode)+' · '+esc(b.channel)+'</span>'+
+        '<div class="row-meta"><span class="row-id">'+rowMoveIcon(b)+'<span class="box-id-strong">#'+esc(b.id)+'</span> · '+esc(b.haulCode)+' · '+esc(b.channel)+'</span>'+
           '<span class="needsempty-tag">just emptied</span>'+
         '</div>'+
       '</div>'+
@@ -2834,7 +2853,7 @@ function needsEmptyRowHtml(b){
           '</label>'+
         '</div>'+
       '</div>'+
-      rowActionsHtml(b)+
+      
       '<div class="chev">▾</div>'+
     '</div>'+
     moveStripHtml(b);
@@ -2849,11 +2868,11 @@ function handsOffRowHtml(b){
   var tag = (kind==="myrna") ? "MYRNA \u00b7 hauler-scheduled" : "not monitored";
   var detail = (kind==="myrna") ? "Myrna handles direct" : "box not monitoring";
   return ''+
-    '<div class="row handsoff-row'+(open?' open':'')+'" data-id="'+esc(b.id)+'">'+ boxCellHtml(b)+
+    '<div class="row handsoff-row'+(open?' open':'')+'" data-id="'+esc(b.id)+'">'+ rowMailIcon(b)+boxCellHtml(b)+
       '<div class="edge" style="background:#A9AEB5;"></div>'+
       '<div class="row-main">'+
         (function(){var _dp=String(b.desc||'').split(' \u00b7 ');return '<div class="row-name"><span class="row-name-text">'+esc(_dp[0]||String(b.desc||''))+'</span></div>';})()+
-        '<div class="row-meta"><span class="row-id"><span class="box-id-strong">#'+esc(b.id)+'</span> · '+esc(b.haulCode)+' · '+esc(b.channel)+'</span>'+
+        '<div class="row-meta"><span class="row-id">'+rowMoveIcon(b)+'<span class="box-id-strong">#'+esc(b.id)+'</span> · '+esc(b.haulCode)+' · '+esc(b.channel)+'</span>'+
           '<span class="handsoff-tag">'+esc(tag)+'</span>'+
         '</div>'+
       '</div>'+
@@ -2861,7 +2880,7 @@ function handsOffRowHtml(b){
         '<div class="reason-label">no action</div>'+
         '<div class="reason-detail">'+esc(detail)+'</div>'+
       '</div>'+
-      rowActionsHtml(b)+
+      
       '<div class="chev">▾</div>'+
     '</div>'+
     moveStripHtml(b);
@@ -3047,7 +3066,10 @@ function wireRows(){
   listEl.querySelectorAll("button[data-draft]").forEach(function(bt){
     bt.addEventListener("click", function(e){
       e.stopPropagation();
-      openCompose(bt.getAttribute("data-draft"));
+      var id = bt.getAttribute("data-draft");
+      var date = bt.getAttribute("data-date");
+      if(date){ openMessages([{ id: id, date: date }]); }
+      else { openCompose(id); }
     });
   });
   listEl.querySelectorAll(".move-strip").forEach(function(st){
