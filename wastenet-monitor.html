@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-monitor · build 2026-07-20-c compose: true 50/50 columns; rail click closes compose -->
+<!-- wastenet-monitor · build 2026-07-20-d compose body -> grid (true 50/50, verified); rail click closes compose -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -1147,9 +1147,10 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
 .cmp-hd-detail{background:var(--sel);flex-direction:row;align-items:center;justify-content:space-between;gap:10px;}
 .cmp-hd-t{font-size:16px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.01em;}
 .cmp-hd-s{font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
-.cmp-panes{flex:1 1 auto;min-height:0;}
+.cmp-panes{flex:1 1 auto;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);}
 .cmp-left{background:var(--list-bg) !important;}
 .cmp-right{background:var(--sel) !important;}
+@media(max-width:840px){.cmp-panes{grid-template-columns:1fr;}}
 </style>
 </head>
 <body>
