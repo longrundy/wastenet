@@ -1138,7 +1138,8 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
 }
 </style>
 <style id="cmp-console-css">
-.cmodal{background:var(--page) !important;padding:0 !important;align-items:stretch !important;justify-content:stretch !important;overflow:hidden !important;}
+.cmodal{background:var(--page) !important;padding:0 !important;left:280px !important;align-items:stretch !important;justify-content:stretch !important;overflow:hidden !important;}
+@media(max-width:820px){.cmodal{left:0 !important;}}
 .cmp-card{width:100% !important;max-width:none !important;max-height:none !important;height:100vh !important;border-radius:0 !important;box-shadow:none !important;border:0 !important;}
 .cmp-topbar{display:grid;grid-template-columns:1fr 1fr;flex:0 0 auto;}
 .cmp-hd{min-height:64px;padding:10px 22px;display:flex;flex-direction:column;justify-content:center;border-bottom:1px solid var(--line);overflow:hidden;background:var(--card);}
