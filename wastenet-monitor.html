@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-monitor · build 2026-07-13-f · Contacts is navigation, not a tool -->
+<!-- wastenet-monitor · build 2026-07-20-a · portal rows: Portal ↗ / Notify ↗ -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -1816,10 +1816,31 @@ function emailPillHtml(b){
   var label = booked ? fmtChipDate(ymd) : (sug ? sug.label : fmtChipDate(ymd));
   var title = booked ? ("Scheduled for " + ymd)
                      : ("Suggested pickup" + (sug ? " per " + sug.rule : ""));
+  /* Portal boxes are not emailed from here - you book them by hand in the
+     hauler's own portal. So on a portal box the button opens that portal
+     instead of the review queue. Once the booking is recorded (schDate set),
+     the same slot turns into Notify: the customer still has to be told, and
+     that notice goes through the review queue the normal way. */
+  var btn;
+  if(b.channel === "portal"){
+    if(booked){
+      btn = '<button class="em-go" data-mail="'+esc(b.id)+'" data-date="'+esc(ymd)+'" '+
+              'title="Tell the customer this pickup is booked">Notify \u2197</button>';
+    } else {
+      var purl = state.portalById[String(b.haulCode).toUpperCase()] || "";
+      btn = purl
+        ? '<button class="em-go" data-portal="'+esc(purl)+'" '+
+            'title="Open the hauler portal to book this pickup">Portal \u2197</button>'
+        : '<button class="em-go" disabled style="opacity:.5;cursor:not-allowed" '+
+            'title="No portal URL on file for '+esc(b.haulCode)+'">Portal \u2197</button>';
+    }
+  } else {
+    btn = '<button class="em-go" data-mail="'+esc(b.id)+'" data-date="'+esc(ymd)+'" '+
+            'title="Schedule this pickup">Schedule \u2197</button>';
+  }
   return '<span class="em-pill">'+
     '<span class="em-date" title="'+esc(title)+'">'+esc(label)+'</span>'+
-    '<button class="em-go" data-mail="'+esc(b.id)+'" data-date="'+esc(ymd)+'" '+
-      'title="Schedule this pickup">Schedule \u2197</button>'+
+    btn+
   '</span>';
 }
 
@@ -3055,6 +3076,16 @@ function wireRows(){
     bt.addEventListener("click", function(e){
       e.stopPropagation();   // the whole row is a click target; don't also expand it
       openMessages([{ id: bt.getAttribute("data-mail"), date: bt.getAttribute("data-date") }]);
+    });
+  });
+
+  // Portal boxes: the row button opens the hauler's portal in a new tab rather
+  // than the review queue. Booking happens by hand there; nothing is sent.
+  listEl.querySelectorAll("button[data-portal]").forEach(function(bt){
+    bt.addEventListener("click", function(e){
+      e.stopPropagation();
+      var u = bt.getAttribute("data-portal");
+      if(u) window.open(u, "_blank", "noopener");
     });
   });
 
