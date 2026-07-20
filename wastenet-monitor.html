@@ -1108,6 +1108,7 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
 .m-topbar,.m-backdrop,.m-back,.m-dhead{display:none;}
 @media(max-width:820px){
   body{padding-left:0 !important;padding-top:52px !important;}
+  body .wrap{background:var(--list-bg) !important;}
   .m-topbar{display:flex;align-items:center;gap:10px;position:fixed;top:0;left:0;right:0;height:52px;background:#153a22;z-index:80;padding:0 12px;box-shadow:0 1px 6px rgba(0,0,0,.22);}
   .m-burger{background:none;border:none;color:#eaf3de;font-size:23px;line-height:1;cursor:pointer;padding:4px 8px;}
   .m-title{color:#fff;font-weight:700;font-size:15px;letter-spacing:-.01em;}
@@ -3930,7 +3931,7 @@ function closeCompose(){
   rail.addEventListener('click', function(e){
     var t=e.target;
     if(t.closest && t.closest('.wn-tri')){ document.body.classList.remove('m-detail'); }
-    if(t.closest && t.closest('a, button, .wn-tri, .wn-item')) setTimeout(closeRail, 80);
+    if(t.closest && t.closest('.wn-tri, .wn-item')) setTimeout(closeRail, 80);
   });
   function syncDetail(){
     var monDetail=document.querySelector('.mon-detail');
