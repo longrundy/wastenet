@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-accounting · build 2026-07-19-f billing fees-and-notes in a card -->
+<!-- wastenet-accounting · build 2026-07-20-a deposits: single-column list on clean bg (no empty green half) -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -822,7 +822,12 @@ body{padding-left:280px !important;}
 <style id="wn-acct-agents">
 :root{--list-bg:#F3F5F1;--sel:#E7F1D8;--sel-border:#BBD892;}
 .topcard, #summary{display:none !important;}
-.wrap{min-height:100vh !important;padding:0 !important;max-width:none !important;background:linear-gradient(to right, var(--list-bg) 0, var(--list-bg) 50%, var(--sel) 50%, var(--sel) 100%) !important;}
+.wrap{min-height:100vh !important;padding:0 !important;max-width:none !important;background:var(--list-bg) !important;}
+/* The gray|green split field is the backing for the two-column master-detail
+   (Agents, and the Deposits upload screen). Scope it to when a split is
+   actually present, so the single-column loaded Deposits list sits on one
+   clean background instead of inheriting an empty green right half. */
+.wrap:has(.ag-split){background:linear-gradient(to right, var(--list-bg) 0, var(--list-bg) 50%, var(--sel) 50%, var(--sel) 100%) !important;}
 .folder{margin-bottom:0 !important;}
 .ag-split{grid-template-columns:1fr 1fr !important;gap:0 !important;align-items:stretch !important;}
 .ag-list-col{background:var(--list-bg);border-right:1px solid var(--line);padding:14px 22px 40px;min-width:0;}
