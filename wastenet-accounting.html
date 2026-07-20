@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-accounting · build 2026-07-20-a deposits: single-column list on clean bg (no empty green half) -->
+<!-- wastenet-accounting · build 2026-07-20-b deposits clean bg + quarterly notice restyled (green tags) -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -641,10 +641,14 @@
 
   /* Quarterly customers who aren't due. Said out loud, because a name simply
      missing from the list looks like a mistake. */
-  .bskip{margin:0 0 8px; padding:9px 24px; font-size:11.5px; line-height:1.55;
-         background:#FCF7DE; border:none; border-bottom:1px solid #E5D89A;
-         border-radius:0; color:#6b5d1a;}
-  .bskip b{color:var(--ink);}
+  .bskip{margin:0 0 8px; padding:9px 24px; display:flex; align-items:center; flex-wrap:wrap;
+         gap:8px 11px; font-size:12px; background:none; border-radius:0;
+         border-top:0.5px solid var(--line); border-bottom:0.5px solid var(--line);}
+  .bskip-lead{display:inline-flex; align-items:center; gap:6px; font-weight:600; color:var(--green-dark);}
+  .bskip-lead svg{width:14px; height:14px; display:block;}
+  .bskip-tag{display:inline-flex; align-items:center; gap:6px; border-radius:4px; padding:3px 9px;
+             background:var(--green-tint); color:var(--green-darker); font-weight:600;}
+  .bskip-tag .n{font-weight:400; color:var(--green-dark);}
 
   /* Editable, but only for the month being billed. A past month is a record
      and stays read-only. */
@@ -3601,11 +3605,16 @@ function renderBilling(){
      name simply missing looks like something went wrong. So say it. */
   var skip = "";
   if(!hist && state.bNotDue.length){
-    skip = '<div class="bskip"><b>Not billed this month \u2014 quarterly:</b> ' +
+    skip = '<div class="bskip">' +
+      '<span class="bskip-lead">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.6"/><path d="M20 5v6h-6"/></svg>' +
+        'Quarterly, not due this month' +
+      '</span>' +
       state.bNotDue.map(function(q){
-        return esc(q.shorthand) + ' <span style="color:var(--ink-3)">(last billed ' +
-               esc(q.lastBilled) + ', next ' + esc(q.nextDue) + ')</span>';
-      }).join(' \u00b7 ') + '</div>';
+        var shortNext = String(q.nextDue || '').replace(/^(\w{3})\w*/, '$1');
+        return '<span class="bskip-tag" title="Last billed ' + esc(q.lastBilled) + '">' +
+               esc(q.shorthand) + ' <span class="n">next ' + esc(shortNext) + '</span></span>';
+      }).join('') + '</div>';
   }
 
   var head = '<div class="bhead">' +
