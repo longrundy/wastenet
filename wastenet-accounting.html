@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet-accounting · build 2026-07-20-d billing detail header: QuickBooks link button -->
+<!-- wastenet-accounting · build 2026-07-20-e QuickBooks button uses shared .btn primary green -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -136,6 +136,8 @@
   .header-right{display:flex; align-items:center; gap:8px; flex:0 0 auto;}
   .stamp{font-size:10.5px; color:var(--ink-3); white-space:nowrap;}
   .btn{font-size:12px; color:var(--ink); background:var(--card); border:0.5px solid var(--line-strong); height:var(--h-ctl); padding:0 11px; border-radius:var(--r-ctl); cursor:pointer; font-family:var(--font); display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box; transition:background .12s;}
+.btn.primary{background:var(--green); border-color:var(--green); color:#fff; font-weight:500;}
+.btn.primary:hover{background:var(--green-dark); border-color:var(--green-dark);}
   .btn:hover{background:var(--panel);}
 
   /* A bare word with a 9px grey arrow next to it does not read as a control.
@@ -3793,7 +3795,7 @@ function renderBilling(){
         '</div>' +
         '<div class="ag-hd ag-hd-detail"><div class="ag-hd-drow">' +
           '<div class="ag-hd-title">Additional Fees and Notes</div>' +
-          '<a class="btn" href="https://accounts.intuit.com/app/sign-in" target="_blank" rel="noopener noreferrer" style="text-decoration:none;flex:0 0 auto;">QuickBooks \u2197</a>' +
+          '<a class="btn primary" href="https://accounts.intuit.com/app/sign-in" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">QuickBooks \u2197</a>' +
         '</div></div>' +
       '</div>' +
       '<div class="ag-split"><div class="ag-list-col">' +
