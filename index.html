@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet index · build 2026-07-18-b · fixed-position logo, raised to 13vh -->
+<!-- wastenet index · build 2026-07-20-a · dark-green front door, matches rail (#153a22) -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -18,17 +18,23 @@
     --card:#FFFFFF; --panel:#F6F7F3; --page:#FAFBF8;
     --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
 
-    /* ---- SHAPE ----
-       Chrome is rectangular, tokens are round.
-       Anything that FRAMES content - a control, a card, a menu, an inner
-       panel - is a rectangle. Anything that IS a small piece of content -
-       a status you read, a filter you toggle - is a pill.
+    /* ---- RAIL PALETTE ----
+       The left rail on the dashboards is the anchor for this page's look, so
+       the front door is built from the rail's own colours rather than the
+       light product surface. These match wastenet-monitor.html's .wn-rail. */
+    --rail:#153a22;        /* rail background - the page field */
+    --rail-deep:#102c19;   /* a touch darker, for depth at the edges */
+    --rail-panel:#1c4a2c;  /* rail hover/active - discs and pressed states */
+    --rail-line:#265c39;   /* rail hairline borders */
+    --rail-line-2:#2f6b44; /* slightly brighter border, for inputs */
+    --sage:#a9cbb4;        /* readable secondary text on dark */
+    --sage-dim:#8fbf9c;    /* rail icon sage */
+    --sage-dimmer:#6f9179; /* rail foot text */
+    --on-rail:#EAF3EE;     /* near-white heading text on dark */
 
-       These six values are identical in wastenet-monitor.html and
-       wastenet-accounting.html. This page had the right NUMBERS but was not
-       on the system, which is a different thing: it looked correct and would
-       have drifted the first time anything moved. The picker cards were the
-       proof - 14px, where every other card in the product is 12px. */
+    /* ---- SHAPE ----
+       Chrome is rectangular, tokens are round. These six values are identical
+       in wastenet-monitor.html and wastenet-accounting.html. */
     --r-input:6px;    /* text fields */
     --r-ctl:8px;      /* buttons, selects, dropdown triggers, search, inner panels */
     --r-menu:10px;    /* popovers */
@@ -39,70 +45,95 @@
   *{box-sizing:border-box;}
   html,body{margin:0; padding:0; height:100%;}
   body{
-    font-family:var(--font); background:var(--page); color:var(--ink);
+    font-family:var(--font); color:var(--on-rail);
+    background:var(--rail);
+    /* A whisper of depth so the flat green doesn't read as a solid block, while
+       staying unmistakably the rail colour at the centre where the logo sits. */
+    background-image:radial-gradient(120% 90% at 50% 0%, #1a4a2b 0%, var(--rail) 46%, var(--rail-deep) 100%);
     font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased;
     min-height:100%; display:flex; align-items:flex-start; justify-content:center;
     padding:24px;
   }
 
-  /* The stage is anchored from the TOP, not vertically centred. Centring the
-     whole block means the logo rides up ~45px on unlock, when the small
-     access-code box is replaced by the two taller picker cards. Pinning the
-     stage to a fixed height instead keeps the logo in one place across both
-     states, so unlock is a clean swap of what sits BELOW the logo.
-     13vh sits the content high on the screen; the -24px cancels the body's
-     top padding so the maths reads as "logo top = 13vh". */
+  /* The stage is anchored from the TOP, not vertically centred - centring the
+     whole block shifts the logo up ~45px on unlock, when the small access-code
+     box is replaced by the two taller picker cards. Pinning it keeps the logo
+     in one place across both states. 13vh sits it high; -24px cancels the
+     body's top padding so the maths reads as "logo top = 13vh". */
   .stage{width:min(560px,100%); text-align:center; margin-top:calc(13vh - 24px);}
-  .logo{width:200px; height:auto; margin:0 auto 32px; display:block;}
+  .logo{width:200px; height:auto; margin:0 auto 34px; display:block;}
 
   /* lock */
-  .lock-card{width:min(340px,100%); margin:0 auto; background:var(--card); border:0.5px solid var(--line-strong); border-radius:var(--r-card); padding:22px; box-shadow:0 3px 14px rgba(0,0,0,0.06);}
-  .lock-sub{font-size:13px; color:var(--ink-2); margin-bottom:14px;}
-  .lock-in{width:100%; padding:10px 12px; font-size:15px; border:1px solid var(--line-strong); border-radius:var(--r-input); font-family:var(--font); color:var(--ink); outline:none;}
-  .lock-in:focus{border-color:var(--green);}
-  .lock-btn{width:100%; margin-top:10px; padding:11px; font-size:14px; font-weight:600; border-radius:var(--r-input); border:none; cursor:pointer; background:var(--green); color:#fff; font-family:var(--font); transition:background .12s;}
-  .lock-btn:hover{background:var(--green-dark);}
-  .lock-err{margin-top:11px; padding:8px 10px; background:var(--red-tint); border:0.5px solid var(--red); border-radius:var(--r-input); color:var(--red-dark); font-size:12.5px; font-weight:600;}
+  .lock-card{
+    width:min(340px,100%); margin:0 auto; padding:24px;
+    background:rgba(255,255,255,0.045);
+    border:0.5px solid var(--rail-line); border-radius:var(--r-card);
+    box-shadow:0 10px 30px rgba(0,0,0,0.30);
+    backdrop-filter:blur(2px);
+  }
+  .lock-sub{font-size:13px; color:var(--sage); margin-bottom:16px;}
+  .lock-in{
+    width:100%; padding:11px 12px; font-size:15px; font-family:var(--font);
+    color:var(--on-rail); background:rgba(0,0,0,0.22);
+    border:1px solid var(--rail-line-2); border-radius:var(--r-input); outline:none;
+    transition:border-color .12s, box-shadow .12s;
+  }
+  .lock-in::placeholder{color:var(--sage-dimmer);}
+  .lock-in:focus{border-color:var(--green); box-shadow:0 0 0 3px rgba(92,170,22,0.20);}
+  .lock-btn{
+    width:100%; margin-top:12px; padding:11px; font-size:14px; font-weight:600;
+    border-radius:var(--r-input); border:none; cursor:pointer;
+    background:var(--green); color:#fff; font-family:var(--font);
+    transition:background .12s, box-shadow .12s;
+  }
+  .lock-btn:hover{background:#4f9814; box-shadow:0 4px 14px rgba(92,170,22,0.30);}
+  .lock-err{
+    margin-top:12px; padding:8px 10px; font-size:12.5px; font-weight:600;
+    background:rgba(226,75,74,0.16); border:0.5px solid var(--red);
+    border-radius:var(--r-input); color:#F3B9B7;
+  }
 
   /* choices */
   .picker{display:none;}
   .picker.show{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px;
                max-width:496px; margin:0 auto;}
 
-  /* Square, and centred rather than top-aligned. The two descriptions are not
-     the same length, and in a fixed-height card a top-aligned block leaves one
-     door looking half-empty. Centring means the shorter one still sits level. */
+  /* Square, and centred rather than top-aligned - the two descriptions differ
+     in length, and a top-aligned block leaves the shorter door looking
+     half-empty. Centring keeps them level. */
   .pick{
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     aspect-ratio:1 / 1;
     text-align:center; text-decoration:none; cursor:pointer;
-    background:var(--card); border:0.5px solid var(--line-strong); border-radius:var(--r-card);
+    background:rgba(255,255,255,0.045);
+    border:0.5px solid var(--rail-line); border-radius:var(--r-card);
     padding:20px; font-family:var(--font);
+    box-shadow:0 6px 20px rgba(0,0,0,0.22);
     transition:border-color .16s ease, background .16s ease, transform .16s ease, box-shadow .16s ease;
     -webkit-tap-highlight-color:transparent;
   }
   .pick:hover{
-    border-color:var(--green); background:var(--green-tint-2);
-    transform:translateY(-2px); box-shadow:0 4px 16px rgba(92,170,22,0.10);
+    border-color:var(--green); background:rgba(255,255,255,0.075);
+    transform:translateY(-2px); box-shadow:0 12px 28px rgba(0,0,0,0.34);
   }
 
   .disc{
     width:56px; height:56px; border-radius:50%; margin:0 auto 14px; flex:0 0 auto;
-    background:var(--green-tint); border:1px solid var(--green-border);
+    background:var(--rail-panel); border:1px solid var(--rail-line-2);
     display:flex; align-items:center; justify-content:center;
-    color:var(--green-dark);
+    color:var(--sage-dim);
     transition:background .16s ease, border-color .16s ease, color .16s ease;
   }
   .pick:hover .disc{background:var(--green); border-color:var(--green); color:#fff;}
   .disc svg{width:26px; height:26px; display:block;}
 
-  .pick-t{font-size:15px; font-weight:600; color:var(--ink); margin-bottom:5px;}
-  .pick-d{font-size:12.5px; color:var(--ink-2); line-height:1.5;}
+  .pick-t{font-size:15px; font-weight:600; color:var(--on-rail); margin-bottom:5px;}
+  .pick-d{font-size:12.5px; color:var(--sage-dim); line-height:1.5;}
 
   @media (max-width:480px){
     /* One column on a phone - and NOT square. A 1:1 card at full phone width is
-       a 350px block, so the second door falls below the fold and stops existing
-       as far as most people are concerned. Let height follow content instead. */
+       a ~350px block, so the second door falls below the fold. Let height
+       follow content instead. */
     .picker.show{grid-template-columns:1fr; max-width:none;}
     .pick{aspect-ratio:auto; padding:26px 20px 22px;}
     .logo{width:165px;}
