@@ -3968,8 +3968,8 @@ function loadComposeType(type){
 var _composeReturn = null, _composeEmbed = false, _deepLinkTried = false;
 function maybeDeepLinkCompose(){
   if(_deepLinkTried) return; _deepLinkTried = true;
-  var box, draft, ret;
-  try{ var q = new URLSearchParams(location.search); box = q.get("box"); draft = q.get("draft"); ret = q.get("return"); _composeEmbed = q.get("embed") === "1"; }
+  var box, draft, ret, dsc;
+  try{ var q = new URLSearchParams(location.search); box = q.get("box"); draft = q.get("draft"); ret = q.get("return"); dsc = q.get("desc"); _composeEmbed = q.get("embed") === "1"; }
   catch(e){ return; }
   if(!box || !draft) return;
   if(!_composeEmbed && ret && ret.indexOf("performance.html") === 0) _composeReturn = ret; // navigate-back mode, same-page only
@@ -3980,6 +3980,14 @@ function maybeDeepLinkCompose(){
     var cready = state.boxContacts && Object.keys(state.boxContacts).length > 0;
     if(tready && cready){
       clearInterval(timer);
+      // The scan list may not have arrived yet (or the box may not be in it),
+      // which would leave the header and preview description blank. Seed a
+      // minimal row from the description the caller passed so both fill right
+      // away; if the real scan row exists, it's used instead.
+      if(dsc && !boxById(box)){
+        state.rows = state.rows || [];
+        state.rows.push({ id: normBoxId(box), desc: dsc, fullDesc: dsc });
+      }
       openCompose(box);
       var sel = document.getElementById("cmpType");
       if(sel){ sel.value = draft; loadComposeType(draft); }

@@ -512,7 +512,9 @@ function load(){
 function openWeightsCompose(id){
   var frame=document.getElementById("cmpFrame"), ov=document.getElementById("cmpOverlay");
   if(!frame || !ov) return;
-  frame.src="wastenet-monitor.html?embed=1&box="+encodeURIComponent(id)+"&draft=Weights";
+  var desc="", boxes=(state.data&&state.data.boxes)||[];
+  for(var i=0;i<boxes.length;i++){ if(String(boxes[i].id)===String(id)){ desc=boxes[i].desc||""; break; } }
+  frame.src="wastenet-monitor.html?embed=1&box="+encodeURIComponent(id)+"&draft=Weights&desc="+encodeURIComponent(desc);
   ov.classList.add("show");
   document.body.style.overflow="hidden";
 }
