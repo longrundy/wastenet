@@ -146,13 +146,15 @@ body{padding-left:236px;}
 .pd-fv{font-size:14px;font-weight:600;margin-top:3px;}
 .pd-insight{padding:16px 18px;font-size:12.5px;line-height:1.55;color:var(--ink-2);}
 .pd-insight b{color:var(--ink);}
-.pd-recent{border-top:0.5px solid var(--line);padding:12px 18px 14px;}
-.pd-recent-h{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px;}
-.pd-recent-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px 20px;}
-.pd-recent-grid .pr{display:flex;justify-content:space-between;gap:10px;font-size:12px;}
-.pd-recent-grid .pr .prd{color:var(--ink-3);}
-.pd-recent-grid .pr .prw{font-weight:600;color:var(--ink);}
-.pd-recent-grid .pr .prw.none{color:#c3c3bb;font-weight:400;}
+.pd-recent{border-top:0.5px solid var(--line);}
+.pd-recent-h{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);padding:14px 18px 4px;}
+.pd-hrow{display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:center;padding:6px 18px;font-size:12.5px;border-top:0.5px solid var(--line);}
+.pd-hrow .hd{color:var(--ink-2);}
+.pd-hrow .hp{color:var(--ink-3);min-width:38px;text-align:right;}
+.pd-hrow .hw{font-weight:600;min-width:54px;text-align:right;}
+.pd-hrow .hw.none{color:#c3c3bb;font-weight:400;}
+.pd-hrow-h{border-top:none;padding-top:2px;padding-bottom:2px;}
+.pd-hrow-h span{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600;}
 @media(max-width:900px){.perf-split{grid-template-columns:1fr;}.perf-detail{position:static;}}
 </style>
 <style id="perf-console-css">
@@ -415,14 +417,14 @@ function renderDetail(d){
     var recent=(b.recent||[]);
     var histHtml='';
     if(recent.length){
-      var pairs=recent.map(function(p){
-        var has=p.w!==""&&p.w!=null;
-        var tip=p.p==null?"":p.p+"% fill";
-        return '<div class="pr" title="'+esc(tip)+'"><span class="prd">'+esc(p.d||"\u2014")+'</span>' +
-          '<span class="prw'+(has?"":" none")+'">'+(has?esc(p.w):"\u2014")+'</span></div>';
-      }).join("");
-      histHtml='<div class="pd-recent"><div class="pd-recent-h">Recent weights \u00b7 last '+recent.length+'</div>' +
-        '<div class="pd-recent-grid">'+pairs+'</div></div>';
+      histHtml='<div class="pd-recent"><div class="pd-recent-h">Recent pulls \u00b7 last '+recent.length+'</div>' +
+        '<div class="pd-hrow pd-hrow-h"><span class="hd">Date</span><span class="hp">Fill</span><span class="hw">Weight</span></div>' +
+        recent.map(function(p){
+          var has=p.w!==""&&p.w!=null;
+          return '<div class="pd-hrow"><span class="hd">'+esc(p.d||"\u2014")+'</span>' +
+            '<span class="hp">'+(p.p==null?"":p.p+"%")+'</span>' +
+            '<span class="hw'+(has?"":" none")+'">'+(has?esc(p.w):"\u2014")+'</span></div>';
+        }).join("") + '</div>';
     }
     pane.innerHTML='<div class="rc-iv-card">' +
       '<div class="pd-head"><span class="pd-tag" style="background:'+wt.color+'1a;color:'+wt.color+'">'+esc(wt.name)+'</span>' +
