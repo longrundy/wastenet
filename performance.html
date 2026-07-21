@@ -127,7 +127,7 @@ body{padding-left:236px;}
 .perf-split{display:grid;grid-template-columns:1fr 372px;gap:16px;align-items:start;}
 .prow{cursor:pointer;}
 .prow:hover{background:var(--panel);}
-.prow.sel{background:var(--green-tint-2);box-shadow:inset 3px 0 0 var(--green);}
+.prow.sel{background:var(--sel);box-shadow:inset 3px 0 0 var(--green);}
 .perf-detail{position:sticky;top:12px;background:var(--card);border:0.5px solid var(--line);border-radius:var(--r-card);overflow:hidden;min-height:220px;}
 .pd-empty{padding:52px 24px;text-align:center;color:var(--ink-3);font-size:13px;line-height:1.5;}
 .pd-head{padding:20px 20px 16px;border-bottom:0.5px solid var(--line);}
@@ -146,6 +146,15 @@ body{padding-left:236px;}
 .pd-fv{font-size:14px;font-weight:600;margin-top:3px;}
 .pd-insight{padding:16px 18px;font-size:12.5px;line-height:1.55;color:var(--ink-2);}
 .pd-insight b{color:var(--ink);}
+.pd-hist{border-top:0.5px solid var(--line);}
+.pd-hist-h{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);padding:14px 18px 4px;}
+.pd-hrow{display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:center;padding:6px 18px;font-size:12.5px;border-top:0.5px solid var(--line);}
+.pd-hrow .hd{color:var(--ink-2);}
+.pd-hrow .hp{color:var(--ink-3);min-width:38px;text-align:right;}
+.pd-hrow .hw{font-weight:600;min-width:54px;text-align:right;}
+.pd-hrow .hw.none{color:#c3c3bb;font-weight:400;}
+.pd-hrow-h{border-top:none;padding-top:4px;padding-bottom:2px;}
+.pd-hrow-h span{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600;}
 @media(max-width:900px){.perf-split{grid-template-columns:1fr;}.perf-detail{position:static;}}
 </style>
 <style id="perf-console-css">
@@ -405,6 +414,18 @@ function renderDetail(d){
     else if(b.wtTier==="mostly") winsight='<b>Mostly there.</b> Weighed on most pulls; a few are slipping through.';
     else if(b.wtTier==="rarely") winsight='<b>Needs attention.</b> Only the odd pull is weighed \u2014 put this box on the collection list.';
     else winsight='<b>Go collect.</b> No weight in the last 6 pulls \u2014 start capturing weights here.';
+    var recent=(b.recent||[]);
+    var histHtml='';
+    if(recent.length){
+      histHtml='<div class="pd-hist"><div class="pd-hist-h">Recent pulls \u00b7 last '+recent.length+'</div>' +
+        '<div class="pd-hrow pd-hrow-h"><span class="hd">Date</span><span class="hp">Fill</span><span class="hw">Weight</span></div>' +
+        recent.map(function(p){
+          var has=p.w!==""&&p.w!=null;
+          return '<div class="pd-hrow"><span class="hd">'+esc(p.d||"\u2014")+'</span>' +
+            '<span class="hp">'+(p.p==null?"":p.p+"%")+'</span>' +
+            '<span class="hw'+(has?"":" none")+'">'+(has?esc(p.w):"\u2014")+'</span></div>';
+        }).join("") + '</div>';
+    }
     pane.innerHTML='<div class="rc-iv-card">' +
       '<div class="pd-head"><span class="pd-tag" style="background:'+wt.color+'1a;color:'+wt.color+'">'+esc(wt.name)+'</span>' +
         '<h3>#'+esc(b.id)+'</h3><div class="pd-sub">'+esc(b.desc||("Box "+b.id))+'</div></div>' +
@@ -418,6 +439,7 @@ function renderDetail(d){
         '<div><div class="pd-fl">Status</div><div class="pd-fv">'+status+'</div></div>' +
       '</div>' +
       '<div class="pd-insight">'+winsight+'</div>' +
+      histHtml +
     '</div>';
     return;
   }
