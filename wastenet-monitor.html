@@ -3268,6 +3268,7 @@ function load(){
   fetchTemplates();
   fetchBoxContacts();
   fetchServiceContentAudit();
+  maybeDeepLinkCompose();
 }
 
 /* Service-content sync check: compares the Master Box List against the Service
@@ -3948,10 +3949,40 @@ function loadComposeType(type){
   refreshComposePreview();
 }
 
+/* Deep-link compose: the Box Performance page's Weight Performance rows link
+   here with ?box=<id>&draft=Weights&return=performance.html?... - once the box
+   contacts and templates have loaded, auto-open that box's compose with the
+   requested template preselected. Entirely gated on these params, so normal
+   monitor use is unaffected. closeCompose (below) then sends the user back to
+   `return` on ANY exit - send-and-close or cancel - so they land right where
+   they left on the performance page. */
+var _composeReturn = null, _deepLinkTried = false;
+function maybeDeepLinkCompose(){
+  if(_deepLinkTried) return; _deepLinkTried = true;
+  var box, draft, ret;
+  try{ var q = new URLSearchParams(location.search); box = q.get("box"); draft = q.get("draft"); ret = q.get("return"); }
+  catch(e){ return; }
+  if(!box || !draft) return;
+  if(ret && ret.indexOf("performance.html") === 0) _composeReturn = ret; // same-page return only, no open redirect
+  var tries = 0;
+  var timer = setInterval(function(){
+    tries++;
+    var tready = state.templateOrder && state.templateOrder.indexOf(draft) !== -1;
+    var cready = state.boxContacts && Object.keys(state.boxContacts).length > 0;
+    if(tready && cready){
+      clearInterval(timer);
+      openCompose(box);
+      var sel = document.getElementById("cmpType");
+      if(sel){ sel.value = draft; loadComposeType(draft); }
+    } else if(tries > 60){ clearInterval(timer); } // ~9s ceiling, then give up quietly
+  }, 150);
+}
+
 function closeCompose(){
   var modal = document.getElementById("composeModal");
   modal.classList.remove("show");
   modal.querySelector(".cmp-card").innerHTML = "";
+  if(_composeReturn){ var r = _composeReturn; _composeReturn = null; window.location.href = r; }
 }
 
 
