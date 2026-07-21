@@ -1,11 +1,22 @@
 // ==UserScript==
 // @name         WasteNet Box Monitor Scan
 // @namespace    wastenet
-// @version      4.18
+// @version      4.19
 // @match        http://h1.ces-web.com/*
 // @match        https://h1.ces-web.com/*
 // @grant        none
 // ==/UserScript==
+//
+// v4.19 FIX: WEIGHT COLUMN WAS ALWAYS BLANK. captureFullPullHistory()
+// read tds[4].textContent for the weight, but that cell is not plain
+// text - it holds an editable <input> (the one paired with CES's
+// "Update Weight" button), and textContent on an input-bearing cell is
+// empty. Every weight therefore came back '' across all boxes/months.
+// The read now takes the input's .value when the cell contains one and
+// falls back to textContent otherwise (robust if CES reverts the cell
+// to plain text). Weight-only change; date/days/pct/cycles untouched -
+// those columns ARE plain text and already read correctly. No Code.gs
+// change needed; the pullHistory shape is unchanged.
 //
 // v4.18 CHANGE: PULL HISTORY CAPTURE (additive, isolated). On each box
 // the scan now also reads EVERY completed pull row from the same Last-N-
@@ -827,7 +838,7 @@
           days: (tds[1].textContent || '').trim(),
           pctFullRaw,
           cycles: (tds[3].textContent || '').trim(),
-          weight: tds[4] ? (tds[4].textContent || '').trim() : '',
+          weight: tds[4] ? ((tds[4].querySelector('input') || {}).value || tds[4].textContent || '').trim() : '',
         });
       }
       return out;
