@@ -68,8 +68,8 @@
   .perf-sticky.slim .tier-n{margin:0 0 0 auto; font-size:11px;}
 
   .tier-note{font-size:11.5px; color:var(--ink-3); margin-bottom:10px;}
-  .tier-list{background:var(--card); border:0.5px solid var(--line); border-radius:var(--r-card); overflow:hidden;}
-  .prow{display:grid; grid-template-columns:52px 1fr 104px 56px 44px auto; align-items:center; gap:10px; padding:9px 13px; border-top:0.5px solid var(--line); font-size:12.5px;}
+  .tier-list{background:none; border:none; border-top:0.5px solid var(--line); border-bottom:0.5px solid var(--line); border-radius:0; overflow:visible; margin:0 -22px;}
+  .prow{display:grid; grid-template-columns:52px 1fr 104px 56px 44px auto; align-items:center; gap:10px; padding:9px 22px; border-top:0.5px solid var(--line); font-size:12.5px;}
   .prow:first-child{border-top:none;}
   .prow .pid{color:var(--ink-3);}
   .prow .psite{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
@@ -81,7 +81,7 @@
   .flag{font-size:10.5px; padding:2px 7px; border-radius:5px; white-space:nowrap;}
   .flag-bridging{background:#FAEEDA; color:var(--amber-dark);}
   .flag-hauler-set{background:#F1EFE8; color:var(--ink-2);}
-  .tier-foot{padding:8px 13px; border-top:0.5px solid var(--line); font-size:11.5px; color:#a7a7a0;}
+  .tier-foot{padding:8px 22px; border-top:0.5px solid var(--line); font-size:11.5px; color:#a7a7a0;}
   .perf-meta{margin-top:12px; font-size:11.5px; color:var(--ink-3);}
   .prow.wt{grid-template-columns:52px 1fr 96px 74px 40px auto;}
 </style>
@@ -97,6 +97,8 @@
 .wn-rail__sub{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#7ea589;}
 .wn-rail__nav{padding:12px;flex:1;}
 .wn-rail__h{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#5d8168;padding:10px 8px 8px;}
+.wn-rail__sections .rail-h{font-size:11.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#e3f1e7;padding:8px 12px 7px;}
+.wn-rail__sections .rail-h.is-divider{margin-top:16px;padding-top:16px;border-top:1px solid #2f6f45;}
 .wn-rail__link{display:flex;align-items:center;gap:12px;padding:9px 11px;border-radius:8px;
   font-size:13.5px;color:#c1d3c6;text-decoration:none;border-left:2px solid transparent;margin-bottom:2px;}
 .wn-rail__link:hover{background:#1c4a2c;color:#fff;}
@@ -282,15 +284,15 @@ function flagHtml(f){
 function renderRail(){
   var el=document.getElementById("tierRail"); if(!el) return;
   var d=state.data||{};
-  function group(label, arr, counts){
-    return '<div class="wn-rail__h">'+label+'</div>' + arr.map(function(t){
+  function group(label, arr, counts, divider){
+    return '<div class="rail-h'+(divider?" is-divider":"")+'">'+label+'</div>' + arr.map(function(t){
       var n=(counts&&counts[t.key])||0;
       var on=(t.key===state.active);
       return '<button class="sec'+(on?" on":"")+'" data-tier="'+t.key+'"><span class="sec-dot" style="background:'+t.color+'"></span>'+t.name+'<span class="n">'+n+'</span></button>';
     }).join("");
   }
-  el.innerHTML = group("Fullness Performance", TIERS, d.tiers) +
-                 group("Weight Performance", WEIGHT_TIERS, d.weightTiers);
+  el.innerHTML = group("Fullness Performance", TIERS, d.tiers, false) +
+                 group("Weight Performance", WEIGHT_TIERS, d.weightTiers, true);
   el.querySelectorAll("[data-tier]").forEach(function(btn){
     btn.onclick=function(){ state.active=btn.getAttribute("data-tier"); state.selected=null; render(); };
   });
