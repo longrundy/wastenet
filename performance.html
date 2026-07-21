@@ -400,6 +400,21 @@ function renderDetail(d){
   if(!b){ if(gt) gt.textContent="Pull detail"; pane.innerHTML='<div class="rc-iv-card"><div class="pd-empty">Select a box to see its pull detail.</div></div>'; return; }
   if(gt) gt.textContent="#"+esc(b.id);
 
+  // Recent pulls table (Date / Fill / Weight) - shared by both the weight and
+  // fullness cards, newest first.
+  var recent=(b.recent||[]);
+  var histHtml='';
+  if(recent.length){
+    histHtml='<div class="pd-recent"><div class="pd-recent-h">Recent pulls \u00b7 last '+recent.length+'</div>' +
+      '<div class="pd-hrow pd-hrow-h"><span class="hd">Date</span><span class="hp">Fill</span><span class="hw">Weight</span></div>' +
+      recent.map(function(p){
+        var has=p.w!==""&&p.w!=null;
+        return '<div class="pd-hrow"><span class="hd">'+esc(p.d||"\u2014")+'</span>' +
+          '<span class="hp">'+(p.p==null?"":p.p+"%")+'</span>' +
+          '<span class="hw'+(has?"":" none")+'">'+(has?esc(p.w):"\u2014")+'</span></div>';
+      }).join("") + '</div>';
+  }
+
   // Weight mode: a coverage card (share of the last 6 pulls weighed) instead
   // of the fullness gauge. The selected box is always in the active tier, so
   // the active measure decides which card to draw.
@@ -414,18 +429,6 @@ function renderDetail(d){
     else if(b.wtTier==="mostly") winsight='<b>Mostly there.</b> Weighed on most pulls; a few are slipping through.';
     else if(b.wtTier==="rarely") winsight='<b>Needs attention.</b> Only the odd pull is weighed \u2014 put this box on the collection list.';
     else winsight='<b>Go collect.</b> No weight in the last 6 pulls \u2014 start capturing weights here.';
-    var recent=(b.recent||[]);
-    var histHtml='';
-    if(recent.length){
-      histHtml='<div class="pd-recent"><div class="pd-recent-h">Recent pulls \u00b7 last '+recent.length+'</div>' +
-        '<div class="pd-hrow pd-hrow-h"><span class="hd">Date</span><span class="hp">Fill</span><span class="hw">Weight</span></div>' +
-        recent.map(function(p){
-          var has=p.w!==""&&p.w!=null;
-          return '<div class="pd-hrow"><span class="hd">'+esc(p.d||"\u2014")+'</span>' +
-            '<span class="hp">'+(p.p==null?"":p.p+"%")+'</span>' +
-            '<span class="hw'+(has?"":" none")+'">'+(has?esc(p.w):"\u2014")+'</span></div>';
-        }).join("") + '</div>';
-    }
     pane.innerHTML='<div class="rc-iv-card">' +
       '<div class="pd-head"><span class="pd-tag" style="background:'+wt.color+'1a;color:'+wt.color+'">'+esc(wt.name)+'</span>' +
         '<h3>#'+esc(b.id)+'</h3><div class="pd-sub">'+esc(b.desc||("Box "+b.id))+'</div></div>' +
@@ -449,16 +452,14 @@ function renderDetail(d){
   pane.innerHTML='<div class="rc-iv-card">' +
     '<div class="pd-head"><span class="pd-tag" style="background:'+tier.color+'1a;color:'+tier.color+'">'+esc(tier.name)+'</span>' +
       '<h3>#'+esc(b.id)+'</h3><div class="pd-sub">'+esc(b.desc||("Box "+b.id))+'</div></div>' +
-    '<div class="pd-gauge"><div class="pd-big" style="color:'+tier.color+'">'+b.avg+'<span>%</span></div>' +
-      '<div class="pd-cap">Avg fill at pull</div>' +
-      '<div class="pd-track"><span style="width:'+Math.min(b.avg,100)+'%;background:'+tier.color+'"></span></div></div>' +
     '<div class="pd-facts">' +
-      '<div><div class="pd-fl">Tier</div><div class="pd-fv">'+esc(tier.name)+'</div></div>' +
-      '<div><div class="pd-fl">Range</div><div class="pd-fv">'+esc(tier.range)+'</div></div>' +
-      '<div><div class="pd-fl">Cadence</div><div class="pd-fv">'+(b.cadence==null?"\u2014":(b.cadence+" days"))+'</div></div>' +
+      '<div><div class="pd-fl">Avg fill</div><div class="pd-fv" style="color:'+tier.color+'">'+b.avg+'%</div></div>' +
       '<div><div class="pd-fl">Status</div><div class="pd-fv">'+(b.flag?esc(b.flag):"actionable")+'</div></div>' +
+      '<div><div class="pd-fl">Cadence</div><div class="pd-fv">'+(b.cadence==null?"\u2014":(b.cadence+" days"))+'</div></div>' +
+      '<div><div class="pd-fl">Range</div><div class="pd-fv">'+esc(tier.range)+'</div></div>' +
     '</div>' +
     '<div class="pd-insight">'+insight+'</div>' +
+    histHtml +
   '</div>';
 }
 function load(){
