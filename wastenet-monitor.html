@@ -3732,8 +3732,10 @@ function refreshComposePreview(){
   if(rsum) rsum.innerHTML = composeRecipSummaryHtml();
   var prev = document.getElementById("cmpPreview");
   if(!prev) return;
+  var _sb = document.getElementById("cmpSend");
   var subjEl = document.getElementById("cmpSubj"), bodyEl = document.getElementById("cmpBody");
   if(!subjEl || !bodyEl){
+    if(_sb){ _sb.disabled = true; _sb.title = "Pick an email type first"; }
     prev.innerHTML = '<div class="cmp-empty">Pick an email type to see the preview build here.</div>';
     return;
   }
@@ -3757,6 +3759,11 @@ function refreshComposePreview(){
     '</div>';
   var ro = document.getElementById("cmpMonthsRO");
   if(ro){ var ms = composeMonthsStr(); ro.innerHTML = ms ? '<b>[months]</b> \u2192 <b>'+esc(ms)+'</b>' : '<span class="muted">Pick the months you need.</span>'; }
+  if(_sb){
+    var _valid = !!compose.type && compose.to.length > 0 && String(subjEl.value||"").trim() !== "" && String(bodyEl.value||"").trim() !== "";
+    _sb.disabled = !_valid;
+    _sb.title = _valid ? "Send this email" : "Add a recipient, subject and body first";
+  }
 }
 
 var RECIP_ROLE = {
@@ -3894,6 +3901,7 @@ function openCompose(boxId){
   document.getElementById("cmpClose").addEventListener("click", closeCompose);
   document.getElementById("cmpCancel").addEventListener("click", closeCompose);
   document.getElementById("cmpType").addEventListener("change", function(){ loadComposeType(this.value); });
+  document.getElementById("cmpSend").addEventListener("click", composeSend);
   loadComposeType("");
 }
 
@@ -3993,6 +4001,51 @@ function maybeDeepLinkCompose(){
       if(sel){ sel.value = draft; loadComposeType(draft); }
     } else if(tries > 60){ clearInterval(timer); } // ~9s ceiling, then give up quietly
   }, 150);
+}
+
+/* Actually send the composed email through the existing send_email endpoint
+   (the same SendGrid path accounting uses). Recipients are the To/Cc tokens
+   plus office@ auto-BCC'd (composeBccAll). The subject + plain body have their
+   [tokens] filled with plain text; the html part is the exact branded HTML the
+   preview shows. A single email is small, so the jsonp GET path is fine here -
+   the POST path exists only for giant multi-invoice statements. No boxId/event
+   is passed, so a weights request writes NO ledger row and lights no checkmark
+   - correct for a data request; per-type checkmark logging is a follow-up. */
+function composeSend(){
+  var btn = document.getElementById("cmpSend");
+  if(!btn || btn.disabled) return;
+  var subjEl = document.getElementById("cmpSubj"), bodyEl = document.getElementById("cmpBody");
+  if(!subjEl || !bodyEl) return;
+  if(!compose.to || compose.to.length === 0){ alert("Add at least one To recipient before sending."); return; }
+
+  var box = boxById(compose.boxId);
+  var vals = composeVals(box);
+  var plainVals = {};
+  Object.keys(vals).forEach(function(k){ plainVals[k] = String(vals[k]).replace(/<[^>]+>/g,"").replace(/^\u2022\s*/,""); });
+  var fillPlain = function(t){ var o = String(t || ""); Object.keys(plainVals).forEach(function(k){ o = o.split("["+k+"]").join(plainVals[k]); }); return o; };
+
+  var subject  = fillPlain(subjEl.value);
+  var textBody = fillPlain(bodyEl.value);
+  var htmlBody = composeShell(composeFill(bodyEl.value, vals));
+
+  var prevLabel = btn.textContent;
+  btn.disabled = true; btn.textContent = "Sending\u2026";
+
+  jsonp({
+    action: "send_email", key: KEY,
+    to: compose.to.join(";"),
+    cc: compose.cc.join(";"),
+    bcc: composeBccAll().join(";"),
+    subject: subject, body: textBody, html: htmlBody
+  }, function(res){
+    if(res && res.ok){
+      btn.textContent = "Sent \u2713";
+      setTimeout(closeCompose, 700);
+    } else {
+      btn.disabled = false; btn.textContent = prevLabel;
+      alert("Could not send: " + ((res && res.error) || "unknown error") + "\n\nNothing was sent - you can try again.");
+    }
+  });
 }
 
 function closeCompose(){
