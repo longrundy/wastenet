@@ -7,6 +7,15 @@
 <title>WasteNet Monitoring</title>
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="favicon-180.png">
+<script>try{if(new URLSearchParams(location.search).get("embed")==="1")document.documentElement.classList.add("embed");}catch(e){}</script>
+<style>
+/* Embedded compose mode (loaded in an iframe by the Box Performance page's
+   weights overlay): hide all chrome so only the compose modal shows, filling
+   the frame. Gated on ?embed=1, so normal monitor use is untouched. */
+html.embed body{padding-left:0 !important;}
+html.embed .wn-rail,html.embed .wrap,html.embed .lock{display:none !important;}
+html.embed .cmodal{left:0 !important;}
+</style>
 <style>
   :root{
     --green:#5CAA16; --green-dark:#3B6D11; --green-darker:#27500A;
@@ -3956,14 +3965,14 @@ function loadComposeType(type){
    monitor use is unaffected. closeCompose (below) then sends the user back to
    `return` on ANY exit - send-and-close or cancel - so they land right where
    they left on the performance page. */
-var _composeReturn = null, _deepLinkTried = false;
+var _composeReturn = null, _composeEmbed = false, _deepLinkTried = false;
 function maybeDeepLinkCompose(){
   if(_deepLinkTried) return; _deepLinkTried = true;
   var box, draft, ret;
-  try{ var q = new URLSearchParams(location.search); box = q.get("box"); draft = q.get("draft"); ret = q.get("return"); }
+  try{ var q = new URLSearchParams(location.search); box = q.get("box"); draft = q.get("draft"); ret = q.get("return"); _composeEmbed = q.get("embed") === "1"; }
   catch(e){ return; }
   if(!box || !draft) return;
-  if(ret && ret.indexOf("performance.html") === 0) _composeReturn = ret; // same-page return only, no open redirect
+  if(!_composeEmbed && ret && ret.indexOf("performance.html") === 0) _composeReturn = ret; // navigate-back mode, same-page only
   var tries = 0;
   var timer = setInterval(function(){
     tries++;
@@ -3982,6 +3991,10 @@ function closeCompose(){
   var modal = document.getElementById("composeModal");
   modal.classList.remove("show");
   modal.querySelector(".cmp-card").innerHTML = "";
+  // Embedded in the Box Performance weights overlay: tell the parent page to
+  // close the overlay instead of navigating. Non-embed deep link: navigate
+  // back to the return URL. Normal in-app use: neither - just close.
+  if(_composeEmbed){ try{ parent.postMessage({ type:"wn-compose-close" }, location.origin); }catch(e){} return; }
   if(_composeReturn){ var r = _composeReturn; _composeReturn = null; window.location.href = r; }
 }
 

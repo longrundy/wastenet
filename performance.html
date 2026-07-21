@@ -88,6 +88,9 @@
   .wmail{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border:none;background:none;border-radius:6px;cursor:pointer;color:var(--ink-3);}
   .wmail:hover{background:var(--green-tint);color:var(--green-dark);}
   .wmail svg{width:16px;height:16px;display:block;}
+  .cmp-overlay{position:fixed;inset:0;z-index:1000;display:none;align-items:center;justify-content:center;background:rgba(20,30,25,0.45);}
+  .cmp-overlay.show{display:flex;}
+  .cmp-overlay iframe{width:min(1240px,96vw);height:94vh;border:none;border-radius:12px;background:var(--page);box-shadow:0 20px 60px rgba(20,30,25,0.32);}
 </style>
 
 <style id="wn-shell">
@@ -220,6 +223,8 @@ body{padding-left:280px !important;}
     <aside class="ag-detail" id="greenCol"><div class="rc-iv-card"><div class="pd-empty">Select a box to see its pull detail.</div></div></aside>
   </div>
 </div>
+
+<div class="cmp-overlay" id="cmpOverlay"><iframe id="cmpFrame" title="Weights request"></iframe></div>
 
 <script src="logic.js?v=2026-07-17-perf"></script>
 <script>
@@ -391,14 +396,14 @@ function render(){
   document.querySelectorAll("#grayCol .prow").forEach(function(row){
     row.addEventListener("click", function(){ state.selected=row.getAttribute("data-id"); render(); });
   });
-  // Envelope: hand off to the monitor's Weights compose for this box, carrying
-  // a return URL that restores this exact weight tier + box on the way back.
+  // Envelope: open the box's Weights request in an overlay on THIS page - the
+  // monitor's real compose, embedded in an iframe with its chrome hidden. The
+  // performance list stays put behind it, so after send/close you're right
+  // back on the same weight list, ready for the next envelope.
   document.querySelectorAll("#grayCol .wmail").forEach(function(btn){
     btn.addEventListener("click", function(ev){
       ev.stopPropagation();
-      var id=btn.getAttribute("data-mail");
-      var ret='performance.html?tier='+encodeURIComponent(state.active)+'&box='+encodeURIComponent(id);
-      window.location.href='wastenet-monitor.html?box='+encodeURIComponent(id)+'&draft=Weights&return='+encodeURIComponent(ret);
+      openWeightsCompose(btn.getAttribute("data-mail"));
     });
   });
   // Returning from a weights handoff: bring the selected row into view once.
@@ -502,6 +507,33 @@ function load(){
     render();
   });
 }
+
+/* ---------- weights compose overlay ---------- */
+function openWeightsCompose(id){
+  var frame=document.getElementById("cmpFrame"), ov=document.getElementById("cmpOverlay");
+  if(!frame || !ov) return;
+  frame.src="wastenet-monitor.html?embed=1&box="+encodeURIComponent(id)+"&draft=Weights";
+  ov.classList.add("show");
+  document.body.style.overflow="hidden";
+}
+function closeWeightsCompose(){
+  var frame=document.getElementById("cmpFrame"), ov=document.getElementById("cmpOverlay");
+  if(ov) ov.classList.remove("show");
+  if(frame) frame.src="about:blank";
+  document.body.style.overflow="";
+}
+(function(){
+  // The embedded compose posts this when Send-then-close or Cancel happens.
+  window.addEventListener("message", function(e){
+    if(e.origin!==location.origin) return;
+    if(e.data && e.data.type==="wn-compose-close") closeWeightsCompose();
+  });
+  var ov=document.getElementById("cmpOverlay");
+  if(ov) ov.addEventListener("click", function(e){ if(e.target===ov) closeWeightsCompose(); });
+  document.addEventListener("keydown", function(e){
+    if(e.key==="Escape"){ var o=document.getElementById("cmpOverlay"); if(o && o.classList.contains("show")) closeWeightsCompose(); }
+  });
+})();
 
 /* ---------- lock ---------- */
 (function(){
