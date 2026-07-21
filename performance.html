@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- wastenet box performance · build 2026-07-20-a · header titles rail-green; subtitle logo-green bold -->
+<!-- wastenet box performance · build 2026-07-21-a · rail split into Fullness + Weight Performance; weight-coverage rows and detail card -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -83,6 +83,7 @@
   .flag-hauler-set{background:#F1EFE8; color:var(--ink-2);}
   .tier-foot{padding:8px 13px; border-top:0.5px solid var(--line); font-size:11.5px; color:#a7a7a0;}
   .perf-meta{margin-top:12px; font-size:11.5px; color:var(--ink-3);}
+  .prow.wt{grid-template-columns:52px 1fr 96px 74px 40px auto;}
 </style>
 
 <style id="wn-shell">
@@ -239,6 +240,26 @@ var TIERS = [
   { key:"empty",  name:"Empty Runs",  range:"under 55%",         color:"#E24B4A", bat:22 }
 ];
 
+/* Weight coverage tiers, best to worst - green, gray, amber, red down the rail.
+   These measure whether a box's recent pulls are being WEIGHED (share of its
+   last 6 pulls), a separate question from how full it was. Counts + per-box
+   wtTier / coverage / lastWeighed / pullsSinceWeight come from the same
+   box_performance endpoint. */
+var WEIGHT_TIERS = [
+  { key:"fully",  name:"Fully Weighed",  range:"80%+ of last 6 pulls", color:"#5CAA16" },
+  { key:"mostly", name:"Mostly Weighed", range:"50\u201379% of last 6",  color:"#888780" },
+  { key:"rarely", name:"Rarely Weighed", range:"1\u201349% of last 6",   color:"#EF9F27" },
+  { key:"never",  name:"Never Weighed",  range:"none in last 6",         color:"#E24B4A" }
+];
+
+/* Resolve a tier key to its metadata and which measure (rail section) it
+   belongs to - 'full' (fullness) or 'wt' (weight). */
+function tierInfo(key){
+  for(var i=0;i<TIERS.length;i++){ if(TIERS[i].key===key) return { t:TIERS[i], mode:"full" }; }
+  for(var j=0;j<WEIGHT_TIERS.length;j++){ if(WEIGHT_TIERS[j].key===key) return { t:WEIGHT_TIERS[j], mode:"wt" }; }
+  return { t:TIERS[0], mode:"full" };
+}
+
 /* Default to Empty Runs - that's the work list, the boxes worth acting on. */
 var state = { data: null, active: "empty", selected: null };
 
@@ -261,11 +282,15 @@ function flagHtml(f){
 function renderRail(){
   var el=document.getElementById("tierRail"); if(!el) return;
   var d=state.data||{};
-  el.innerHTML = TIERS.map(function(t){
-    var n=(d.tiers&&d.tiers[t.key])||0;
-    var on=(t.key===state.active);
-    return '<button class="sec'+(on?" on":"")+'" data-tier="'+t.key+'"><span class="sec-dot" style="background:'+t.color+'"></span>'+t.name+'<span class="n">'+n+'</span></button>';
-  }).join("");
+  function group(label, arr, counts){
+    return '<div class="wn-rail__h">'+label+'</div>' + arr.map(function(t){
+      var n=(counts&&counts[t.key])||0;
+      var on=(t.key===state.active);
+      return '<button class="sec'+(on?" on":"")+'" data-tier="'+t.key+'"><span class="sec-dot" style="background:'+t.color+'"></span>'+t.name+'<span class="n">'+n+'</span></button>';
+    }).join("");
+  }
+  el.innerHTML = group("Fullness Performance", TIERS, d.tiers) +
+                 group("Weight Performance", WEIGHT_TIERS, d.weightTiers);
   el.querySelectorAll("[data-tier]").forEach(function(btn){
     btn.onclick=function(){ state.active=btn.getAttribute("data-tier"); state.selected=null; render(); };
   });
@@ -274,18 +299,37 @@ function renderRail(){
 function render(){
   var d=state.data;
   if(!d || !d.ok){ var _g=document.getElementById("grayCol"); if(_g) _g.innerHTML='<div class="empty-state">Could not load performance data.</div>'; return; }
-  var tierMeta={}; TIERS.forEach(function(t){ tierMeta[t.key]=t; });
-  var active=tierMeta[state.active];
+  var info=tierInfo(state.active);
+  var active=info.t, mode=info.mode;
   renderRail();
 
+  var counts = mode==="wt" ? (d.weightTiers||{}) : (d.tiers||{});
   var gt=document.getElementById("grayTitle"); if(gt) gt.textContent=active.name;
-  var gs=document.getElementById("graySub"); if(gs) gs.textContent=active.range+' \u00b7 '+((d.tiers&&d.tiers[state.active])||0)+' boxes';
+  var gs=document.getElementById("graySub"); if(gs) gs.textContent=active.range+' \u00b7 '+(counts[state.active]||0)+' boxes';
 
-  var list=(d.boxes||[]).filter(function(b){ return b.tier===state.active; });
-  list.sort(function(a,b){ var af=a.flag?1:0,bf=b.flag?1:0; if(af!==bf) return af-bf; return a.avg-b.avg; });
+  var list=(d.boxes||[]).filter(function(b){ return (mode==="wt"?b.wtTier:b.tier)===state.active; });
+  if(mode==="wt"){
+    // Least-covered first, then most pulls since a weigh - the boxes most worth chasing float up.
+    list.sort(function(a,b){ if(a.coverage!==b.coverage) return a.coverage-b.coverage; return (b.pullsSinceWeight||0)-(a.pullsSinceWeight||0); });
+  } else {
+    list.sort(function(a,b){ var af=a.flag?1:0,bf=b.flag?1:0; if(af!==bf) return af-bf; return a.avg-b.avg; });
+  }
 
   var rowsHtml=list.map(function(b){
-    return '<div class="prow'+(String(state.selected)===String(b.id)?" sel":"")+'" data-id="'+esc(b.id)+'">' +
+    var selCls=(String(state.selected)===String(b.id)?" sel":"");
+    if(mode==="wt"){
+      var lw=b.lastWeighed?esc(b.lastWeighed):"\u2014";
+      var ps=(b.pullsSinceWeight==null)?"\u2014":b.pullsSinceWeight;
+      return '<div class="prow wt'+selCls+'" data-id="'+esc(b.id)+'">' +
+        '<span class="pid">#'+esc(b.id)+'</span>' +
+        '<span class="psite">'+esc(b.desc || ("Box "+b.id))+'</span>' +
+        '<span>'+bar(b.coverage, active.color)+'<b class="pavg">'+b.coverage+'%</b></span>' +
+        '<span class="pcad">'+lw+'</span>' +
+        '<span class="pw">'+ps+'</span>' +
+        '<span></span>' +
+      '</div>';
+    }
+    return '<div class="prow'+selCls+'" data-id="'+esc(b.id)+'">' +
       '<span class="pid">#'+esc(b.id)+'</span>' +
       '<span class="psite">'+esc(b.desc || ("Box "+b.id))+'</span>' +
       '<span>'+bar(b.avg, active.color)+'<b class="pavg">'+b.avg+'%</b></span>' +
@@ -299,7 +343,16 @@ function render(){
   var extra=[];
   if(d.buildingCount)  extra.push(d.buildingCount + " box" + (d.buildingCount===1?"":"es") + " still building history (under 5 pulls)");
   if(d.noHistoryCount) extra.push(d.noHistoryCount + " with no pulls yet");
-  var portfolio=(d.boxes?d.boxes.length:0)+' boxes \u00b7 '+(d.totalPulls||0).toLocaleString()+' pulls \u00b7 avg '+d.portfolioAvg+'% full at pull';
+
+  var portfolio;
+  if(mode==="wt"){
+    var wt=d.weightTiers||{};
+    var rated=(wt.fully||0)+(wt.mostly||0)+(wt.rarely||0)+(wt.never||0);
+    var need=(wt.never||0)+(wt.rarely||0);
+    portfolio=rated+' boxes rated \u00b7 '+need+' need collection \u00b7 coverage over the last 6 pulls';
+  } else {
+    portfolio=(d.boxes?d.boxes.length:0)+' boxes \u00b7 '+(d.totalPulls||0).toLocaleString()+' pulls \u00b7 avg '+d.portfolioAvg+'% full at pull';
+  }
 
   var gray=document.getElementById("grayCol");
   if(gray) gray.innerHTML=
@@ -335,6 +388,38 @@ function renderDetail(d){
   for(var i=0;i<boxes.length;i++){ if(String(boxes[i].id)===String(state.selected)){ b=boxes[i]; break; } }
   if(!b){ if(gt) gt.textContent="Pull detail"; pane.innerHTML='<div class="rc-iv-card"><div class="pd-empty">Select a box to see its pull detail.</div></div>'; return; }
   if(gt) gt.textContent="#"+esc(b.id);
+
+  // Weight mode: a coverage card (share of the last 6 pulls weighed) instead
+  // of the fullness gauge. The selected box is always in the active tier, so
+  // the active measure decides which card to draw.
+  if(tierInfo(state.active).mode==="wt"){
+    var wt=null; WEIGHT_TIERS.forEach(function(t){ if(t.key===b.wtTier) wt=t; });
+    wt = wt || { name:"", color:"#8A8F8A", range:"" };
+    var lw=b.lastWeighed?esc(b.lastWeighed):"\u2014";
+    var ps=(b.pullsSinceWeight==null)?"\u2014":b.pullsSinceWeight;
+    var status=(b.wtTier==="fully"||b.wtTier==="mostly")?"covered":"collect";
+    var winsight;
+    if(b.wtTier==="fully") winsight='<b>Well covered.</b> Recent pulls are being weighed \u2014 reliable weight data for this box.';
+    else if(b.wtTier==="mostly") winsight='<b>Mostly there.</b> Weighed on most pulls; a few are slipping through.';
+    else if(b.wtTier==="rarely") winsight='<b>Needs attention.</b> Only the odd pull is weighed \u2014 put this box on the collection list.';
+    else winsight='<b>Go collect.</b> No weight in the last 6 pulls \u2014 start capturing weights here.';
+    pane.innerHTML='<div class="rc-iv-card">' +
+      '<div class="pd-head"><span class="pd-tag" style="background:'+wt.color+'1a;color:'+wt.color+'">'+esc(wt.name)+'</span>' +
+        '<h3>#'+esc(b.id)+'</h3><div class="pd-sub">'+esc(b.desc||("Box "+b.id))+'</div></div>' +
+      '<div class="pd-gauge"><div class="pd-big" style="color:'+wt.color+'">'+b.coverage+'<span>%</span></div>' +
+        '<div class="pd-cap">Weight coverage</div>' +
+        '<div class="pd-track"><span style="width:'+Math.min(b.coverage,100)+'%;background:'+wt.color+'"></span></div></div>' +
+      '<div class="pd-facts">' +
+        '<div><div class="pd-fl">Last weighed</div><div class="pd-fv">'+lw+'</div></div>' +
+        '<div><div class="pd-fl">Pulls since</div><div class="pd-fv">'+ps+'</div></div>' +
+        '<div><div class="pd-fl">Tier</div><div class="pd-fv">'+esc(wt.name)+'</div></div>' +
+        '<div><div class="pd-fl">Status</div><div class="pd-fv">'+status+'</div></div>' +
+      '</div>' +
+      '<div class="pd-insight">'+winsight+'</div>' +
+    '</div>';
+    return;
+  }
+
   var tier=null; TIERS.forEach(function(t){ if(t.key===b.tier) tier=t; });
   tier = tier || { name:"", color:"#8A8F8A", range:"" };
   var insight = (b.tier==="empty"||b.tier==="light")
