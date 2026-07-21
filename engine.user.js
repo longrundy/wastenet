@@ -2611,6 +2611,18 @@
         notes: r.notes,
       }));
     }
+    // v4.19 verification line (temporary): the [detail] JSON above is sliced
+    // to 200 chars by the runner, which hides pullHistory. This prints a
+    // compact weight readout so the fixed capture is visible on a --box run.
+    // Remove once weight capture is confirmed.
+    if (state.boxList && state.boxList.length <= 10 && state.pendingResult) {
+      const ph = state.pendingResult.pullHistory || [];
+      const wsum = ph.slice(0, 4).map(function (p) {
+        return p.date + '=' + (p.weight === '' ? 'EMPTY' : p.weight);
+      }).join('  ');
+      log('  [weights] Box ' + state.pendingResult.boxId + ': ' + ph.length +
+          ' pulls captured | newest 4: ' + wsum);
+    }
     state.pendingBoxId = null;
     state.pendingShowMode = null;
     state.pendingPhase = null;
