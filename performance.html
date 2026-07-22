@@ -91,6 +91,31 @@
   .cmp-overlay{position:fixed;inset:0;z-index:1000;display:none;align-items:center;justify-content:center;background:rgba(20,30,25,0.45);}
   .cmp-overlay.show{display:flex;}
   .cmp-overlay iframe{width:min(1240px,96vw);height:94vh;border:none;border-radius:12px;background:var(--page);box-shadow:0 20px 60px rgba(20,30,25,0.32);}
+
+  /* ---- batch weights selection surface ---- */
+  .batch-start{cursor:pointer;display:inline-flex;align-items:center;gap:7px;border:0.5px solid var(--green-border);background:var(--green-tint);color:var(--green-darker);font-weight:600;font-size:12.5px;border-radius:var(--r-ctl);padding:7px 13px;margin-bottom:12px;font-family:var(--font);}
+  .batch-start:hover{background:#E1EFCF;}
+  .batch-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:10px;}
+  .batch-bar .bsel{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-2);cursor:pointer;}
+  .batch-bar .bcount{font-size:12.5px;color:var(--ink-2);}
+  .batch-bar .bspacer{flex:1 1 auto;}
+  .batch-btn{cursor:pointer;border:0.5px solid var(--green);background:var(--green);color:#fff;font-weight:600;font-size:12.5px;border-radius:var(--r-ctl);padding:7px 13px;font-family:var(--font);}
+  .batch-btn:hover{background:#4f9412;}
+  .batch-btn:disabled{opacity:.45;cursor:default;}
+  .batch-btn.ghost{background:#fff;color:var(--ink-2);border-color:var(--line-strong);}
+  .batch-btn.ghost:hover{background:var(--panel);}
+  .brow{display:grid;grid-template-columns:24px 50px 1fr 84px 66px;align-items:center;gap:10px;padding:8px 22px;border-top:0.5px solid var(--line);font-size:12.5px;}
+  .brow:first-child{border-top:none;}
+  .brow.dis{opacity:.6;}
+  .brow input[type=checkbox]{width:16px;height:16px;accent-color:var(--green);cursor:pointer;margin:0;}
+  .brow .bid{color:var(--ink-3);}
+  .brow .bsite{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .brow .bcov{color:var(--ink-2);text-align:right;}
+  .bchip{font-size:10px;padding:2px 7px;border-radius:5px;white-space:nowrap;justify-self:start;}
+  .bchip.never{background:var(--red-tint);color:var(--red-dark);}
+  .bchip.rarely{background:#FAEEDA;color:var(--amber-dark);}
+  .bneed{font-size:10.5px;color:var(--ink-3);white-space:nowrap;}
+  .batch-foot{padding:9px 22px;border-top:0.5px solid var(--line);font-size:11.5px;color:var(--ink-3);}
 </style>
 
 <style id="wn-shell">
@@ -281,7 +306,12 @@ function tierInfo(key){
 }
 
 /* Default to Empty Runs - that's the work list, the boxes worth acting on. */
-var state = { data: null, active: "empty", selected: null };
+var state = { data: null, active: "empty", selected: null, batch: false, batchSel: {}, haulerSet: {} };
+
+/* Normalize a box id the same way the monitor's master_contacts map is keyed
+   (integer string), so "228", 228 and 228.0 all resolve to the same hauler
+   lookup. Non-numeric ids fall through unchanged. */
+function normId(x){ var n = parseInt(x, 10); return isNaN(n) ? String(x==null?"":x) : String(n); }
 
 /* Returning from a weights handoff (or any deep link): restore the tier that
    was active and the box that was selected, so the user lands right where they
@@ -324,13 +354,14 @@ function renderRail(){
   el.innerHTML = group("Fullness Performance", TIERS, d.tiers, false) +
                  group("Weight Performance", WEIGHT_TIERS, d.weightTiers, true);
   el.querySelectorAll("[data-tier]").forEach(function(btn){
-    btn.onclick=function(){ state.active=btn.getAttribute("data-tier"); state.selected=null; render(); };
+    btn.onclick=function(){ state.active=btn.getAttribute("data-tier"); state.selected=null; state.batch=false; render(); };
   });
 }
 
 function render(){
   var d=state.data;
   if(!d || !d.ok){ var _g=document.getElementById("grayCol"); if(_g) _g.innerHTML='<div class="empty-state">Could not load performance data.</div>'; return; }
+  if(state.batch){ renderRail(); renderBatch(); return; }
   var info=tierInfo(state.active);
   var active=info.t, mode=info.mode;
   renderRail();
@@ -387,11 +418,22 @@ function render(){
     portfolio=(d.boxes?d.boxes.length:0)+' boxes \u00b7 '+(d.totalPulls||0).toLocaleString()+' pulls \u00b7 avg '+d.portfolioAvg+'% full at pull';
   }
 
+  // In any weight-coverage tier, offer the batch flow: pick across the whole
+  // need-collection list at once and request weights hauler by hauler, instead
+  // of one envelope per box.
+  var batchBtn = (mode==="wt")
+    ? '<button class="batch-start" id="batchStart" title="Request weights for many boxes at once, grouped by hauler">\u25A4 Batch weights request</button>'
+    : "";
+
   var gray=document.getElementById("grayCol");
   if(gray) gray.innerHTML=
+    batchBtn +
     '<div class="perf-portfolio">'+portfolio+'</div>' +
     '<div class="tier-list">'+rowsHtml+'</div>' +
     (extra.length ? '<div class="perf-meta">'+extra.join(" \u00b7 ")+'</div>' : "");
+
+  var _bs=document.getElementById("batchStart");
+  if(_bs) _bs.addEventListener("click", function(){ state.batch=true; state.selected=null; state.batchSel={}; render(); });
 
   document.querySelectorAll("#grayCol .prow").forEach(function(row){
     row.addEventListener("click", function(){ state.selected=row.getAttribute("data-id"); render(); });
@@ -506,6 +548,116 @@ function load(){
     state.data = data;
     render();
   });
+  fetchContacts();
+}
+
+/* The per-box hauler recipients (master_contacts, the same source the monitor
+   and Contacts page read). Here we only need to know which boxes HAVE a hauler
+   to email, so the batch surface can gate selection; the monitor resolves the
+   actual addresses and Haul Code at send time. Non-fatal on failure - the set
+   stays empty and every row reports "needs hauler" rather than guessing. */
+function fetchContacts(){
+  jsonp({ action:"master_contacts", key:KEY }, function(data){
+    var raw = (data && data.contacts) || {};
+    var set = {};
+    Object.keys(raw).forEach(function(id){
+      var c = raw[id] || {};
+      if(String(c.toRecipients || "").trim()) set[normId(id)] = true;
+    });
+    state.haulerSet = set;
+    if(state.batch) renderBatch();
+  });
+}
+
+/* ---------- batch weights selection ---------- */
+// The pool is the "need collection" list: every never- or rarely-weighed box,
+// least-covered first. Fully/mostly-weighed boxes are deliberately left out -
+// this surface exists to chase the boxes with no recent weights.
+function needCollectionBoxes(){
+  var d = state.data || {};
+  return (d.boxes || [])
+    .filter(function(b){ return b.wtTier === "never" || b.wtTier === "rarely"; })
+    .sort(function(a,b){ if(a.coverage !== b.coverage) return a.coverage - b.coverage; return (b.pullsSinceWeight||0) - (a.pullsSinceWeight||0); });
+}
+// A box is selectable only if it has a hauler to email (To recipients on file).
+// Boxes without one are the "needs hauler assigned first" list: shown, but not
+// checkable.
+function batchEligible(b){ return !!state.haulerSet[normId(b.id)]; }
+// Checked by default for every eligible box; a box goes unchecked only once the
+// user toggles it off. That keeps the default (and Select all) correct even if
+// the contacts map arrives after the surface is first drawn.
+function batchIsChecked(b){ return batchEligible(b) && state.batchSel[normId(b.id)] !== false; }
+function batchSelectedIds(){ return needCollectionBoxes().filter(batchIsChecked).map(function(b){ return normId(b.id); }); }
+
+function renderBatch(){
+  var pool = needCollectionBoxes();
+  var eligible = pool.filter(batchEligible);
+  var noHauler = pool.length - eligible.length;
+  var nSel = batchSelectedIds().length, nElig = eligible.length;
+  var allOn = (nElig > 0 && nSel === nElig);
+
+  var rows = pool.map(function(b){
+    var elig = batchEligible(b);
+    var cb = elig
+      ? '<input type="checkbox" data-bid="'+esc(normId(b.id))+'"'+(batchIsChecked(b)?" checked":"")+'>'
+      : '<span></span>';
+    var tail = elig ? '<span class="bcov">'+b.coverage+'%</span>' : '<span class="bneed">needs hauler</span>';
+    return '<div class="brow'+(elig?"":" dis")+'">' + cb +
+      '<span class="bid">#'+esc(b.id)+'</span>' +
+      '<span class="bsite">'+esc(b.desc || ("Box "+b.id))+'</span>' +
+      '<span class="bchip '+esc(b.wtTier)+'">'+(b.wtTier==="never"?"never":"rarely")+'</span>' +
+      tail +
+    '</div>';
+  }).join("");
+  if(!rows) rows = '<div class="batch-foot">No boxes need collection right now.</div>';
+
+  var bar =
+    '<div class="batch-bar">' +
+      '<label class="bsel"><input type="checkbox" id="batchAll"'+(allOn?" checked":"")+(nElig?"":" disabled")+'> Select all</label>' +
+      '<span class="bcount"><b>'+nSel+'</b> of '+nElig+' selected</span>' +
+      '<span class="bspacer"></span>' +
+      '<button class="batch-btn ghost" id="batchExit">Exit</button>' +
+      '<button class="batch-btn" id="batchCompose"'+(nSel?"":" disabled")+'>Compose batch ('+nSel+')</button>' +
+    '</div>';
+
+  var foot = noHauler
+    ? '<div class="batch-foot">'+noHauler+' box'+(noHauler===1?"":"es")+' need a hauler assigned first \u2014 not selectable here.</div>'
+    : "";
+
+  var gray = document.getElementById("grayCol");
+  if(gray) gray.innerHTML = bar + '<div class="tier-list">'+rows+'</div>' + foot;
+
+  var pane = document.getElementById("greenCol");
+  if(pane) pane.innerHTML = '<div class="rc-iv-card"><div class="pd-empty">' +
+    'Pick the boxes to request weights for, then <b>Compose batch</b>. They\u2019ll be grouped by Haul Code \u2014 one email per hauler, listing that hauler\u2019s boxes.</div></div>';
+  var gt = document.getElementById("greenTitle"); if(gt) gt.textContent = "Batch weights";
+  var gtl = document.getElementById("grayTitle"); if(gtl) gtl.textContent = "Batch weights request";
+  var gsu = document.getElementById("graySub"); if(gsu) gsu.textContent = nElig + " boxes with a hauler on file";
+
+  var all = document.getElementById("batchAll");
+  if(all) all.addEventListener("change", function(){
+    var on = this.checked;
+    eligible.forEach(function(b){ state.batchSel[normId(b.id)] = on; });
+    renderBatch();
+  });
+  var exit = document.getElementById("batchExit");
+  if(exit) exit.addEventListener("click", function(){ state.batch=false; render(); });
+  var comp = document.getElementById("batchCompose");
+  if(comp) comp.addEventListener("click", function(){ var ids = batchSelectedIds(); if(ids.length) openWeightsBatch(ids); });
+  if(gray) gray.querySelectorAll(".brow input[type=checkbox]").forEach(function(cb){
+    cb.addEventListener("change", function(){ state.batchSel[cb.getAttribute("data-bid")] = cb.checked; renderBatch(); });
+  });
+}
+
+/* Hand the chosen boxes to the monitor's compose in batch mode - the same
+   embedded overlay the single-box envelope uses, told to group by Haul Code
+   and draft one Weights email per hauler. */
+function openWeightsBatch(ids){
+  var frame=document.getElementById("cmpFrame"), ov=document.getElementById("cmpOverlay");
+  if(!frame || !ov) return;
+  frame.src="wastenet-monitor.html?embed=1&batch=1&boxes="+encodeURIComponent(ids.join(","));
+  ov.classList.add("show");
+  document.body.style.overflow="hidden";
 }
 
 /* ---------- weights compose overlay ---------- */
