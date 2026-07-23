@@ -4101,6 +4101,41 @@ function closeCompose(){
   if(_composeReturn){ var r = _composeReturn; _composeReturn = null; window.location.href = r; }
 }
 
+/* Send an email via POST to this same Apps Script. A batch email listing many
+   boxes is far too large to ride in a GET URL - Apps Script drops the request
+   and the browser reports it as "could not reach the server", which is what a
+   14-box group hit. So the payload goes in the POST body instead. A cross-
+   origin POST to Apps Script can't return a readable response, so each send is
+   tagged with a one-time sendId and the real outcome is polled back via
+   ?action=send_result. This is the same proven path the accounting page uses
+   for many-invoice statements, pointed at the same endpoint. */
+function postSendEmail(payload, cb){
+  var sendId = "snd_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  payload.type = "send_email";
+  payload.sendId = sendId;
+  var done = false;
+  var finish = function(res){ if(done) return; done = true; cb(res); };
+  try{
+    fetch(API, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    }).then(function(){ pollSendResult(sendId, 0, finish); })
+      .catch(function(){ pollSendResult(sendId, 0, finish); });
+  } catch(e){ pollSendResult(sendId, 0, finish); }
+}
+function pollSendResult(sendId, tries, cb){
+  if(tries >= 8){
+    cb({ ok:false, error:"The request was submitted, but the result could not be confirmed. Check the office@ inbox before resending." });
+    return;
+  }
+  jsonp({ action:"send_result", id:sendId, key:KEY }, function(data){
+    if(data && data.found && data.result){ cb(data.result); return; }
+    setTimeout(function(){ pollSendResult(sendId, tries + 1, cb); }, 1500);
+  });
+}
+
 /* ================= BATCH WEIGHTS (embedded) =================
    Entry: performance.html opens this page as ?embed=1&batch=1&boxes=id,id,...
    We group the chosen boxes by Haul Code and draft ONE Weights email per
@@ -4184,6 +4219,11 @@ function openBatchModal(){ renderBatchModal(); var m = document.getElementById("
 
 function renderBatchModal(){
   var m = document.getElementById("composeModal"); if(!m) return;
+  // Every state change (send, skip, month pick) rebuilds this modal, which
+  // would otherwise snap the list back to the top and hide the very card you
+  // just acted on. Remember where the list was scrolled and put it back.
+  var _sc = m.querySelector(".bx-body");
+  var _top = _sc ? _sc.scrollTop : 0;
   var nBoxes = 0; batch.groups.forEach(function(g){ nBoxes += g.boxes.length; });
   var monthsOk = batchMonthsOn();
 
@@ -4236,8 +4276,10 @@ function renderBatchModal(){
         '<button class="bx-sendall" id="bxSendAll"'+((pending&&monthsOk&&!batch.sending)?"":" disabled")+'>Send all ('+pending+')</button></div>' +
     '</div>';
 
-  document.getElementById("bxCancel").addEventListener("click", closeCompose);
-  document.getElementById("bxYear").addEventListener("change", function(){ batch.year = this.value; renderBatchModal(); });
+  var _nb = m.querySelector(".bx-body");
+  if(_nb) _nb.scrollTop = _top;
+
+  document.getElementById("bxCancel").addEventListener("click", closeCompose);  document.getElementById("bxYear").addEventListener("change", function(){ batch.year = this.value; renderBatchModal(); });
   m.querySelectorAll("#bxMonths .bx-mo").forEach(function(b){
     b.addEventListener("click", function(){ var i=+b.getAttribute("data-mo"); batch.months[i]=!batch.months[i]; renderBatchModal(); });
   });
@@ -4262,16 +4304,32 @@ function sendBatchGroup(gi, done){
   var textBody = batchPlain(tpl.bodyTemplate || "", g);
   var htmlBody = composeShell(composeFill(tpl.bodyTemplate || "", vals));
   g.status = "sending"; renderBatchModal();
-  jsonp({
+  var payload = {
     action:"send_email", key:KEY,
     to: g.to.join(";"), cc:"", bcc:"office@wastenetinc.com",
     subject:subject, body:textBody, html:htmlBody
-  }, function(res){
+  };
+  // A GET URL can only carry so much before Apps Script drops the request
+  // (which surfaces as "could not reach the server"). Measure the real encoded
+  // length and use POST for anything but the smallest groups. The threshold is
+  // deliberately conservative - and if a GET still fails, we retry once over
+  // POST before reporting an error, so a bad size guess never costs a send.
+  var qsLen = API.length + Object.keys(payload).reduce(function(n,k){
+    return n + k.length + encodeURIComponent(String(payload[k])).length + 2;
+  }, 0);
+  var finish = function(res){
     if(res && res.ok){ g.status="sent"; }
     else { g.status="pending"; if(!done) alert("Could not send "+g.code+": "+((res&&res.error)||"unknown error")+"\n\nNothing was sent for this hauler."); }
     renderBatchModal();
     if(done) done(!!(res && res.ok));
-  });
+  };
+  if(qsLen > 3000){ postSendEmail(payload, finish); }
+  else {
+    jsonp(payload, function(res){
+      if(res && res.ok){ finish(res); return; }
+      postSendEmail(payload, finish); // GET didn't land - try the POST path once
+    });
+  }
 }
 
 // Send all fires the pending cards one at a time - each waits for its result
