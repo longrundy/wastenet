@@ -1109,6 +1109,22 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
 .mon-detail .staff-note-inline{white-space:pre-line;line-height:1.5;}
 .mon-detail .staff-note-upd{display:block;color:var(--ink-3);font-size:11px;margin-top:6px;}
 </style>
+<style id="wn-rhythm">
+.rhy-note{font-size:12px;line-height:1.6;color:var(--ink-2);background:var(--panel);
+  border:0.5px solid var(--line);border-radius:var(--r-ctl);padding:11px 14px;margin:0 0 12px;}
+.rhy-line{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-top:6px;font-size:11.5px;color:var(--ink-3);}
+.rhy-pill{display:inline-flex;align-items:center;font-size:11.5px;font-weight:700;
+  padding:2px 9px;border-radius:var(--r-pill);background:var(--green-tint);color:var(--green-darker);}
+.rhy-pill.hot{background:var(--red-tint,#F7E4E4);color:#A32D2D;}
+.rhy-pill.none{background:var(--panel);color:var(--ink-3);font-weight:600;}
+.rhy-fact{color:var(--ink-2);}
+.rhy-sep{color:var(--line-strong);}
+.rhy-conf{font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:var(--r-pill);
+  background:var(--amber-tint,#FDF3E3);color:var(--amber-dark,#8a5a06);}
+.rhy-conf.good{background:var(--green-tint);color:var(--green-darker);}
+.rhy-agree{font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:var(--r-pill);
+  background:#E6F1FB;color:#185FA5;}
+</style>
 <style id="wn-dsec">
 /* Collapsible detail sections (WN Staff Notes / Pull History). The header row
    matches the .drow rhythm above it so the panel reads as one list; the body
@@ -1357,6 +1373,12 @@ var state = { rows: [], scanTitle: "", openId: null, staleOpen: false, view: "ac
      box, and cached here for the rest of the session. pullsById is keyed by
      normBoxId, the same convention as staffNotesById/setSchedById. */
   pullsOpenId: null, pullsById: {}, pullsLoaded: false, pullsLoading: false, pullsError: null,
+  /* Box Rhythm: how each box BEHAVES, from Pull History via the
+     box_rhythm endpoint. A separate signal from the scanner's Srvc Need,
+     deliberately shown side by side rather than merged - on 7/25 the two
+     agreed on only 11 boxes out of 170, and that disagreement is the most
+     informative thing on the screen until one of them has earned trust. */
+  rhythmById: {}, rhythmLoaded: false, rhythmLoading: false, rhythmError: null,
   schedTab: null, clearTab: null, templates: {}, templateOrder: [], boxContacts: {} };
 
 /* ---------- JSONP ---------- */
@@ -2553,6 +2575,8 @@ function render(){
   var total  = state.rows.length;
 
   var counts = { action:action.length, needsempty:needsEmpty.length, monitor:monitorDown.length, scheduled:scheduled.length, stale:stale.length, clear:clear.length };
+  var rhythm = state.rhythmLoaded ? rhythmRows() : [];
+  counts.rhythm = rhythm.length;
   var pct = function(n){ return total? (n/total*100).toFixed(1) : 0; };
 
   // ----- clickable scorecard: three grouped cards, number + label -----
@@ -2601,7 +2625,7 @@ function render(){
 
   (function(){
     var rt=document.getElementById("railTriage"); if(!rt) return;
-    var bk=[['action','#A32D2D','Schedule Service',counts.action],['needsempty','#0F8C86','Record Empty',counts.needsempty],['monitor','#5B6470','Monitor Down',counts.monitor],['stale','#BA7517','Stale Scans',counts.stale],['scheduled','#378ADD','Scheduled',counts.scheduled],['clear','#639922','No Action',counts.clear]];
+    var bk=[['action','#A32D2D','Schedule Service',counts.action],['rhythm','#7A4FBF','Due by Rhythm',counts.rhythm],['needsempty','#0F8C86','Record Empty',counts.needsempty],['monitor','#5B6470','Monitor Down',counts.monitor],['stale','#BA7517','Stale Scans',counts.stale],['scheduled','#378ADD','Scheduled',counts.scheduled],['clear','#639922','No Action',counts.clear]];
     var h='';
     bk.forEach(function(x,i){ var on=state.view===x[0];
       h+='<button type="button" class="wn-tri score-hit'+(on?' on':'')+'" data-view="'+x[0]+'"><span class="wn-tri-dot" style="background:'+x[1]+'"></span><span class="wn-tri-l">'+x[2]+'</span><span class="wn-tri-n">'+x[3]+'</span></button>'; });
@@ -2609,7 +2633,7 @@ function render(){
   })();
   (function(){
     var tb=document.getElementById("monTopbar"); if(!tb) return;
-    var VL={action:'Schedule Service',needsempty:'Record Empty',monitor:'Monitor Down',stale:'Stale Scans',scheduled:'Scheduled',clear:'No Action'};
+    var VL={action:'Schedule Service',rhythm:'Due by Rhythm',needsempty:'Record Empty',monitor:'Monitor Down',stale:'Stale Scans',scheduled:'Scheduled',clear:'No Action'};
     var title=VL[state.view]||'Boxes';
     var draft='';
     if(state.view==='action'){
@@ -2789,6 +2813,22 @@ function render(){
           (odActive?overdue:upcoming).map(function(b){ return scheduledRowHtml(b, odActive); }).join("")+
         '</div>'+
       '</div>';
+    }
+  }
+  else if(state.view === "rhythm"){
+    if(!state.rhythmLoaded){
+      html += '<div class="empty-state" style="padding:40px 20px;">' +
+        (state.rhythmError
+          ? '<div class="big">Could not load box rhythm</div>' + esc(state.rhythmError)
+          : '<span class="spinner"></span>Working out how each box behaves\u2026') + '</div>';
+    } else if(rhythm.length === 0){
+      html += '<div class="empty-state" style="padding:40px 20px;"><div class="big">Nothing due by rhythm</div>' +
+        'No box is past the interval it normally runs to.</div>';
+    } else {
+      html += '<div class="rhy-note">Ranked by how full each box is likely to be now \u2014 its own measured fill rate ' +
+        'multiplied by the days it has been standing. This is a SECOND OPINION, worked out from pull history alone. ' +
+        'It does not know what the scanner knows, and the scanner does not know this.</div>';
+      html += rhythm.map(function(b){ return rhythmRowHtml(b); }).join("");
     }
   }
   else if(state.view === "stale"){
@@ -2982,6 +3022,39 @@ function scheduledRowHtml(b, overdue){
 }
 
 /* a stale-scan row: leads with how recently it stopped, not a fill bar */
+/* Rhythm row. Deliberately shows the WORKING, not just a verdict: fill rate,
+   days standing, and the box's own normal interval. If the projection is
+   wrong, somebody who knows the site can see WHY it is wrong - which is the
+   only way this gets corrected. A row that just said "due" would be
+   unarguable, and therefore useless. */
+function rhythmRowHtml(b){
+  var r = state.rhythmById[b.id] || {};
+  var proj = projectedFill(b);
+  var over = proj != null && proj >= 100;
+  var pill = proj == null
+    ? '<span class="rhy-pill none">no rate yet</span>'
+    : '<span class="rhy-pill'+(over?' hot':'')+'">~'+proj+'% now</span>';
+  var conf = (r.consistency == null) ? ''
+    : '<span class="rhy-conf'+(r.consistency <= 0.25 ? ' good' : '')+'" title="How regular this box is. Lower is steadier.">'+
+      (r.consistency <= 0.25 ? 'steady' : 'irregular')+'</span>';
+  var scanSays = (b.need && b.need.indexOf("YES") !== -1)
+    ? '<span class="rhy-agree">scanner agrees</span>' : '';
+  return '<div class="row'+(state.openId===b.id?' open':'')+'" data-id="'+esc(b.id)+'">'+
+      rowActionsHtml(b)+
+      '<div class="row-main">'+
+        '<div class="row-top">'+boxCellHtml(b)+'</div>'+
+        '<div class="rhy-line">'+pill+
+          '<span class="rhy-fact">'+(r.fillRate==null?'\u2014':r.fillRate)+' pts/day</span>'+
+          '<span class="rhy-sep">\u00b7</span>'+
+          '<span class="rhy-fact">'+(r.daysSince==null?'\u2014':r.daysSince)+' days standing</span>'+
+          '<span class="rhy-sep">\u00b7</span>'+
+          '<span class="rhy-fact">normally every '+(r.medianGap==null?'\u2014':r.medianGap)+'</span>'+
+          conf+scanSays+
+        '</div>'+
+      '</div>'+
+    '</div>'+detailHtml(b);
+}
+
 function staleRowHtml(b){
   var open = state.openId === b.id;
   var fresh = (b.lastCycle!=null && b.lastCycle < 72); // stopped within ~3 days = likely a real break
@@ -3451,6 +3524,7 @@ function load(){
   fetchTemplates();
   fetchBoxContacts();
   fetchServiceContentAudit();
+  fetchBoxRhythm();
   maybeDeepLinkCompose();
   maybeBatchCompose();
 }
@@ -3630,6 +3704,57 @@ function fetchPullHistory(){
     }
     render(); // redraw so the open section swaps its spinner for the table
   });
+}
+
+/* One call, cached server-side for the day. Non-fatal: if it fails the
+   rhythm view says so and every other bucket carries on untouched. */
+function fetchBoxRhythm(){
+  if(state.rhythmLoaded || state.rhythmLoading) return;
+  state.rhythmLoading = true; state.rhythmError = null;
+  jsonp({ action:"box_rhythm", key:KEY }, function(data){
+    state.rhythmLoading = false;
+    if(!data || data.ok === false || data.error){
+      state.rhythmError = (data && data.error) || "Could not load box rhythm.";
+    } else {
+      var m = {}, list = data.rows || [];
+      for(var i=0;i<list.length;i++){
+        var r = list[i], id = normBoxId(r.id);
+        if(id) m[id] = r;
+      }
+      state.rhythmById = m;
+      state.rhythmLoaded = true;
+    }
+    render();
+  });
+}
+
+/* Projected fill: this box's own points-per-day multiplied by the days it
+   has been sitting. Used to ORDER the rhythm view rather than the overdue
+   ratio, because a ratio is a number you must take on faith while "fills 11
+   a day, 15 days standing, so about 170% by now" is a claim that can be
+   checked against what somebody knows about the site. Measured almost the
+   same in backtesting - the difference is that this one can be argued with. */
+function projectedFill(b){
+  var r = state.rhythmById[b.id];
+  if(!r || r.fillRate == null || r.daysSince == null) return null;
+  return Math.round(r.fillRate * r.daysSince);
+}
+function rhythmRows(){
+  var out = [];
+  for(var i=0;i<state.rows.length;i++){
+    var b = state.rows[i], r = state.rhythmById[b.id];
+    if(!r || r.status !== 'due') continue;
+    if(isHandsOff(b)) continue;               // MYRNA / never-schedule, per the sheet
+    out.push(b);
+  }
+  out.sort(function(x,y){
+    var a = projectedFill(x), c = projectedFill(y);
+    if(a == null && c == null) return 0;
+    if(a == null) return 1;
+    if(c == null) return -1;
+    return c - a;
+  });
+  return out;
 }
 
 function fetchHaulerPortals(){
