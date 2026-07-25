@@ -270,11 +270,20 @@ body{padding-left:280px !important;}
     position:fixed !important;inset:52px 0 0 0 !important;max-height:none !important;
     height:auto !important;overflow-y:auto !important;overflow-x:auto;background:var(--sel,#E7F1D8) !important;
     z-index:75;transform:translateX(100%);transition:transform .26s ease;
-    padding:52px 14px 44px !important;border:none !important;border-radius:0 !important;}
+    padding:58px 14px 44px !important;border:none !important;border-radius:0 !important;}
   body.m-detail #greenCol.ag-detail{transform:translateX(0);}
-  body.m-detail .m-back{display:inline-flex;align-items:center;gap:5px;position:fixed;top:60px;left:12px;
+  /* The Back button is position:fixed, so the pane scrolls underneath it and
+     the pane's top padding only clears it while scrolled to the top. This
+     opaque bar spans the same strip, so content passes BEHIND it instead of
+     showing through - and it slides in with the panel rather than hanging
+     over the list. Sits above the pane (75) and below the button (78). */
+  .m-backbar{display:none;position:fixed;top:52px;left:0;right:0;height:46px;
+    background:var(--sel,#E7F1D8);z-index:77;border-bottom:1px solid rgba(0,0,0,.06);
+    transform:translateX(100%);transition:transform .26s ease;}
+  body.m-detail .m-backbar{display:block;transform:translateX(0);}
+  body.m-detail .m-back{display:inline-flex;align-items:center;gap:5px;position:fixed;top:58px;left:12px;
     z-index:78;background:#fff;color:#1A1D1A;border:1px solid #dde1dd;border-radius:9px;
-    padding:8px 13px;font-size:13px;font-weight:600;box-shadow:0 2px 10px rgba(0,0,0,.14);cursor:pointer;}
+    padding:7px 13px;font-size:13px;font-weight:600;box-shadow:0 2px 10px rgba(0,0,0,.14);cursor:pointer;}
 
   /* ---- two-line rows ----
      .prow is a GRID on desktop, unlike every other list on the dashboards.
@@ -828,8 +837,12 @@ function closeWeightsCompose(){
   var bd = document.createElement('div'); bd.className = 'm-backdrop'; bd.id = 'mBackdrop';
   var bk = document.createElement('button'); bk.className = 'm-back'; bk.id = 'mBack';
   bk.innerHTML = '\u2039 Back to list';
+  // Opaque strip behind the Back button. The pane scrolls under both, so
+  // without this the button floats over live content (see m-pf-css).
+  var bbar = document.createElement('div'); bbar.className = 'm-backbar'; bbar.id = 'mBackBar';
   document.body.appendChild(tb);
   document.body.appendChild(bd);
+  document.body.appendChild(bbar);
   document.body.appendChild(bk);
 
   function openRail(){ rail.classList.add('m-open'); bd.classList.add('m-open'); }
