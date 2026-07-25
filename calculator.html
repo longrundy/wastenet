@@ -224,6 +224,85 @@ body{padding:0;padding-left:280px;display:block;background:var(--list-bg);}
   .wn-rail__actions{margin-top:0;}
 }
 </style>
+<style id="m-cal-css">
+/* ===== mobile layer (<=920px): drawer rail + single column =====
+   Matches the other dashboards. One breakpoint: the page previously
+   switched .grid and the hero at 860px but the whole console layout at
+   920px, leaving a 60px band running two different layouts at once.
+   920px is the single number now, so the base 860px rules never apply
+   alone. */
+.m-topbar,.m-backdrop{display:none;}
+@media(max-width:920px){
+  body{padding-left:0 !important;padding-top:52px !important;}
+
+  .m-topbar{display:flex;align-items:center;gap:10px;position:fixed;top:0;left:0;right:0;
+    height:52px;background:#153a22;z-index:80;padding:0 12px;box-shadow:0 1px 6px rgba(0,0,0,.22);}
+  .m-burger{background:none;border:none;color:#eaf3de;font-size:23px;line-height:1;cursor:pointer;padding:4px 8px;}
+  .m-title{color:#fff;font-weight:700;font-size:15px;letter-spacing:-.01em;}
+
+  /* Rail becomes a drawer. It previously went position:static with
+     flex-direction:column, which stacked the logo, nav and both action
+     buttons down the page before any content appeared. */
+  body .wn-rail{position:fixed !important;left:0;top:0;bottom:0;width:272px !important;height:auto !important;
+    flex-direction:column !important;align-items:stretch !important;overflow-y:auto !important;overflow-x:hidden !important;
+    transform:translateX(-100%);transition:transform .26s ease;z-index:90;}
+  .wn-rail.m-open{transform:translateX(0);}
+  body .wn-rail__brand{flex-direction:column !important;align-items:center !important;
+    padding:18px 16px 14px !important;border-bottom:1px solid #265c39 !important;gap:10px !important;}
+  body .wn-rail__brand img{width:132px !important;margin:0 auto !important;}
+  body .wn-rail__menu{width:100% !important;}
+  body .wn-rail__actions{margin-top:0 !important;padding:16px 14px 20px !important;}
+
+  .m-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:85;opacity:0;
+    pointer-events:none;transition:opacity .26s;}
+  .m-backdrop.m-open{display:block;opacity:1;pointer-events:auto;}
+
+  /* single column */
+  .app{background:var(--list-bg) !important;}
+  .grid{grid-template-columns:1fr !important;}
+  .ag-topbar{grid-template-columns:1fr !important;position:static !important;}
+  .ag-hd-detail{display:none !important;}
+  .ag-split{grid-template-columns:1fr !important;}
+  .ag-list-col{border-right:none !important;padding:14px 14px 44px !important;}
+  .ag-detail{position:static !important;max-height:none !important;top:auto !important;
+    overflow-y:visible !important;padding:14px 14px 4px !important;}
+
+  /* THE RESULT COMES FIRST. Stacked in source order the inputs land on top
+     and the savings figure falls below the fold - so the number the page
+     exists to show is the one thing you cannot see on arrival. */
+  .ag-detail{order:-1;}
+
+  /* Header: min-height 66px with overflow:hidden clipped the store field
+     once it stopped sharing a row with the title. */
+  .ag-hd{min-height:0 !important;height:auto !important;overflow:visible !important;
+    padding:11px 14px 12px !important;}
+  .cal-hd{flex-direction:column !important;align-items:stretch !important;gap:9px !important;}
+  .cal-prep{text-align:left !important;flex:1 1 auto !important;}
+  .cal-store{width:100% !important;text-align:left !important;}
+
+  /* Cards and figures sized for a narrow screen */
+  .rc-iv-card{max-width:none !important;}
+  .hero{padding:18px 16px 6px !important;}
+  .hero .big{font-size:54px !important;}
+  .gauges{padding:12px 16px 8px !important;}
+  .inputs{padding:6px 14px 14px !important;}
+  .note{margin-left:0 !important;margin-right:0 !important;max-width:none !important;}
+
+  /* Input rows: let the label take the slack and keep the field beside it
+     rather than letting the two fight over a fixed 96px. */
+  .row{gap:12px !important;}
+  .row .meta{flex:1 1 auto;min-width:0;}
+  .control{flex:0 0 auto;}
+  .control input{width:84px !important;}
+
+  /* iOS zooms the viewport when a focused field computes under 16px. Only
+     .cal-store was under it - the numeric fields are already 17px - but the
+     blanket rule covers anything added later, and the second rule keeps the
+     number fields at their larger size. */
+  input,textarea,select{font-size:16px !important;}
+  .control input{font-size:17px !important;}
+}
+</style>
 </head>
 <body>
 <aside class="wn-rail">
@@ -329,5 +408,34 @@ body{padding:0;padding-left:280px;display:block;background:var(--list-bg);}
   </div>
 </div>
 <script src="logic.js?v=2026-07-15-menu"></script>
+<script id="m-cal-js">
+/* ===== mobile layer (<=920px) =====
+   Injects the fixed topbar and drawer backdrop, then toggles .m-open on the
+   rail. This page has no detail pane, so there is no .m-detail state - the
+   result card simply sits above the inputs (see m-cal-css). */
+(function(){
+  var rail = document.querySelector('.wn-rail');
+  if(!rail) return;
+
+  var tb = document.createElement('div');
+  tb.className = 'm-topbar';
+  tb.innerHTML = '<button class="m-burger" id="mBurger" aria-label="Menu">\u2630</button>' +
+                 '<span class="m-title">WasteNet Savings Calculator</span>';
+  var bd = document.createElement('div'); bd.className = 'm-backdrop'; bd.id = 'mBackdrop';
+  document.body.appendChild(tb);
+  document.body.appendChild(bd);
+
+  function openRail(){ rail.classList.add('m-open'); bd.classList.add('m-open'); }
+  function closeRail(){ rail.classList.remove('m-open'); bd.classList.remove('m-open'); }
+
+  document.getElementById('mBurger').addEventListener('click', openRail);
+  bd.addEventListener('click', closeRail);
+
+  // Navigating away, or hitting Copy/Reset, closes the drawer behind you.
+  rail.addEventListener('click', function(e){
+    if(e.target.closest && e.target.closest('.wn-tri, .wn-item, .cal-btn')) setTimeout(closeRail, 80);
+  });
+})();
+</script>
 </body>
 </html>
