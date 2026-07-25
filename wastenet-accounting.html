@@ -698,7 +698,11 @@
 
   @media (max-width:560px){
     .search{width:104px;}
-    th:nth-child(3), td:nth-child(3){display:none;}
+    /* Was th:nth-child(3),td:nth-child(3) - a positional rule that hit the
+       third column of EVERY table on the page and would silently hide the
+       wrong one if a column ever moved. Now named and scoped to the
+       invoice table it was meant for. */
+    .ivtable .iv-rate{display:none;}
     .score-n{font-size:15px;}
     .ftab{padding:6px 9px 7px; font-size:11px;}
   }
@@ -1027,6 +1031,86 @@ body{padding-left:280px !important;}
 </style>
 <style id="wn-acct-billing3">
 .ag-list-col .bhead{padding-left:24px !important;padding-right:24px !important;}
+</style>
+<style id="m-acct-css">
+/* ===== mobile layer (<=860px): drawer rail + slide-in detail =====
+   Mirrors the monitor dashboard's m-poc-css so both dashboards behave the
+   same way on a phone. 860px matches the breakpoint already used by
+   wn-shell, so there is no band where the old horizontal-strip rail and
+   this drawer are both live. Desktop is untouched - everything here is
+   inside the media query. */
+.m-topbar,.m-backdrop,.m-back{display:none;}
+@media(max-width:860px){
+  /* wn-acct-rail sets padding-left:280px with !important, which the
+     non-important reset in wn-shell could never beat - so on a phone the
+     page carried 280px of dead left padding. This is the fix. */
+  body{padding-left:0 !important; padding-top:52px !important;}
+
+  .m-topbar{display:flex;align-items:center;gap:10px;position:fixed;top:0;left:0;right:0;
+    height:52px;background:#153a22;z-index:80;padding:0 12px;box-shadow:0 1px 6px rgba(0,0,0,.22);}
+  .m-burger{background:none;border:none;color:#eaf3de;font-size:23px;line-height:1;cursor:pointer;padding:4px 8px;}
+  .m-title{color:#fff;font-weight:700;font-size:15px;letter-spacing:-.01em;}
+
+  /* rail becomes a slide-in drawer rather than a horizontal strip */
+  body .wn-rail{position:fixed !important;left:0;top:0;bottom:0;width:272px !important;height:auto !important;
+    flex-direction:column !important;align-items:stretch !important;transform:translateX(-100%);
+    transition:transform .26s ease;z-index:90;overflow-y:auto !important;overflow-x:hidden !important;}
+  .wn-rail.m-open{transform:translateX(0);}
+  body .wn-rail__brand{flex-direction:column !important;align-items:center !important;
+    padding:18px 16px 14px !important;border-bottom:1px solid #265c39 !important;gap:10px !important;}
+  body .wn-rail__brand img{width:132px !important;margin:0 auto !important;}
+  body .wn-rail__sections{display:flex !important;flex-direction:column !important;}
+  body .wn-rail__menu{width:100% !important;}
+
+  .m-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:85;opacity:0;
+    pointer-events:none;transition:opacity .26s;}
+  .m-backdrop.m-open{display:block;opacity:1;pointer-events:auto;}
+
+  /* --- the split collapses everywhere, not just on Receivables --- */
+  .ag-topbar{grid-template-columns:1fr !important;position:static !important;}
+  .ag-hd-detail{display:none !important;}
+  .ag-split{grid-template-columns:1fr !important;gap:0 !important;}
+  .ag-list-col{border-right:none !important;padding-left:14px !important;padding-right:14px !important;}
+
+  /* sticky headers unstick - stacked on a phone they only eat vertical space */
+  .rc-head{position:static !important;top:auto !important;}
+  .rc-folder .pinhead,.bill-folder .pinhead{position:static !important;top:auto !important;}
+  .bill-folder .bhead{position:static !important;top:auto !important;}
+  .ag-list-col .bhead{padding-left:14px !important;padding-right:14px !important;}
+
+  /* Detail treatment splits two ways.
+     SLIDE-IN for the long row-driven lists (Receivables, Payments, Billing):
+     tapping a row hundreds deep should not scroll the detail off-screen. */
+  .rc-folder:not(.dz-folder) .ag-detail,
+  .bill-folder .ag-detail{
+    position:fixed !important;inset:52px 0 0 0 !important;max-height:none !important;
+    height:auto !important;overflow-y:auto !important;background:var(--sel,#E7F1D8) !important;
+    z-index:75;transform:translateX(100%);transition:transform .26s ease;
+    padding:52px 14px 44px !important;border:none !important;border-radius:0 !important;}
+  body.m-detail .rc-folder:not(.dz-folder) .ag-detail,
+  body.m-detail .bill-folder .ag-detail{transform:translateX(0);}
+  body.m-detail .m-back{display:inline-flex;align-items:center;gap:5px;position:fixed;top:60px;left:14px;
+    z-index:78;background:#fff;color:#1A1D1A;border:1px solid #dde1dd;border-radius:9px;
+    padding:8px 13px;font-size:13px;font-weight:600;box-shadow:0 2px 10px rgba(0,0,0,.14);cursor:pointer;}
+
+  /* STACKED for the short or always-on panes (Agents, Financials, Deposits).
+     Their detail is a statement or a notes card, not a per-row drill-in, so
+     it simply follows the list down the page. */
+  .folder:not(.rc-folder):not(.bill-folder) .ag-detail,
+  .dz-folder .ag-detail{
+    position:static !important;top:auto !important;max-height:none !important;
+    overflow-y:visible !important;padding:16px 14px 32px !important;}
+
+  /* modals: let the footer wrap so the send button can't land off-screen */
+  .ivbg{padding:16px 10px !important;}
+  .stmt-foot{flex-wrap:wrap !important;}
+  .stmt-subj{flex:1 1 100% !important;white-space:normal !important;}
+  .fincards{padding-left:0 !important;padding-right:0 !important;}
+}
+/* The invoice table can exceed a phone's width; let its container scroll
+   sideways rather than forcing the whole page wide. */
+.ivbody{overflow-x:auto;}
+.ag-detail{overflow-x:auto;}
 </style>
 </head>
 <body>
@@ -1527,14 +1611,14 @@ function buildInvoiceBody(d){
       '<td style="width:46%">' + esc(l.desc) +
         (l.why ? '<div class="ivwhy">excluded \u2014 ' + esc(l.why) + '</div>' : '') + '</td>' +
       '<td class="num" style="width:8%">' + (l.qty == null ? '\u2014' : fmtN(l.qty)) + '</td>' +
-      '<td class="num" style="width:13%">' + (l.rate == null ? '\u2014' : '$' + fmt(l.rate)) + '</td>' +
+      '<td class="num iv-rate" style="width:13%">' + (l.rate == null ? '\u2014' : '$' + fmt(l.rate)) + '</td>' +
       '<td class="num" style="width:14%">$' + fmt(l.amount) + '</td>' +
       '<td style="width:19%">' + kind + '</td>' +
     '</tr>';
   }).join("");
 
   var table = '<table class="ivtable"><thead><tr>' +
-      '<th>Description</th><th class="num">Qty</th><th class="num">Rate</th>' +
+      '<th>Description</th><th class="num">Qty</th><th class="num iv-rate">Rate</th>' +
       '<th class="num">Amount</th><th>Counted as</th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table>';
 
@@ -5355,6 +5439,64 @@ document.getElementById("slimRefreshBtn").onclick = function(){ load(); };
   } else {
     lockIn.focus();
   }
+})();
+</script>
+<script id="m-acct-js">
+/* ===== mobile layer (<=860px) =====
+   Injects the fixed topbar, the drawer backdrop and the "Back to list"
+   button, then toggles two classes: .m-open on the rail, and .m-detail on
+   the body. All positioning lives in m-acct-css behind the media query, so
+   this is inert on desktop apart from three hidden elements. */
+(function(){
+  var rail = document.querySelector('.wn-rail');
+  if(!rail) return;
+
+  var tb = document.createElement('div');
+  tb.className = 'm-topbar';
+  tb.innerHTML = '<button class="m-burger" id="mBurger" aria-label="Menu">\u2630</button>' +
+                 '<span class="m-title">WasteNet Accounting</span>';
+  var bd = document.createElement('div'); bd.className = 'm-backdrop'; bd.id = 'mBackdrop';
+  var bk = document.createElement('button'); bk.className = 'm-back'; bk.id = 'mBack';
+  bk.innerHTML = '\u2039 Back to list';
+  document.body.appendChild(tb);
+  document.body.appendChild(bd);
+  document.body.appendChild(bk);
+
+  function openRail(){ rail.classList.add('m-open'); bd.classList.add('m-open'); }
+  function closeRail(){ rail.classList.remove('m-open'); bd.classList.remove('m-open'); }
+
+  document.getElementById('mBurger').addEventListener('click', openRail);
+  bd.addEventListener('click', closeRail);
+
+  // Choosing a section (or the dashboard picker) closes the drawer and drops
+  // any open detail - the new section's list should be what you land on.
+  rail.addEventListener('click', function(e){
+    var t = e.target;
+    if(!t.closest) return;
+    if(t.closest('.wn-rail__sections .sec, .wn-tri, .wn-item')){
+      document.body.classList.remove('m-detail');
+      setTimeout(closeRail, 80);
+    }
+  });
+
+  /* Only the long row-driven lists use the slide-in panel; Agents,
+     Financials and Deposits stack their detail below the list instead
+     (see m-acct-css), so they must never set .m-detail. */
+  function slideInFolder(){
+    return document.querySelector('.folder.rc-folder:not(.dz-folder), .folder.bill-folder');
+  }
+  function syncDetail(){
+    var f = slideInFolder();
+    if(f && f.querySelector('.agrow.open')) document.body.classList.add('m-detail');
+    else document.body.classList.remove('m-detail');
+  }
+
+  // The sections re-render on click, so read the DOM after it settles.
+  document.addEventListener('click', function(e){
+    if(e.target.closest && e.target.closest('.aghead, .folder-tabs, .sec')) setTimeout(syncDetail, 60);
+  });
+
+  bk.addEventListener('click', function(){ document.body.classList.remove('m-detail'); });
 })();
 </script>
 </body>
