@@ -1112,11 +1112,12 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
 <style id="wn-rhythm">
 .rhy-note{font-size:12px;line-height:1.6;color:var(--ink-2);background:var(--panel);
   border:0.5px solid var(--line);border-radius:var(--r-ctl);padding:11px 14px;margin:0 0 12px;}
-.rhy-line{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-top:6px;font-size:11.5px;color:var(--ink-3);}
-.rhy-pill{display:inline-flex;align-items:center;font-size:11.5px;font-weight:700;
-  padding:2px 9px;border-radius:var(--r-pill);background:var(--green-tint);color:var(--green-darker);}
-.rhy-pill.hot{background:var(--red-tint,#F7E4E4);color:#A32D2D;}
-.rhy-pill.none{background:var(--panel);color:var(--ink-3);font-weight:600;}
+.rhy-line{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-top:5px;font-size:11.5px;color:var(--ink-3);}
+/* The projected-fill figure sits in the same right-hand slot the other
+   buckets use for their reason, so every list reads the same way: identity
+   on the left, why-it-is-here on the right. */
+.reason-rhythm .reason-label{color:#5B3A9E;font-weight:700;}
+.mon-rows .rhy-row .reason-rhythm .reason-label{font-size:15px;}
 .rhy-fact{color:var(--ink-2);}
 .rhy-sep{color:var(--line-strong);}
 .rhy-conf{font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:var(--r-pill);
@@ -3022,28 +3023,39 @@ function scheduledRowHtml(b, overdue){
 }
 
 /* a stale-scan row: leads with how recently it stopped, not a fill bar */
-/* Rhythm row. Deliberately shows the WORKING, not just a verdict: fill rate,
-   days standing, and the box's own normal interval. If the projection is
-   wrong, somebody who knows the site can see WHY it is wrong - which is the
-   only way this gets corrected. A row that just said "due" would be
-   unarguable, and therefore useless. */
+/* Rhythm row. Mirrors staleRowHtml exactly in structure: identity first
+   (name, box number, hauler), the reason for being here on the right, and
+   NO inline detail - the detail belongs in the green pane and nowhere else.
+   Appending detailHtml() here would render the same card twice on screen.
+
+   The row shows its WORKING rather than a verdict: fill rate, days standing,
+   and the box's own normal interval. If the projection is wrong, somebody
+   who knows the site can see WHY - which is the only way it gets corrected.
+   A row that just said "due" would be unarguable, and therefore useless. */
 function rhythmRowHtml(b){
+  var open = state.openId === b.id;
   var r = state.rhythmById[b.id] || {};
   var proj = projectedFill(b);
   var over = proj != null && proj >= 100;
-  var pill = proj == null
-    ? '<span class="rhy-pill none">no rate yet</span>'
-    : '<span class="rhy-pill'+(over?' hot':'')+'">~'+proj+'% now</span>';
-  var conf = (r.consistency == null) ? ''
-    : '<span class="rhy-conf'+(r.consistency <= 0.25 ? ' good' : '')+'" title="How regular this box is. Lower is steadier.">'+
-      (r.consistency <= 0.25 ? 'steady' : 'irregular')+'</span>';
   var scanSays = (b.need && b.need.indexOf("YES") !== -1)
     ? '<span class="rhy-agree">scanner agrees</span>' : '';
-  return '<div class="row'+(state.openId===b.id?' open':'')+'" data-id="'+esc(b.id)+'">'+
-      rowActionsHtml(b)+
+  var conf = (r.consistency == null) ? ''
+    : '<span class="rhy-conf'+(r.consistency <= 0.25 ? ' good' : '')+
+      '" title="How regular this box is. Lower is steadier.">'+
+      (r.consistency <= 0.25 ? 'steady' : 'irregular')+'</span>';
+  return ''+
+    '<div class="row rhy-row'+(open?' open':'')+'" data-id="'+esc(b.id)+'">'+
+      rowMailIcon(b)+boxCellHtml(b)+
+      '<div class="edge" style="background:'+(over?'#A32D2D':'#7A4FBF')+';"></div>'+
       '<div class="row-main">'+
-        '<div class="row-top">'+boxCellHtml(b)+'</div>'+
-        '<div class="rhy-line">'+pill+
+        (function(){var _dp=String(b.desc||'').split(' \u00b7 ');
+          return '<div class="row-name"><span class="row-name-text">'+
+                 esc(_dp[0]||String(b.desc||''))+'</span></div>';})()+
+        '<div class="row-meta"><span class="row-id">'+rowMoveIcon(b)+
+          '<span class="box-id-strong">#'+esc(b.id)+'</span> \u00b7 '+
+          esc(b.haulCode)+' \u00b7 '+esc(b.channel)+'</span>'+
+        '</div>'+
+        '<div class="rhy-line">'+
           '<span class="rhy-fact">'+(r.fillRate==null?'\u2014':r.fillRate)+' pts/day</span>'+
           '<span class="rhy-sep">\u00b7</span>'+
           '<span class="rhy-fact">'+(r.daysSince==null?'\u2014':r.daysSince)+' days standing</span>'+
@@ -3052,7 +3064,13 @@ function rhythmRowHtml(b){
           conf+scanSays+
         '</div>'+
       '</div>'+
-    '</div>'+detailHtml(b);
+      '<div class="fill-wrap reason reason-rhythm">'+
+        '<div class="reason-label">'+(proj==null?'no rate yet':'~'+proj+'% now')+'</div>'+
+        '<div class="reason-detail">projected fill</div>'+
+      '</div>'+
+      '<div class="chev">\u25be</div>'+
+    '</div>'+
+    moveStripHtml(b);
 }
 
 function staleRowHtml(b){
