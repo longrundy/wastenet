@@ -1174,6 +1174,21 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
   .m-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:85;opacity:0;pointer-events:none;transition:opacity .26s;}
   .m-backdrop.m-open{display:block;opacity:1;pointer-events:auto;}
   body .mon-topbar{grid-template-columns:1fr !important;}
+  /* .mon-topbar is position:sticky at top:0, which is the VIEWPORT top - i.e.
+     underneath the fixed 52px topbar, so "Schedule Service" slid beneath the
+     hamburger bar. Static on a phone: it is a section header, not something
+     worth pinning on a small screen. */
+  body .mon-topbar{position:static !important;}
+  /* And the cell is a hard height:94px with overflow:hidden. On one column
+     the title, the Schedule All button and the "3 boxes - opens every request
+     and notice for review" note stack instead of sitting side by side, which
+     needs far more than 94px - so the note was being cut off. Size to
+     content instead. */
+  body .mon-topbar .mtb-cell{height:auto !important;min-height:0 !important;
+    overflow:visible !important;padding:13px 14px 15px !important;
+    justify-content:flex-start !important;}
+  body .mon-topbar .mtb-title{font-size:16px !important;}
+  body .mon-topbar .mtb-note{margin-top:10px !important;gap:9px !important;}
   body .mon-topbar .mtb-detail{display:none !important;}
   body .mon-topbar .mtb-list{border-right:none !important;}
   body .mon-split{grid-template-columns:1fr !important;gap:0 !important;}
