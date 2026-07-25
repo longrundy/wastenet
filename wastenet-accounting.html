@@ -1079,24 +1079,51 @@ body{padding-left:280px !important;}
   .ag-list-col .bhead{padding-left:14px !important;padding-right:14px !important;}
 
   /* Detail treatment splits two ways.
-     SLIDE-IN for the long row-driven lists (Receivables, Payments, Billing):
-     tapping a row hundreds deep should not scroll the detail off-screen. */
+     SLIDE-IN for the row-driven sections (Agents, Receivables, Payments,
+     Billing): tapping a row should bring its detail over the page rather
+     than stack it below the list. */
+  .ag-folder .ag-detail,
   .rc-folder:not(.dz-folder) .ag-detail,
   .bill-folder .ag-detail{
     position:fixed !important;inset:52px 0 0 0 !important;max-height:none !important;
     height:auto !important;overflow-y:auto !important;background:var(--sel,#E7F1D8) !important;
     z-index:75;transform:translateX(100%);transition:transform .26s ease;
     padding:52px 14px 44px !important;border:none !important;border-radius:0 !important;}
+  body.m-detail .ag-folder .ag-detail,
   body.m-detail .rc-folder:not(.dz-folder) .ag-detail,
   body.m-detail .bill-folder .ag-detail{transform:translateX(0);}
-  body.m-detail .m-back{display:inline-flex;align-items:center;gap:5px;position:fixed;top:60px;left:14px;
+  body.m-detail .m-back{display:inline-flex;align-items:center;gap:5px;position:fixed;top:60px;left:12px;
     z-index:78;background:#fff;color:#1A1D1A;border:1px solid #dde1dd;border-radius:9px;
     padding:8px 13px;font-size:13px;font-weight:600;box-shadow:0 2px 10px rgba(0,0,0,.14);cursor:pointer;}
 
-  /* STACKED for the short or always-on panes (Agents, Financials, Deposits).
-     Their detail is a statement or a notes card, not a per-row drill-in, so
-     it simply follows the list down the page. */
-  .folder:not(.rc-folder):not(.bill-folder) .ag-detail,
+  /* Agents is the ONE section whose .ag-hd-detail carries actions rather than
+     just a title - the agent name, the address with its edit link, and the
+     Email Statement button. Hiding it (as the other sections can afford to)
+     took the send button away. It is repositioned as a fixed strip that
+     slides with the panel instead. The ORIGINAL node is moved, never cloned:
+     [data-emailstmt] is wired with .onclick after each render, so a copy
+     would render a button that does nothing. */
+  .ag-folder .ag-hd-detail{
+    display:block !important;position:fixed !important;top:52px;left:0;right:0;z-index:76;
+    background:#fff !important;border-bottom:1px solid var(--line) !important;
+    padding:9px 14px 11px 112px !important;   /* left gap clears the Back button */
+    transform:translateX(100%);transition:transform .26s ease;}
+  body.m-detail .ag-folder .ag-hd-detail{transform:translateX(0);}
+  .ag-folder .ag-hd-drow{display:flex !important;align-items:center !important;gap:10px !important;
+    justify-content:space-between !important;}
+  .ag-folder .ag-hd-detail .ag-hd-title{font-size:14px !important;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+  .ag-folder .ag-hd-email{display:flex !important;align-items:center;gap:8px;margin-top:3px;
+    font-size:11.5px;min-width:0;}
+  .ag-folder .ag-hd-em{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+  /* Panel clears the strip. The height is measured at runtime (m-acct-js)
+     because the agent name and address can wrap; the fallback covers the
+     first paint before that measurement lands. */
+  body.m-detail .ag-folder .ag-detail{padding-top:calc(var(--m-dhead-h, 86px) + 14px) !important;}
+
+  /* STACKED for the always-on panes (Financials, Deposits). Their detail is
+     a notes card, not a per-row drill-in, so it follows the list down. */
+  .folder:not(.rc-folder):not(.bill-folder):not(.ag-folder) .ag-detail,
   .dz-folder .ag-detail{
     position:static !important;top:auto !important;max-height:none !important;
     overflow-y:visible !important;padding:16px 14px 32px !important;}
@@ -2758,7 +2785,7 @@ function renderAgents(){
   var selName = _selA ? _selA.name : 'Select an agent';
   var selAgent = _selA ? _selA.agent : '';
   var selEmail = _selA ? (((state.agSettings||{})[_selA.agent]||{}).email || '') : '';
-  return '<div class="folder">' +
+  return '<div class="folder ag-folder">' +
       '<div class="ag-topbar">' +
         '<div class="ag-hd ag-hd-list"><div class="ag-hd-title">Agent Payouts</div>' +
           '<div class="ag-hd-note">' + (state.agMonth ? monthLabel(state.agMonth) : yr + ' \u2014 full year') +
@@ -5479,21 +5506,36 @@ document.getElementById("slimRefreshBtn").onclick = function(){ load(); };
     }
   });
 
-  /* Only the long row-driven lists use the slide-in panel; Agents,
+  /* Agents, Receivables, Payments and Billing use the slide-in panel;
      Financials and Deposits stack their detail below the list instead
      (see m-acct-css), so they must never set .m-detail. */
   function slideInFolder(){
-    return document.querySelector('.folder.rc-folder:not(.dz-folder), .folder.bill-folder');
+    return document.querySelector(
+      '.folder.ag-folder, .folder.rc-folder:not(.dz-folder), .folder.bill-folder');
+  }
+  /* The Agents strip carries the agent name, address and Email Statement
+     button, and any of those can wrap - so its height is measured rather
+     than assumed, and the panel pads itself by that much. */
+  function measureHead(){
+    var h = document.querySelector('.ag-folder .ag-hd-detail');
+    if(h) document.body.style.setProperty('--m-dhead-h', h.offsetHeight + 'px');
   }
   function syncDetail(){
     var f = slideInFolder();
-    if(f && f.querySelector('.agrow.open')) document.body.classList.add('m-detail');
-    else document.body.classList.remove('m-detail');
+    if(f && f.querySelector('.agrow.open')){
+      document.body.classList.add('m-detail');
+      measureHead();
+    } else {
+      document.body.classList.remove('m-detail');
+    }
   }
 
   // The sections re-render on click, so read the DOM after it settles.
   document.addEventListener('click', function(e){
     if(e.target.closest && e.target.closest('.aghead, .folder-tabs, .sec')) setTimeout(syncDetail, 60);
+  });
+  window.addEventListener('resize', function(){
+    if(document.body.classList.contains('m-detail')) measureHead();
   });
 
   bk.addEventListener('click', function(){ document.body.classList.remove('m-detail'); });
