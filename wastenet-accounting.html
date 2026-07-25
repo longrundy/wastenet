@@ -5546,9 +5546,20 @@ document.getElementById("slimRefreshBtn").onclick = function(){ load(); };
     }
   }
 
-  // The sections re-render on click, so read the DOM after it settles.
+  /* Navigating is not the same as selecting.
+     The sections auto-open the first row so the desktop pane is never empty
+     (agentsHtml does this explicitly). That means "a row is open" is true the
+     moment a section renders, and inferring the panel from it alone sent you
+     straight past the list into the first agent's statement on arrival.
+     So: only a tap on a row header opens the panel. Section buttons and the
+     month/bucket tabs are navigation - they only ever close it. */
   document.addEventListener('click', function(e){
-    if(e.target.closest && e.target.closest('.aghead, .folder-tabs, .sec')) setTimeout(syncDetail, 60);
+    if(!e.target.closest) return;
+    if(e.target.closest('.aghead')){
+      setTimeout(syncDetail, 60);                       // may open
+    } else if(e.target.closest('.sec, .folder-tabs')){
+      document.body.classList.remove('m-detail');       // never opens
+    }
   });
   window.addEventListener('resize', function(){
     if(document.body.classList.contains('m-detail')) measureHead();
