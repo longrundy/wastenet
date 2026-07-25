@@ -1071,6 +1071,12 @@ body{padding-left:280px !important;}
   .ag-hd-detail{display:none !important;}
   .ag-split{grid-template-columns:1fr !important;gap:0 !important;}
   .ag-list-col{border-right:none !important;padding-left:14px !important;padding-right:14px !important;}
+  /* The desktop page paints a hard 50/50 gradient to sit behind the two
+     columns. With one column there is nothing on top of the green half, so
+     it shows through as bare background under the list. Flat grey instead -
+     the slide-in panel brings its own green when it arrives. */
+  .wrap, .wrap:has(.ag-split){background:var(--list-bg) !important;}
+  .ag-hd-list{border-right:none !important;}
 
   /* sticky headers unstick - stacked on a phone they only eat vertical space */
   .rc-head{position:static !important;top:auto !important;}
@@ -1106,7 +1112,11 @@ body{padding-left:280px !important;}
   .ag-folder .ag-hd-detail{
     display:block !important;position:fixed !important;top:52px;left:0;right:0;z-index:76;
     background:#fff !important;border-bottom:1px solid var(--line) !important;
-    padding:9px 14px 11px 112px !important;   /* left gap clears the Back button */
+    /* Left gap clears the floating Back button. Its width is measured at
+       runtime (--m-back-w) rather than guessed - a hardcoded 112px was
+       narrower than the button actually renders, so it sat on top of the
+       agent's name. */
+    padding:9px 14px 11px calc(var(--m-back-w, 124px) + 20px) !important;
     transform:translateX(100%);transition:transform .26s ease;}
   body.m-detail .ag-folder .ag-hd-detail{transform:translateX(0);}
   .ag-folder .ag-hd-drow{display:flex !important;align-items:center !important;gap:10px !important;
@@ -5515,8 +5525,14 @@ document.getElementById("slimRefreshBtn").onclick = function(){ load(); };
   }
   /* The Agents strip carries the agent name, address and Email Statement
      button, and any of those can wrap - so its height is measured rather
-     than assumed, and the panel pads itself by that much. */
+     than assumed, and the panel pads itself by that much. The Back button's
+     width is measured for the same reason: it floats over the strip, and a
+     guessed gap left it sitting on the agent's name.
+     Order matters - the button only has a width once .m-detail is set, so
+     the caller adds the class first and measures second. */
   function measureHead(){
+    var b = document.getElementById('mBack');
+    if(b && b.offsetWidth) document.body.style.setProperty('--m-back-w', b.offsetWidth + 'px');
     var h = document.querySelector('.ag-folder .ag-hd-detail');
     if(h) document.body.style.setProperty('--m-dhead-h', h.offsetHeight + 'px');
   }
