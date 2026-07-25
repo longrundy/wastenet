@@ -1200,6 +1200,56 @@ body{padding-left:280px !important;}
     font-size:10.5px !important;line-height:1.4;
     -webkit-line-clamp:none !important;display:inline-block !important;}
 
+  /* ---- Billing: same two-line treatment ----
+     The row demanded ~444px of fixed cells, gaps and padding on a ~380px
+     screen. .bc-flag is last in source order, so the flags were what ran off
+     the right edge. Rows are .aghead (with a leading .agcaret), the header is
+     .bhead - both flat flex, so the same wrap + order approach applies. */
+  .bill-folder .aghead,
+  .bill-folder .bhead{
+    flex-wrap:wrap !important;white-space:normal !important;align-items:center !important;
+    padding-left:14px !important;padding-right:14px !important;
+    row-gap:3px !important;column-gap:8px !important;}
+  .bill-folder .aghead{padding-top:11px !important;padding-bottom:11px !important;}
+  .bill-folder .aghead::after,
+  .bill-folder .bhead::after{content:"";flex:0 0 100% !important;height:0;order:3;}
+
+  .bill-folder .agcaret{order:0;flex:0 0 auto !important;}
+  .bill-folder .bname{
+    order:1;flex:1 1 auto !important;min-width:0;white-space:normal !important;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+    font-size:14px !important;line-height:1.3;}
+  .bill-folder .bc-amt{
+    order:2;flex:0 0 auto !important;width:auto !important;font-size:14px !important;}
+  .bill-folder .bc-inv{
+    order:4;flex:0 0 auto !important;width:auto !important;font-size:11.5px !important;}
+  .bill-folder .bc-mon{
+    order:5;flex:0 0 auto !important;width:auto !important;font-size:11.5px !important;}
+  .bill-folder .bc-del{
+    order:6;flex:0 0 auto !important;width:auto !important;text-align:left !important;}
+  /* Flags sit hard right on line two and are allowed to wrap among
+     themselves rather than push the row wider. */
+  .bill-folder .bc-flag{
+    order:7;flex:0 1 auto !important;width:auto !important;min-width:0;
+    margin-left:auto;text-align:right;white-space:normal !important;}
+  .bill-folder .bhead > span{
+    font-size:10.5px !important;line-height:1.4;
+    -webkit-line-clamp:none !important;display:inline-block !important;}
+
+  /* ---- stop the focus zoom ----
+     iOS Safari zooms the viewport whenever a focused control computes below
+     16px, which is why tapping the quantity box threw the rest of the detail
+     off-screen. Sizing the controls at 16px fixes it at the source; the
+     alternative (user-scalable=no on the viewport meta) would disable
+     pinch-zoom for the whole page, which is a worse trade. */
+  input[type="text"], input[type="number"], input[type="password"],
+  input[type="search"], input[type="email"], input:not([type]),
+  textarea, select{font-size:16px !important;}
+  /* room for the larger digits in the fee box, and let the search control
+     grow to fit rather than clipping its own text */
+  .bfee{width:92px !important;}
+  .search, .bsearch-hd{height:auto !important;min-height:var(--h-ctl);padding:6px 10px !important;}
+
   /* modals: let the footer wrap so the send button can't land off-screen */
   .ivbg{padding:16px 10px !important;}
   .stmt-foot{flex-wrap:wrap !important;}
