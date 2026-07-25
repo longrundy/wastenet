@@ -387,8 +387,22 @@ body{padding-left:280px;}
   input[type="text"], input[type="number"], input[type="password"],
   input[type="search"], input[type="email"], input:not([type]),
   textarea, select{font-size:16px !important;}
-  .cn-hd-tools .csearch{width:100% !important;max-width:none !important;}
-  .cn-hd-tools{flex-wrap:wrap !important;}
+  /* The header box is a hard height:80px with overflow:hidden. Making the
+     search full-width and letting the tools wrap needs more room than that,
+     so the extra rows were being clipped off the top and bottom. Release the
+     height and let it size to its content. */
+  .ag-hd{height:auto !important;min-height:0 !important;overflow:visible !important;
+    padding:11px 14px 12px !important;justify-content:flex-start !important;}
+  /* Three stacked rows: title, then search + Add together, then the count.
+     The title and the tools each claim a full row; inside the tools row the
+     search flexes and the button keeps its width, so they stay side by side
+     rather than the button dropping to a fourth line. */
+  .ag-hd-drow{flex-wrap:wrap !important;gap:8px !important;align-items:stretch !important;}
+  .ag-hd-drow .ag-hd-title{flex:1 1 100% !important;font-size:16px !important;}
+  .cn-hd-tools{flex:1 1 100% !important;flex-wrap:nowrap !important;gap:8px !important;}
+  .cn-hd-tools .csearch{flex:1 1 auto !important;width:auto !important;max-width:none !important;}
+  .cn-hd-tools .btn{flex:0 0 auto !important;}
+  .ag-hd-note{margin-top:7px !important;}
   .csearch,.cadd-in,.cadd-sel{height:auto !important;min-height:var(--h-ctl);
     padding-top:6px !important;padding-bottom:6px !important;}
 }
