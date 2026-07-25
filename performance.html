@@ -276,21 +276,29 @@ body{padding-left:280px !important;}
   body.m-detail #greenCol.ag-detail{transform:translateX(0);}
   body.m-detail{overflow:hidden !important;}
 
-  /* The Back control is a STICKY BAR INSIDE the pane, not a fixed button
-     over it. A fixed button is positioned against the viewport while the
-     card lives in a scrolling box, and the two can drift apart - which is
-     what kept hiding the status pill under it. In flow, content physically
-     cannot begin above this bar at any scroll offset or zoom level, and
-     sticky keeps it in place (and opaque) while the card scrolls beneath.
-     It is full-bleed, so the whole strip is the tap target. */
-  body.m-detail .m-back{
-    display:flex;align-items:center;gap:6px;
-    position:sticky;top:0;z-index:3;
-    width:auto;margin:0 -14px 14px;padding:13px 14px;
-    background:var(--sel,#E7F1D8);border:none;border-bottom:1px solid rgba(0,0,0,.08);
-    border-radius:0;box-shadow:none;
-    font-family:inherit;font-size:13.5px;font-weight:600;color:#1A1D1A;
-    text-align:left;cursor:pointer;-webkit-appearance:none;appearance:none;}
+  /* Two independent guarantees, because they failed separately before.
+     1) THE CONTROL ALWAYS EXISTS. The Back bar is a fixed, body-level
+        element. renderDetail rewrites the pane's innerHTML constantly, so
+        anything living inside the pane can be thrown out; at body level it
+        cannot be. */
+  .m-backbar{display:none;position:fixed;top:52px;left:0;right:0;height:46px;
+    background:var(--sel,#E7F1D8);z-index:77;border-bottom:1px solid rgba(0,0,0,.08);}
+  body.m-detail .m-backbar{display:block;}
+  body.m-detail .m-back{display:inline-flex;align-items:center;gap:6px;
+    position:fixed;top:59px;left:10px;z-index:78;
+    background:transparent;border:none;box-shadow:none;border-radius:8px;
+    padding:6px 10px;font-family:inherit;font-size:13.5px;font-weight:600;
+    color:#1A1D1A;cursor:pointer;-webkit-appearance:none;appearance:none;}
+
+  /*  2) CONTENT NEVER STARTS ABOVE IT. This spacer is a pseudo-element, so
+        innerHTML cannot remove it either, and being sticky it holds the top
+        of the pane's own scroll box no matter how far the pane is scrolled.
+        Top padding on the pane could not do this - padding only clears the
+        bar while scrolled to the very top. Its height matches .m-backbar. */
+  #greenCol.ag-detail::before{
+    content:"";display:block;position:sticky;top:0;z-index:2;
+    height:46px;margin:0 -14px 14px;background:var(--sel,#E7F1D8);
+    border-bottom:1px solid rgba(0,0,0,.08);}
 
   /* ---- two-line rows ----
      .prow is a GRID on desktop, unlike every other list on the dashboards.
@@ -845,22 +853,17 @@ function closeWeightsCompose(){
   var bk = document.createElement('button'); bk.className = 'm-back'; bk.id = 'mBack';
   bk.type = 'button';
   bk.innerHTML = '\u2039 Back to list';
+  /* Back bar and its button both live at BODY level. Nothing the page
+     renders into the detail pane can remove them, which is the failure mode
+     that left the panel with no way out. The pane keeps content clear of
+     them with a sticky ::before spacer - see m-pf-css. */
+  var bbar = document.createElement('div'); bbar.className = 'm-backbar'; bbar.id = 'mBackBar';
   document.body.appendChild(tb);
   document.body.appendChild(bd);
+  document.body.appendChild(bbar);
+  document.body.appendChild(bk);
 
-  /* The Back bar lives INSIDE the detail pane as its first child, so it sits
-     in normal flow above the card rather than floating over it. renderDetail
-     rewrites pane.innerHTML on every selection, which throws the button out -
-     so re-seat it whenever the pane's children change. Cheap, and it means
-     no render path can leave the panel without a way back. */
   var pane = document.getElementById('greenCol');
-  function mountBack(){
-    if(pane && bk.parentNode !== pane) pane.insertBefore(bk, pane.firstChild);
-  }
-  if(pane){
-    mountBack();
-    new MutationObserver(mountBack).observe(pane, { childList: true });
-  }
 
   function openRail(){ rail.classList.add('m-open'); bd.classList.add('m-open'); }
   function closeRail(){ rail.classList.remove('m-open'); bd.classList.remove('m-open'); }
