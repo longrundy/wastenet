@@ -1137,6 +1137,17 @@ body{padding-left:280px !important;}
   .dz-folder .ag-detail{
     position:static !important;top:auto !important;max-height:none !important;
     overflow-y:visible !important;padding:16px 14px 32px !important;}
+  /* ...and its green runs to the bottom of the screen rather than stopping
+     at the card. .wrap is min-height:100vh, so a short pane left grey showing
+     underneath. Two rows - list sized to content, detail taking the rest -
+     with the split guaranteed at least a viewport tall (less the fixed
+     topbar). When the content is already taller than that, 1fr resolves to
+     the content height and this changes nothing. */
+  .folder:not(.rc-folder):not(.bill-folder):not(.ag-folder) .ag-split,
+  .dz-folder .ag-split{
+    grid-template-rows:auto 1fr !important;
+    min-height:calc(100vh - 52px) !important;
+    align-items:stretch !important;}
 
   /* modals: let the footer wrap so the send button can't land off-screen */
   .ivbg{padding:16px 10px !important;}
