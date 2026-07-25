@@ -270,29 +270,27 @@ body{padding-left:280px !important;}
     position:fixed !important;inset:52px 0 0 0 !important;max-height:none !important;
     height:auto !important;overflow-y:auto !important;overflow-x:auto;background:var(--sel,#E7F1D8) !important;
     z-index:75;transform:translateX(100%);transition:transform .26s ease;
-    padding:70px 14px 44px !important;border:none !important;border-radius:0 !important;
-    /* Keep this pane's scrolling to itself. Without it a flick past the end
-       chains to the document behind, which on iOS grows/shrinks the address
-       bar and shifts every position:fixed element - the panel appears to
-       slide up under the bar and snap back on release. */
+    padding:0 14px 44px !important;border:none !important;border-radius:0 !important;
     overscroll-behavior:contain;
     -webkit-overflow-scrolling:touch;}
   body.m-detail #greenCol.ag-detail{transform:translateX(0);}
-  /* Same reason: while the panel is up, the document behind it must not
-     scroll at all. This is what stops the whole overlay drifting. */
   body.m-detail{overflow:hidden !important;}
-  /* The Back button is position:fixed, so the pane scrolls underneath it and
-     the pane's top padding only clears it while scrolled to the top. This
-     opaque bar spans the same strip, so content passes BEHIND it instead of
-     showing through - and it slides in with the panel rather than hanging
-     over the list. Sits above the pane (75) and below the button (78). */
-  .m-backbar{display:none;position:fixed;top:52px;left:0;right:0;height:46px;
-    background:var(--sel,#E7F1D8);z-index:77;border-bottom:1px solid rgba(0,0,0,.06);
-    transform:translateX(100%);transition:transform .26s ease;}
-  body.m-detail .m-backbar{display:block;transform:translateX(0);}
-  body.m-detail .m-back{display:inline-flex;align-items:center;gap:5px;position:fixed;top:58px;left:12px;
-    z-index:78;background:#fff;color:#1A1D1A;border:1px solid #dde1dd;border-radius:9px;
-    padding:7px 13px;font-size:13px;font-weight:600;box-shadow:0 2px 10px rgba(0,0,0,.14);cursor:pointer;}
+
+  /* The Back control is a STICKY BAR INSIDE the pane, not a fixed button
+     over it. A fixed button is positioned against the viewport while the
+     card lives in a scrolling box, and the two can drift apart - which is
+     what kept hiding the status pill under it. In flow, content physically
+     cannot begin above this bar at any scroll offset or zoom level, and
+     sticky keeps it in place (and opaque) while the card scrolls beneath.
+     It is full-bleed, so the whole strip is the tap target. */
+  body.m-detail .m-back{
+    display:flex;align-items:center;gap:6px;
+    position:sticky;top:0;z-index:3;
+    width:auto;margin:0 -14px 14px;padding:13px 14px;
+    background:var(--sel,#E7F1D8);border:none;border-bottom:1px solid rgba(0,0,0,.08);
+    border-radius:0;box-shadow:none;
+    font-family:inherit;font-size:13.5px;font-weight:600;color:#1A1D1A;
+    text-align:left;cursor:pointer;-webkit-appearance:none;appearance:none;}
 
   /* ---- two-line rows ----
      .prow is a GRID on desktop, unlike every other list on the dashboards.
@@ -845,14 +843,24 @@ function closeWeightsCompose(){
                  '<span class="m-title">WasteNet Box Performance</span>';
   var bd = document.createElement('div'); bd.className = 'm-backdrop'; bd.id = 'mBackdrop';
   var bk = document.createElement('button'); bk.className = 'm-back'; bk.id = 'mBack';
+  bk.type = 'button';
   bk.innerHTML = '\u2039 Back to list';
-  // Opaque strip behind the Back button. The pane scrolls under both, so
-  // without this the button floats over live content (see m-pf-css).
-  var bbar = document.createElement('div'); bbar.className = 'm-backbar'; bbar.id = 'mBackBar';
   document.body.appendChild(tb);
   document.body.appendChild(bd);
-  document.body.appendChild(bbar);
-  document.body.appendChild(bk);
+
+  /* The Back bar lives INSIDE the detail pane as its first child, so it sits
+     in normal flow above the card rather than floating over it. renderDetail
+     rewrites pane.innerHTML on every selection, which throws the button out -
+     so re-seat it whenever the pane's children change. Cheap, and it means
+     no render path can leave the panel without a way back. */
+  var pane = document.getElementById('greenCol');
+  function mountBack(){
+    if(pane && bk.parentNode !== pane) pane.insertBefore(bk, pane.firstChild);
+  }
+  if(pane){
+    mountBack();
+    new MutationObserver(mountBack).observe(pane, { childList: true });
+  }
 
   function openRail(){ rail.classList.add('m-open'); bd.classList.add('m-open'); }
   function closeRail(){ rail.classList.remove('m-open'); bd.classList.remove('m-open'); }
@@ -874,7 +882,6 @@ function closeWeightsCompose(){
      chosen, so its absence is the reliable signal and it survives the list
      being redrawn underneath. */
   function syncDetail(){
-    var pane = document.getElementById('greenCol');
     if(pane && !pane.querySelector('.pd-empty')){
       document.body.classList.add('m-detail');
       /* Start every box at the top of its card. The pane keeps its scroll
