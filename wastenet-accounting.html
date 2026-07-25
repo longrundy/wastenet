@@ -1149,6 +1149,57 @@ body{padding-left:280px !important;}
     min-height:calc(100vh - 52px) !important;
     align-items:stretch !important;}
 
+  /* ---- Receivables & Payments: two-line rows ----
+     Both rows are a flat .aghead flex container of sibling spans, so this is
+     wrap + order only. No markup changes, which is what keeps the sort
+     wiring, the row click and the invoice selection working untouched.
+     The header (.rc-head) shares the cell class names, so it reflows into
+     the same two-line shape and stays a label for the values beneath it. */
+  .rc-folder:not(.dz-folder) .aghead,
+  .rc-folder:not(.dz-folder) .rc-head{
+    flex-wrap:wrap !important;white-space:normal !important;align-items:center !important;
+    padding-left:14px !important;padding-right:14px !important;
+    row-gap:3px !important;column-gap:8px !important;}
+  .rc-folder:not(.dz-folder) .aghead{padding-top:11px !important;padding-bottom:11px !important;}
+  /* Zero-height full-width spacer at order:3 forces the break - everything
+     ordered after it lands on line two. */
+  .rc-folder:not(.dz-folder) .aghead::after,
+  .rc-folder:not(.dz-folder) .rc-head::after{
+    content:"";flex:0 0 100% !important;height:0;order:3;}
+
+  /* Receivables - customer + balance lead, invoice/due/age beneath */
+  .rc-folder:not(.pm-folder):not(.dz-folder) .rc-cust{
+    order:1;flex:1 1 auto !important;min-width:0;white-space:normal !important;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+    font-size:14px !important;line-height:1.3;}
+  .rc-folder:not(.pm-folder):not(.dz-folder) .rc-bal{
+    order:2;flex:0 0 auto !important;width:auto !important;font-size:14px !important;}
+  .rc-folder:not(.pm-folder):not(.dz-folder) .rc-inv{
+    order:4;flex:0 0 auto !important;width:auto !important;font-size:11.5px !important;}
+  .rc-folder:not(.pm-folder):not(.dz-folder) .rc-due{
+    order:5;flex:0 0 auto !important;width:auto !important;font-size:11.5px !important;}
+  .rc-folder:not(.pm-folder):not(.dz-folder) .rc-age{
+    order:6;flex:0 0 auto !important;width:auto !important;margin-left:auto;text-align:right;}
+
+  /* Payments - customer + amount lead, date/invoice beneath */
+  .pm-folder .pm-cust{
+    order:1;flex:1 1 auto !important;min-width:0;white-space:normal !important;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+    font-size:14px !important;line-height:1.3;}
+  .pm-folder .pm-amt{
+    order:2;flex:0 0 auto !important;width:auto !important;font-size:14px !important;}
+  .pm-folder .pm-date{
+    order:4;flex:0 0 auto !important;width:auto !important;font-size:11.5px !important;}
+  .pm-folder .pm-inv{
+    order:5;flex:0 0 auto !important;width:auto !important;margin-left:auto;text-align:right;}
+
+  /* The rules above are specific enough to beat the header's own font sizing,
+     which would have blown the labels up to row size. Put back. The child
+     selector spares the nested .sc sort carets. */
+  .rc-folder:not(.dz-folder) .rc-head > span{
+    font-size:10.5px !important;line-height:1.4;
+    -webkit-line-clamp:none !important;display:inline-block !important;}
+
   /* modals: let the footer wrap so the send button can't land off-screen */
   .ivbg{padding:16px 10px !important;}
   .stmt-foot{flex-wrap:wrap !important;}
