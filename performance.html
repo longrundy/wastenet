@@ -270,8 +270,17 @@ body{padding-left:280px !important;}
     position:fixed !important;inset:52px 0 0 0 !important;max-height:none !important;
     height:auto !important;overflow-y:auto !important;overflow-x:auto;background:var(--sel,#E7F1D8) !important;
     z-index:75;transform:translateX(100%);transition:transform .26s ease;
-    padding:58px 14px 44px !important;border:none !important;border-radius:0 !important;}
+    padding:70px 14px 44px !important;border:none !important;border-radius:0 !important;
+    /* Keep this pane's scrolling to itself. Without it a flick past the end
+       chains to the document behind, which on iOS grows/shrinks the address
+       bar and shifts every position:fixed element - the panel appears to
+       slide up under the bar and snap back on release. */
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;}
   body.m-detail #greenCol.ag-detail{transform:translateX(0);}
+  /* Same reason: while the panel is up, the document behind it must not
+     scroll at all. This is what stops the whole overlay drifting. */
+  body.m-detail{overflow:hidden !important;}
   /* The Back button is position:fixed, so the pane scrolls underneath it and
      the pane's top padding only clears it while scrolled to the top. This
      opaque bar spans the same strip, so content passes BEHIND it instead of
@@ -866,8 +875,16 @@ function closeWeightsCompose(){
      being redrawn underneath. */
   function syncDetail(){
     var pane = document.getElementById('greenCol');
-    if(pane && !pane.querySelector('.pd-empty')) document.body.classList.add('m-detail');
-    else document.body.classList.remove('m-detail');
+    if(pane && !pane.querySelector('.pd-empty')){
+      document.body.classList.add('m-detail');
+      /* Start every box at the top of its card. The pane keeps its scroll
+         offset across renders, so opening a box after scrolling through a
+         long pull history would otherwise land you mid-card with the status
+         pill hidden behind the Back bar. */
+      pane.scrollTop = 0;
+    } else {
+      document.body.classList.remove('m-detail');
+    }
   }
 
   /* Only a tap on a row opens the panel. Tier buttons and the batch surface
