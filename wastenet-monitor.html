@@ -885,6 +885,7 @@ body{padding-left:236px;}
 .wn-tri{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;cursor:pointer;padding:9px 10px;border-radius:8px;color:#c1d3c6;font-family:inherit;font-size:13.5px;text-align:left;border-left:2px solid transparent;}
 .wn-tri:hover{background:#1c4a2c;color:#fff;}
 .wn-tri.on{background:#1c4a2c;color:#fff;border-left-color:#5CAA16;font-weight:600;}
+.wn-tri-div{height:1px;background:#265c39;margin:7px 10px;}
 .wn-tri-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;}
 .wn-tri-l{flex:1;}
 .wn-tri-n{font-variant-numeric:tabular-nums;color:#8fbf9c;font-weight:600;font-size:12.5px;}
@@ -2626,10 +2627,11 @@ function render(){
 
   (function(){
     var rt=document.getElementById("railTriage"); if(!rt) return;
-    var bk=[['action','#A32D2D','Schedule Service',counts.action],['rhythm','#7A4FBF','Due by Rhythm',counts.rhythm],['needsempty','#0F8C86','Record Empty',counts.needsempty],['monitor','#5B6470','Monitor Down',counts.monitor],['stale','#BA7517','Stale Scans',counts.stale],['scheduled','#378ADD','Scheduled',counts.scheduled],['clear','#639922','No Action',counts.clear]];
+    var bk=[['rhythm','#7A4FBF','Due by Rhythm',counts.rhythm],['action','#A32D2D','Schedule Service',counts.action],['needsempty','#0F8C86','Record Empty',counts.needsempty],['monitor','#5B6470','Monitor Down',counts.monitor],['stale','#BA7517','Stale Scans',counts.stale],['scheduled','#378ADD','Scheduled',counts.scheduled],['clear','#639922','No Action',counts.clear]];
     var h='';
     bk.forEach(function(x,i){ var on=state.view===x[0];
-      h+='<button type="button" class="wn-tri score-hit'+(on?' on':'')+'" data-view="'+x[0]+'"><span class="wn-tri-dot" style="background:'+x[1]+'"></span><span class="wn-tri-l">'+x[2]+'</span><span class="wn-tri-n">'+x[3]+'</span></button>'; });
+      h+='<button type="button" class="wn-tri score-hit'+(on?' on':'')+'" data-view="'+x[0]+'"><span class="wn-tri-dot" style="background:'+x[1]+'"></span><span class="wn-tri-l">'+x[2]+'</span><span class="wn-tri-n">'+x[3]+'</span></button>';
+      if(i===0) h+='<div class="wn-tri-div"></div>'; });
     rt.innerHTML=h;
   })();
   (function(){
