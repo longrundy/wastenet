@@ -3812,8 +3812,8 @@ function renderBilling(){
       case "inv":    av = Number(a.invoiceNo) || 0;  bv = Number(b.invoiceNo) || 0;  break;
       case "amount": av = Number(a.amount) || 0;     bv = Number(b.amount) || 0;     break;
       case "flag":   av = rank(a);                   bv = rank(b);                   break;
-      default:       av = String(a.shorthand).toLowerCase();
-                     bv = String(b.shorthand).toLowerCase();
+      default:       av = String(a.customer || a.shorthand).toLowerCase();
+                     bv = String(b.customer || b.shorthand).toLowerCase();
     }
     if(av < bv) return -1 * dir;
     if(av > bv) return  1 * dir;
@@ -3976,7 +3976,7 @@ function renderBilling(){
       return '<div class="agrow' + open + '" data-brow="' + esc(r.shorthand) + '">' +
           '<div class="aghead">' +
             '<span class="agcaret"></span>' +
-            '<span class="bname">' + esc(r.shorthand) + '</span>' +
+            '<span class="bname">' + esc(r.customer || r.shorthand) + '</span>' +
             '<span class="bc-inv">' +
               (hist ? invLink(r.invoiceNo, "x") : esc(r.invoiceNo)) + '</span>' +
             '<span class="bc-mon">' + esc(String(r.serviceMonth).slice(0, 3)) +
