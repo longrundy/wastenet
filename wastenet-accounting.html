@@ -650,6 +650,55 @@
   .bskip-lead svg{width:14px; height:14px; display:block;}
   .bskip-tag{display:inline-flex; align-items:center; gap:6px; border-radius:4px; padding:3px 9px;
              background:var(--green-tint); color:var(--green-darker); font-weight:600;}
+
+  /* Roster banner - what the draft could not see.
+     Full-span and squared off like .bskip, so it reads as part of the page
+     rather than a card dropped on top of it. Sits ABOVE the quarterly strip:
+     that one is reassurance (a name is missing ON PURPOSE), this one is the
+     opposite, and the opposite should be met first. */
+  .brg{border-top:0.5px solid var(--line); border-bottom:0.5px solid var(--line); margin:0 0 8px;}
+  .brg-hd{display:flex; align-items:center; gap:9px; padding:11px 24px 10px;
+          background:var(--red-tint); border-bottom:0.5px solid var(--line);}
+  .brg-hd svg{width:16px; height:16px; flex:0 0 auto; color:var(--red-darker);}
+  .brg-hd .t{font-size:12.5px; font-weight:600; color:var(--red-darker);}
+  .brg-hd .s{font-size:11.5px; color:var(--red-dark);}
+  .brg-sec{padding:10px 24px 4px; font-size:10.5px; font-weight:600;
+           letter-spacing:0.04em; color:var(--ink-2);}
+  .brg-row{display:flex; align-items:center; gap:10px; padding:7px 24px;
+           border-bottom:0.5px solid var(--line);}
+  .brg-row:last-child{border-bottom:0;}
+  .brg-nm{font-size:12.5px; font-weight:600; color:var(--ink); flex:1; min-width:0;
+          overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .brg-meta{font-size:11.5px; color:var(--ink-2); white-space:nowrap;}
+  .brg-tag{display:inline-flex; align-items:center; gap:5px; border-radius:4px;
+           padding:3px 9px; font-size:11px; font-weight:600; white-space:nowrap;}
+  .brg-tag.live{background:var(--red-tint); color:var(--red-darker);}
+  .brg-tag.amb{background:var(--amber-tint); color:var(--amber-dark);}
+  .brg-b{font-size:11.5px; padding:4px 11px; border-radius:var(--r-ctl); cursor:pointer;
+         font-family:var(--font); font-weight:600; white-space:nowrap;
+         border:0.5px solid var(--line-strong); background:var(--card); color:var(--ink-2);}
+  .brg-b:hover{border-color:var(--green); color:var(--green-dark);}
+  .brg-b.go{background:var(--green); border-color:var(--green); color:#fff;}
+  .brg-b.go:hover{background:var(--green-dark); border-color:var(--green-dark); color:#fff;}
+  .brg-b:disabled{opacity:.55; cursor:default;}
+  /* Unverified: no buttons, quieter surface. It cannot tell a cancelled
+     account from one spelled differently in the two workbooks, so it must
+     not look like something to act on. */
+  .brg-soft{display:flex; align-items:center; gap:9px; flex-wrap:wrap;
+            padding:9px 24px; background:var(--panel); border-top:0.5px solid var(--line);
+            font-size:11.5px; color:var(--ink-2);}
+  .brg-soft svg{width:15px; height:15px; flex:0 0 auto;}
+  .brg-soft .hint{display:inline-flex; border-radius:4px; padding:2px 8px;
+                  background:var(--amber-tint); color:var(--amber-dark); font-weight:600; font-size:10.5px;}
+  .brg-soft .rest{color:var(--ink-3);}
+  .brg-err{padding:9px 24px; background:var(--amber-tint); color:var(--amber-dark);
+           font-size:11.5px; font-weight:600;}
+  @media (max-width:720px){
+    .brg-hd,.brg-row,.brg-sec,.brg-soft{padding-left:14px; padding-right:14px;}
+    .brg-row{flex-wrap:wrap;}
+    .brg-nm{flex:1 0 100%;}
+    .brg-meta{white-space:normal;}
+  }
   .bskip-tag .n{font-weight:400; color:var(--green-dark);}
 
   /* Editable, but only for the month being billed. A past month is a record
@@ -1394,6 +1443,12 @@ var API = "https://script.google.com/macros/s/AKfycbwvvAfVChkEJPlgz8c0iRbH23YIrt
    SendGrid lives in exactly one place. Giving the accounting backend its own
    key would mean two deployments, two identities and two things to revoke the
    day an address changes - for the sake of seven emails a month. */
+/* The Billing Map tab, opened in a new tab from the roster banner. Adding a
+   row is a five-column decision - shorthand, offset, quarterly, delivery,
+   portal - and the sheet already has the validation and the neighbours to
+   copy from. A cut-down form in a banner would be a worse version of it. */
+var BILLING_MAP_URL = "https://docs.google.com/spreadsheets/d/1W5BJ-dCqRx0R32VxZikQEFW4QdG3LdrbdCrmeIW3rzM/edit#gid=0";
+
 var MONITOR_API = "https://script.google.com/macros/s/AKfycbwc3siwl0OTP2O5WzNZCDn4cj3MDVRfcVxJW0TZtoPnAKLwhYSwmW_m1h7ib6Yf_Dvk9w/exec";
 var BCC = "office@wastenetinc.com";
 var LOGO = "https://dashboard.wastenetinc.com/WastenetLogo.png";
@@ -1555,6 +1610,8 @@ var state = {
   bDraftMonth: "",
   bDraft: null,
   bNotDue: [],
+  bGaps: [], bUnbilled: [], bZeros: [], bOrphans: [],
+  bCes: null, bOpenGaps: 0,
   bLoaded: false,
   bLoading: false
 };
@@ -3837,6 +3894,181 @@ function renderBilling(){
           'Box \u00b7 ' + boxed.length + '</button>' +
       '</div>';
 
+  /* ---------------------------------------------------------------
+     THE ROSTER BANNER
+
+     Reconext was billed $450/month until April 2026, then silently stopped
+     - not cancelled, not disputed. Two boxes kept reporting to CES every
+     night while the draft never mentioned the name again, because the draft
+     is built by walking the Billing Map and Reconext had no row in it. A
+     customer the draft cannot see cannot be missed, and four months went by.
+
+     So the page now says what the draft could NOT see, above the list of
+     what it could. It sits over the quarterly strip deliberately: that one
+     exists to reassure (a name is absent on purpose), and reassurance can
+     wait behind its opposite.
+
+     Nothing here blocks. Kim can bill straight out of QuickBooks and never
+     open this page. What it removes is the possibility of doing the month
+     while believing the roster is complete.
+     --------------------------------------------------------------- */
+  function brgBanner(){
+    if(hist) return "";                       // a closed month is a record
+
+    var gaps  = state.bGaps || [];
+    var unb   = state.bUnbilled || [];
+    var zeros = state.bZeros || [];
+    var orph  = (state.bOrphans || []).filter(function(o){ return !o.acknowledged; });
+    var ces   = state.bCes;
+
+    var open = state.bOpenGaps || 0;
+
+    /* The Monitor read failing is NOT "no findings". Silence would read as a
+       clean roster, which is the one lie this must never tell. */
+    var cesErr = (ces && ces.ok === false)
+      ? '<div class="brg-err">Could not read CES: ' + esc(ces.error || "unknown") +
+        ' &mdash; box checks are not running.</div>'
+      : "";
+
+    if(!open && !orph.length && !cesErr) return "";
+
+    var live = gaps.filter(function(g){ return !g.acknowledged && g.confirmedLive; });
+    var dead = gaps.filter(function(g){ return !g.acknowledged && !g.confirmedLive; });
+    var unat = unb.filter(function(u){ return !u.acknowledged && u.kind === "unattributed"; });
+
+    /* A customer already named in gaps is the SAME problem seen from the box
+       side. Listing it twice would make one omission look like two. */
+    var named = {};
+    gaps.forEach(function(g){ named[g.customer] = true; });
+    var boxOnly = unb.filter(function(u){
+      return !u.acknowledged && u.kind === "no-billing-row" && !named[u.customer];
+    });
+
+    var money = function(n){
+      return (n || n === 0) ? "$" + Number(n).toLocaleString() : "";
+    };
+
+    /* A name the unverified list already blamed on a naming mismatch is NOT a
+       missing customer, and offering "Add settings row" for it would be
+       actively harmful.
+       "Memorial Hermann" holds boxes 172 and 285 and looks exactly like a gap:
+       live boxes, billing history, no Billing Map row. But those boxes belong
+       to Memorial Hermann Memorial City Med. Ctr., which IS in the map and IS
+       billed $300 every month. Adding a row would create a second billing
+       line for one account and double-bill it - caused by a banner built to
+       stop billing mistakes.
+       The fix is an Override on those boxes in CES Clients, so that is what
+       the row says. */
+    var pairedTo = {};
+    (state.bOrphans || []).forEach(function(o){
+      (o.likelyMatches || []).forEach(function(m){
+        if(m.cesName) pairedTo[m.cesName] = o.customer;
+      });
+    });
+
+    var actions = function(cust, canAdd){
+      if(pairedTo[cust]){
+        return '<span class="brg-meta" style="color:var(--amber-dark);font-weight:600">' +
+               'same account as ' + esc(pairedTo[cust]) + ' &mdash; set an Override in CES Clients' +
+               '</span>';
+      }
+      return (canAdd ? '<a class="brg-b go" target="_blank" rel="noopener" href="' +
+                       BILLING_MAP_URL + '">Add settings row</a>' : "") +
+             '<button class="brg-b" data-brgack="' + esc(cust) + '">Acknowledge</button>';
+    };
+
+    var out = '<div class="brg">' +
+      '<div class="brg-hd">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+          '<path d="M12 9v4"/><path d="M12 17h.01"/>' +
+          '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>' +
+        '<span class="t">' + open + ' unresolved &mdash; roster incomplete</span>' +
+        '<span class="s">this month cannot be billed correctly until these are cleared or acknowledged</span>' +
+      '</div>' + cesErr;
+
+    if(live.length || boxOnly.length || unat.length){
+      out += '<div class="brg-sec">ACTIVE BOXES, NOT BILLED</div>';
+
+      live.forEach(function(g){
+        out += '<div class="brg-row">' +
+          '<span class="brg-tag live">' + g.activeBoxes + ' live</span>' +
+          '<span class="brg-nm">' + esc(g.customer) + '</span>' +
+          '<span class="brg-meta">last billed #' + esc(g.lastDoc) + ' &middot; ' +
+            g.monthsSince + ' mo ago &middot; ' + money(g.lastAmount) + '</span>' +
+          actions(g.customer, true) + '</div>';
+      });
+
+      // Boxes in CES for a customer with no invoice history at all - which is
+      // why the billing-side check alone could never have found them.
+      boxOnly.forEach(function(u){
+        out += '<div class="brg-row">' +
+          '<span class="brg-tag live">' + u.count + ' live</span>' +
+          '<span class="brg-nm">' + esc(u.customer) + '</span>' +
+          '<span class="brg-meta">never invoiced &middot; box ' +
+            esc((u.boxes || []).join(", ")) + '</span>' +
+          actions(u.customer, true) + '</div>';
+      });
+
+      unat.forEach(function(u){
+        out += '<div class="brg-row">' +
+          '<span class="brg-tag amb">' + u.count + ' box' + (u.count === 1 ? "" : "es") + '</span>' +
+          '<span class="brg-nm">Unattributed &mdash; ' + esc(String(u.how).toLowerCase()) + '</span>' +
+          '<span class="brg-meta">box ' + esc((u.boxes || []).join(", ")) + '</span>' +
+          '<button class="brg-b" data-brgack="CES:' + esc(u.how) + '">Acknowledge</button>' +
+          '</div>';
+      });
+    }
+
+    if(dead.length || zeros.length){
+      out += '<div class="brg-sec">BILLED BEFORE, NO ACTIVE BOXES</div>';
+
+      dead.forEach(function(g){
+        out += '<div class="brg-row">' +
+          '<span class="brg-nm">' + esc(g.customer) + '</span>' +
+          '<span class="brg-meta">last billed #' + esc(g.lastDoc) + ' &middot; ' +
+            g.monthsSince + ' mo ago &middot; ' + money(g.lastAmount) + '</span>' +
+          actions(g.customer, false) + '</div>';
+      });
+
+      /* An invoice that went out at $0.00 with no boxes. It looks healthy from
+         every angle except the amount, which is why it sat unnoticed. */
+      zeros.forEach(function(z){
+        out += '<div class="brg-row">' +
+          '<span class="brg-tag amb">$0.00</span>' +
+          '<span class="brg-nm">' + esc(z.customer) + '</span>' +
+          '<span class="brg-meta">#' + esc(z.lastDoc) + ' billed ' + esc(z.lastDate) +
+            ' with no boxes</span>' +
+          '<button class="brg-b" data-brgack="' + esc(z.customer) + '">Acknowledge</button>' +
+          '</div>';
+      });
+    }
+
+    /* Unverified. Deliberately unactionable: the two workbooks do not always
+       agree on what a customer is called, so "no boxes found" here can mean
+       cancelled OR spelled differently. Quietflex (really cancelled) and
+       Hyatt (perfectly healthy) land in the same bucket, and nothing in the
+       data separates them. Showing it is honest; giving it a button would
+       not be. */
+    if(orph.length){
+      var hints = orph.filter(function(o){ return o.status === "likely-name-mismatch"; });
+      var plain = orph.filter(function(o){ return o.status !== "likely-name-mismatch"; });
+
+      out += '<div class="brg-soft">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+          '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>' +
+        '<span>' + orph.length + ' worth checking &mdash; billed, but no box found under that exact name.</span>' +
+        hints.map(function(o){
+          return '<span class="hint">' + esc(o.shorthand) + ' &rarr; &ldquo;' +
+                 esc(o.likelyMatches[0].cesName) + '&rdquo;</span>';
+        }).join("") +
+        (plain.length ? '<span class="rest">' +
+          esc(plain.map(function(o){ return o.shorthand; }).join(", ")) + '</span>' : "") +
+        '</div>';
+    }
+
+    return out + '</div>';
+  }
+
   /* A quarterly customer who isn't due doesn't appear in the list - and a
      name simply missing looks like something went wrong. So say it. */
   var skip = "";
@@ -3868,11 +4100,11 @@ function renderBilling(){
   var selRow = null;
   var body;
   if(!rows.length){
-    body = skip + head + '<div class="empty-state">' +
+    body = brgBanner() + skip + head + '<div class="empty-state">' +
       (state.bSearch ? 'No customer matches that.' : 'Nothing logged for this month.') +
       '</div>';
   } else {
-    body = skip + head + rows.map(function(r){
+    body = brgBanner() + skip + head + rows.map(function(r){
 
       /* A past month is a RECORD. There is nothing to type into it, so the
          only thing a row can open onto is the note it was billed with. No
@@ -4059,6 +4291,16 @@ function loadBilling(year){
     state.bDraftMonth = data.draftMonth || "";
     state.bDraft      = data.draft || null;
     state.bNotDue     = (data.draft && data.draft.notDue) || [];
+
+    /* Roster findings are a property of the ROSTER, not of one month, so they
+       come off the top-level response rather than off the draft - otherwise
+       they vanish in a year with every month already billed. */
+    state.bGaps     = data.gaps || [];
+    state.bUnbilled = data.unbilledBoxes || [];
+    state.bZeros    = data.zeroInvoices || [];
+    state.bOrphans  = data.orphanBilling || [];
+    state.bCes      = data.ces || null;
+    state.bOpenGaps = data.openGaps || 0;
     state.bLoaded     = true;
     state.bFilter     = "all";
     state.bSearch     = "";
@@ -4077,6 +4319,53 @@ function loadBilling(year){
 }
 
 function wireBilling(){
+  /* Acknowledge: say why a name does not need a Billing Map row.
+     A reason is REQUIRED - the whole value of a dismissal is that a year
+     later somebody can see who decided and on what grounds. Cancel, or an
+     empty reason, leaves the row on the list where it belongs. */
+  document.querySelectorAll("[data-brgack]").forEach(function(b){
+    b.onclick = function(){
+      var cust = b.getAttribute("data-brgack");
+      var why = window.prompt(
+        'Why does "' + cust + '" not need a Billing Map row?\n' +
+        '(e.g. "cancelled July 2026 - confirmed with Lydick")', "");
+      if(why === null) return;
+      why = String(why).trim();
+      if(!why) return;
+
+      b.disabled = true;
+      b.textContent = "Saving\u2026";
+
+      jsonp({ action:"saveack", key:KEY, customer:cust, reason:why, by:"dashboard" },
+      function(data){
+        if(!data || !data.ok){
+          b.disabled = false;
+          b.textContent = "Acknowledge";
+          showError((data && data.error) || "Could not save that.");
+          return;
+        }
+        /* Drop it from the in-memory findings so the count and the list move
+           together. Re-rendering off stale state would put the row straight
+           back and make the click look like it failed. */
+        var hit = 0;
+        ["bGaps","bUnbilled","bZeros","bOrphans"].forEach(function(k){
+          (state[k] || []).forEach(function(x){
+            var id = x.customer || ("CES:" + x.how);
+            if(id !== cust || x.acknowledged) return;
+            x.acknowledged = true;
+            x.ackReason = why;
+            hit++;
+          });
+        });
+        /* One customer can sit in two lists - Reconext is in both. It was
+           always one problem, and openGaps counts it once, so clearing it
+           decrements once. */
+        if(hit) state.bOpenGaps = Math.max(0, (state.bOpenGaps || 0) - 1);
+        renderBody();
+      });
+    };
+  });
+
   document.querySelectorAll(".ftab[data-bmonth]").forEach(function(el){
     el.onclick = function(){
       var m = el.getAttribute("data-bmonth");
