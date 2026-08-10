@@ -1610,7 +1610,7 @@ var state = {
   bDraftMonth: "",
   bDraft: null,
   bNotDue: [],
-  bGaps: [], bUnbilled: [], bZeros: [], bOrphans: [],
+  bGaps: [], bUnbilled: [], bZeros: [], bOrphans: [], bDrift: [],
   bCes: null, bOpenGaps: 0,
   bLoaded: false,
   bLoading: false
@@ -3919,6 +3919,7 @@ function renderBilling(){
     var unb   = state.bUnbilled || [];
     var zeros = state.bZeros || [];
     var orph  = (state.bOrphans || []).filter(function(o){ return !o.acknowledged; });
+    var drift = (state.bDrift || []).filter(function(d){ return !d.acknowledged; });
     var ces   = state.bCes;
 
     var open = state.bOpenGaps || 0;
@@ -3930,7 +3931,7 @@ function renderBilling(){
         ' &mdash; box checks are not running.</div>'
       : "";
 
-    if(!open && !orph.length && !cesErr) return "";
+    if(!open && !orph.length && !drift.length && !cesErr) return "";
 
     var live = gaps.filter(function(g){ return !g.acknowledged && g.confirmedLive; });
     var dead = gaps.filter(function(g){ return !g.acknowledged && !g.confirmedLive; });
@@ -4039,6 +4040,33 @@ function renderBilling(){
           '<span class="brg-meta">#' + esc(z.lastDoc) + ' billed ' + esc(z.lastDate) +
             ' with no boxes</span>' +
           '<button class="brg-b" data-brgack="' + esc(z.customer) + '">Acknowledge</button>' +
+          '</div>';
+      });
+    }
+
+    /* BOX COUNT DRIFT.
+       Its own section because the fix is neither of the other two. Nothing is
+       missing from the roster and nothing needs acknowledging - the customer
+       is set up correctly and the NUMBER is wrong. This is the failure none of
+       the other checks can see: a row exists, it bills monthly, it gets paid,
+       and it is short.
+       No Acknowledge button. A count that disagrees with CES is either
+       corrected or explained by a rate, and neither is a dismissal - a
+       dismissed drift would simply keep under-billing quietly, which is
+       exactly the state it exists to end. */
+    if(drift.length){
+      var under = drift.filter(function(d){ return d.direction === "under-billed"; }).length;
+      out += '<div class="brg-sec">BILLED BOX COUNT DOES NOT MATCH CES' +
+             (under === drift.length ? ' &mdash; all under-billed' : "") + '</div>';
+
+      drift.forEach(function(d){
+        var up = d.diff > 0;
+        out += '<div class="brg-row">' +
+          '<span class="brg-tag ' + (up ? "live" : "amb") + '">' +
+            (up ? "+" : "") + d.diff + ' box' + (Math.abs(d.diff) === 1 ? "" : "es") + '</span>' +
+          '<span class="brg-nm">' + esc(d.customer) + '</span>' +
+          '<span class="brg-meta">billed for ' + d.billed + ' &middot; CES monitors ' + d.live +
+            ' &middot; ' + money(d.amount) + '/mo on #' + esc(d.lastDoc) + '</span>' +
           '</div>';
       });
     }
@@ -4299,6 +4327,7 @@ function loadBilling(year){
     state.bUnbilled = data.unbilledBoxes || [];
     state.bZeros    = data.zeroInvoices || [];
     state.bOrphans  = data.orphanBilling || [];
+    state.bDrift    = data.boxDrift || [];
     state.bCes      = data.ces || null;
     state.bOpenGaps = data.openGaps || 0;
     state.bLoaded     = true;
