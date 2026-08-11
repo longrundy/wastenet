@@ -2670,13 +2670,130 @@ function invoiceBlockHtml(i, first, linkable){
       '<tr><td colspan="2" style="padding-top:8px;">'+
         '<div style="background:#F6F7F3;border-radius:5px;padding:9px 11px;font-size:12px;'+
           'color:#525A60;line-height:1.75;">'+
+          /* The per-invoice cellular fee line is GONE, not zeroed.
+             The fee is no longer charged per invoice - it is one monthly
+             charge on the agent's active boxes, shown in its own section
+             below. Leaving the line printing "-$0.00" was worse than
+             either alternative: it drew the eye to a deduction that does
+             not happen here, showed nothing, and then did not subtract it,
+             so the arithmetic on the card could not explain the total. */
           maths + chargeNote +
-          '<br>less cellular fees, '+ fmtN(i.boxes) +' boxes \u00d7 $25 &nbsp;=&nbsp; '+
-            '<b style="color:#A32D2D;">\u2212$'+ fmt(i.fees || 0) +'</b>'+
-          '<br><span style="color:#8A8F8A;">$'+ fmt(base) +' \u00d7 '+
+          '<br><span style="color:#8A8F8A;">$'+ fmt(i.monitoring || 0) +' \u00d7 '+
             Math.round((i.share || 0) * 100) +'% share</span> &nbsp;=&nbsp; '+
             '<b style="color:#27500A;">$'+ fmt(i.payout) +'</b>'+
         '</div>'+
+      '</td></tr>'+
+    '</table>'+
+  '</div>';
+}
+
+/* THE BOX COMMUNICATION FEE - its own section, above the settlement.
+ *
+ * It is not a deduction from any one invoice, so it must not be shown inside
+ * one. Every active box the agent's customers have, once a month, whether or
+ * not that customer paid. Charging it per paid invoice was the old bug: two
+ * invoices settled in one month charged the fee twice for the same boxes.
+ *
+ * The wording says "box communication", not "cellular" - the $25 is a flat
+ * negotiated figure covering airtime, monitoring and data storage together,
+ * not a pass-through of any one CES line.
+ *
+ * A capped account shows both numbers. BayCare has 25 active boxes and is
+ * charged on 5, and an agent seeing "5" beside a site he knows has 25 should
+ * be able to see that it is the agreement rather than a miscount. */
+function boxFeeHtml(a){
+  var lines = a.feeLines || [];
+
+  /* CES unreadable. NOT the same as no fee, and it must never render as one -
+     a silent $0.00 here overpays the agent by the whole month's fee. */
+  if (a.feeKnown === false){
+    return '<div style="margin-top:8px;padding:12px 15px;background:#FDF8EF;'+
+      'border:1px solid #F0D9AE;border-radius:6px;font-size:12px;color:#854F0B;">'+
+      '<b>Box communication fee not calculated.</b> The box list could not be read'+
+      (a.feeError ? ' \u2014 '+ esc(a.feeError) : '') +
+      '. This statement is incomplete and should not be sent.'+
+    '</div>';
+  }
+
+  if (!a.fees) return "";
+
+  var rows = lines.map(function(l){
+    return '<tr>'+
+      '<td style="font-size:12px;color:#525A60;padding:3px 0;word-wrap:break-word;">'+ esc(l.customer) +
+        (l.capped ? ' <span style="color:#854F0B;font-size:10.5px;">capped at '+
+           fmtN(l.boxes) +' of '+ fmtN(l.active) +'</span>' : '') +'</td>'+
+      '<td align="right" style="font-size:12px;color:#525A60;padding:3px 0;white-space:nowrap;">'+
+        fmtN(l.boxes) +' \u00d7 $'+ fmt(l.rate) +'</td>'+
+      '<td align="right" style="font-size:12px;color:#1A1D1A;padding:3px 0 3px 14px;white-space:nowrap;">$'+
+        fmt(l.amount) +'</td>'+
+    '</tr>';
+  }).join("");
+
+  return '<div style="margin-top:8px;padding:12px 15px;background:#F6F7F3;'+
+      'border:1px solid #E4E7E0;border-radius:6px;">'+
+    '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">'+
+      '<tr><td colspan="3" style="font-size:13px;color:#1A1D1A;padding-bottom:2px;">'+
+        '<b>Box communication fee</b></td></tr>'+
+      '<tr><td colspan="3" style="font-size:11px;color:#8A8F8A;padding-bottom:7px;">'+
+        'Charged monthly on every active box, whether or not the account paid.'+
+      '</td></tr>'+
+      rows +
+      '<tr><td colspan="2" style="font-size:13px;color:#1A1D1A;padding-top:8px;border-top:1px solid #E4E7E0;">'+
+        '<b>'+ fmtN(a.feeBoxes) +' boxes</b> \u00d7 $'+ fmt(a.feeRate) +'</td>'+
+      '<td align="right" style="font-size:15px;font-weight:bold;color:#A32D2D;padding:8px 0 0 14px;'+
+        'border-top:1px solid #E4E7E0;white-space:nowrap;">\u2212$'+ fmt(a.fees) +'</td></tr>'+
+    '</table>'+
+  '</div>';
+}
+
+/* Brought forward from a month that did not cover its own fee. Shown only
+   when there is one - a zero line would invite the question every month. */
+function carriedInHtml(a){
+  if (!a.carriedIn) return "";
+  return '<div style="margin-top:8px;padding:12px 15px;background:#F6F7F3;'+
+      'border:1px solid #E4E7E0;border-radius:6px;">'+
+    '<table width="100%" cellpadding="0" cellspacing="0" border="0">'+
+      '<tr>'+
+        '<td style="font-size:13px;color:#1A1D1A;">Balance brought forward</td>'+
+        '<td align="right" style="font-size:15px;font-weight:bold;color:#A32D2D;white-space:nowrap;">'+
+          '\u2212$'+ fmt(a.carriedIn) +'</td>'+
+      '</tr>'+
+      '<tr><td colspan="2" style="font-size:11px;color:#525A60;padding-top:4px;">'+
+        'Unrecovered box communication fee from the previous statement.'+
+      '</td></tr>'+
+    '</table>'+
+  '</div>';
+}
+
+/* The settlement. Every figure above it, resolved into one number.
+ *
+ * A month can end owing rather than earning - the fee lands whether or not
+ * anybody paid - so this has two forms, and the owing one says plainly what
+ * happens next rather than showing a bare negative. */
+function settlementHtml(a, payTot, period){
+  var fee   = a.fees || 0;
+  var cIn   = a.carriedIn || 0;
+  var net   = Math.round((payTot - fee - cIn) * 100) / 100;
+  var owing = net < 0;
+
+  var sum = '$'+ fmt(payTot) +
+            (fee ? ' \u2212 $'+ fmt(fee) +' fee' : '') +
+            (cIn ? ' \u2212 $'+ fmt(cIn) +' brought forward' : '');
+
+  return '<div style="margin-top:8px;padding:14px 15px;background:'+
+      (owing ? '#FDF8EF' : '#F4FAEC') +';border:1px solid '+
+      (owing ? '#F0D9AE' : '#C0DD97') +';border-radius:6px;">'+
+    '<table width="100%" cellpadding="0" cellspacing="0" border="0">'+
+      '<tr>'+
+        '<td style="font-size:13px;color:#1A1D1A;">'+
+          (owing ? 'Carried to next statement' : 'Payable for <b>'+ esc(stmtPeriodLabel(period)) +'</b>') +'</td>'+
+        '<td align="right" style="font-size:21px;font-weight:bold;color:'+
+          (owing ? '#854F0B' : '#27500A') +';white-space:nowrap;">$'+
+          fmt(owing ? -net : net) +'</td>'+
+      '</tr>'+
+      '<tr><td colspan="2" style="font-size:11px;color:#525A60;padding-top:5px;">'+
+        esc(sum) +
+        (owing ? ' \u2014 nothing is payable this month; the balance comes off the next statement.' : '') +
       '</td></tr>'+
     '</table>'+
   '</div>';
@@ -2703,20 +2820,22 @@ function statementHtml(a, period, note, opts){
 
     blocks +
 
-    '<div style="margin-top:6px;padding:14px 15px;background:#F4FAEC;border:1px solid #C0DD97;border-radius:6px;">'+
+    '<div style="margin-top:6px;padding:12px 15px;background:#F6F7F3;border:1px solid #E4E7E0;border-radius:6px;">'+
       '<table width="100%" cellpadding="0" cellspacing="0" border="0">'+
         '<tr>'+
-          '<td style="font-size:13px;color:#1A1D1A;">Total commission for <b>'+
-            esc(stmtPeriodLabel(period)) +'</b></td>'+
-          '<td align="right" style="font-size:21px;font-weight:bold;color:#27500A;white-space:nowrap;">$'+
+          '<td style="font-size:13px;color:#1A1D1A;">Commission on payments received</td>'+
+          '<td align="right" style="font-size:15px;font-weight:bold;color:#1A1D1A;white-space:nowrap;">$'+
             fmt(payTot) +'</td>'+
         '</tr>'+
-        '<tr><td colspan="2" style="font-size:11px;color:#525A60;padding-top:5px;">'+
-          fmtN(invs.length) + (invs.length === 1 ? ' invoice' : ' invoices') +
-          ' \u00b7 '+ fmtN(a.boxes) +' boxes \u00b7 cellular fees are $25 per box'+
+        '<tr><td colspan="2" style="font-size:11px;color:#525A60;padding-top:4px;">'+
+          fmtN(invs.length) + (invs.length === 1 ? ' invoice' : ' invoices') + ' paid this month'+
         '</td></tr>'+
       '</table>'+
-    '</div>';
+    '</div>'+
+
+    boxFeeHtml(a) +
+    carriedInHtml(a) +
+    settlementHtml(a, payTot, period);
 
   return '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FAFBF8;padding:24px 12px;">'+
     '<tr><td align="center">'+
@@ -2854,18 +2973,35 @@ function renderAgents(){
          would be a lie, so the per-invoice rates below do the talking. */
       var oneRate = (a.rates && a.rates.length === 1);
 
+      /* The order here follows the money, and it changed: the share is now
+         applied to GROSS monitoring, and the box fee comes off afterwards as
+         one monthly charge on the agent's active boxes. Showing the fee
+         first, inside the share, would state the old arithmetic. */
       var math = '<div class="agmath">' +
         '<b>$' + fmt(a.monitoring) + '</b> monitoring collected' +
-        ' \u2212 <b>$' + fmt(a.fees) + '</b> cellular fees (' +
-        fmtN(a.boxes) + ' boxes \u00d7 $25)' +
-        ' = <b>$' + fmt(a.monitoring - a.fees) + '</b>' +
         (oneRate
-          ? '<br>\u00d7 <b>' + Math.round(a.rates[0] * 100) + '%</b> share' +
-            ' = <b>$' + fmt(a.payout) + '</b>'
+          ? ' \u00d7 <b>' + Math.round(a.rates[0] * 100) + '%</b> share' +
+            ' = <b>$' + fmt(a.commission != null ? a.commission : 0) + '</b>'
           : '<br>paid at ' + (a.rates || []).map(function(r){
               return '<b>' + Math.round(r * 100) + '%</b>';
             }).join(' and ') + ' depending on the account' +
-            ' \u2014 total <b>$' + fmt(a.payout) + '</b>') +
+            ' \u2014 commission <b>$' + fmt(a.commission != null ? a.commission : 0) + '</b>') +
+        (a.feeKnown === false
+          ? '<br><span style="color:#854F0B;">box fee not calculated \u2014 box list unreadable</span>'
+          : (a.fees
+              ? '<br>\u2212 <b>$' + fmt(a.fees) + '</b> box communication (' +
+                fmtN(a.feeBoxes) + ' active boxes \u00d7 $' + fmt(a.feeRate) + ')'
+              : '')) +
+        (a.carriedIn
+          ? '<br>\u2212 <b>$' + fmt(a.carriedIn) + '</b> brought forward'
+          : '') +
+        ((a.fees || a.carriedIn)
+          ? '<br>= <b>$' + fmt(a.payout) + '</b>' +
+            (a.carriedOut
+              ? ' <span style="color:#854F0B;">\u2014 $' + fmt(a.carriedOut) +
+                ' carried to next month</span>'
+              : '')
+          : '') +
         '</div>';
 
       /* Name the invoices. "2 invoices contain a flagged line" is a dead
