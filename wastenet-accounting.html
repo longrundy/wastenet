@@ -2219,7 +2219,9 @@ var ICON_COMMISSION =
    the top saying it in words. He never has to remember being told once.
 
    The fee is shown per line too. An agent checking his own statement should not
-   have to work out 25 boxes x $25 in his head to see where $625 went. */
+   have to work out 25 boxes x the rate in his head to see where the money
+   went. The rate itself comes from the payload (feeRate), never hardcoded -
+   it changed from $25 to $12.50 in August 2026 and will change again. */
 /* The preview is not a courtesy. This is money, going to someone who will
    check the arithmetic, and it is the last moment a mistake costs nothing. */
 function openStmtPreview(agent, mode){
@@ -2694,7 +2696,7 @@ function invoiceBlockHtml(i, first, linkable){
  * not that customer paid. Charging it per paid invoice was the old bug: two
  * invoices settled in one month charged the fee twice for the same boxes.
  *
- * The wording says "box communication", not "cellular" - the $25 is a flat
+ * The wording says "box communication", not "cellular" - the fee is a flat
  * negotiated figure covering airtime, monitoring and data storage together,
  * not a pass-through of any one CES line.
  *
