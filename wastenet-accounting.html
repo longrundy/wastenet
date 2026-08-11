@@ -2748,6 +2748,52 @@ function boxFeeHtml(a){
   '</div>';
 }
 
+/* CES FEES - parts and hardware CES shipped to the agent.
+ *
+ * A third deduction, and quite different from the box fee: that one is a flat
+ * monthly charge on every active box, this is whatever CES actually invoiced
+ * for a sensor, a board, a cable. It is rare - five invoices across the whole
+ * of 2026, every one of them John Dion - so most statements will not show
+ * this section at all.
+ *
+ * Each invoice is listed rather than summed into one line. An agent seeing
+ * $755.65 come off his pay should be able to see which CES invoice it was and
+ * where it shipped, without having to ask.
+ */
+function cesFeeHtml(a){
+  var lines = a.cesFeeLines || [];
+  if (!a.cesFees || !lines.length) return "";
+
+  var rows = lines.map(function(l){
+    return '<tr>'+
+      '<td style="font-size:12px;color:#525A60;padding:3px 0;word-wrap:break-word;">'+
+        'Invoice '+ esc(l.invoice) +
+        (l.note ? ' <span style="color:#8A8F8A;">\u2014 '+ esc(l.note) +'</span>' : '') +
+      '</td>'+
+      '<td align="right" style="font-size:12px;color:#8A8F8A;padding:3px 0;white-space:nowrap;">'+
+        esc(stmtDay(l.date)) +'</td>'+
+      '<td align="right" style="font-size:12px;color:#1A1D1A;padding:3px 0 3px 14px;white-space:nowrap;">$'+
+        fmt(l.amount) +'</td>'+
+    '</tr>';
+  }).join("");
+
+  return '<div style="margin-top:8px;padding:12px 15px;background:#F6F7F3;'+
+      'border:1px solid #E4E7E0;border-radius:6px;">'+
+    '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">'+
+      '<tr><td colspan="3" style="font-size:13px;color:#1A1D1A;padding-bottom:2px;">'+
+        '<b>CES fees</b></td></tr>'+
+      '<tr><td colspan="3" style="font-size:11px;color:#8A8F8A;padding-bottom:7px;">'+
+        'Parts and equipment CES shipped to you this month.'+
+      '</td></tr>'+
+      rows +
+      '<tr><td colspan="2" style="font-size:13px;color:#1A1D1A;padding-top:8px;border-top:1px solid #E4E7E0;">'+
+        '<b>'+ fmtN(lines.length) +'</b> '+ (lines.length === 1 ? 'invoice' : 'invoices') +'</td>'+
+      '<td align="right" style="font-size:15px;font-weight:bold;color:#A32D2D;padding:8px 0 0 14px;'+
+        'border-top:1px solid #E4E7E0;white-space:nowrap;">\u2212$'+ fmt(a.cesFees) +'</td></tr>'+
+    '</table>'+
+  '</div>';
+}
+
 /* Brought forward from a month that did not cover its own fee. Shown only
    when there is one - a zero line would invite the question every month. */
 function carriedInHtml(a){
@@ -2774,12 +2820,14 @@ function carriedInHtml(a){
  * happens next rather than showing a bare negative. */
 function settlementHtml(a, payTot, period){
   var fee   = a.fees || 0;
+  var ces   = a.cesFees || 0;
   var cIn   = a.carriedIn || 0;
-  var net   = Math.round((payTot - fee - cIn) * 100) / 100;
+  var net   = Math.round((payTot - fee - ces - cIn) * 100) / 100;
   var owing = net < 0;
 
   var sum = '$'+ fmt(payTot) +
-            (fee ? ' \u2212 $'+ fmt(fee) +' fee' : '') +
+            (fee ? ' \u2212 $'+ fmt(fee) +' box fee' : '') +
+            (ces ? ' \u2212 $'+ fmt(ces) +' CES fees' : '') +
             (cIn ? ' \u2212 $'+ fmt(cIn) +' brought forward' : '');
 
   return '<div style="margin-top:8px;padding:14px 15px;background:'+
@@ -2836,6 +2884,7 @@ function statementHtml(a, period, note, opts){
     '</div>'+
 
     boxFeeHtml(a) +
+    cesFeeHtml(a) +
     carriedInHtml(a) +
     settlementHtml(a, payTot, period);
 
@@ -2994,10 +3043,15 @@ function renderAgents(){
               ? '<br>\u2212 <b>$' + fmt(a.fees) + '</b> box communication (' +
                 fmtN(a.feeBoxes) + ' active boxes \u00d7 $' + fmt(a.feeRate) + ')'
               : '')) +
+        (a.cesFees
+          ? '<br>\u2212 <b>$' + fmt(a.cesFees) + '</b> CES fees (' +
+            fmtN((a.cesFeeLines || []).length) + ' invoice' +
+            ((a.cesFeeLines || []).length === 1 ? '' : 's') + ')'
+          : '') +
         (a.carriedIn
           ? '<br>\u2212 <b>$' + fmt(a.carriedIn) + '</b> brought forward'
           : '') +
-        ((a.fees || a.carriedIn)
+        ((a.fees || a.cesFees || a.carriedIn)
           ? '<br>= <b>$' + fmt(a.payout) + '</b>' +
             (a.carriedOut
               ? ' <span style="color:#854F0B;">\u2014 $' + fmt(a.carriedOut) +
