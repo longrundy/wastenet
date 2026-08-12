@@ -467,6 +467,38 @@
             font-family:var(--font); flex:0 0 auto;}
   .agmail-e:hover{background:var(--green-tint);}
 
+  /* CES fee editor - under the statement, on the agent it charges. */
+  .cesed{margin:14px auto 0; max-width:600px; border:0.5px solid var(--line-strong);
+         border-radius:var(--r-card); background:var(--card); overflow:hidden;}
+  .cesed-hd{padding:10px 15px; border-bottom:0.5px solid var(--line);
+            font-size:12.5px; font-weight:600; color:var(--ink);
+            display:flex; align-items:center; gap:8px;}
+  .cesed-hd .sub{font-weight:400; font-size:11.5px; color:var(--ink-3);}
+  .cesed-row{display:flex; align-items:center; gap:8px; padding:9px 15px;
+             border-bottom:0.5px solid var(--line); flex-wrap:wrap;}
+  .cesed-row:last-child{border-bottom:0;}
+  .cesed-in{font-family:var(--font); font-size:12px; padding:5px 8px;
+            border:0.5px solid var(--line-strong); border-radius:var(--r-ctl);
+            background:var(--card); color:var(--ink);}
+  .cesed-in:focus{outline:none; border-color:var(--green);}
+  .cesed-in.inv{width:74px;} .cesed-in.dt{width:118px;} .cesed-in.amt{width:88px;}
+  .cesed-in.note{flex:1; min-width:120px;}
+  .cesed-b{font-size:11.5px; padding:5px 12px; border-radius:var(--r-ctl);
+           font-family:var(--font); font-weight:600; cursor:pointer;
+           border:0.5px solid var(--green); background:var(--green); color:#fff;}
+  .cesed-b:hover{background:var(--green-dark); border-color:var(--green-dark);}
+  .cesed-b:disabled{opacity:.55; cursor:default;}
+  .cesed-x{font-size:11.5px; color:var(--ink-3); background:none; border:none;
+           cursor:pointer; font-family:var(--font); padding:4px 6px;}
+  .cesed-x:hover{color:var(--red-dark);}
+  .cesed-l{font-size:12px; color:var(--ink-2); flex:1; min-width:0;
+           overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .cesed-a{font-size:12.5px; font-weight:600; color:var(--red-dark); white-space:nowrap;}
+  .cesed-sug{background:var(--amber-tint);}
+  .cesed-msg{padding:8px 15px; font-size:11.5px;}
+  .cesed-msg.err{background:var(--red-tint); color:var(--red-darker);}
+  .cesed-msg.ok{background:var(--green-tint); color:var(--green-darker);}
+
   .agrow{border-bottom:0.5px solid var(--line);}
   .agrow:last-child{border-bottom:none;}
 
@@ -2914,6 +2946,180 @@ function statementHtml(a, period, note, opts){
     '</td></tr></table>';
 }
 
+/* THE FIVE CES INVOICES ALREADY READ OFF THE PDFs.
+ *
+ * Every CES invoice for Jan-Aug 2026 was parsed; exactly five had been
+ * shipped to an agent and all five were John Dion's. Rather than have anyone
+ * retype what has already been read, they are offered here as one-click
+ * suggestions and disappear once entered.
+ *
+ * Reading them by machine was not trivial and is worth recording: CES draws
+ * its totals four times over for a bold effect, so the text layer holds
+ * "$$$$111144447777....55559999" where the invoice shows $147.59 - a plain
+ * read returns nothing and reports every invoice as zero. The shipping
+ * marker also varies: "Ship to:", "Drop Ship To:", and on 5691 the run-on
+ * "Ship to Address:John Dion". And the name cannot be searched for
+ * document-wide, because 38 of the 40 carry "Attn: Herb Allred" in the
+ * header block.
+ *
+ * This list is a one-off. New invoices are typed in the row below it. */
+var CES_SUGGESTIONS = [
+  { agent:'DION', invoice:'5682', date:'2026-03-10', amount:166.32,
+    shipTo:'Ship to: John Dion | 1400 Grassy Meadow Drive, Joshua TX 76058', note:'' },
+  { agent:'DION', invoice:'5691', date:'2026-03-20', amount:167.26,
+    shipTo:'Ship to Address:John Dion, 1400 Grassy Meadow Drive, Joshua TX 76058', note:'' },
+  { agent:'DION', invoice:'5709', date:'2026-04-13', amount:755.65,
+    shipTo:'Drop Ship To: John Dion, 1400 Grassy Meadow Drive, Joshua TX 76058', note:'' },
+  { agent:'DION', invoice:'5733', date:'2026-06-09', amount:292.77,
+    shipTo:'Ship to: John Dion, 1400 Grassy Meadow Drive, Joshua TX 76058', note:'' },
+  { agent:'DION', invoice:'5737', date:'2026-06-16', amount:147.59,
+    shipTo:'Ship to: John Dion | 1400 Grassy Meadow Drive, Joshua TX 76058',
+    note:'Current sensor - Box #453 Gaylord' }
+];
+
+/**
+ * Add or remove a CES fee, on the agent and month it charges.
+ *
+ * Deliberately sits UNDER the statement rather than in a settings page: the
+ * thing you are about to change is right there above it, and it re-renders
+ * the moment you save. A form somewhere else would mean entering a number
+ * and then going to look for its effect.
+ *
+ * Only shown on a month view. In the annual view there is no single month to
+ * date a charge to, and guessing would put it on the wrong statement.
+ */
+function cesFeeEditor(a){
+  if(!state.agMonth) return "";
+
+  var lines = a.cesFeeLines || [];
+  var ym = state.agMonth;
+
+  /* Suggestions for THIS agent and THIS month that are not already entered.
+     Matching on invoice number, so one entered by hand in the sheet also
+     clears it from the list. */
+  var have = {};
+  lines.forEach(function(l){ have[String(l.invoice)] = 1; });
+  var sug = CES_SUGGESTIONS.filter(function(x){
+    return x.agent === a.agent && x.date.slice(0,7) === ym && !have[x.invoice];
+  });
+
+  var rows = lines.map(function(l){
+    return '<div class="cesed-row">'+
+      '<span class="cesed-l"><b>'+ esc(l.invoice) +'</b> \u00b7 '+ esc(usDate(l.date)) +
+        (l.note ? ' \u00b7 '+ esc(l.note) : '') +'</span>'+
+      '<span class="cesed-a">\u2212$'+ fmt(l.amount) +'</span>'+
+      '<button class="cesed-x" data-cesdel="'+ esc(l.invoice) +'">Remove</button>'+
+    '</div>';
+  }).join("");
+
+  var sugs = sug.map(function(x){
+    return '<div class="cesed-row cesed-sug">'+
+      '<span class="cesed-l">Found on invoice <b>'+ esc(x.invoice) +'</b> \u00b7 '+
+        esc(usDate(x.date)) +' \u00b7 '+ esc(x.shipTo.slice(0,46)) +'\u2026</span>'+
+      '<span class="cesed-a">\u2212$'+ fmt(x.amount) +'</span>'+
+      '<button class="cesed-b" data-cesadd="'+ esc(x.invoice) +'">Add</button>'+
+    '</div>';
+  }).join("");
+
+  return '<div class="cesed">'+
+    '<div class="cesed-hd">CES fees'+
+      '<span class="sub">'+ esc(monthLabel(ym)) +' \u00b7 charged to '+ esc(a.name) +'</span>'+
+    '</div>'+
+    rows + sugs +
+    '<div class="cesed-row">'+
+      '<input class="cesed-in inv" id="cesInv" placeholder="Invoice" maxlength="12">'+
+      '<input class="cesed-in dt" id="cesDate" type="date" value="'+ ym +'-01">'+
+      '<input class="cesed-in amt" id="cesAmt" placeholder="$0.00" inputmode="decimal">'+
+      '<input class="cesed-in note" id="cesNote" placeholder="What it was (optional)">'+
+      '<button class="cesed-b" id="cesAdd" data-agent="'+ esc(a.agent) +'">Add</button>'+
+    '</div>'+
+    '<div class="cesed-msg" id="cesMsg" style="display:none;"></div>'+
+  '</div>';
+}
+
+/* Wired after every agent render, because the editor is rebuilt each time. */
+function wireCesEditor(){
+  var msg = function(text, kind){
+    var el = document.getElementById("cesMsg");
+    if(!el) return;
+    el.className = "cesed-msg " + (kind || "");
+    el.textContent = text;
+    el.style.display = text ? "" : "none";
+  };
+
+  var save = function(row, btn){
+    btn.disabled = true;
+    var was = btn.textContent;
+    btn.textContent = "Saving\u2026";
+    jsonp({ action:"savecesfee", key:KEY, invoice:row.invoice, agent:row.agent,
+            date:row.date, amount:row.amount, shipTo:row.shipTo || "",
+            note:row.note || "" },
+      function(d){
+        if(!d || !d.ok){
+          btn.disabled = false; btn.textContent = was;
+          msg((d && d.error) || "Could not save that.", "err");
+          return;
+        }
+        /* The payout figures live server-side and this changed one, so the
+           year has to come back rather than being patched in place - the
+           carried balance downstream of it may have moved too. */
+        msg("Invoice " + d.invoice + (d.replaced ? " updated." : " added."), "ok");
+        /* Re-fetch rather than patch in place: this changed a month's net,
+           and the carried balance downstream of it may have moved too. */
+        var keepMonth = state.agMonth, keepOpen = state.agOpen;
+        delete state.agByYear[state.agYear];
+        loadPayouts(state.agYear, function(){
+          state.agMonth = keepMonth; state.agOpen = keepOpen;
+          renderSummary(); renderBody();
+        });
+      });
+  };
+
+  var add = document.getElementById("cesAdd");
+  if(add) add.onclick = function(){
+    var inv  = (document.getElementById("cesInv").value || "").trim();
+    var date = (document.getElementById("cesDate").value || "").trim();
+    var amt  = parseFloat((document.getElementById("cesAmt").value || "").replace(/[$,]/g, ""));
+    var note = (document.getElementById("cesNote").value || "").trim();
+    if(!inv)          return msg("Invoice number is required.", "err");
+    if(!date)         return msg("Date is required.", "err");
+    if(!amt || isNaN(amt)) return msg("Amount is required.", "err");
+    save({ invoice:inv, agent:add.getAttribute("data-agent"), date:date,
+           amount:amt, note:note }, add);
+  };
+
+  document.querySelectorAll("[data-cesadd]").forEach(function(b){
+    b.onclick = function(){
+      var inv = b.getAttribute("data-cesadd");
+      var row = CES_SUGGESTIONS.filter(function(x){ return x.invoice === inv; })[0];
+      if(row) save(row, b);
+    };
+  });
+
+  document.querySelectorAll("[data-cesdel]").forEach(function(b){
+    b.onclick = function(){
+      var inv = b.getAttribute("data-cesdel");
+      if(!window.confirm("Remove CES invoice " + inv + " from this statement?")) return;
+      b.disabled = true; b.textContent = "\u2026";
+      jsonp({ action:"delcesfee", key:KEY, invoice:inv }, function(d){
+        if(!d || !d.ok){
+          b.disabled = false; b.textContent = "Remove";
+          msg((d && d.error) || "Could not remove that.", "err");
+          return;
+        }
+        /* Re-fetch rather than patch in place: this changed a month's net,
+           and the carried balance downstream of it may have moved too. */
+        var keepMonth = state.agMonth, keepOpen = state.agOpen;
+        delete state.agByYear[state.agYear];
+        loadPayouts(state.agYear, function(){
+          state.agMonth = keepMonth; state.agOpen = keepOpen;
+          renderSummary(); renderBody();
+        });
+      });
+    };
+  });
+}
+
 function agEmailHtml(a){
   var cfg = (state.agSettings || {})[a.agent] || {};
   var em = cfg.email || "";
@@ -3111,7 +3317,8 @@ function renderAgents(){
         _agDetail[a.agent] =
           (state.stmtFetching===a.agent ? '<div class="agfetch"><span class="agspin"></span>Loading itemization\u2026</div>' : '') +
           flag +
-          '<div class="ag-stmt-doc">' + statementHtml(a, state.agMonth, "", {preview:true, linkable:true}) + '</div>';
+          '<div class="ag-stmt-doc">' + statementHtml(a, state.agMonth, "", {preview:true, linkable:true}) + '</div>' +
+          cesFeeEditor(a);
       } else {
         _agDetail[a.agent] = '<div class="ag-annual">' + math + flag + table + '</div>';
       }
@@ -3269,6 +3476,9 @@ function wireAgents(){
       }
     };
   }
+
+  /* The editor is rebuilt on every agent render, so its handlers are too. */
+  wireCesEditor();
 
   document.querySelectorAll(".agrow").forEach(function(el){
     var head = el.querySelector(".aghead");
