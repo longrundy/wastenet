@@ -2756,7 +2756,8 @@ function boxFeeHtml(a){
       '<td style="font-size:12px;color:#525A60;padding:3px 0;word-wrap:break-word;">'+ esc(l.customer) +
         (l.capped ? ' <span style="color:#854F0B;font-size:10.5px;">capped at '+
            fmtN(l.boxes) +' of '+ fmtN(l.active) +'</span>' : '') +'</td>'+
-      '<td align="right" style="font-size:12px;color:#525A60;padding:3px 0;white-space:nowrap;">'+
+      '<td align="right" style="font-size:12px;color:'+
+        (l.rate < 12.5 ? '#3B6D11' : '#525A60') +';padding:3px 0;white-space:nowrap;">'+
         fmtN(l.boxes) +' \u00d7 $'+ fmt(l.rate) +'</td>'+
       '<td align="right" style="font-size:12px;color:#1A1D1A;padding:3px 0 3px 14px;white-space:nowrap;">$'+
         fmt(l.amount) +'</td>'+
@@ -2772,8 +2773,15 @@ function boxFeeHtml(a){
         'Charged monthly on every active box, whether or not the account paid.'+
       '</td></tr>'+
       rows +
+      /* An agent with both Costco and ordinary accounts is charged at two
+         rates, and "225 boxes x $6.25" would be simply wrong. Say both. */
       '<tr><td colspan="2" style="font-size:13px;color:#1A1D1A;padding-top:8px;border-top:1px solid #E4E7E0;">'+
-        '<b>'+ fmtN(a.feeBoxes) +' boxes</b> \u00d7 $'+ fmt(a.feeRate) +'</td>'+
+        (a.feeMixed
+          ? '<b>'+ fmtN(a.feeBoxes) +' boxes</b> \u2014 '+
+            (a.feeRates || []).map(function(r){
+              return fmtN(r.boxes) +' \u00d7 $'+ fmt(r.rate);
+            }).join(', ')
+          : '<b>'+ fmtN(a.feeBoxes) +' boxes</b> \u00d7 $'+ fmt(a.feeRate)) +'</td>'+
       '<td align="right" style="font-size:15px;font-weight:bold;color:#A32D2D;padding:8px 0 0 14px;'+
         'border-top:1px solid #E4E7E0;white-space:nowrap;">\u2212$'+ fmt(a.fees) +'</td></tr>'+
     '</table>'+
@@ -3247,7 +3255,10 @@ function renderAgents(){
           ? '<br><span style="color:#854F0B;">box fee not calculated \u2014 box list unreadable</span>'
           : (a.fees
               ? '<br>\u2212 <b>$' + fmt(a.fees) + '</b> box communication (' +
-                fmtN(a.feeBoxes) + ' active boxes \u00d7 $' + fmt(a.feeRate) + ')'
+                (a.feeMixed
+                  ? fmtN(a.feeBoxes) + ' active boxes at ' +
+                    (a.feeRates || []).map(function(r){ return '$' + fmt(r.rate); }).join(' and ')
+                  : fmtN(a.feeBoxes) + ' active boxes \u00d7 $' + fmt(a.feeRate)) + ')'
               : '')) +
         (a.cesFees
           ? '<br>\u2212 <b>$' + fmt(a.cesFees) + '</b> CES fees (' +
