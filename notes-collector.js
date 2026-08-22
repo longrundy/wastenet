@@ -221,6 +221,64 @@ function pageHarvestList() {
   return [];
 }
 
+/** Set the "Activated" filter to YES and submit, so the list holds only
+ *  boxes CES currently considers active. Runs in the page.
+ *
+ *  WHY THIS MATTERS
+ *
+ *    The Select Box To View panel has an Activated radio: Yes / No / All.
+ *    Nothing here ever set it, so the scan walked whatever ASP.NET happened
+ *    to remember - in practice All, which includes every deactivated box
+ *    CES still holds a record for.
+ *
+ *    That single unset radio produced three symptoms we had been treating
+ *    as separate problems:
+ *
+ *      - The daily drift email reported ~15 boxes as "in CES but on neither
+ *        tab" every morning, forever unresolvable. They were the retired
+ *        X-/Z- boxes, visible only because the filter was All.
+ *      - Three different counts of the same fleet: 476 scraped, 439 in CES
+ *        Clients, 463 on the CES invoice.
+ *      - Minutes of scan time per run spent on boxes nobody monitors.
+ *
+ *    Returns { found, already, value } so a run can say plainly whether it
+ *    filtered - a scan that silently fell back to All is a scan whose counts
+ *    cannot be trusted.
+ */
+function pageSetActivatedYes() {
+  const radios = [...document.querySelectorAll('input[type="radio"]')];
+
+  /* Match on the label text beside each radio rather than on an element id.
+     ASP.NET generates ids like ctl00$ContentPlaceHolder1$rbActivated_0, which
+     change whenever the page is restructured; the word "Yes" next to the
+     control does not. */
+  let target = null;
+  for (const r of radios) {
+    let label = '';
+    if (r.id) {
+      const l = document.querySelector('label[for="' + r.id + '"]');
+      if (l) label = (l.innerText || '').trim();
+    }
+    if (!label && r.parentElement) label = (r.parentElement.innerText || '').trim();
+    if (/^yes$/i.test(label)) {
+      const grp = (r.closest('table, div, span') || {}).innerText || '';
+      if (/activated/i.test(grp)) { target = r; break; }
+    }
+  }
+  if (!target) return { found: false, already: false, value: '' };
+
+  if (target.checked) return { found: true, already: true, value: 'Yes' };
+
+  target.click();
+
+  // The panel needs its Submit pressed for the filter to take effect.
+  const submit = [...document.querySelectorAll('input[type="submit"], input[type="button"]')]
+    .find((b) => /^submit$/i.test((b.value || '').trim()));
+  if (submit) submit.click();
+
+  return { found: true, already: false, value: 'Yes', submitted: !!submit };
+}
+
 /** Click the Select button on the row whose BoxId equals target.
  *  Returns true if the click was dispatched. Runs in the page. */
 function pageClickSelect(target) {
@@ -549,6 +607,41 @@ async function main() {
       });
     }, { timeout: 30000 });
     log('BoxManagement page verified - box list present.');
+
+    /* Filter to ACTIVE boxes before walking the list. Without this the pager
+       walks every deactivated box CES still holds, which is what produced the
+       476-vs-439-vs-463 disagreement between the scan, CES Clients, and the
+       CES invoice. */
+    const act = await page.evaluate(pageSetActivatedYes);
+    if (!act.found) {
+      // Loud, not silent. A run on All is not a failed run - it is a run whose
+      // numbers look normal and are wrong, which is worse.
+      log('WARNING: could not find the Activated radio. The scan may include ' +
+          'DEACTIVATED boxes and its counts should not be trusted.');
+      if (!TEST_COUNT && !TARGETED) {
+        await sendAlert('WasteNet collector: Activated filter NOT set - ' + todayStamp(),
+          'The collector could not find the Activated radio on BoxManagement.aspx, so the ' +
+          'box list was walked with whatever filter the page defaulted to - probably "All".\n\n' +
+          'A run on "All" includes every DEACTIVATED box CES still holds a record for. The scan ' +
+          'will complete and the numbers will look normal, but the box count will be too high and ' +
+          'the CES Drift report will flag retired boxes as if they were new.\n\n' +
+          'Check the Select Box To View panel on BoxManagement.aspx - the Activated radio should ' +
+          'read Yes.');
+      }
+    } else if (act.already) {
+      log('Activated filter already set to Yes.');
+    } else {
+      log('Activated filter set to Yes' + (act.submitted ? ' and submitted.' : ' (no Submit button found).'));
+      // The grid reloads via postback; wait for it before harvesting.
+      await page.waitForTimeout(2500);
+      await page.waitForFunction(() => {
+        const tables = [...document.querySelectorAll('table')];
+        return tables.some((t) => {
+          const headText = (t.rows[0] ? t.rows[0].innerText : '') || '';
+          return /BoxId/i.test(headText) && /Description/i.test(headText);
+        });
+      }, { timeout: 30000 });
+    }
 
     if (LOGIN_ONLY) {
       log('LOGIN TEST PASSED. Exiting.');

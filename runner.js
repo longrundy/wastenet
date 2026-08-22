@@ -52,6 +52,45 @@ const path = require('path');
 const https = require('https');
 
 const PORTAL_HOME = 'http://h1.ces-web.com/Monitor.aspx';
+
+/* Set the "Activated" filter to Yes before the scan starts.
+ *
+ * Monitor.aspx's Select Box To View panel has an Activated radio - Yes / No
+ * / All - and nothing ever set it, so the scan ran on whatever ASP.NET
+ * remembered. In practice that was All, which walks every DEACTIVATED box
+ * CES still holds.
+ *
+ * The cost was not an error message. It was three numbers that quietly
+ * disagreed - 476 boxes scraped, 439 attributed in CES Clients, 463 billed
+ * on the CES invoice - and a drift report that named the same ~15 retired
+ * boxes every morning as "in CES but on neither tab". Both symptoms trace
+ * back to this one unset radio.
+ *
+ * Injected as a string because it runs inside the page.
+ */
+const SET_ACTIVATED_YES = `(() => {
+  const radios = [...document.querySelectorAll('input[type="radio"]')];
+  let target = null;
+  for (const r of radios) {
+    let label = '';
+    if (r.id) {
+      const l = document.querySelector('label[for="' + r.id + '"]');
+      if (l) label = (l.innerText || '').trim();
+    }
+    if (!label && r.parentElement) label = (r.parentElement.innerText || '').trim();
+    if (/^yes$/i.test(label)) {
+      const grp = (r.closest('table, div, span') || {}).innerText || '';
+      if (/activated/i.test(grp)) { target = r; break; }
+    }
+  }
+  if (!target) return { found: false, already: false };
+  if (target.checked) return { found: true, already: true };
+  target.click();
+  const submit = [...document.querySelectorAll('input[type="submit"], input[type="button"]')]
+    .find((b) => /^submit$/i.test((b.value || '').trim()));
+  if (submit) submit.click();
+  return { found: true, already: false, submitted: !!submit };
+})()`;
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwc3siwl0OTP2O5WzNZCDn4cj3MDVRfcVxJW0TZtoPnAKLwhYSwmW_m1h7ib6Yf_Dvk9w/exec';
 const STATE_KEY = 'box_service_check_v2_state'; // must match STORAGE_KEY in engine.user.js
 const ENGINE_PATH = path.join(__dirname, 'engine.user.js');
@@ -234,6 +273,23 @@ async function main() {
       log('LOGIN TEST PASSED. Exiting.');
       await browser.close();
       return;
+    }
+
+    /* Filter to ACTIVE boxes BEFORE the engine starts. The engine walks
+       whatever grid it finds, so this has to happen first - afterwards is
+       too late, and the run would silently include retired boxes. */
+    const act = await page.evaluate(SET_ACTIVATED_YES);
+    if (!act.found) {
+      log('WARNING: Activated radio not found on Monitor.aspx. The scan may ' +
+          'include DEACTIVATED boxes - box counts from this run are not reliable.');
+    } else if (act.already) {
+      log('Activated filter already Yes.');
+    } else {
+      log('Activated filter set to Yes' + (act.submitted ? ' and submitted.' : '.'));
+      await page.waitForTimeout(2500);
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll('input[type="button"]')].some((b) => /Select\$/.test(b.getAttribute('onclick') || '')),
+        { timeout: 30000 });
     }
 
     // Clear any stale scan state from a previous crashed run, then start.
