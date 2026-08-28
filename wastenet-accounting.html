@@ -470,10 +470,21 @@
   /* ---- CES ledger ----
      Two columns like Agents and Receivables: the ledger in the gray list
      column, the selected invoice in the green detail column. */
-  /* The list column's own padding is 22px, which put the first card hard
-     against the dark rail. Push the whole gray column in and let the cards
-     and table breathe from the same left edge. */
-  .cesl-wrap{padding-left:14px;}
+  /* THE GRAY COLUMN'S LEFT EDGE.
+     There are four separate .ag-list-col padding rules in this file, several
+     of them !important and one a shorthand that resets padding-left to 0.
+     A plain .cesl-wrap rule lost to every one of them. Scoping to the
+     ledger's own folder gives two classes of specificity, which beats all of
+     them, and it keeps the change off every other section.
+     The header is moved with it so the title, the cards and the table all
+     start on one line rather than three. */
+  .cesl-folder .ag-list-col{padding-left:36px !important;
+                            padding-right:28px !important;}
+  .cesl-folder .ag-hd-list{padding-left:36px !important;
+                           padding-right:28px !important;}
+  .cesl-folder .ag-hd-detail{padding-left:28px !important;}
+  .cesl-folder .ag-detail{padding-left:28px !important;
+                          padding-right:28px !important;}
   .cesl-cards{display:grid;grid-template-columns:repeat(4,1fr);
               border-bottom:1px solid var(--line);
               padding:2px 0 0;column-gap:18px;}
@@ -488,7 +499,8 @@
             border:1px solid #F0D9AE;border-radius:var(--r-card);
             font-size:11.5px;color:var(--amber-dark);line-height:1.55;}
   .cesl-card .k{font-size:10.5px;color:var(--ink-3);letter-spacing:.04em;font-weight:600;}
-  .cesl-card .v{font-size:20px;font-weight:700;margin-top:4px;}
+  .cesl-card .v{font-size:20px;font-weight:700;margin-top:4px;
+                font-variant-numeric:tabular-nums;}
   .cesl-card .n{font-size:11.5px;color:var(--ink-3);margin-top:2px;}
   .cesl-card.owed .v{color:var(--red-darker);}
   .cesl-t{width:100%;border-collapse:collapse;margin-top:2px;}
@@ -504,9 +516,17 @@
   .cesl-ref{font-weight:600;color:var(--green-dark);}
   .cesl-t tr.cesl-pay{background:var(--green-tint);}
   .cesl-t tr.cesl-open{background:var(--panel);color:var(--ink-2);}
-  .cesl-amt{text-align:right;white-space:nowrap;}
+  /* Amount and Balance read LEFT, under their own column headings. The
+     headings are left-aligned (.cesl-t th wins on specificity), so
+     right-aligned figures sat adrift of the words describing them.
+     tabular-nums keeps the digits on a common width so the columns still
+     scan cleanly without being right-aligned. */
+  .cesl-t th.cesl-amt,.cesl-t td.cesl-amt,
+  .cesl-t th.cesl-bal,.cesl-t td.cesl-bal{text-align:left;}
+  .cesl-amt{white-space:nowrap;font-variant-numeric:tabular-nums;}
   .cesl-amt.neg{color:var(--green-darker);font-weight:600;}
-  .cesl-bal{text-align:right;white-space:nowrap;font-weight:600;width:118px;}
+  .cesl-bal{white-space:nowrap;font-weight:600;width:118px;
+            font-variant-numeric:tabular-nums;}
   .cesl-tag{display:inline-block;border-radius:4px;padding:2px 8px;
             font-size:10.5px;font-weight:600;}
   .cesl-tag.inv{background:var(--panel);color:var(--ink-2);}
@@ -5842,7 +5862,7 @@ function renderLedger(){
       ' \u00b7 balance after ' + ledgerMoney(selR[4])
     : 'Choose a row on the left to see the invoice here.';
 
-  return '<div class="folder rc-folder">' +
+  return '<div class="folder rc-folder cesl-folder">' +
     '<div class="ag-topbar">' +
       '<div class="ag-hd ag-hd-list">' +
         '<div class="ag-hd-title">CES ledger</div>' +
