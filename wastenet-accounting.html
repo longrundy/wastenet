@@ -467,6 +467,46 @@
             font-family:var(--font); flex:0 0 auto;}
   .agmail-e:hover{background:var(--green-tint);}
 
+  /* ---- CES ledger ---- */
+  .cesl{padding:0 0 40px;}
+  .cesl-cards{display:grid;grid-template-columns:repeat(4,1fr);
+              background:var(--card);border-bottom:0.5px solid var(--line);}
+  .cesl-card{padding:15px 20px;border-right:0.5px solid var(--line);}
+  .cesl-card:last-child{border-right:0;}
+  .cesl-card .k{font-size:10.5px;color:var(--ink-3);letter-spacing:.04em;font-weight:600;}
+  .cesl-card .v{font-size:20px;font-weight:700;margin-top:4px;}
+  .cesl-card .n{font-size:11.5px;color:var(--ink-3);margin-top:2px;}
+  .cesl-card.owed .v{color:var(--red-darker);}
+  .cesl-note{margin:14px 20px;padding:11px 14px;background:var(--amber-tint);
+             border:0.5px solid #F0D9AE;border-radius:var(--r-card);
+             font-size:12px;color:var(--amber-dark);line-height:1.55;}
+  .cesl-t{width:100%;border-collapse:collapse;background:var(--card);}
+  .cesl-t th{text-align:left;font-size:11px;color:var(--ink-3);font-weight:600;
+             padding:9px 20px;border-bottom:0.5px solid var(--line-strong);
+             letter-spacing:.04em;position:sticky;top:var(--pinh,0);background:var(--card);z-index:2;}
+  .cesl-t td{padding:7px 20px;font-size:12.5px;border-bottom:0.5px solid #F0F2ED;}
+  .cesl-t tr.cesl-pay{background:var(--green-tint);}
+  .cesl-t tr.cesl-open{background:var(--panel);color:var(--ink-2);}
+  .cesl-amt{text-align:right;white-space:nowrap;}
+  .cesl-amt.neg{color:var(--green-darker);font-weight:600;}
+  .cesl-bal{text-align:right;white-space:nowrap;font-weight:600;width:118px;}
+  .cesl-tag{display:inline-block;border-radius:4px;padding:2px 8px;
+            font-size:10.5px;font-weight:600;}
+  .cesl-tag.inv{background:var(--panel);color:var(--ink-2);}
+  .cesl-tag.pay{background:#D8EBBE;color:var(--green-darker);}
+  .cesl-t a{color:var(--green-dark);font-weight:600;text-decoration:none;
+            border-bottom:1px solid #C0DD97;}
+  .cesl-t a:hover{color:var(--green-darker);border-bottom-color:var(--green);}
+  .cesl-nolink{color:var(--ink-3);font-weight:400;font-size:11px;}
+  .cesl-t tfoot td{background:var(--panel);font-weight:600;
+                   border-top:0.5px solid var(--line-strong);border-bottom:0;}
+  @media (max-width:720px){
+    .cesl-cards{grid-template-columns:repeat(2,1fr);}
+    .cesl-card{border-bottom:0.5px solid var(--line);}
+    .cesl-t th,.cesl-t td{padding-left:12px;padding-right:12px;}
+    .cesl-note{margin:12px;}
+  }
+
   /* CES fee editor - under the statement, on the agent it charges. */
   .cesed{margin:14px auto 0; max-width:600px; border:0.5px solid var(--line-strong);
          border-radius:var(--r-card); background:var(--card); overflow:hidden;}
@@ -1351,6 +1391,7 @@ body{padding-left:280px !important;}
   <button class="sec" data-sec="receivables">Receivables</button>
   <button class="sec" data-sec="payments">Payments</button>
   <button class="sec" data-sec="deposits">Deposits</button>
+  <button class="sec" data-sec="ledger">CES Ledger</button>
 </nav><div class="wn-rail__foot">Design preview · v-shell</div></aside>
 
 <div class="ivbg" id="ivbg">
@@ -1388,6 +1429,7 @@ body{padding-left:280px !important;}
       <button class="sec" data-sec="receivables">Receivables</button>
       <button class="sec" data-sec="payments">Payments</button>
       <button class="sec" data-sec="deposits">Deposits</button>
+      <button class="sec" data-sec="ledger">CES Ledger</button>
     </div>
     <button class="btn" id="slimRefreshBtn" aria-label="Refresh">&#8635;</button>
   </div>
@@ -1428,6 +1470,7 @@ body{padding-left:280px !important;}
       <button class="sec" data-sec="receivables">Receivables</button>
       <button class="sec" data-sec="payments">Payments</button>
       <button class="sec" data-sec="deposits">Deposits</button>
+      <button class="sec" data-sec="ledger">CES Ledger</button>
       <!-- One (i) for the section you are looking at. Five buttons each with
            their own (i) would be five pieces of chrome asking to be ignored. -->
       <button class="lg-i" id="secInfo" title="How is this worked out?"
@@ -5643,6 +5686,136 @@ function finCard(label, big, sub, cls, delta2, cls2){
          '</div>';
 }
 
+/* ==================================================================
+   CES LEDGER
+
+   Every CES invoice and payment with a running balance, and each invoice
+   number linking to its PDF in Drive.
+
+   WHY IT IS HERE AT ALL
+
+     CES invoices carry no balance forward. Each one states its own amount
+     and nothing else, so a debt ran from before 2026 with nothing anywhere
+     revealing that it existed - not the invoices, not QuickBooks (CES is
+     never entered there), not the bank. It only surfaced on reading their
+     STATEMENTS, which do carry a balance.
+
+     The payments made it harder to see, not easier: always round numbers,
+     always more than any single invoice, which looks like overpayment and
+     was actually a balance being worked down. On 30 September 2025 it stood
+     at $20,958.68.
+
+   WHY THE DATA IS BAKED IN RATHER THAN FETCHED
+
+     These are CES's own figures, transcribed from ten statements, and every
+     running balance below was checked against the balance CES printed on
+     the same date - nine checkpoints, all matching. That reconciliation is
+     the value, and it is a fact about a period that has closed. Reading it
+     from a sheet would let it drift away from the statements it was proved
+     against.
+
+     New months get appended when the next statement arrives. It is a
+     ledger, not a live feed.
+
+   Columns: date, kind (0 opening, 1 invoice, 2 payment), reference, amount,
+   running balance, Drive file id ("" when no PDF is on file).
+   ================================================================== */
+var CES_LEDGER = [["2025-12-31",0,"Balance forward",7508.99,7508.99,""],["2026-01-01",1,"5660",7060.0,14568.99,"11mACN2Z2pzZqz4euipQkg5fCIjjtAGjr"],["2026-01-16",2,"4519",-10000.0,4568.99,""],["2026-01-26",1,"5663",771.33,5340.32,"1dZH10S6oUMz-5pyBnIS4HAYDUwOU0RPY"],["2026-02-01",1,"5668",7078.0,12418.32,"1Wg9ZKirqSewFktqEHUdwlQagK7Vb28Zz"],["2026-02-13",1,"5671",150.68,12569.0,""],["2026-02-17",1,"5672",322.15,12891.15,"1fsK39ydbPhAdVezrrkFPdS_dpKY6rd5j"],["2026-02-23",1,"5673",322.15,13213.3,"1B-lwS9tuTptC2yfjBoF9VHkqj-tCGSMt"],["2026-02-26",2,"4525",-8000.0,5213.3,""],["2026-03-01",1,"5677",7049.0,12262.3,"1SzN1Q4-3vlyPSvKBNldkWhdnHk6McKgp"],["2026-03-10",1,"5682",166.32,12428.62,"1V10qTlCayH7E2ce5KLZ8dRz0Vl05NfzZ"],["2026-03-11",1,"5683",1520.28,13948.9,"1btyz0OShJiqX-dnQuafPHjQVi1jTndNB"],["2026-03-16",1,"5685",777.74,14726.64,"1ODA-j_XnoFxaW0FGwozBkbK6NW5Ikp9G"],["2026-03-20",1,"5690",105.24,14831.88,"1NztvXYqRv_AnxZlGvi50pagtaHMJTxYb"],["2026-03-20",1,"5691",167.26,14999.14,"15ylhFwHDE5rszJFHisNyclbeJ_Y5EqHB"],["2026-03-30",1,"5692",330.45,15329.59,"1Spy-sgl3_OxhU-3KjHfIBSMvoeG2g1Lg"],["2026-03-31",1,"5694",770.48,16100.07,"1UWRbFsQ6DBeK6zG938-nA7ALnj__0ywY"],["2026-04-01",1,"5696",7056.0,23156.07,"1-PXFgT83q196m4nVPOtcxEZHXI-1RUY3"],["2026-04-01",1,"5697",113.08,23269.15,"19IjIo52rIuQfvR3SZQh3yUAbKsQ75p4D"],["2026-04-03",2,"4535",-10000.0,13269.15,""],["2026-04-06",1,"5705",624.83,13893.98,"15nREE-BdTeTFgX-kvOHyVUP4OzTkUQDh"],["2026-04-13",1,"5709",755.65,14649.63,"1BQpSSr54iVsAY5IloMzJSTe0Vx5zpJg2"],["2026-04-13",1,"5710",770.6,15420.23,"1NWlD40USdhDvTKgelIFzAi7xLudQJJ8w"],["2026-04-15",1,"5711",149.96,15570.19,"1zyA45FVQ4FaS4SKB53ofuQ45mJG_XpLK"],["2026-04-20",2,"4540",-5000.0,10570.19,""],["2026-04-29",1,"5713",772.25,11342.44,"1dYywgN8b5M5DuFygHiI73LL5PTAMJHsb"],["2026-05-01",1,"5715",7043.0,18385.44,"1QwgNxyQK4Uu7BhYdYBcsLeWT9RooC9Vq"],["2026-05-06",1,"5716",32.42,18417.86,"1c3Rfhj53zuzSF2l0VlFkU0AcDEVLmMv8"],["2026-05-13",2,"4550",-12000.0,6417.86,""],["2026-05-21",1,"5721",610.26,7028.12,"1SJ8r5Yxk1_sDwRXsfs4WcaffJ7A-zDly"],["2026-06-01",1,"5725",7014.0,14042.12,"1eULhHtNYckr-nxwLUeCBJdYe7YRCComi"],["2026-06-04",1,"5726",110.52,14152.64,"1Sv4bhUbFB1zeNbGex1gWqqO99OpZxOEK"],["2026-06-05",1,"5727",105.52,14258.16,"12LW25c5OrqtOOidhYmGTmP2wql5MqgqC"],["2026-06-05",1,"5728",543.4,14801.56,"1NbN4U1MPhaaq5WjafwgdkQ8fAkRtOtuW"],["2026-06-09",1,"5733",292.77,15094.33,"1Nxkp1kDGBtIKquu7SxAVrbkLmZboQLHr"],["2026-06-15",1,"5734",124.06,15218.39,"1M0frp1F2h3rU2WnZ1WgSTJeSDDxf_mgH"],["2026-06-15",1,"5735",609.78,15828.17,"1EgbbkDT8gn5TKYaWWcdoYVmbvXsu-otm"],["2026-06-16",1,"5737",147.59,15975.76,"1IDFdb16UuW5KeQeYMwXFsgFITSV3u9TQ"],["2026-06-18",1,"5742",619.53,16595.29,"1rZXl9J3ybVnviryKM8Mb9lIuYCwtSavP"],["2026-06-24",2,"4561",-8000.0,8595.29,""],["2026-06-25",1,"5745",750.0,9345.29,"1HCSGq6HoHXBft0W-wLUDUnNb2esTO42r"],["2026-07-01",1,"5748",7027.0,16372.29,"11SQJbcIgKD5W_LrNyS5Xv-6hH4iTIBcL"],["2026-07-15",1,"5755",767.74,17140.03,"1jiyRHMMI38Ezn8oxHDM2C4lgjbt9VcTE"],["2026-07-20",1,"5756",51.08,17191.11,"1cbQnw819Rn51OGXJRvTCKwPTRKKoLlqt"],["2026-07-21",2,"4570",-12000.0,5191.11,""],["2026-07-22",1,"5757",123.45,5314.56,"1BJoeUIjikQ6ZBxzNOBKnRdfGX6tfbcI1"],["2026-07-27",1,"5758",323.68,5638.24,"1-onaiE97Diay-2k_Fut_1fxVkTjVC_sY"],["2026-07-28",1,"5759",1525.12,7163.36,"1nUtnMjKKa1-2mmVYC2Q4A0H0EIggCtUs"],["2026-08-01",1,"5761",7040.0,14203.36,"1OQWFX32Vrnh64ynCqOOermJjoT-LgrX3"],["2026-08-25",2,"FROST",-10000.0,4203.36,""]];
+
+var CES_LEDGER_NOTE =
+  'The last CES statement is dated 3 Aug 2026 at $14,203.36. The 25 Aug ' +
+  'payment of $10,000 brings it to $4,203.36. Anything invoiced since 3 Aug ' +
+  'is not yet included.';
+
+function renderLedger(){
+  var open = 0, inv = 0, pay = 0, bal = 0, nInv = 0, nPay = 0;
+  CES_LEDGER.forEach(function(r){
+    if(r[1] === 0) open = r[3];
+    else if(r[1] === 1){ inv += r[3]; nInv++; }
+    else { pay += -r[3]; nPay++; }
+    bal = r[4];
+  });
+
+  var body = CES_LEDGER.map(function(r){
+    var date = r[0], kind = r[1], ref = r[2], amt = r[3], run = r[4], fid = r[5];
+
+    if(kind === 0){
+      return '<tr class="cesl-open"><td>' + esc(date) + '</td>' +
+             '<td colspan="2">Balance carried in from 2025</td>' +
+             '<td class="cesl-amt"></td>' +
+             '<td class="cesl-bal">' + ledgerMoney(run) + '</td></tr>';
+    }
+    if(kind === 2){
+      return '<tr class="cesl-pay"><td>' + esc(date) + '</td>' +
+             '<td><span class="cesl-tag pay">Payment</span></td>' +
+             '<td>' + esc(ref) + '</td>' +
+             '<td class="cesl-amt neg">' + ledgerMoney(amt) + '</td>' +
+             '<td class="cesl-bal">' + ledgerMoney(run) + '</td></tr>';
+    }
+    /* An invoice number with no PDF says so rather than rendering a dead
+       link - one missing file should not look like a broken page. */
+    var refCell = fid
+      ? '<a href="https://drive.google.com/file/d/' + esc(fid) + '/view" ' +
+        'target="_blank" rel="noopener">' + esc(ref) + '</a>'
+      : esc(ref) + ' <span class="cesl-nolink">no PDF on file</span>';
+
+    return '<tr><td>' + esc(date) + '</td>' +
+           '<td><span class="cesl-tag inv">Invoice</span></td>' +
+           '<td>' + refCell + '</td>' +
+           '<td class="cesl-amt">' + ledgerMoney(amt) + '</td>' +
+           '<td class="cesl-bal">' + ledgerMoney(run) + '</td></tr>';
+  }).join("");
+
+  return '<div class="cesl">' +
+    '<div class="cesl-cards">' +
+      '<div class="cesl-card"><div class="k">OPENING 31 DEC 2025</div>' +
+        '<div class="v">' + ledgerMoney(open) + '</div>' +
+        '<div class="n">carried from 2025</div></div>' +
+      '<div class="cesl-card"><div class="k">INVOICED 2026</div>' +
+        '<div class="v">' + ledgerMoney(inv) + '</div>' +
+        '<div class="n">' + fmtN(nInv) + ' invoices</div></div>' +
+      '<div class="cesl-card"><div class="k">PAID 2026</div>' +
+        '<div class="v">' + ledgerMoney(pay) + '</div>' +
+        '<div class="n">' + fmtN(nPay) + ' transfers</div></div>' +
+      '<div class="cesl-card owed"><div class="k">BALANCE OWED</div>' +
+        '<div class="v">' + ledgerMoney(bal) + '</div>' +
+        '<div class="n">as at 28 Aug 2026</div></div>' +
+    '</div>' +
+
+    '<div class="cesl-note"><b>You owe CES \u2014 this is not a credit.</b> ' +
+      'The round payments have been paying down a balance running since before ' +
+      '2026. CES invoices never show a carry-forward, so only their statements ' +
+      'reveal it. Every running balance below matches CES\u2019s own statement ' +
+      'figure on the same date. ' + CES_LEDGER_NOTE + '</div>' +
+
+    '<table class="cesl-t"><thead><tr>' +
+      '<th>Date</th><th>Type</th><th>Reference</th>' +
+      '<th class="cesl-amt">Amount</th><th class="cesl-bal">Balance</th>' +
+    '</tr></thead><tbody>' + body + '</tbody>' +
+    '<tfoot><tr><td colspan="3">Opening ' + ledgerMoney(open) +
+      ' &nbsp;+&nbsp; invoiced ' + ledgerMoney(inv) +
+      ' &nbsp;\u2212&nbsp; paid ' + ledgerMoney(pay) + '</td>' +
+      '<td class="cesl-amt"></td>' +
+      '<td class="cesl-bal">' + ledgerMoney(bal) + '</td></tr></tfoot>' +
+    '</table></div>';
+}
+
+/* Nothing interactive yet - the links are plain anchors. Kept so the
+   dispatch in renderBody reads like every other section. */
+function wireLedger(){}
+
+/* "$1,234.56", or "-$1,234.56" for a payment.
+   NOT called money() - this page already has one, declared earlier, and a
+   second declaration of the same name silently wins everywhere thanks to
+   hoisting. Every dollar figure on Billing, Agents and Receivables would
+   have started rendering minus signs it had never asked for. */
+function ledgerMoney(n){
+  var v = Number(n) || 0;
+  return (v < 0 ? "\u2212$" : "$") +
+         Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2,
+                                               maximumFractionDigits: 2 });
+}
+
 function renderFinancials(){
   if(!state.finLoaded){
     return '<div class="empty-state"><span class="spinner"></span>Working out the numbers&hellip;</div>';
@@ -5937,6 +6110,13 @@ function renderBody(){
   if(state.section === "financials"){
     el.innerHTML = renderFinancials();
     wireFinancials();
+    measurePin();
+    return;
+  }
+
+  if(state.section === "ledger"){
+    el.innerHTML = renderLedger();
+    wireLedger();
     measurePin();
     return;
   }
