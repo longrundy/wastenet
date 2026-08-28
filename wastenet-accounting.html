@@ -470,11 +470,23 @@
   /* ---- CES ledger ----
      Two columns like Agents and Receivables: the ledger in the gray list
      column, the selected invoice in the green detail column. */
+  /* The list column's own padding is 22px, which put the first card hard
+     against the dark rail. Push the whole gray column in and let the cards
+     and table breathe from the same left edge. */
+  .cesl-wrap{padding-left:14px;}
   .cesl-cards{display:grid;grid-template-columns:repeat(4,1fr);
-              border-bottom:1px solid var(--line);margin:0 -22px 0;
-              padding:0 22px;}
-  .cesl-card{padding:12px 0 14px;padding-right:14px;}
-  .cesl-card:last-child{padding-right:0;}
+              border-bottom:1px solid var(--line);
+              padding:2px 0 0;column-gap:18px;}
+  .cesl-card{padding:14px 0 16px;min-width:0;}
+  .cesl-i{margin-left:6px;width:14px;height:14px;line-height:13px;padding:0;
+          border-radius:50%;border:1px solid var(--line-strong);
+          background:transparent;color:var(--ink-3);font-family:var(--font);
+          font-size:9.5px;font-weight:700;font-style:italic;cursor:pointer;
+          vertical-align:1px;}
+  .cesl-i:hover{border-color:var(--green);color:var(--green-dark);}
+  .cesl-why{margin:12px 0 0;padding:10px 12px;background:var(--amber-tint);
+            border:1px solid #F0D9AE;border-radius:var(--r-card);
+            font-size:11.5px;color:var(--amber-dark);line-height:1.55;}
   .cesl-card .k{font-size:10.5px;color:var(--ink-3);letter-spacing:.04em;font-weight:600;}
   .cesl-card .v{font-size:20px;font-weight:700;margin-top:4px;}
   .cesl-card .n{font-size:11.5px;color:var(--ink-3);margin-top:2px;}
@@ -503,11 +515,7 @@
   .cesl-t tfoot td{font-weight:600;border-top:1px solid var(--line-strong);
                    border-bottom:0;padding-top:10px;color:var(--ink-2);}
 
-  /* the green column */
-  .cesl-dhead{padding-bottom:12px;border-bottom:1px solid rgba(20,40,20,.10);
-              margin-bottom:14px;}
-  .cesl-dnum{font-size:16px;font-weight:700;color:#153a22;}
-  .cesl-dmeta{font-size:12.5px;color:var(--ink-2);margin-top:4px;}
+  /* the green column - no heading of its own, the topbar names the invoice */
   /* Tall enough to read a CES invoice without scrolling the frame - they are
      a single page and the total sits near the middle. */
   .cesl-frame{width:100%;height:calc(100vh - 250px);min-height:420px;border:0;
@@ -5789,7 +5797,7 @@ function renderLedger(){
   }).join("");
 
   var listCol =
-    '<div class="ag-list-col">' +
+    '<div class="ag-list-col cesl-wrap">' +
       '<div class="cesl-cards">' +
         '<div class="cesl-card"><div class="k">OPENING 31 DEC 2025</div>' +
           '<div class="v">' + ledgerMoney(open) + '</div></div>' +
@@ -5799,9 +5807,18 @@ function renderLedger(){
         '<div class="cesl-card"><div class="k">PAID 2026</div>' +
           '<div class="v">' + ledgerMoney(pay) + '</div>' +
           '<div class="n">' + fmtN(nPay) + ' transfers</div></div>' +
-        '<div class="cesl-card owed"><div class="k">BALANCE OWED</div>' +
+        '<div class="cesl-card owed"><div class="k">BALANCE OWED' +
+          '<button class="cesl-i" id="ceslWhy" type="button" ' +
+            'aria-label="Where this number comes from" ' +
+            'title="Where this number comes from">i</button></div>' +
           '<div class="v">' + ledgerMoney(bal) + '</div></div>' +
       '</div>' +
+      /* The provenance of the balance, folded away behind the (i). It matters
+         - it is the difference between a figure and a guess - but it does not
+         need to be read every time the page opens. */
+      '<div class="cesl-why" id="ceslWhyBox" hidden>' + esc(CES_LEDGER_NOTE) +
+        ' Every running balance below matches CES\u2019s own statement figure ' +
+        'on the same date.</div>' +
       '<table class="cesl-t"><thead><tr>' +
         '<th>Date</th><th>Type</th><th>Reference</th>' +
         '<th class="cesl-amt">Amount</th><th class="cesl-bal">Balance</th>' +
@@ -5814,6 +5831,17 @@ function renderLedger(){
       '</table>' +
     '</div>';
 
+  /* The green header carries WHAT YOU CLICKED, nothing else.
+     It used to repeat the balance, which the card on the left already
+     states in larger type a few inches away - two headers saying the same
+     number, and neither of them describing the document underneath. */
+  var selR = (state.ledSel != null) ? CES_LEDGER[state.ledSel] : null;
+  var dTitle = selR ? 'Invoice ' + esc(selR[2]) : 'No invoice selected';
+  var dNote  = selR
+    ? esc(selR[0]) + ' \u00b7 ' + ledgerMoney(selR[3]) +
+      ' \u00b7 balance after ' + ledgerMoney(selR[4])
+    : 'Choose a row on the left to see the invoice here.';
+
   return '<div class="folder rc-folder">' +
     '<div class="ag-topbar">' +
       '<div class="ag-hd ag-hd-list">' +
@@ -5822,8 +5850,8 @@ function renderLedger(){
           'against CES statements</div>' +
       '</div>' +
       '<div class="ag-hd ag-hd-detail">' +
-        '<div class="ag-hd-title">' + ledgerMoney(bal) + ' owed</div>' +
-        '<div class="ag-hd-note">' + esc(CES_LEDGER_NOTE) + '</div>' +
+        '<div class="ag-hd-title">' + dTitle + '</div>' +
+        '<div class="ag-hd-note">' + dNote + '</div>' +
       '</div>' +
     '</div>' +
     '<div class="ag-split">' + listCol + ledgerDetail() + '</div>' +
@@ -5855,19 +5883,22 @@ function ledgerDetail(){
       esc(fid) + '/view" target="_blank" rel="noopener">Open in Drive \u2197</a></div>'
     : '<div class="cesl-nodoc">No PDF on file for this invoice.</div>';
 
-  return '<div class="ag-detail">' +
-    '<div class="cesl-dhead">' +
-      '<div class="cesl-dnum">Invoice ' + esc(ref) + '</div>' +
-      '<div class="cesl-dmeta">' + esc(date) + ' \u00b7 ' + ledgerMoney(amt) +
-        ' \u00b7 balance after: ' + ledgerMoney(run) + '</div>' +
-    '</div>' + doc +
-  '</div>';
+  /* No heading here - the topbar above already names the invoice, its date
+     and its amount. Repeating it would be the same two-header problem one
+     level down. */
+  return '<div class="ag-detail">' + doc + '</div>';
 }
 
 /* Clicking a row shows that invoice in the green column. Re-render rather
    than patching the DOM, so the selected-row highlight and the detail pane
    can never disagree about which row is open. */
 function wireLedger(){
+  var why = document.getElementById("ceslWhy");
+  if(why) why.onclick = function(){
+    var box = document.getElementById("ceslWhyBox");
+    if(box) box.hidden = !box.hidden;
+  };
+
   document.querySelectorAll("[data-led]").forEach(function(el){
     el.onclick = function(){
       var i = Number(el.getAttribute("data-led"));
