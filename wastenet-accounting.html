@@ -1687,6 +1687,7 @@ var state = {
   bNotDue: [],
   bGaps: [], bUnbilled: [], bZeros: [], bOrphans: [], bDrift: [],
   bCes: null, bOpenGaps: 0,
+  recLoading: false,
   bLoaded: false,
   bLoading: false
 };
@@ -6121,6 +6122,9 @@ function renderBody(){
     return;
   }
 
+  /* Only Receivables falls through to here, and only it waits on the invoice
+     list. The spinner used to show on every section while a payload none of
+     them needed came down the wire. */
   if(!state.loaded){
     el.innerHTML = '<div class="empty-state"><span class="spinner"></span>Loading invoices&hellip;</div>';
     return;
@@ -6413,10 +6417,21 @@ document.querySelectorAll(".sec").forEach(function(el){
       return;
     }
 
-    /* Deposits needs two things: the open invoices (already loaded with
-       Receivables) and the Payer Map, which is fetched once. */
-    if(state.section === "deposits" && !state.dPayersLoaded){
-      loadPayers();
+    /* Receivables is now lazy like everything else, so the two sections that
+       READ the invoice list have to ask for it rather than assume it arrived
+       at page load. */
+    if(state.section === "receivables" && !state.loaded && !state.recLoading){
+      renderSummary();
+      renderBody();
+      loadReceivables();
+      return;
+    }
+
+    /* Deposits needs two things: the open invoices - which it matches
+       payments against - and the Payer Map. Both fetched on arrival. */
+    if(state.section === "deposits"){
+      if(!state.loaded && !state.recLoading) loadReceivables();
+      if(!state.dPayersLoaded) loadPayers();
     }
 
     renderSummary();
@@ -6447,9 +6462,27 @@ function showError(msg){
 }
 
 /* ---------- load ---------- */
-function load(){
+/* THE RECEIVABLES PAYLOAD, FETCHED ONLY WHEN SOMETHING NEEDS IT.
+ *
+ * This ships every open invoice - thousands of rows - and it is the single
+ * heaviest call the page makes. It used to run on load, BEFORE anything was
+ * drawn, and the section it feeds is not even the one the page opens on.
+ *
+ * So the old sequence was: wait for thousands of invoices, render, and only
+ * THEN ask for the payouts that Agents actually needs. Two round trips in
+ * series, the larger one for a section the user was not looking at. That is
+ * the spinner.
+ *
+ * Now it behaves like every other section - Payouts, Financials, Billing and
+ * Collections all fetch on demand, and this was the last eager holdout.
+ */
+function loadReceivables(then){
+  if(state.loaded || state.recLoading){ if(then) then(); return; }
+  state.recLoading = true;
   document.getElementById("stamp").textContent = "Loading\u2026";
+
   jsonp({ action:"receivables", key:KEY }, function(data){
+    state.recLoading = false;
     if(!data || !data.ok){
       showError((data && data.error) || "Could not load invoices.");
       document.getElementById("stamp").textContent = "";
@@ -6464,10 +6497,27 @@ function load(){
       state.totalCount.toLocaleString("en-US") + " invoices";
     renderSummary();
     renderBody();
-    // If we land directly on a lazily-loaded section (Agents is now the
-    // default), fetch its data now the same way clicking the tab would.
-    if(state.section === "agents" && !state.agLoaded && !state.agLoading) loadPayouts("");
+    if(then) then();
   });
+}
+
+/* Kick off whatever the section in front of the user needs, and nothing
+   else. Refresh reloads only what is already in hand. */
+function load(){
+  document.getElementById("banner").className = "banner";
+
+  if(state.section === "receivables"){
+    state.loaded = false;
+    loadReceivables();
+    return;
+  }
+
+  /* Re-fetch anything already loaded, so Refresh still means refresh. */
+  if(state.loaded){ state.loaded = false; loadReceivables(); }
+
+  if(state.section === "agents" && !state.agLoading) loadPayouts("");
+  renderSummary();
+  renderBody();
 }
 
 /* ---------- header ---------- (nav lives in logic.js) */
