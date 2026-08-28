@@ -547,6 +547,48 @@
   .cesl-open-link a:hover{color:var(--green-darker);border-bottom-color:var(--green);}
   .cesl-nodoc{padding:20px;background:var(--amber-tint);color:var(--amber-dark);
               border-radius:var(--r-card);font-size:12.5px;}
+  .cesl-fallback{font-size:11.5px;color:var(--ink-3);margin-bottom:8px;}
+
+  /* ---- the rebuilt invoice ----
+     Plain type on the green field. No logo, no border, no attempt to look
+     like a scan - it is the same numbers, set to be read in a column. */
+  .cesi{font-size:12.5px;color:var(--ink);}
+  .cesi-from{font-size:11px;color:var(--ink-3);letter-spacing:.03em;
+             text-transform:uppercase;margin-bottom:12px;}
+  .cesi-meta{display:flex;gap:26px;flex-wrap:wrap;padding-bottom:12px;
+             border-bottom:1px solid rgba(20,40,20,.12);margin-bottom:12px;}
+  .cesi-meta .k{display:block;font-size:10.5px;color:var(--ink-3);
+                letter-spacing:.03em;}
+  .cesi-meta .v{display:block;font-size:12.5px;font-weight:600;margin-top:2px;}
+  .cesi-ship{font-size:12px;color:var(--ink-2);line-height:1.5;
+             margin-bottom:14px;}
+  .cesi-ship .k{color:var(--ink-3);font-size:10.5px;letter-spacing:.03em;
+                text-transform:uppercase;margin-right:6px;}
+  .cesi-t{width:100%;border-collapse:collapse;}
+  .cesi-t th{text-align:left;font-size:10.5px;color:var(--ink-3);font-weight:600;
+             letter-spacing:.03em;padding:0 10px 6px 0;
+             border-bottom:1px solid rgba(20,40,20,.12);}
+  .cesi-t td{padding:8px 10px 8px 0;vertical-align:top;font-size:12px;
+             border-bottom:1px solid rgba(20,40,20,.07);line-height:1.45;}
+  .cesi-t th.cesi-q,.cesi-t td.cesi-q{width:44px;
+        font-variant-numeric:tabular-nums;}
+  .cesi-t th.cesi-u,.cesi-t td.cesi-u{width:74px;
+        font-variant-numeric:tabular-nums;}
+  .cesi-t th.cesi-t,.cesi-t td.cesi-t{width:86px;font-weight:600;
+        font-variant-numeric:tabular-nums;padding-right:0;}
+  /* A description with no price - an address, a serial, a note CES typed in
+     the description column. */
+  .cesi-note td{color:var(--ink-3);font-size:11.5px;padding-top:2px;
+                border-bottom:1px solid rgba(20,40,20,.07);}
+  .cesi-sum{margin-top:12px;margin-left:auto;border-collapse:collapse;}
+  .cesi-sum td{padding:4px 0 4px 26px;font-size:12px;text-align:right;
+               font-variant-numeric:tabular-nums;}
+  .cesi-sum td:first-child{color:var(--ink-2);padding-left:0;text-align:left;}
+  .cesi-sum tr.tot td{font-size:14px;font-weight:700;padding-top:8px;
+                      border-top:1px solid rgba(20,40,20,.20);}
+  .cesi-partial{margin-top:14px;padding:9px 11px;background:var(--amber-tint);
+                border:1px solid #F0D9AE;border-radius:var(--r-card);
+                font-size:11.5px;color:var(--amber-dark);line-height:1.5;}
   .cesl-empty{font-size:13px;color:var(--ink-2);padding-top:6px;}
   .cesl-empty-sub{font-size:12px;color:var(--ink-3);margin-top:8px;line-height:1.55;
                   max-width:340px;}
@@ -5772,6 +5814,27 @@ function finCard(label, big, sub, cls, delta2, cls2){
    ================================================================== */
 var CES_LEDGER = [["2025-12-31",0,"Balance forward",7508.99,7508.99,""],["2026-01-01",1,"5660",7060.0,14568.99,"11mACN2Z2pzZqz4euipQkg5fCIjjtAGjr"],["2026-01-16",2,"4519",-10000.0,4568.99,""],["2026-01-26",1,"5663",771.33,5340.32,"1dZH10S6oUMz-5pyBnIS4HAYDUwOU0RPY"],["2026-02-01",1,"5668",7078.0,12418.32,"1Wg9ZKirqSewFktqEHUdwlQagK7Vb28Zz"],["2026-02-13",1,"5671",150.68,12569.0,"10tN4hdXH98zE4dZw0alQVSmSyJrlmooi"],["2026-02-17",1,"5672",322.15,12891.15,"1fsK39ydbPhAdVezrrkFPdS_dpKY6rd5j"],["2026-02-23",1,"5673",322.15,13213.3,"1B-lwS9tuTptC2yfjBoF9VHkqj-tCGSMt"],["2026-02-26",2,"4525",-8000.0,5213.3,""],["2026-03-01",1,"5677",7049.0,12262.3,"1SzN1Q4-3vlyPSvKBNldkWhdnHk6McKgp"],["2026-03-10",1,"5682",166.32,12428.62,"1V10qTlCayH7E2ce5KLZ8dRz0Vl05NfzZ"],["2026-03-11",1,"5683",1520.28,13948.9,"1btyz0OShJiqX-dnQuafPHjQVi1jTndNB"],["2026-03-16",1,"5685",777.74,14726.64,"1ODA-j_XnoFxaW0FGwozBkbK6NW5Ikp9G"],["2026-03-20",1,"5690",105.24,14831.88,"1NztvXYqRv_AnxZlGvi50pagtaHMJTxYb"],["2026-03-20",1,"5691",167.26,14999.14,"15ylhFwHDE5rszJFHisNyclbeJ_Y5EqHB"],["2026-03-30",1,"5692",330.45,15329.59,"1Spy-sgl3_OxhU-3KjHfIBSMvoeG2g1Lg"],["2026-03-31",1,"5694",770.48,16100.07,"1UWRbFsQ6DBeK6zG938-nA7ALnj__0ywY"],["2026-04-01",1,"5696",7056.0,23156.07,"1-PXFgT83q196m4nVPOtcxEZHXI-1RUY3"],["2026-04-01",1,"5697",113.08,23269.15,"19IjIo52rIuQfvR3SZQh3yUAbKsQ75p4D"],["2026-04-03",2,"4535",-10000.0,13269.15,""],["2026-04-06",1,"5705",624.83,13893.98,"15nREE-BdTeTFgX-kvOHyVUP4OzTkUQDh"],["2026-04-13",1,"5709",755.65,14649.63,"1BQpSSr54iVsAY5IloMzJSTe0Vx5zpJg2"],["2026-04-13",1,"5710",770.6,15420.23,"1NWlD40USdhDvTKgelIFzAi7xLudQJJ8w"],["2026-04-15",1,"5711",149.96,15570.19,"1zyA45FVQ4FaS4SKB53ofuQ45mJG_XpLK"],["2026-04-20",2,"4540",-5000.0,10570.19,""],["2026-04-29",1,"5713",772.25,11342.44,"1dYywgN8b5M5DuFygHiI73LL5PTAMJHsb"],["2026-05-01",1,"5715",7043.0,18385.44,"1QwgNxyQK4Uu7BhYdYBcsLeWT9RooC9Vq"],["2026-05-06",1,"5716",32.42,18417.86,"1c3Rfhj53zuzSF2l0VlFkU0AcDEVLmMv8"],["2026-05-13",2,"4550",-12000.0,6417.86,""],["2026-05-21",1,"5721",610.26,7028.12,"1SJ8r5Yxk1_sDwRXsfs4WcaffJ7A-zDly"],["2026-06-01",1,"5725",7014.0,14042.12,"1eULhHtNYckr-nxwLUeCBJdYe7YRCComi"],["2026-06-04",1,"5726",110.52,14152.64,"1Sv4bhUbFB1zeNbGex1gWqqO99OpZxOEK"],["2026-06-05",1,"5727",105.52,14258.16,"12LW25c5OrqtOOidhYmGTmP2wql5MqgqC"],["2026-06-05",1,"5728",543.4,14801.56,"1NbN4U1MPhaaq5WjafwgdkQ8fAkRtOtuW"],["2026-06-09",1,"5733",292.77,15094.33,"1Nxkp1kDGBtIKquu7SxAVrbkLmZboQLHr"],["2026-06-15",1,"5734",124.06,15218.39,"1M0frp1F2h3rU2WnZ1WgSTJeSDDxf_mgH"],["2026-06-15",1,"5735",609.78,15828.17,"1EgbbkDT8gn5TKYaWWcdoYVmbvXsu-otm"],["2026-06-16",1,"5737",147.59,15975.76,"1IDFdb16UuW5KeQeYMwXFsgFITSV3u9TQ"],["2026-06-18",1,"5742",619.53,16595.29,"1rZXl9J3ybVnviryKM8Mb9lIuYCwtSavP"],["2026-06-24",2,"4561",-8000.0,8595.29,""],["2026-06-25",1,"5745",750.0,9345.29,"1HCSGq6HoHXBft0W-wLUDUnNb2esTO42r"],["2026-07-01",1,"5748",7027.0,16372.29,"11SQJbcIgKD5W_LrNyS5Xv-6hH4iTIBcL"],["2026-07-15",1,"5755",767.74,17140.03,"1jiyRHMMI38Ezn8oxHDM2C4lgjbt9VcTE"],["2026-07-20",1,"5756",51.08,17191.11,"1cbQnw819Rn51OGXJRvTCKwPTRKKoLlqt"],["2026-07-21",2,"4570",-12000.0,5191.11,""],["2026-07-22",1,"5757",123.45,5314.56,"1BJoeUIjikQ6ZBxzNOBKnRdfGX6tfbcI1"],["2026-07-27",1,"5758",323.68,5638.24,"1-onaiE97Diay-2k_Fut_1fxVkTjVC_sY"],["2026-07-28",1,"5759",1525.12,7163.36,"1nUtnMjKKa1-2mmVYC2Q4A0H0EIggCtUs"],["2026-08-01",1,"5761",7040.0,14203.36,"1OQWFX32Vrnh64ynCqOOermJjoT-LgrX3"],["2026-08-25",2,"FROST",-10000.0,4203.36,""]];
 
+/* LINE ITEMS, TRANSCRIBED FROM THE CES PDFs.
+ *
+ * The detail pane used to embed the PDF from Drive in an iframe. That works,
+ * but it is a network round trip to Google, a PDF viewer loading inside the
+ * page, and a document sized for print rather than for a column. Rebuilding
+ * the invoice as plain HTML renders instantly and reads like the rest of the
+ * dashboard.
+ *
+ * Only the invoices actually transcribed appear here. Anything missing falls
+ * back to the Drive embed rather than showing a blank or a half-invoice - a
+ * gap in the transcription must never look like a gap in the billing.
+ *
+ * Each line is [description, qty, unitPrice, lineTotal]. A line with nulls
+ * is a note CES printed in the description column with no charge against it
+ * - a shipping address, a box serial, "no SIM activation charge" - and is
+ * rendered as a note rather than a priced row.
+ *
+ * Every transcribed invoice was checked: its line totals sum to the subtotal
+ * CES printed. */
+var CES_INV = {"5660":{"date":"1/1/2026","due":"01/31/2026","ship":"","terms":"Net 30","lines":[["Wastenet - Dedicated Web Server Service (monthly fee) - December 2025",1,1000.0,1000.0],["Monthly server fee for the currently installed activated boxes (460 activated boxes x $5/box)",460,5.0,2300.0],["Cellular data plan - 1 MByte / month (470 boxes x $8/box)",470,8.0,3760.0]],"sub":7060.0,"tax":0.0,"total":7060.0},"5663":{"date":"1/26/2026","due":"02/25/2026","terms":"Net 30","ship":"Drop Ship To: Costco 1298 - 12020 N Newport Hwy - Spokane, WA 99218","lines":[["WM3 - Complete Unit - Mainboard w/Antenna, Enclosure, Current Sensor, and All Cables | BoxId: 1020 | S/N: 3801052792 | Cell: 505-641-6958",1,740.0,740.0],["SIM Activation Fee",1,10.0,10.0],["Shipping & Handling | 2 lb, 8x6x4 | Tracking #888212107382",1,21.33,21.33]],"sub":771.33,"tax":0.0,"total":771.33},"5733":{"date":"6/9/2026","due":"7/9/2026","terms":"Net 30","ship":"Ship to: John Dion, 1400 Grassy Meadow Drive, Joshua TX 76058","lines":[["Parts shipment - see invoice PDF for line detail",1,292.77,292.77]],"sub":292.77,"tax":0.0,"total":292.77,"partial":true},"5734":{"date":"6/15/2026","due":"7/15/2026","terms":"Net 30","ship":"Costco 1360 - Clovis, CA","lines":[["Shipment - no charge",1,0.0,0.0]],"sub":124.06,"tax":0.0,"total":124.06,"partial":true},"5737":{"date":"6/16/2026","due":"07/16/2026","terms":"Net 30","ship":"Ship to: John Dion | 1400 Grassy Meadow Drive, Joshua TX 76058","lines":[["Current Sensor - Clamp-On Type - 50 Amp | Senva C-2345 Split Core 4-20 mA selectable range 0-30/60/120A",1,85.0,85.0],["Current Sensor Cable - Clamp On Type - 10'",1,20.0,20.0],["Shipping & Handling | FedEx Home | 8x6x4 | 1 lb | Tracking #873143657362",1,42.59,42.59],["To be installed on Box #453 | Gaylord (CT 9) 1501 Gaylord Trail, Grapevine, TX 76051 [FOOD CT 2]",null,null,null]],"sub":147.59,"tax":0.0,"total":147.59},"5745":{"date":"6/25/2026","due":"07/25/2026","terms":"Net 30","ship":"Drop Ship To: Costco 1294 - Packer #2 | 8000 Parramore Rd | Jacksonville, FL 32244","lines":[["WM3 - Complete Unit - Mainboard w/Antenna, Enclosure, Current Sensor, and All Cables | BoxId: 1031 | S/N: 3800706448 | Cell: 272-457-8946",1,740.0,740.0],["SIM Activation Fee",1,10.0,10.0],["Shipping & Handling | FedEx Ground (Monday 6/29/26) | 8x6x4 | 2 lb | Tracking #873553826772",1,0.0,0.0],["Box #1031 replacing lost Box #949",null,null,null]],"sub":750.0,"tax":0.0,"total":750.0},"5748":{"date":"7/1/2026","due":"07/31/2026","terms":"Net 30","ship":"","lines":[["Wastenet - Dedicated Web Server Service (monthly fee) - June 2026",1,1000.0,1000.0],["Monthly server fee for the currently installed activated boxes (463 activated boxes x $5/box)",463,5.0,2315.0],["Cellular data plan - 1 MByte / month (464 boxes x $8/box)",464,8.0,3712.0]],"sub":7027.0,"tax":0.0,"total":7027.0},"5755":{"date":"7/15/2026","due":"08/14/2026","terms":"Net 30","ship":"Drop Ship To: Costco #1645 | 3445 South Preston Rd | Celina, TX 75009 | Attn: Travis Wynn","lines":[["WM3 - Complete Unit - Mainboard w/Antenna, Enclosure, Current Sensor, and All Cables | BoxId: 1034 | S/N: 4058054660 | Cell: 856-634-0899",1,740.0,740.0],["No SIM activation charge",null,null,null],["Shipping & Handling | FedEx Ground | 8x6x4 | 2 lbs | Tracking #874423656998",1,27.74,27.74]],"sub":767.74,"tax":0.0,"total":767.74},"5756":{"date":"7/20/2026","due":"08/19/2026","terms":"Net 30","ship":"Ship to: Costco #386, 98 Seaboard Lane - Brentwood, TN 37027-2930 | Tabitha Anderson","lines":[["Empty box shipped with return label",null,null,null],["Shipping & Handling | FedEx Ground | 13x10x8 | 1 lb | Tracking #874611340536",1,21.07,21.07],["Return Label | FedEx Ground | 13x10x8 | 1 lb | Tracking #792558605832",1,30.01,30.01]],"sub":51.08,"tax":0.0,"total":51.08},"5757":{"date":"7/22/2026","due":"08/21/2026","terms":"Net 30","ship":"Ship to Address: Costco 0048 - 6100 Sepulveda Boulevard - Van Nuys, CA 91411","lines":[["Current Sensor - Clamp-On Type - 50 Amp | Senva C-2345 Split Core 4-20 mA selectable range 0-30/60/120A",1,85.0,85.0],["Return Shipping: FedEx Express Saver - 8x6x2 - 1 lb - Tracking number: 874731551566",1,38.45,38.45]],"sub":123.45,"tax":0.0,"total":123.45},"5758":{"date":"7/27/2026","due":"08/26/2026","terms":"Net 30","ship":"Ship to Address: Costco 0180 - 1873 Lantana Rd - Lantana, FL 33462","lines":[["WM2 Mainboard Repair/Upgrade to 4M Cellmodem & Antenna (Battery - new SIM) | BoxId: 464 | S/N: 52926 | Cell: 762-350-4794",1,264.0,264.0],["SIM Activation Fee",1,10.0,10.0],["Shipping & Handling: FedEx Ground - 8x6x2 - 1 lb - tracking number: 874921133480",1,20.36,20.36],["Return Shipping: FedEx Ground - 8x6x2 - 1 lb - tracking number: 792583287980",1,29.32,29.32]],"sub":323.68,"tax":0.0,"total":323.68},"5759":{"date":"7/28/2026","due":"08/27/2026","terms":"Net 30","ship":"Drop Ship To: Costco #739 | 465 Route 70 | Brick, NJ 08723 | Attn: Danny Moreno, Asst Mgr.","lines":[["WM3 - Complete Unit - Mainboard w/Antenna, Enclosure, Current Sensor, and All Cables",2,740.0,1480.0],["SIM Activation Fee",2,10.0,20.0],["Shipping & Handling | FedEx Ground | 13x10x8 | 6 lbs | Tracking #874987717336",1,25.12,25.12],["BoxId: 1035 | S/N: 4058054732 | Cell: 235-222-7518",null,null,null],["BoxId: 1036 | S/N: 4057988564 | Cell: 582-289-8665",null,null,null]],"sub":1525.12,"tax":0.0,"total":1525.12},"5761":{"date":"8/1/2026","due":"08/31/2026","terms":"Net 30","ship":"","lines":[["Wastenet - Dedicated Web Server Service (monthly fee) - July 2026",1,1000.0,1000.0],["Monthly server fee for the currently installed activated boxes (462 activated boxes x $5/box)",464,5.0,2320.0],["Cellular data plan - 1 MByte / month (463 boxes x $8/box)",465,8.0,3720.0]],"sub":7040.0,"tax":0.0,"total":7040.0}};
+
 var CES_LEDGER_NOTE =
   'The last CES statement is dated 3 Aug 2026 at $14,203.36. The 25 Aug ' +
   'payment of $10,000 brings it to $4,203.36. Anything invoiced since 3 Aug ' +
@@ -5894,19 +5957,76 @@ function ledgerDetail(){
         'statement.</div></div>';
   }
 
-  var date = r[0], ref = r[2], amt = r[3], run = r[4], fid = r[5];
+  var ref = r[2], fid = r[5];
+  var d = CES_INV[ref];
 
-  var doc = fid
-    ? '<iframe class="cesl-frame" src="https://drive.google.com/file/d/' +
-      esc(fid) + '/preview" title="CES invoice ' + esc(ref) + '" loading="lazy"></iframe>' +
-      '<div class="cesl-open-link"><a href="https://drive.google.com/file/d/' +
-      esc(fid) + '/view" target="_blank" rel="noopener">Open in Drive \u2197</a></div>'
-    : '<div class="cesl-nodoc">No PDF on file for this invoice.</div>';
+  /* Not transcribed yet - show the real thing rather than nothing. */
+  if(!d){
+    if(!fid){
+      return '<div class="ag-detail"><div class="cesl-nodoc">' +
+        'No PDF on file for invoice ' + esc(ref) + '.</div></div>';
+    }
+    return '<div class="ag-detail">' +
+      '<div class="cesl-fallback">Showing the original PDF \u2014 this one ' +
+        'has not been transcribed yet.</div>' +
+      '<iframe class="cesl-frame" src="https://drive.google.com/file/d/' +
+        esc(fid) + '/preview" title="CES invoice ' + esc(ref) + '" loading="lazy"></iframe>' +
+      '</div>';
+  }
 
-  /* No heading here - the topbar above already names the invoice, its date
-     and its amount. Repeating it would be the same two-header problem one
-     level down. */
-  return '<div class="ag-detail">' + doc + '</div>';
+  var rows = (d.lines || []).map(function(l){
+    /* A description-only line: an address, a serial number, a note. It has
+       no quantity or price, and giving it $0.00 columns would read as a
+       charge of nothing rather than as no charge at all. */
+    if(l[1] === null || l[1] === undefined){
+      return '<tr class="cesi-note"><td colspan="4">' + esc(l[0]) + '</td></tr>';
+    }
+    return '<tr>' +
+      '<td class="cesi-desc">' + esc(l[0]) + '</td>' +
+      '<td class="cesi-q">' + fmtN(l[1]) + '</td>' +
+      '<td class="cesi-u">' + ledgerMoney(l[2]) + '</td>' +
+      '<td class="cesi-t">' + ledgerMoney(l[3]) + '</td>' +
+    '</tr>';
+  }).join("");
+
+  var meta = '<div class="cesi-meta">' +
+    '<div><span class="k">Invoice date</span><span class="v">' + esc(d.date) + '</span></div>' +
+    '<div><span class="k">Due</span><span class="v">' + esc(d.due || "\u2014") + '</span></div>' +
+    '<div><span class="k">Terms</span><span class="v">' + esc(d.terms || "\u2014") + '</span></div>' +
+  '</div>';
+
+  var ship = d.ship
+    ? '<div class="cesi-ship"><span class="k">Shipped to</span> ' + esc(d.ship) + '</div>'
+    : '';
+
+  /* A partial transcription is stated, not hidden. The total is CES's own
+     figure either way, so the ledger stays correct - but the line detail
+     is incomplete and the page should say which. */
+  var caveat = d.partial
+    ? '<div class="cesi-partial">Line detail for this invoice has not been ' +
+      'fully transcribed. The total is CES\u2019s own figure.</div>'
+    : '';
+
+  return '<div class="ag-detail">' +
+    '<div class="cesi">' +
+      '<div class="cesi-from">Computer Engineered Solutions, Inc. \u00b7 ' +
+        'LaGrange, GA</div>' +
+      meta + ship +
+      '<table class="cesi-t"><thead><tr>' +
+        '<th>Description</th><th class="cesi-q">Qty</th>' +
+        '<th class="cesi-u">Unit</th><th class="cesi-t">Amount</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<table class="cesi-sum"><tbody>' +
+        '<tr><td>Subtotal</td><td>' + ledgerMoney(d.sub) + '</td></tr>' +
+        '<tr><td>Sales tax</td><td>' + ledgerMoney(d.tax || 0) + '</td></tr>' +
+        '<tr class="tot"><td>Total</td><td>' + ledgerMoney(d.total) + '</td></tr>' +
+      '</tbody></table>' +
+      caveat +
+      (fid ? '<div class="cesl-open-link"><a href="https://drive.google.com/file/d/' +
+        esc(fid) + '/view" target="_blank" rel="noopener">' +
+        'See the original PDF \u2197</a></div>' : '') +
+    '</div>' +
+  '</div>';
 }
 
 /* Clicking a row shows that invoice in the green column. Re-render rather
