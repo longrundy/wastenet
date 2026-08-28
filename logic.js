@@ -279,8 +279,7 @@ var WN_NAV_ICONS = {
   compose:    '<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
   calculator: '<svg viewBox="0 0 24 24"><rect x="5" y="2.5" width="14" height="19" rx="2"/><rect x="8" y="5.5" width="8" height="3.5" rx="0.6"/><path d="M9 13h.01M12 13h.01M15 13h.01M9 17h.01M12 17h.01M15 17h.01"/></svg>',
   performance: '<svg viewBox="0 0 24 24"><rect x="2.5" y="8" width="16" height="8" rx="2"/><path d="M21.5 11v2"/><path d="M6 10.5v3"/><path d="M9.5 10.5v3"/><path d="M13 10.5v3"/></svg>',
-  guide: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 1.9-2.4 3.5"/><circle cx="12" cy="16.8" r=".7" fill="currentColor" stroke="none"/></svg>',
-  ledger: '<svg viewBox="0 0 24 24"><path d="M5 3.5h14v17l-3-1.6-2 1.6-2-1.6-2 1.6-2-1.6-3 1.6z"/><path d="M8.5 8.5h7"/><path d="M8.5 12h7"/><path d="M8.5 15.5h4"/></svg>'
+  guide: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 1.9-2.4 3.5"/><circle cx="12" cy="16.8" r=".7" fill="currentColor" stroke="none"/></svg>'
 };
 
 /* The whole app, in order. id must match the icon key and is what the
@@ -296,15 +295,7 @@ var WN_PAGES = [
   ]},
   { group: 'Tools', items: [
     { id: 'performance', label: 'Box Performance',   href: 'performance.html' },
-    { id: 'calculator', label: 'Savings Calculator', href: 'calculator.html' },
-    /* Every CES invoice and payment with a running balance, each invoice
-       number linking to its PDF in Drive.
-       It sits under Tools rather than beside the dashboards because it is a
-       reference document, not a place work gets done - and because it
-       answers a question nothing else in the system could: CES invoices
-       carry no balance forward, so a debt ran from before 2026 with nothing
-       anywhere revealing it existed. */
-    { id: 'ledger', label: 'CES Ledger', href: 'ces-ledger.html' }
+    { id: 'calculator', label: 'Savings Calculator', href: 'calculator.html' }
   ]},
   { group: 'Help', items: [
     { id: 'guide', label: 'Guide', href: 'how-it-works.html' }
