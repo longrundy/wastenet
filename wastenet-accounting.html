@@ -1806,6 +1806,12 @@ function agMonthData(){
           agent: a.agent, name: a.name, share: a.share,
           rateSet: {},
           collected: 0, monitoring: 0, boxes: 0, fees: 0, payout: 0,
+          /* The per-month figures the statement lines need. Without these the
+             year view read a.commission and a.feeBoxes as undefined and
+             rendered "x 50% share = $0.00" beside a payout that was right -
+             the arithmetic was fine, the sentence describing it was not. */
+          commission: 0, cesFees: 0, feeMonths: 0,
+          feeBoxes: 0, feeRate: 0, feeKnown: true,
           review: 0, reviewList: [], invoices: [], months: []
         };
       }
@@ -1817,6 +1823,16 @@ function agMonthData(){
       t.fees       += a.fees;
       t.payout     += a.payout;
       t.review     += a.review;
+      t.commission += (a.commission || 0);
+      t.cesFees    += (a.cesFees || 0);
+
+      /* Boxes and rate are NOT summed. The same box is charged every month,
+         so adding twelve months of a one-box agent would claim twelve boxes.
+         Take the latest month's count, and count the months instead - that is
+         what actually multiplies out to the fee. */
+      if(a.feeBoxes) { t.feeBoxes = a.feeBoxes; t.feeMonths++; }
+      if(a.feeRate)  t.feeRate = a.feeRate;
+      if(a.feeKnown === false) t.feeKnown = false;
       if(a.reviewList) t.reviewList = t.reviewList.concat(a.reviewList);
       // In the year view the useful breakdown is by month, not a list of
       // several hundred invoices.
@@ -3389,11 +3405,15 @@ function renderAgents(){
         (a.feeKnown === false
           ? '<br><span style="color:#854F0B;">box fee not calculated \u2014 box list unreadable</span>'
           : (a.fees
+              /* In the YEAR view the fee is many months of the same boxes, so
+                 "1 box x $12.50" cannot explain $62.50. Say the months. */
               ? '<br>\u2212 <b>$' + fmt(a.fees) + '</b> box communication (' +
                 (a.feeMixed
                   ? fmtN(a.feeBoxes) + ' active boxes at ' +
                     (a.feeRates || []).map(function(r){ return '$' + fmt(r.rate); }).join(' and ')
-                  : fmtN(a.feeBoxes) + ' active boxes \u00d7 $' + fmt(a.feeRate)) + ')'
+                  : fmtN(a.feeBoxes) + ' active box' + (a.feeBoxes === 1 ? '' : 'es') +
+                    ' \u00d7 $' + fmt(a.feeRate)) +
+                (a.feeMonths > 1 ? ' \u00d7 ' + fmtN(a.feeMonths) + ' months' : '') + ')'
               : '')) +
         (a.cesFees
           ? '<br>\u2212 <b>$' + fmt(a.cesFees) + '</b> CES fees (' +
