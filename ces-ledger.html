@@ -1,0 +1,178 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CES Ledger &mdash; WasteNet</title>
+<style>
+:root{--ink:#1A1D1A;--ink-2:#525A60;--ink-3:#8A8F8A;--line:#E4E7E0;
+--line-strong:#CFD4CA;--card:#fff;--panel:#F6F7F3;--bg:#FAFBF8;
+--green:#5CAA16;--green-dark:#3B6D11;--green-darker:#27500A;--green-tint:#EAF3DE;
+--red-tint:#FCEBEB;--red-dark:#A32D2D;--red-darker:#791F1F;
+--amber-tint:#FAEEDA;--amber-dark:#633806;
+--font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);font-family:var(--font);color:var(--ink);}
+.wrap{max-width:1000px;margin:0 auto;padding:0 0 60px;}
+header{background:#153a22;padding:22px 28px 20px;}
+header .t{font-size:19px;font-weight:600;color:#fff;}
+header .s{font-size:12.5px;color:#C0DD97;margin-top:4px;}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:0;
+border-bottom:0.5px solid var(--line);background:var(--card);}
+.card{padding:16px 20px;border-right:0.5px solid var(--line);}
+.card:last-child{border-right:0}
+.card .k{font-size:11px;color:var(--ink-3);letter-spacing:.04em;}
+.card .v{font-size:21px;font-weight:600;margin-top:4px;}
+.card .n{font-size:11.5px;color:var(--ink-3);margin-top:3px;}
+.card.owed .v{color:var(--red-darker)}
+.note{margin:16px 20px;padding:12px 15px;background:var(--amber-tint);
+border:0.5px solid #F0D9AE;border-radius:8px;font-size:12.5px;color:var(--amber-dark);line-height:1.55;}
+table{width:100%;border-collapse:collapse;background:var(--card);}
+th{text-align:left;font-size:11px;color:var(--ink-3);font-weight:600;
+padding:10px 20px;border-bottom:0.5px solid var(--line-strong);letter-spacing:.04em;
+position:sticky;top:0;background:var(--card);}
+td{padding:8px 20px;font-size:12.5px;border-bottom:0.5px solid #F0F2ED;}
+tr.pay{background:var(--green-tint)}
+tr.open{background:var(--panel);color:var(--ink-2)}
+.amt{text-align:right;white-space:nowrap;}
+.amt.neg{color:var(--green-darker);font-weight:600}
+.bal{text-align:right;white-space:nowrap;font-weight:600;width:120px}
+th.amt,th.bal{text-align:right}
+.tag{display:inline-block;border-radius:4px;padding:2px 8px;font-size:10.5px;font-weight:600;}
+.tag.inv{background:var(--panel);color:var(--ink-2)}
+.tag.pay{background:#D8EBBE;color:var(--green-darker)}
+a{color:var(--green-dark);font-weight:600;text-decoration:none;border-bottom:1px solid #C0DD97}
+a:hover{color:var(--green-darker);border-bottom-color:var(--green)}
+.nolink{color:var(--ink-3);font-weight:400;font-size:11px}
+tfoot td{background:var(--panel);font-weight:600;border-top:0.5px solid var(--line-strong);}
+@media(max-width:720px){.cards{grid-template-columns:repeat(2,1fr)}
+th,td{padding-left:12px;padding-right:12px}}
+</style></head><body><div class="wrap">
+<header>
+<div class="t">CES ledger</div>
+<div class="s">Every invoice and payment, Jan&ndash;Aug 2026 &middot; reconciled against CES statements</div>
+</header>
+
+<div class="cards">
+<div class="card"><div class="k">OPENING 31 DEC 2025</div><div class="v">$7,508.99</div>
+<div class="n">carried from 2025</div></div>
+<div class="card"><div class="k">INVOICED 2026</div><div class="v">$71,694.37</div>
+<div class="n">41 invoices</div></div>
+<div class="card"><div class="k">PAID 2026</div><div class="v">$75,000.00</div>
+<div class="n">8 transfers</div></div>
+<div class="card owed"><div class="k">BALANCE OWED</div><div class="v">$4,203.36</div>
+<div class="n">as at 28 Aug 2026</div></div>
+</div>
+
+<div class="note"><b>You owe CES, you are not in credit.</b> The round payments have been
+paying down a balance that has run since before 2026 &mdash; CES invoices never show a
+carry-forward, so only their statements reveal it. Every running balance below matches
+CES&rsquo;s own statement figure on the same date. The last statement is dated 3 Aug 2026
+at $14,203.36; the 25 Aug payment of $10,000 brings it to $4,203.36. Any invoice
+raised since 3 Aug is not yet included.</div>
+
+<table>
+<thead><tr><th>Date</th><th>Type</th><th>Reference</th><th class="amt">Amount</th><th class="bal">Balance</th></tr></thead>
+<tbody>
+<tr class="open"><td>2025-12-31</td><td colspan="2">Balance forward from 2025</td>
+<td class="amt"></td><td class="bal">$7,508.99</td></tr>
+<tr><td>2026-01-01</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/11mACN2Z2pzZqz4euipQkg5fCIjjtAGjr/view" target="_blank" rel="noopener">5660</a></td><td class="amt">$7,060.00</td><td class="bal">$14,568.99</td></tr>
+<tr class="pay"><td>2026-01-16</td><td><span class="tag pay">Payment</span></td>
+<td>4519</td><td class="amt neg">-$10,000.00</td><td class="bal">$4,568.99</td></tr>
+<tr><td>2026-01-26</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1dZH10S6oUMz-5pyBnIS4HAYDUwOU0RPY/view" target="_blank" rel="noopener">5663</a></td><td class="amt">$771.33</td><td class="bal">$5,340.32</td></tr>
+<tr><td>2026-02-01</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1Wg9ZKirqSewFktqEHUdwlQagK7Vb28Zz/view" target="_blank" rel="noopener">5668</a></td><td class="amt">$7,078.00</td><td class="bal">$12,418.32</td></tr>
+<tr><td>2026-02-13</td><td><span class="tag inv">Invoice</span></td>
+<td>5671 <span class="nolink">no PDF on file</span></td><td class="amt">$150.68</td><td class="bal">$12,569.00</td></tr>
+<tr><td>2026-02-17</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1fsK39ydbPhAdVezrrkFPdS_dpKY6rd5j/view" target="_blank" rel="noopener">5672</a></td><td class="amt">$322.15</td><td class="bal">$12,891.15</td></tr>
+<tr><td>2026-02-23</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1B-lwS9tuTptC2yfjBoF9VHkqj-tCGSMt/view" target="_blank" rel="noopener">5673</a></td><td class="amt">$322.15</td><td class="bal">$13,213.30</td></tr>
+<tr class="pay"><td>2026-02-26</td><td><span class="tag pay">Payment</span></td>
+<td>4525</td><td class="amt neg">-$8,000.00</td><td class="bal">$5,213.30</td></tr>
+<tr><td>2026-03-01</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1SzN1Q4-3vlyPSvKBNldkWhdnHk6McKgp/view" target="_blank" rel="noopener">5677</a></td><td class="amt">$7,049.00</td><td class="bal">$12,262.30</td></tr>
+<tr><td>2026-03-10</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1V10qTlCayH7E2ce5KLZ8dRz0Vl05NfzZ/view" target="_blank" rel="noopener">5682</a></td><td class="amt">$166.32</td><td class="bal">$12,428.62</td></tr>
+<tr><td>2026-03-11</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1btyz0OShJiqX-dnQuafPHjQVi1jTndNB/view" target="_blank" rel="noopener">5683</a></td><td class="amt">$1,520.28</td><td class="bal">$13,948.90</td></tr>
+<tr><td>2026-03-16</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1ODA-j_XnoFxaW0FGwozBkbK6NW5Ikp9G/view" target="_blank" rel="noopener">5685</a></td><td class="amt">$777.74</td><td class="bal">$14,726.64</td></tr>
+<tr><td>2026-03-20</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1NztvXYqRv_AnxZlGvi50pagtaHMJTxYb/view" target="_blank" rel="noopener">5690</a></td><td class="amt">$105.24</td><td class="bal">$14,831.88</td></tr>
+<tr><td>2026-03-20</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/15ylhFwHDE5rszJFHisNyclbeJ_Y5EqHB/view" target="_blank" rel="noopener">5691</a></td><td class="amt">$167.26</td><td class="bal">$14,999.14</td></tr>
+<tr><td>2026-03-30</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1Spy-sgl3_OxhU-3KjHfIBSMvoeG2g1Lg/view" target="_blank" rel="noopener">5692</a></td><td class="amt">$330.45</td><td class="bal">$15,329.59</td></tr>
+<tr><td>2026-03-31</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1UWRbFsQ6DBeK6zG938-nA7ALnj__0ywY/view" target="_blank" rel="noopener">5694</a></td><td class="amt">$770.48</td><td class="bal">$16,100.07</td></tr>
+<tr><td>2026-04-01</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1-PXFgT83q196m4nVPOtcxEZHXI-1RUY3/view" target="_blank" rel="noopener">5696</a></td><td class="amt">$7,056.00</td><td class="bal">$23,156.07</td></tr>
+<tr><td>2026-04-01</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/19IjIo52rIuQfvR3SZQh3yUAbKsQ75p4D/view" target="_blank" rel="noopener">5697</a></td><td class="amt">$113.08</td><td class="bal">$23,269.15</td></tr>
+<tr class="pay"><td>2026-04-03</td><td><span class="tag pay">Payment</span></td>
+<td>4535</td><td class="amt neg">-$10,000.00</td><td class="bal">$13,269.15</td></tr>
+<tr><td>2026-04-06</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/15nREE-BdTeTFgX-kvOHyVUP4OzTkUQDh/view" target="_blank" rel="noopener">5705</a></td><td class="amt">$624.83</td><td class="bal">$13,893.98</td></tr>
+<tr><td>2026-04-13</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1BQpSSr54iVsAY5IloMzJSTe0Vx5zpJg2/view" target="_blank" rel="noopener">5709</a></td><td class="amt">$755.65</td><td class="bal">$14,649.63</td></tr>
+<tr><td>2026-04-13</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1NWlD40USdhDvTKgelIFzAi7xLudQJJ8w/view" target="_blank" rel="noopener">5710</a></td><td class="amt">$770.60</td><td class="bal">$15,420.23</td></tr>
+<tr><td>2026-04-15</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1zyA45FVQ4FaS4SKB53ofuQ45mJG_XpLK/view" target="_blank" rel="noopener">5711</a></td><td class="amt">$149.96</td><td class="bal">$15,570.19</td></tr>
+<tr class="pay"><td>2026-04-20</td><td><span class="tag pay">Payment</span></td>
+<td>4540</td><td class="amt neg">-$5,000.00</td><td class="bal">$10,570.19</td></tr>
+<tr><td>2026-04-29</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1dYywgN8b5M5DuFygHiI73LL5PTAMJHsb/view" target="_blank" rel="noopener">5713</a></td><td class="amt">$772.25</td><td class="bal">$11,342.44</td></tr>
+<tr><td>2026-05-01</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1QwgNxyQK4Uu7BhYdYBcsLeWT9RooC9Vq/view" target="_blank" rel="noopener">5715</a></td><td class="amt">$7,043.00</td><td class="bal">$18,385.44</td></tr>
+<tr><td>2026-05-06</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1c3Rfhj53zuzSF2l0VlFkU0AcDEVLmMv8/view" target="_blank" rel="noopener">5716</a></td><td class="amt">$32.42</td><td class="bal">$18,417.86</td></tr>
+<tr class="pay"><td>2026-05-13</td><td><span class="tag pay">Payment</span></td>
+<td>4550</td><td class="amt neg">-$12,000.00</td><td class="bal">$6,417.86</td></tr>
+<tr><td>2026-05-21</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1SJ8r5Yxk1_sDwRXsfs4WcaffJ7A-zDly/view" target="_blank" rel="noopener">5721</a></td><td class="amt">$610.26</td><td class="bal">$7,028.12</td></tr>
+<tr><td>2026-06-01</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1eULhHtNYckr-nxwLUeCBJdYe7YRCComi/view" target="_blank" rel="noopener">5725</a></td><td class="amt">$7,014.00</td><td class="bal">$14,042.12</td></tr>
+<tr><td>2026-06-04</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1Sv4bhUbFB1zeNbGex1gWqqO99OpZxOEK/view" target="_blank" rel="noopener">5726</a></td><td class="amt">$110.52</td><td class="bal">$14,152.64</td></tr>
+<tr><td>2026-06-05</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/12LW25c5OrqtOOidhYmGTmP2wql5MqgqC/view" target="_blank" rel="noopener">5727</a></td><td class="amt">$105.52</td><td class="bal">$14,258.16</td></tr>
+<tr><td>2026-06-05</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1NbN4U1MPhaaq5WjafwgdkQ8fAkRtOtuW/view" target="_blank" rel="noopener">5728</a></td><td class="amt">$543.40</td><td class="bal">$14,801.56</td></tr>
+<tr><td>2026-06-09</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1Nxkp1kDGBtIKquu7SxAVrbkLmZboQLHr/view" target="_blank" rel="noopener">5733</a></td><td class="amt">$292.77</td><td class="bal">$15,094.33</td></tr>
+<tr><td>2026-06-15</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1M0frp1F2h3rU2WnZ1WgSTJeSDDxf_mgH/view" target="_blank" rel="noopener">5734</a></td><td class="amt">$124.06</td><td class="bal">$15,218.39</td></tr>
+<tr><td>2026-06-15</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1EgbbkDT8gn5TKYaWWcdoYVmbvXsu-otm/view" target="_blank" rel="noopener">5735</a></td><td class="amt">$609.78</td><td class="bal">$15,828.17</td></tr>
+<tr><td>2026-06-16</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1IDFdb16UuW5KeQeYMwXFsgFITSV3u9TQ/view" target="_blank" rel="noopener">5737</a></td><td class="amt">$147.59</td><td class="bal">$15,975.76</td></tr>
+<tr><td>2026-06-18</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1rZXl9J3ybVnviryKM8Mb9lIuYCwtSavP/view" target="_blank" rel="noopener">5742</a></td><td class="amt">$619.53</td><td class="bal">$16,595.29</td></tr>
+<tr class="pay"><td>2026-06-24</td><td><span class="tag pay">Payment</span></td>
+<td>4561</td><td class="amt neg">-$8,000.00</td><td class="bal">$8,595.29</td></tr>
+<tr><td>2026-06-25</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1HCSGq6HoHXBft0W-wLUDUnNb2esTO42r/view" target="_blank" rel="noopener">5745</a></td><td class="amt">$750.00</td><td class="bal">$9,345.29</td></tr>
+<tr><td>2026-07-01</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/11SQJbcIgKD5W_LrNyS5Xv-6hH4iTIBcL/view" target="_blank" rel="noopener">5748</a></td><td class="amt">$7,027.00</td><td class="bal">$16,372.29</td></tr>
+<tr><td>2026-07-15</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1jiyRHMMI38Ezn8oxHDM2C4lgjbt9VcTE/view" target="_blank" rel="noopener">5755</a></td><td class="amt">$767.74</td><td class="bal">$17,140.03</td></tr>
+<tr><td>2026-07-20</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1cbQnw819Rn51OGXJRvTCKwPTRKKoLlqt/view" target="_blank" rel="noopener">5756</a></td><td class="amt">$51.08</td><td class="bal">$17,191.11</td></tr>
+<tr class="pay"><td>2026-07-21</td><td><span class="tag pay">Payment</span></td>
+<td>4570</td><td class="amt neg">-$12,000.00</td><td class="bal">$5,191.11</td></tr>
+<tr><td>2026-07-22</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1BJoeUIjikQ6ZBxzNOBKnRdfGX6tfbcI1/view" target="_blank" rel="noopener">5757</a></td><td class="amt">$123.45</td><td class="bal">$5,314.56</td></tr>
+<tr><td>2026-07-27</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1-onaiE97Diay-2k_Fut_1fxVkTjVC_sY/view" target="_blank" rel="noopener">5758</a></td><td class="amt">$323.68</td><td class="bal">$5,638.24</td></tr>
+<tr><td>2026-07-28</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1nUtnMjKKa1-2mmVYC2Q4A0H0EIggCtUs/view" target="_blank" rel="noopener">5759</a></td><td class="amt">$1,525.12</td><td class="bal">$7,163.36</td></tr>
+<tr><td>2026-08-01</td><td><span class="tag inv">Invoice</span></td>
+<td><a href="https://drive.google.com/file/d/1OQWFX32Vrnh64ynCqOOermJjoT-LgrX3/view" target="_blank" rel="noopener">5761</a></td><td class="amt">$7,040.00</td><td class="bal">$14,203.36</td></tr>
+<tr class="pay"><td>2026-08-25</td><td><span class="tag pay">Payment</span></td>
+<td>FROST</td><td class="amt neg">-$10,000.00</td><td class="bal">$4,203.36</td></tr>
+</tbody>
+<tfoot><tr><td colspan="3">Invoiced $71,694.37 &nbsp;&minus;&nbsp; paid $75,000.00 &nbsp;+&nbsp; opening $7,508.99</td>
+<td class="amt"></td><td class="bal">$4,203.36</td></tr></tfoot>
+</table>
+</div></body></html>
