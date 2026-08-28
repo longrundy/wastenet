@@ -467,24 +467,29 @@
             font-family:var(--font); flex:0 0 auto;}
   .agmail-e:hover{background:var(--green-tint);}
 
-  /* ---- CES ledger ---- */
-  .cesl{padding:0 0 40px;}
+  /* ---- CES ledger ----
+     Two columns like Agents and Receivables: the ledger in the gray list
+     column, the selected invoice in the green detail column. */
   .cesl-cards{display:grid;grid-template-columns:repeat(4,1fr);
-              background:var(--card);border-bottom:0.5px solid var(--line);}
-  .cesl-card{padding:15px 20px;border-right:0.5px solid var(--line);}
-  .cesl-card:last-child{border-right:0;}
+              border-bottom:1px solid var(--line);margin:0 -22px 0;
+              padding:0 22px;}
+  .cesl-card{padding:12px 0 14px;padding-right:14px;}
+  .cesl-card:last-child{padding-right:0;}
   .cesl-card .k{font-size:10.5px;color:var(--ink-3);letter-spacing:.04em;font-weight:600;}
   .cesl-card .v{font-size:20px;font-weight:700;margin-top:4px;}
   .cesl-card .n{font-size:11.5px;color:var(--ink-3);margin-top:2px;}
   .cesl-card.owed .v{color:var(--red-darker);}
-  .cesl-note{margin:14px 20px;padding:11px 14px;background:var(--amber-tint);
-             border:0.5px solid #F0D9AE;border-radius:var(--r-card);
-             font-size:12px;color:var(--amber-dark);line-height:1.55;}
-  .cesl-t{width:100%;border-collapse:collapse;background:var(--card);}
+  .cesl-t{width:100%;border-collapse:collapse;margin-top:2px;}
   .cesl-t th{text-align:left;font-size:11px;color:var(--ink-3);font-weight:600;
-             padding:9px 20px;border-bottom:0.5px solid var(--line-strong);
-             letter-spacing:.04em;position:sticky;top:var(--pinh,0);background:var(--card);z-index:2;}
-  .cesl-t td{padding:7px 20px;font-size:12.5px;border-bottom:0.5px solid #F0F2ED;}
+             padding:10px 8px 8px 0;border-bottom:1px solid var(--line);
+             letter-spacing:.04em;position:sticky;top:0;background:var(--list-bg);z-index:2;}
+  .cesl-t td{padding:8px 8px 8px 0;font-size:12.5px;
+             border-bottom:1px solid var(--line);}
+  .cesl-t tr.cesl-inv{cursor:pointer;}
+  .cesl-t tr.cesl-inv:hover{background:rgba(20,40,20,.035);}
+  .cesl-t tr.cesl-inv.on{background:var(--sel);}
+  .cesl-t tr.cesl-inv.on .cesl-ref{color:var(--green-darker);font-weight:700;}
+  .cesl-ref{font-weight:600;color:var(--green-dark);}
   .cesl-t tr.cesl-pay{background:var(--green-tint);}
   .cesl-t tr.cesl-open{background:var(--panel);color:var(--ink-2);}
   .cesl-amt{text-align:right;white-space:nowrap;}
@@ -494,17 +499,32 @@
             font-size:10.5px;font-weight:600;}
   .cesl-tag.inv{background:var(--panel);color:var(--ink-2);}
   .cesl-tag.pay{background:#D8EBBE;color:var(--green-darker);}
-  .cesl-t a{color:var(--green-dark);font-weight:600;text-decoration:none;
-            border-bottom:1px solid #C0DD97;}
-  .cesl-t a:hover{color:var(--green-darker);border-bottom-color:var(--green);}
   .cesl-nolink{color:var(--ink-3);font-weight:400;font-size:11px;}
-  .cesl-t tfoot td{background:var(--panel);font-weight:600;
-                   border-top:0.5px solid var(--line-strong);border-bottom:0;}
+  .cesl-t tfoot td{font-weight:600;border-top:1px solid var(--line-strong);
+                   border-bottom:0;padding-top:10px;color:var(--ink-2);}
+
+  /* the green column */
+  .cesl-dhead{padding-bottom:12px;border-bottom:1px solid rgba(20,40,20,.10);
+              margin-bottom:14px;}
+  .cesl-dnum{font-size:16px;font-weight:700;color:#153a22;}
+  .cesl-dmeta{font-size:12.5px;color:var(--ink-2);margin-top:4px;}
+  /* Tall enough to read a CES invoice without scrolling the frame - they are
+     a single page and the total sits near the middle. */
+  .cesl-frame{width:100%;height:calc(100vh - 250px);min-height:420px;border:0;
+              border-radius:var(--r-card);background:#fff;
+              box-shadow:0 1px 3px rgba(20,40,20,.10);}
+  .cesl-open-link{margin-top:10px;font-size:12.5px;}
+  .cesl-open-link a{color:var(--green-dark);font-weight:600;
+                    text-decoration:none;border-bottom:1px solid #C0DD97;}
+  .cesl-open-link a:hover{color:var(--green-darker);border-bottom-color:var(--green);}
+  .cesl-nodoc{padding:20px;background:var(--amber-tint);color:var(--amber-dark);
+              border-radius:var(--r-card);font-size:12.5px;}
+  .cesl-empty{font-size:13px;color:var(--ink-2);padding-top:6px;}
+  .cesl-empty-sub{font-size:12px;color:var(--ink-3);margin-top:8px;line-height:1.55;
+                  max-width:340px;}
   @media (max-width:720px){
-    .cesl-cards{grid-template-columns:repeat(2,1fr);}
-    .cesl-card{border-bottom:0.5px solid var(--line);}
-    .cesl-t th,.cesl-t td{padding-left:12px;padding-right:12px;}
-    .cesl-note{margin:12px;}
+    .cesl-cards{grid-template-columns:repeat(2,1fr);row-gap:2px;}
+    .cesl-frame{height:70vh;}
   }
 
   /* CES fee editor - under the statement, on the agent it charges. */
@@ -1390,8 +1410,8 @@ body{padding-left:280px !important;}
   <button class="sec" data-sec="billing">Billing</button>
   <button class="sec" data-sec="receivables">Receivables</button>
   <button class="sec" data-sec="payments">Payments</button>
-  <button class="sec" data-sec="deposits">Deposits</button>
   <button class="sec" data-sec="ledger">CES Ledger</button>
+  <button class="sec" data-sec="deposits">Deposits</button>
 </nav><div class="wn-rail__foot">Design preview · v-shell</div></aside>
 
 <div class="ivbg" id="ivbg">
@@ -1428,8 +1448,8 @@ body{padding-left:280px !important;}
       <button class="sec" data-sec="billing">Billing</button>
       <button class="sec" data-sec="receivables">Receivables</button>
       <button class="sec" data-sec="payments">Payments</button>
-      <button class="sec" data-sec="deposits">Deposits</button>
       <button class="sec" data-sec="ledger">CES Ledger</button>
+      <button class="sec" data-sec="deposits">Deposits</button>
     </div>
     <button class="btn" id="slimRefreshBtn" aria-label="Refresh">&#8635;</button>
   </div>
@@ -1469,8 +1489,8 @@ body{padding-left:280px !important;}
       <button class="sec" data-sec="billing">Billing</button>
       <button class="sec" data-sec="receivables">Receivables</button>
       <button class="sec" data-sec="payments">Payments</button>
-      <button class="sec" data-sec="deposits">Deposits</button>
       <button class="sec" data-sec="ledger">CES Ledger</button>
+      <button class="sec" data-sec="deposits">Deposits</button>
       <!-- One (i) for the section you are looking at. Five buttons each with
            their own (i) would be five pieces of chrome asking to be ignored. -->
       <button class="lg-i" id="secInfo" title="How is this worked out?"
@@ -1688,6 +1708,7 @@ var state = {
   bGaps: [], bUnbilled: [], bZeros: [], bOrphans: [], bDrift: [],
   bCes: null, bOpenGaps: 0,
   recLoading: false,
+  ledSel: null,
   bLoaded: false,
   bLoading: false
 };
@@ -5737,8 +5758,10 @@ function renderLedger(){
     bal = r[4];
   });
 
-  var body = CES_LEDGER.map(function(r){
+  /* ---- the gray column: the whole ledger ---- */
+  var body = CES_LEDGER.map(function(r, idx){
     var date = r[0], kind = r[1], ref = r[2], amt = r[3], run = r[4], fid = r[5];
+    var sel = (state.ledSel === idx) ? " on" : "";
 
     if(kind === 0){
       return '<tr class="cesl-open"><td>' + esc(date) + '</td>' +
@@ -5753,57 +5776,106 @@ function renderLedger(){
              '<td class="cesl-amt neg">' + ledgerMoney(amt) + '</td>' +
              '<td class="cesl-bal">' + ledgerMoney(run) + '</td></tr>';
     }
-    /* An invoice number with no PDF says so rather than rendering a dead
-       link - one missing file should not look like a broken page. */
-    var refCell = fid
-      ? '<a href="https://drive.google.com/file/d/' + esc(fid) + '/view" ' +
-        'target="_blank" rel="noopener">' + esc(ref) + '</a>'
-      : esc(ref) + ' <span class="cesl-nolink">no PDF on file</span>';
 
-    return '<tr><td>' + esc(date) + '</td>' +
+    /* A whole clickable row, not a link on the number - the target is bigger
+       and it behaves like every other master-detail list on this dashboard. */
+    return '<tr class="cesl-inv' + sel + '" data-led="' + idx + '">' +
+           '<td>' + esc(date) + '</td>' +
            '<td><span class="cesl-tag inv">Invoice</span></td>' +
-           '<td>' + refCell + '</td>' +
+           '<td class="cesl-ref">' + esc(ref) +
+             (fid ? '' : ' <span class="cesl-nolink">no PDF</span>') + '</td>' +
            '<td class="cesl-amt">' + ledgerMoney(amt) + '</td>' +
            '<td class="cesl-bal">' + ledgerMoney(run) + '</td></tr>';
   }).join("");
 
-  return '<div class="cesl">' +
-    '<div class="cesl-cards">' +
-      '<div class="cesl-card"><div class="k">OPENING 31 DEC 2025</div>' +
-        '<div class="v">' + ledgerMoney(open) + '</div>' +
-        '<div class="n">carried from 2025</div></div>' +
-      '<div class="cesl-card"><div class="k">INVOICED 2026</div>' +
-        '<div class="v">' + ledgerMoney(inv) + '</div>' +
-        '<div class="n">' + fmtN(nInv) + ' invoices</div></div>' +
-      '<div class="cesl-card"><div class="k">PAID 2026</div>' +
-        '<div class="v">' + ledgerMoney(pay) + '</div>' +
-        '<div class="n">' + fmtN(nPay) + ' transfers</div></div>' +
-      '<div class="cesl-card owed"><div class="k">BALANCE OWED</div>' +
-        '<div class="v">' + ledgerMoney(bal) + '</div>' +
-        '<div class="n">as at 28 Aug 2026</div></div>' +
+  var listCol =
+    '<div class="ag-list-col">' +
+      '<div class="cesl-cards">' +
+        '<div class="cesl-card"><div class="k">OPENING 31 DEC 2025</div>' +
+          '<div class="v">' + ledgerMoney(open) + '</div></div>' +
+        '<div class="cesl-card"><div class="k">INVOICED 2026</div>' +
+          '<div class="v">' + ledgerMoney(inv) + '</div>' +
+          '<div class="n">' + fmtN(nInv) + ' invoices</div></div>' +
+        '<div class="cesl-card"><div class="k">PAID 2026</div>' +
+          '<div class="v">' + ledgerMoney(pay) + '</div>' +
+          '<div class="n">' + fmtN(nPay) + ' transfers</div></div>' +
+        '<div class="cesl-card owed"><div class="k">BALANCE OWED</div>' +
+          '<div class="v">' + ledgerMoney(bal) + '</div></div>' +
+      '</div>' +
+      '<table class="cesl-t"><thead><tr>' +
+        '<th>Date</th><th>Type</th><th>Reference</th>' +
+        '<th class="cesl-amt">Amount</th><th class="cesl-bal">Balance</th>' +
+      '</tr></thead><tbody>' + body + '</tbody>' +
+      '<tfoot><tr><td colspan="3">Opening ' + ledgerMoney(open) +
+        ' &nbsp;+&nbsp; invoiced ' + ledgerMoney(inv) +
+        ' &nbsp;\u2212&nbsp; paid ' + ledgerMoney(pay) + '</td>' +
+        '<td class="cesl-amt"></td>' +
+        '<td class="cesl-bal">' + ledgerMoney(bal) + '</td></tr></tfoot>' +
+      '</table>' +
+    '</div>';
+
+  return '<div class="folder rc-folder">' +
+    '<div class="ag-topbar">' +
+      '<div class="ag-hd ag-hd-list">' +
+        '<div class="ag-hd-title">CES ledger</div>' +
+        '<div class="ag-hd-note">Every invoice and payment \u00b7 reconciled ' +
+          'against CES statements</div>' +
+      '</div>' +
+      '<div class="ag-hd ag-hd-detail">' +
+        '<div class="ag-hd-title">' + ledgerMoney(bal) + ' owed</div>' +
+        '<div class="ag-hd-note">' + esc(CES_LEDGER_NOTE) + '</div>' +
+      '</div>' +
     '</div>' +
-
-    '<div class="cesl-note"><b>You owe CES \u2014 this is not a credit.</b> ' +
-      'The round payments have been paying down a balance running since before ' +
-      '2026. CES invoices never show a carry-forward, so only their statements ' +
-      'reveal it. Every running balance below matches CES\u2019s own statement ' +
-      'figure on the same date. ' + CES_LEDGER_NOTE + '</div>' +
-
-    '<table class="cesl-t"><thead><tr>' +
-      '<th>Date</th><th>Type</th><th>Reference</th>' +
-      '<th class="cesl-amt">Amount</th><th class="cesl-bal">Balance</th>' +
-    '</tr></thead><tbody>' + body + '</tbody>' +
-    '<tfoot><tr><td colspan="3">Opening ' + ledgerMoney(open) +
-      ' &nbsp;+&nbsp; invoiced ' + ledgerMoney(inv) +
-      ' &nbsp;\u2212&nbsp; paid ' + ledgerMoney(pay) + '</td>' +
-      '<td class="cesl-amt"></td>' +
-      '<td class="cesl-bal">' + ledgerMoney(bal) + '</td></tr></tfoot>' +
-    '</table></div>';
+    '<div class="ag-split">' + listCol + ledgerDetail() + '</div>' +
+  '</div>';
 }
 
-/* Nothing interactive yet - the links are plain anchors. Kept so the
-   dispatch in renderBody reads like every other section. */
-function wireLedger(){}
+/* ---- the green column: the invoice itself ----
+   Drive's /preview endpoint renders the PDF inline, so the invoice appears
+   beside the ledger rather than in a new tab. The whole point of clicking a
+   number is to check it against the row - sending you somewhere else to do
+   that loses the comparison. */
+function ledgerDetail(){
+  var r = (state.ledSel != null) ? CES_LEDGER[state.ledSel] : null;
+
+  if(!r){
+    return '<div class="ag-detail ag-pane-empty">' +
+      '<div class="cesl-empty">Select an invoice to see it here.</div>' +
+      '<div class="cesl-empty-sub">Payments have no document \u2014 they are ' +
+        'bank transfers, matched to CES\u2019s applied payments on the ' +
+        'statement.</div></div>';
+  }
+
+  var date = r[0], ref = r[2], amt = r[3], run = r[4], fid = r[5];
+
+  var doc = fid
+    ? '<iframe class="cesl-frame" src="https://drive.google.com/file/d/' +
+      esc(fid) + '/preview" title="CES invoice ' + esc(ref) + '" loading="lazy"></iframe>' +
+      '<div class="cesl-open-link"><a href="https://drive.google.com/file/d/' +
+      esc(fid) + '/view" target="_blank" rel="noopener">Open in Drive \u2197</a></div>'
+    : '<div class="cesl-nodoc">No PDF on file for this invoice.</div>';
+
+  return '<div class="ag-detail">' +
+    '<div class="cesl-dhead">' +
+      '<div class="cesl-dnum">Invoice ' + esc(ref) + '</div>' +
+      '<div class="cesl-dmeta">' + esc(date) + ' \u00b7 ' + ledgerMoney(amt) +
+        ' \u00b7 balance after: ' + ledgerMoney(run) + '</div>' +
+    '</div>' + doc +
+  '</div>';
+}
+
+/* Clicking a row shows that invoice in the green column. Re-render rather
+   than patching the DOM, so the selected-row highlight and the detail pane
+   can never disagree about which row is open. */
+function wireLedger(){
+  document.querySelectorAll("[data-led]").forEach(function(el){
+    el.onclick = function(){
+      var i = Number(el.getAttribute("data-led"));
+      state.ledSel = (state.ledSel === i) ? null : i;
+      renderBody();
+    };
+  });
+}
 
 /* "$1,234.56", or "-$1,234.56" for a payment.
    NOT called money() - this page already has one, declared earlier, and a
