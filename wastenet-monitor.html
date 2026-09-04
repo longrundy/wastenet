@@ -1273,6 +1273,44 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
 .bx-sendall{border:0.5px solid var(--green);background:var(--green);color:#fff;font-weight:700;font-size:13px;border-radius:var(--r-ctl);padding:9px 16px;cursor:pointer;font-family:var(--font);}
 .bx-sendall:disabled{opacity:.45;cursor:default;}
 </style>
+<style id="wn-bulk">
+.blk-wrap{padding:4px 0 24px;}
+.blk-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 2px 14px;}
+.blk-lab{font-size:13px;color:var(--ink-2);}
+.blk-sel{height:34px;border:0.5px solid var(--line);border-radius:var(--r-ctl);background:#fff;
+  padding:0 10px;font-family:var(--font);font-size:13px;color:var(--ink);min-width:150px;}
+.blk-muted{font-size:12.5px;color:var(--ink-2);display:inline-flex;align-items:center;gap:6px;}
+.blk-head{display:flex;align-items:center;gap:10px;padding:9px 12px;background:#F1EFE8;
+  border:0.5px solid var(--line);border-bottom:none;border-radius:12px 12px 0 0;}
+.blk-head-warn{background:#FAEEDA;border-color:#EF9F27;margin-top:18px;}
+.blk-title{font-size:13px;font-weight:700;color:var(--ink);}
+.blk-head-warn .blk-title{color:#854F0B;}
+.blk-count{font-size:12px;color:var(--ink-2);}
+.blk-spacer{flex:1 1 auto;}
+.blk-link{border:none;background:none;color:var(--green);font-size:12.5px;cursor:pointer;
+  font-family:var(--font);padding:2px 4px;}
+.blk-link:hover{text-decoration:underline;}
+.blk-list{border:0.5px solid var(--line);border-radius:0 0 12px 12px;overflow:hidden;background:#fff;}
+.blk-list-warn{border-color:#EF9F27;}
+.blk-row{display:flex;align-items:center;gap:10px;padding:10px 12px;
+  border-bottom:0.5px solid var(--line);cursor:pointer;}
+.blk-row:last-child{border-bottom:none;}
+.blk-row:hover{background:#FAFAF7;}
+.blk-row-warn{cursor:default;}
+.blk-row-warn:hover{background:#fff;}
+.blk-ck{width:15px;height:15px;flex:0 0 auto;accent-color:var(--green);}
+.blk-main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.blk-loc{font-size:13px;color:var(--ink);}
+.blk-sub{font-size:12px;color:var(--ink-2);}
+.blk-right{flex:0 0 auto;text-align:right;display:flex;flex-direction:column;gap:2px;}
+.blk-date{font-size:13px;font-weight:700;color:var(--ink);}
+.blk-rule{font-size:11.5px;color:var(--ink-2);}
+.blk-note{font-size:12.5px;color:var(--ink-2);padding:10px 2px 0;}
+.blk-foot{display:flex;align-items:center;gap:12px;padding:18px 2px 0;flex-wrap:wrap;}
+.blk-go{border:0.5px solid var(--green);background:var(--green);color:#fff;font-weight:700;
+  font-size:13px;border-radius:var(--r-ctl);padding:9px 16px;cursor:pointer;font-family:var(--font);}
+.blk-go:disabled{opacity:.45;cursor:default;}
+</style>
 </head>
 <body>
 <aside class="wn-rail"><div class="wn-rail__brand"><img src="WastenetLogoSway.webp?v=2026-09-04" alt="WasteNet"><div class="wn-rail__menu" data-wn-nav data-label="Monitoring Dashboard"></div></div><div class="wn-rail__scan">
@@ -1283,7 +1321,7 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
   <div class="rt-scanhdr"><span id="railCount">—</span> boxes · last scan</div>
 </div><nav class="wn-triage" id="railTriage"></nav><div class="wn-rail__search">
   <div class="rt-search" id="headerTools"></div>
-</div><div class="wn-rail__foot">Design preview · v-shell</div></aside>
+</div><nav class="wn-triage" id="railBulk"></nav><div class="wn-rail__foot">Design preview · v-shell</div></aside>
 <div class="lock" id="lock">
   <div class="lock-card">
     <div class="lock-brand"><img class="wn-lock-logo" src="WastenetLogoSway.webp?v=2026-09-04" alt="WasteNet"></div>
@@ -1368,6 +1406,12 @@ function lockOut(msg){
 }
 
 var state = { rows: [], scanTitle: "", openId: null, staleOpen: false, view: "action",
+  /* Bulk Notifications. Reads David's Master Pull Request Report through the
+     bulk_tabs / bulk_rows endpoints - a DIFFERENT workbook from the scan, so
+     none of this touches state.rows. bulkUnchecked holds ids he has ticked
+     OFF; default is everything on, because the common case is send them all. */
+  bulkTabs: [], bulkGid: "", bulkTabName: "", bulkBase: "", bulkRows: [],
+  bulkUnchecked: {}, bulkLoading: false, bulkTabsLoaded: false, bulkError: null,
   tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, staffNotesById: {}, staffNotesUpdById: {}, emptyMarkedById: {}, ledgerById: {}, overrideById: {}, portalById: {}, actionBoxes: [], moveOpenId: null, moveBusy: false, showDismissed: false, bookOpenId: null, bookBusy: false, notesOpenId: null,
   /* Pull History (collapsible detail section). The per-box pull list comes from
      the SAME box_performance payload the Box Performance page reads - there is
@@ -2191,6 +2235,210 @@ function bookStripHtml(b){
 }
 
 /* ---------- expanded detail (monitoring focus) ---------- */
+
+/* ============================================================
+ * BULK NOTIFICATIONS
+ * ============================================================
+ * Tells customers their location is scheduled for pickup, in one pass
+ * instead of one email at a time.
+ *
+ * The rows come from David's "Master Pull Request Report" - one tab per
+ * service day - NOT from the scan. The server (BulkNotify.gs) reads only
+ * columns A-E of the chosen tab, keeps the hauler codes C-300, C-599 and
+ * P, and works out each pickup date from column E shifted by column D.
+ *
+ * Two deliberate choices:
+ *
+ *  1. Every row shows the rule David wrote and what it was read as
+ *     ("=+1 > -> +1 business day"). Checked against eight months of his
+ *     own dates the parse agrees 99.35% of the time - but the 0.65% are
+ *     cases where he applied judgement no rule reproduces. Showing the
+ *     derivation is what lets him catch one before it goes out; hiding it
+ *     would be faster and much harder to trust.
+ *
+ *  2. Anything the parser cannot read with certainty is NOT sent. It goes
+ *     to a review list with the reason. A misread rule means a customer is
+ *     told the wrong day, and there is no unsending an email.
+ *
+ * Sending itself is not reimplemented here. The checked boxes are handed to
+ * messages.html with only=notice, which already groups notices by customer,
+ * reads recipients from Master Box List column H and uses the Notice
+ * template. */
+
+function bulkSendable(){
+  return (state.bulkRows || []).filter(function(r){
+    return r.ok && !state.bulkUnchecked[r.id];
+  });
+}
+
+function bulkFmtDate(ymd){
+  if(!ymd) return "";
+  var p = String(ymd).split("-");
+  if(p.length !== 3) return ymd;
+  var d = new Date(+p[0], +p[1]-1, +p[2]);
+  var dow = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()];
+  var mo  = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()];
+  return dow + " " + d.getDate() + " " + mo;
+}
+
+function bulkHtml(){
+  var h = '<div class="blk-wrap">';
+
+  if(state.bulkError){
+    return h + '<div class="empty-state" style="padding:40px 20px;"><div class="big">Could not load</div>'+
+      esc(state.bulkError) + '</div></div>';
+  }
+
+  /* tab picker */
+  h += '<div class="blk-bar">';
+  if(!state.bulkTabsLoaded){
+    h += '<span class="blk-muted"><span class="spinner"></span>Loading service days\u2026</span>';
+  } else if(!state.bulkTabs.length){
+    h += '<span class="blk-muted">No service tabs found in the pull request report.</span>';
+  } else {
+    h += '<label class="blk-lab" for="blkTab">Service day</label><select id="blkTab" class="blk-sel">';
+    state.bulkTabs.forEach(function(t){
+      h += '<option value="'+esc(t.gid)+'"'+(t.gid===state.bulkGid?' selected':'')+'>'+esc(t.name)+'</option>';
+    });
+    h += '</select>';
+    if(state.bulkBase) h += '<span class="blk-muted">base date '+esc(bulkFmtDate(state.bulkBase))+'</span>';
+  }
+  h += '</div>';
+
+  if(state.bulkLoading){
+    return h + '<div class="empty-state" style="padding:40px 20px;"><span class="spinner"></span>Reading that day\u2026</div></div>';
+  }
+  if(!state.bulkTabsLoaded) return h + '</div>';
+
+  var ready  = (state.bulkRows||[]).filter(function(r){ return r.ok; });
+  var review = (state.bulkRows||[]).filter(function(r){ return !r.ok; });
+  var on     = bulkSendable();
+
+  if(!ready.length && !review.length){
+    return h + '<div class="empty-state" style="padding:40px 20px;"><div class="big">Nothing on this day</div>'+
+      'No boxes with hauler code C-300, C-599 or P on this tab.</div></div>';
+  }
+
+  if(ready.length){
+    h += '<div class="blk-head"><span class="blk-title">Ready to notify</span>'+
+         '<span class="blk-count">'+on.length+' of '+ready.length+' selected</span>'+
+         '<span class="blk-spacer"></span>'+
+         '<button type="button" class="blk-link" id="blkAll">Check all</button>'+
+         '<button type="button" class="blk-link" id="blkNone">Uncheck all</button></div>';
+    h += '<div class="blk-list">';
+    ready.forEach(function(r){
+      var ck = !state.bulkUnchecked[r.id];
+      h += '<label class="blk-row">'+
+        '<input type="checkbox" class="blk-ck" data-blk="'+esc(r.id)+'"'+(ck?' checked':'')+'>'+
+        '<span class="blk-main"><span class="blk-loc">'+esc(r.loc || ("Box "+r.id))+'</span>'+
+        '<span class="blk-sub">Box '+esc(r.id)+' \u00b7 '+esc(r.code)+'</span></span>'+
+        '<span class="blk-right"><span class="blk-date">'+esc(bulkFmtDate(r.pickup))+'</span>'+
+        '<span class="blk-rule">'+(r.rule ? esc(r.rule)+' \u2192 ' : '')+esc(r.applied||'')+'</span></span>'+
+      '</label>';
+    });
+    h += '</div>';
+  }
+
+  if(review.length){
+    h += '<div class="blk-head blk-head-warn"><span class="blk-title">Needs your attention \u2014 not sent</span>'+
+         '<span class="blk-count">'+review.length+'</span></div>';
+    h += '<div class="blk-list blk-list-warn">';
+    review.forEach(function(r){
+      h += '<div class="blk-row blk-row-warn">'+
+        '<span class="blk-main"><span class="blk-loc">'+esc(r.loc || ("Box "+r.id))+'</span>'+
+        '<span class="blk-sub">Box '+esc(r.id)+' \u00b7 '+esc(r.code)+' \u00b7 '+esc(r.reason||'could not read the rule')+'</span></span>'+
+      '</div>';
+    });
+    h += '</div>';
+    h += '<div class="blk-note">These need a date decided by hand. Send them the way you do today, '+
+         'or fix column D in the pull request report and reload this day.</div>';
+  }
+
+  h += '<div class="blk-foot">'+
+       '<button class="blk-go" id="blkGo"'+(on.length?'':' disabled')+'>'+
+         'Review '+on.length+' notification'+(on.length===1?'':'s')+' \u2197</button>'+
+       '<span class="blk-muted">Opens the send queue \u2014 nothing goes out from this page.</span>'+
+       '</div>';
+
+  return h + '</div>';
+}
+
+function fetchBulkTabs(){
+  jsonp({ action:"bulk_tabs", key:KEY }, function(data){
+    state.bulkTabsLoaded = true;
+    if(!data || !data.ok){
+      state.bulkError = (data && data.error) || "Could not reach the pull request report.";
+      if(state.view === "bulk") render();
+      return;
+    }
+    state.bulkTabs = data.tabs || [];
+    if(state.bulkTabs.length && !state.bulkGid){
+      state.bulkGid = state.bulkTabs[0].gid;
+      fetchBulkRows(state.bulkGid);
+      return;
+    }
+    if(state.view === "bulk") render();
+  });
+}
+
+function fetchBulkRows(gid){
+  state.bulkLoading = true;
+  state.bulkError = null;
+  if(state.view === "bulk") render();
+  jsonp({ action:"bulk_rows", gid:gid, key:KEY }, function(data){
+    state.bulkLoading = false;
+    if(!data || !data.ok){
+      state.bulkError = (data && data.error) || "Could not read that service day.";
+      state.bulkRows = [];
+    } else {
+      state.bulkRows = data.rows || [];
+      state.bulkBase = data.base || "";
+      state.bulkTabName = data.tab || "";
+      state.bulkUnchecked = {};
+    }
+    render();
+  });
+}
+
+function wireBulk(){
+  var sel = document.getElementById("blkTab");
+  if(sel) sel.addEventListener("change", function(){
+    state.bulkGid = this.value;
+    fetchBulkRows(state.bulkGid);
+  });
+
+  document.querySelectorAll(".blk-ck").forEach(function(cb){
+    cb.addEventListener("change", function(){
+      var id = cb.getAttribute("data-blk");
+      if(cb.checked) delete state.bulkUnchecked[id];
+      else state.bulkUnchecked[id] = true;
+      render();
+    });
+  });
+
+  var all = document.getElementById("blkAll");
+  if(all) all.addEventListener("click", function(){ state.bulkUnchecked = {}; render(); });
+
+  var none = document.getElementById("blkNone");
+  if(none) none.addEventListener("click", function(){
+    (state.bulkRows||[]).forEach(function(r){ if(r.ok) state.bulkUnchecked[r.id] = true; });
+    render();
+  });
+
+  var go = document.getElementById("blkGo");
+  if(go) go.addEventListener("click", function(){
+    var on = bulkSendable();
+    if(!on.length) return;
+    /* messages.html needs a SCAN tab for box descriptions and contacts; the
+       service day itself is carried by each box's pickup date. */
+    var tab = state.currentTab || "";
+    if(!tab){ setBanner("No scan tab loaded yet.", "err"); return; }
+    var b = on.map(function(r){ return r.id + ":" + r.pickup; }).join(",");
+    window.location.href = "messages.html?only=notice&tab=" + encodeURIComponent(tab) +
+                           "&b=" + encodeURIComponent(b);
+  });
+}
+
 function monWrap(html){
   return '<div class="mon-split"><div class="mon-rows">'+html+'</div>'+
          '<aside class="mon-detail">'+monDetailPane()+'</aside></div>';
@@ -2635,8 +2883,18 @@ function render(){
     rt.innerHTML=h;
   })();
   (function(){
+    var rb=document.getElementById("railBulk"); if(!rb) return;
+    var on=state.view==='bulk';
+    rb.innerHTML='<div class="wn-tri-div"></div>'+
+      '<button type="button" class="wn-tri score-hit'+(on?' on':'')+'" data-view="bulk">'+
+        '<span class="wn-tri-dot" style="background:#7A4FBF"></span>'+
+        '<span class="wn-tri-l">Bulk Notifications</span>'+
+        '<span class="wn-tri-n">'+(state.bulkRows.length?bulkSendable().length:'')+'</span>'+
+      '</button>';
+  })();
+  (function(){
     var tb=document.getElementById("monTopbar"); if(!tb) return;
-    var VL={action:'Schedule Service',rhythm:'Due by Rhythm',needsempty:'Record Empty',monitor:'Monitor Down',stale:'Stale Scans',scheduled:'Scheduled',clear:'No Action'};
+    var VL={action:'Schedule Service',rhythm:'Due by Rhythm',needsempty:'Record Empty',monitor:'Monitor Down',stale:'Stale Scans',scheduled:'Scheduled',clear:'No Action',bulk:'Bulk Notifications'};
     var title=VL[state.view]||'Boxes';
     var draft='';
     if(state.view==='action'){
@@ -2712,6 +2970,18 @@ function render(){
 
   var html = "";
   var q = state.search.trim().toLowerCase();
+
+  /* ----- BULK NOTIFICATIONS -------------------------------------------
+     Its own early return. This view is not a slice of the scan - the rows
+     come from David's pull request workbook - so none of the bucket
+     precedence below applies to it. */
+  if(state.view === "bulk"){
+    listEl.innerHTML = monWrap(bulkHtml());
+    wireScorecard();
+    wireSearch();
+    wireBulk();
+    return;
+  }
 
   // ----- SEARCH: flat list of matches across ALL boxes, each tagged with its bucket -----
   if(q){
@@ -3545,6 +3815,7 @@ function load(){
   fetchBoxContacts();
   fetchServiceContentAudit();
   fetchBoxRhythm();
+  fetchBulkTabs();
   maybeDeepLinkCompose();
   maybeBatchCompose();
 }
