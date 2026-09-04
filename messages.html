@@ -624,6 +624,7 @@ function buildQueue(){
      rather than needing a special case. */
   var reqG = {};
   ids.forEach(function(id){
+    if(state.noticesOnly) return;
     var c = state.contacts[id] || {};
     var to = addrs(c.serviceToRecipients);
     if(!to.length) return;
@@ -710,7 +711,7 @@ function buildQueue(){
     var ch = channelOf(r);
     var cust = addrs(c.ccRecipients);   // Master Box List column H. NOT a Cc - see below.
 
-    if(ch === "portal" && !r.schDate){
+    if(ch === "portal" && !r.schDate && !state.noticesOnly){
       blocked.push({ id:"blk|portal|"+id, ids:[id], date:pickupFor(id),
         why:"Book this in the hauler's portal first, then the notice can go out.",
         who:(r.desc || ("Box " + id)) + " \u00b7 portal, not yet booked" });
@@ -762,6 +763,7 @@ function buildQueue(){
      ledger:false tells sendAll to send it with no boxId/event. */
   var corpG = {};
   ids.forEach(function(id){
+    if(state.noticesOnly) return;
     if(!isRaleys(id)) return;
     var c = state.contacts[id] || {};
     var r = state.rows[id] || {};
@@ -1070,6 +1072,15 @@ function sendAll(){
 function parseUrl(){
   var p = new URLSearchParams(window.location.search);
   state.tab = p.get("tab") || "";
+  /* only=notice - the Bulk Notifications hand-off from the Monitoring
+     Dashboard. Those boxes come from David's Master Pull Request Report,
+     which records pulls he has ALREADY ordered, so:
+       - no hauler request goes out (he is not asking for the service, he
+         has it) and no Raley's corporate master either;
+       - the portal wait below is skipped, because the pull request report
+         IS the evidence the pickup exists. On the Schedule Service path
+         nothing is booked until a person books it, so that guard stays. */
+  state.noticesOnly = (p.get("only") || "") === "notice";
   var b = p.get("b") || "";
   b.split(",").forEach(function(pair){
     var bits = pair.split(":");
