@@ -2343,7 +2343,13 @@ function bulkHtml(){
   }
 
   if(ready.length){
+    /* Outstanding first, already-notified below. Sorting a stable copy so the
+       server's order is preserved inside each group - the work still to do
+       collects at the top instead of being scattered through the list. */
     var sentN = ready.filter(bulkAlreadySent).length;
+    ready = ready.map(function(r, i){ return { r:r, i:i, s:bulkAlreadySent(r)?1:0 }; })
+                 .sort(function(a, b){ return (a.s - b.s) || (a.i - b.i); })
+                 .map(function(x){ return x.r; });
     h += '<div class="blk-head"><span class="blk-title">Ready to notify</span>'+
          '<span class="blk-count">'+on.length+' of '+ready.length+' selected'+
            (sentN?' \u00b7 '+sentN+' already sent':'')+'</span>'+
