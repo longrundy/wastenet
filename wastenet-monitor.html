@@ -1310,6 +1310,10 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
 .blk-sub{font-size:12px;color:var(--ink-2);}
 .blk-right{flex:0 0 auto;text-align:right;min-width:96px;}
 .blk-date{font-size:13px;font-weight:700;color:var(--ink);}
+.blk-row-sent{background:#F6F7F4;}
+.blk-row-sent .blk-loc,.blk-row-sent .blk-date{color:var(--ink-2);}
+.blk-row-sent .blk-ck{cursor:default;}
+.blk-sent{color:#3B6D11;font-weight:700;}
 .blk-colhead{font-size:11.5px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;
   min-width:96px;text-align:right;}
 .blk-note{font-size:12.5px;color:var(--ink-2);padding:10px 2px 0;}
@@ -2271,9 +2275,21 @@ function bookStripHtml(b){
  * reads recipients from Master Box List column H and uses the Notice
  * template. */
 
+/* Already told? The ledger records a CUSTOMER NOTIFIED event per box with
+   the date the customer was given. If that date equals the pickup date we
+   just computed, this exact notice has already gone out and sending again
+   would be a duplicate.
+   Matching on the DATE, not just the box, is deliberate: a box notified for
+   last Tuesday genuinely does need telling about this Tuesday. */
+function bulkAlreadySent(r){
+  if(!r || !r.ok || !r.pickup) return false;
+  var told = (state.ledgerById || {})[normBoxId(r.id)] || {};
+  return !!told.notified && toYmd(told.notified) === r.pickup;
+}
+
 function bulkSendable(){
   return (state.bulkRows || []).filter(function(r){
-    return r.ok && !state.bulkUnchecked[r.id];
+    return r.ok && !state.bulkUnchecked[r.id] && !bulkAlreadySent(r);
   });
 }
 
@@ -2298,7 +2314,6 @@ function bulkHtml(){
   /* Sticky bar: day picker on the left, the send button on the right. It
      rides at the top so the button is reachable without scrolling past 44
      rows to find it. */
-  var onNow = bulkSendable();
   h += '<div class="blk-bar">';
   if(!state.bulkTabsLoaded){
     h += '<span class="blk-muted"><span class="spinner"></span>Loading service days\u2026</span>';
@@ -2310,9 +2325,6 @@ function bulkHtml(){
       h += '<option value="'+esc(t.gid)+'"'+(t.gid===state.bulkGid?' selected':'')+'>'+esc(t.name)+'</option>';
     });
     h += '</select>';
-    h += '<span class="blk-spacer"></span>';
-    h += '<button class="blk-go" id="blkGo"'+(onNow.length?'':' disabled')+'>'+
-           'Review '+onNow.length+' notification'+(onNow.length===1?'':'s')+' \u2197</button>';
   }
   h += '</div>';
 
@@ -2331,19 +2343,24 @@ function bulkHtml(){
   }
 
   if(ready.length){
+    var sentN = ready.filter(bulkAlreadySent).length;
     h += '<div class="blk-head"><span class="blk-title">Ready to notify</span>'+
-         '<span class="blk-count">'+on.length+' of '+ready.length+' selected</span>'+
+         '<span class="blk-count">'+on.length+' of '+ready.length+' selected'+
+           (sentN?' \u00b7 '+sentN+' already sent':'')+'</span>'+
          '<span class="blk-spacer"></span>'+
          '<button type="button" class="blk-link" id="blkAll">Check all</button>'+
          '<button type="button" class="blk-link" id="blkNone">Uncheck all</button>'+
          '<span class="blk-colhead">Pickup date</span></div>';
     h += '<div class="blk-list">';
     ready.forEach(function(r){
-      var ck = !state.bulkUnchecked[r.id];
-      h += '<label class="blk-row">'+
-        '<input type="checkbox" class="blk-ck" data-blk="'+esc(r.id)+'"'+(ck?' checked':'')+'>'+
+      var sent = bulkAlreadySent(r);
+      var ck = !sent && !state.bulkUnchecked[r.id];
+      h += '<label class="blk-row'+(sent?' blk-row-sent':'')+'">'+
+        '<input type="checkbox" class="blk-ck" data-blk="'+esc(r.id)+'"'+(ck?' checked':'')+
+          (sent?' disabled':'')+'>'+
         '<span class="blk-main"><span class="blk-loc">'+esc(r.loc || ("Box "+r.id))+'</span>'+
-        '<span class="blk-sub">Box '+esc(r.id)+' \u00b7 '+esc(r.code)+'</span></span>'+
+        '<span class="blk-sub">Box '+esc(r.id)+' \u00b7 '+esc(r.code)+
+          (sent?' \u00b7 <span class="blk-sent">already notified</span>':'')+'</span></span>'+
         '<span class="blk-right"><span class="blk-date">'+esc(bulkFmtDate(r.pickup))+'</span></span>'+
       '</label>';
     });
@@ -2422,7 +2439,13 @@ function wireBulk(){
   });
 
   var all = document.getElementById("blkAll");
-  if(all) all.addEventListener("click", function(){ state.bulkUnchecked = {}; render(); });
+  if(all) all.addEventListener("click", function(){
+    state.bulkUnchecked = {};
+    /* Check all means "everything still outstanding" - it must not re-arm a
+       notice that has already gone out. */
+    (state.bulkRows||[]).forEach(function(r){ if(bulkAlreadySent(r)) state.bulkUnchecked[r.id]=true; });
+    render();
+  });
 
   var none = document.getElementById("blkNone");
   if(none) none.addEventListener("click", function(){
@@ -2905,6 +2928,14 @@ function render(){
     var VL={action:'Schedule Service',rhythm:'Due by Rhythm',needsempty:'Record Empty',monitor:'Monitor Down',stale:'Stale Scans',scheduled:'Scheduled',clear:'No Action',bulk:'Bulk Notification Emails'};
     var title=VL[state.view]||'Boxes';
     var draft='';
+    if(state.view==='bulk'){
+      var bOn = bulkSendable();
+      if(state.bulkRows.length){
+        draft='<button class="draft-all" id="blkGo"'+(bOn.length?'':' disabled')+'>'+
+          'Review '+bOn.length+' notification'+(bOn.length===1?'':'s')+' \u2197</button>'+
+          '<span class="draft-hint">Opens the send queue \u2014 nothing goes out from this page.</span>';
+      }
+    }
     if(state.view==='action'){
       var mailable=action.filter(function(b){ return !!pickupYmdFor(b); });
       if(mailable.length){
