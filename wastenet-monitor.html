@@ -1314,6 +1314,9 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
 .blk-row-sent .blk-loc,.blk-row-sent .blk-date{color:var(--ink-2);}
 .blk-row-sent .blk-ck{cursor:default;}
 .blk-sent{color:#3B6D11;font-weight:700;}
+.blk-noto{color:#854F0B;font-weight:700;}
+.blk-portal-btn{margin-left:8px;background:#fff !important;color:var(--ink) !important;
+  border:0.5px solid var(--line) !important;}
 .blk-colhead{font-size:11.5px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;
   min-width:96px;text-align:right;}
 .blk-note{font-size:12.5px;color:var(--ink-2);padding:10px 2px 0;}
@@ -1421,7 +1424,8 @@ var state = { rows: [], scanTitle: "", openId: null, staleOpen: false, view: "bu
      none of this touches state.rows. bulkUnchecked holds ids he has ticked
      OFF; default is everything on, because the common case is send them all. */
   bulkTabs: [], bulkGid: "", bulkTabName: "", bulkBase: "", bulkRows: [],
-  bulkUnchecked: {}, bulkLoading: false, bulkTabsLoaded: false, bulkError: null,
+  bulkUnchecked: {}, bulkReqUnchecked: {},
+  bulkLoading: false, bulkTabsLoaded: false, bulkError: null,
   tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, staffNotesById: {}, staffNotesUpdById: {}, emptyMarkedById: {}, ledgerById: {}, overrideById: {}, portalById: {}, actionBoxes: [], moveOpenId: null, moveBusy: false, showDismissed: false, bookOpenId: null, bookBusy: false, notesOpenId: null,
   /* Pull History (collapsible detail section). The per-box pull list comes from
      the SAME box_performance payload the Box Performance page reads - there is
@@ -2275,6 +2279,18 @@ function bookStripHtml(b){
  * reads recipients from Master Box List column H and uses the Notice
  * template. */
 
+/* The two bulk pages are the same machinery pointed at different recipients:
+     notice  - the customer is told a pickup is coming   (ledger: CUSTOMER NOTIFIED)
+     request - the hauler is asked to do it              (ledger: REQUEST SENT,
+               or SCHEDULED (portal) when booked directly)
+   Same workbook, same tab, same date maths. Only the recipient, the template
+   and the ledger field differ, so everything below takes a kind rather than
+   being written twice. */
+function bulkKind(){ return state.view === 'bulkreq' ? 'request' : 'notice'; }
+function bulkUncheckedMap(){
+  return bulkKind() === 'request' ? state.bulkReqUnchecked : state.bulkUnchecked;
+}
+
 /* Already told? The ledger records a CUSTOMER NOTIFIED event per box with
    the date the customer was given. If that date equals the pickup date we
    just computed, this exact notice has already gone out and sending again
@@ -2284,12 +2300,78 @@ function bookStripHtml(b){
 function bulkAlreadySent(r){
   if(!r || !r.ok || !r.pickup) return false;
   var told = (state.ledgerById || {})[normBoxId(r.id)] || {};
-  return !!told.notified && toYmd(told.notified) === r.pickup;
+  /* "scheduled" covers both a request emailed to a hauler and a portal
+     booking recorded by hand - either way the hauler side is done. */
+  var d = bulkKind() === 'request' ? told.scheduled : told.notified;
+  return !!d && toYmd(d) === r.pickup;
+}
+
+/* A request needs a hauler to send to. Portal boxes have no service
+   recipient by design - there is nobody to email, you book it yourself -
+   so they are not sendable on the request page. */
+function bulkHasRecipient(r){
+  if(bulkKind() !== 'request') return true;
+  var c = (state.boxContacts || {})[normBoxId(r.id)] || {};
+  var to = c.serviceToRecipients || c.toRecipients || '';
+  return /[^@\s;,]+@[^@\s;,]+\.[A-Za-z]{2,}/.test(String(to));
+}
+
+/* Portal rows on the current tab that have NOT yet been recorded as booked.
+   These are the ones the single "mark booked" button covers. */
+function bulkPortalPending(){
+  return (state.bulkRows || []).filter(function(r){
+    return r.ok && !bulkHasRecipient(r) && !bulkAlreadySent(r);
+  });
+}
+
+/* One click for the lot. David books them on the haulers' own sites as he
+   does today, then says so once. schedulePortalBoxes takes ONE date per
+   call, and a day's tab can carry more than one pickup date, so the pending
+   rows are grouped by date and sent as one call per date - usually one or
+   two calls, not forty. */
+function bulkMarkPortalBooked(){
+  var pend = bulkPortalPending();
+  if(!pend.length) return;
+  var tab = state.currentTab || "";
+  if(!tab){ setBanner("No scan tab loaded yet.", "err"); return; }
+
+  var byDate = {};
+  pend.forEach(function(r){ (byDate[r.pickup] = byDate[r.pickup] || []).push(r.id); });
+  var dates = Object.keys(byDate).sort();
+
+  var lines = dates.map(function(d){ return byDate[d].length + " on " + bulkFmtDate(d); });
+  if(!window.confirm("Record " + pend.length + " portal box" + (pend.length===1?"":"es") +
+      " as booked?\n\n" + lines.join("\n") +
+      "\n\nThis says the bookings are already made on the haulers' sites. " +
+      "It does not book anything.")) return;
+
+  var left = dates.length, booked = 0, missing = [], failed = [];
+  setBanner("Recording " + pend.length + " portal booking" + (pend.length===1?"":"s") + "\u2026", "");
+
+  dates.forEach(function(d){
+    jsonp({ action:"schedule_portal", tab:tab, boxId:byDate[d].join(","), date:d, key:KEY },
+    function(data){
+      if(data && data.ok){
+        booked += (data.booked || byDate[d]).length || 0;
+        (data.missing || []).forEach(function(x){ missing.push(x); });
+      } else {
+        failed.push(d + ": " + ((data && data.error) || "no response"));
+      }
+      if(--left === 0){
+        var msg = "Recorded " + booked + " portal booking" + (booked===1?"":"s") + ".";
+        if(missing.length) msg += " Not found on the scan: " + missing.join(", ") + ".";
+        if(failed.length)  msg += " Failed \u2014 " + failed.join("; ");
+        setBanner(msg, failed.length ? "err" : "ok");
+        fetchLedgerMarks();   // repaint the rows from what was actually written
+      }
+    });
+  });
 }
 
 function bulkSendable(){
+  var un = bulkUncheckedMap();
   return (state.bulkRows || []).filter(function(r){
-    return r.ok && !state.bulkUnchecked[r.id] && !bulkAlreadySent(r);
+    return r.ok && !un[r.id] && !bulkAlreadySent(r) && bulkHasRecipient(r);
   });
 }
 
@@ -2346,27 +2428,36 @@ function bulkHtml(){
     /* Outstanding first, already-notified below. Sorting a stable copy so the
        server's order is preserved inside each group - the work still to do
        collects at the top instead of being scattered through the list. */
+    var parked = function(r){ return bulkAlreadySent(r) || !bulkHasRecipient(r); };
     var sentN = ready.filter(bulkAlreadySent).length;
-    ready = ready.map(function(r, i){ return { r:r, i:i, s:bulkAlreadySent(r)?1:0 }; })
+    var noToN = ready.filter(function(r){ return !bulkHasRecipient(r); }).length;
+    ready = ready.map(function(r, i){ return { r:r, i:i, s:parked(r)?1:0 }; })
                  .sort(function(a, b){ return (a.s - b.s) || (a.i - b.i); })
                  .map(function(x){ return x.r; });
     h += '<div class="blk-head"><span class="blk-title">Ready to notify</span>'+
          '<span class="blk-count">'+on.length+' of '+ready.length+' selected'+
-           (sentN?' \u00b7 '+sentN+' already sent':'')+'</span>'+
+           (sentN?' \u00b7 '+sentN+(bulkKind()==='request'?' already requested':' already sent'):'')+
+           (noToN?' \u00b7 '+noToN+' portal':'')+'</span>'+
          '<span class="blk-spacer"></span>'+
          '<button type="button" class="blk-link" id="blkAll">Check all</button>'+
          '<button type="button" class="blk-link" id="blkNone">Uncheck all</button>'+
          '<span class="blk-colhead">Pickup date</span></div>';
     h += '<div class="blk-list">';
+    var un = bulkUncheckedMap();
+    var isReq = bulkKind() === 'request';
     ready.forEach(function(r){
       var sent = bulkAlreadySent(r);
-      var ck = !sent && !state.bulkUnchecked[r.id];
-      h += '<label class="blk-row'+(sent?' blk-row-sent':'')+'">'+
+      var noTo = !bulkHasRecipient(r);
+      var off  = sent || noTo;
+      var ck   = !off && !un[r.id];
+      var tag  = sent ? '<span class="blk-sent">'+(isReq?'already requested':'already notified')+'</span>'
+               : noTo ? '<span class="blk-noto">portal \u2014 no hauler to email</span>' : '';
+      h += '<label class="blk-row'+(off?' blk-row-sent':'')+'">'+
         '<input type="checkbox" class="blk-ck" data-blk="'+esc(r.id)+'"'+(ck?' checked':'')+
-          (sent?' disabled':'')+'>'+
+          (off?' disabled':'')+'>'+
         '<span class="blk-main"><span class="blk-loc">'+esc(r.loc || ("Box "+r.id))+'</span>'+
         '<span class="blk-sub">Box '+esc(r.id)+' \u00b7 '+esc(r.code)+
-          (sent?' \u00b7 <span class="blk-sent">already notified</span>':'')+'</span></span>'+
+          (tag?' \u00b7 '+tag:'')+'</span></span>'+
         '<span class="blk-right"><span class="blk-date">'+esc(bulkFmtDate(r.pickup))+'</span></span>'+
       '</label>';
     });
@@ -2437,27 +2528,35 @@ function wireBulk(){
 
   document.querySelectorAll(".blk-ck").forEach(function(cb){
     cb.addEventListener("change", function(){
+      var m = bulkUncheckedMap();
       var id = cb.getAttribute("data-blk");
-      if(cb.checked) delete state.bulkUnchecked[id];
-      else state.bulkUnchecked[id] = true;
+      if(cb.checked) delete m[id];
+      else m[id] = true;
       render();
     });
   });
 
   var all = document.getElementById("blkAll");
   if(all) all.addEventListener("click", function(){
-    state.bulkUnchecked = {};
-    /* Check all means "everything still outstanding" - it must not re-arm a
-       notice that has already gone out. */
-    (state.bulkRows||[]).forEach(function(r){ if(bulkAlreadySent(r)) state.bulkUnchecked[r.id]=true; });
+    var m = bulkUncheckedMap();
+    Object.keys(m).forEach(function(k){ delete m[k]; });
+    /* Check all means "everything still outstanding" - it must not re-arm
+       something already sent, or arm a box with nobody to send to. */
+    (state.bulkRows||[]).forEach(function(r){
+      if(bulkAlreadySent(r) || !bulkHasRecipient(r)) m[r.id]=true;
+    });
     render();
   });
 
   var none = document.getElementById("blkNone");
   if(none) none.addEventListener("click", function(){
-    (state.bulkRows||[]).forEach(function(r){ if(r.ok) state.bulkUnchecked[r.id] = true; });
+    var m = bulkUncheckedMap();
+    (state.bulkRows||[]).forEach(function(r){ if(r.ok) m[r.id] = true; });
     render();
   });
+
+  var mp = document.getElementById("blkPortal");
+  if(mp) mp.addEventListener("click", bulkMarkPortalBooked);
 
   var go = document.getElementById("blkGo");
   if(go) go.addEventListener("click", function(){
@@ -2468,7 +2567,7 @@ function wireBulk(){
     var tab = state.currentTab || "";
     if(!tab){ setBanner("No scan tab loaded yet.", "err"); return; }
     var b = on.map(function(r){ return r.id + ":" + r.pickup; }).join(",");
-    window.location.href = "messages.html?only=notice&tab=" + encodeURIComponent(tab) +
+    window.location.href = "messages.html?only=" + bulkKind() + "&tab=" + encodeURIComponent(tab) +
                            "&b=" + encodeURIComponent(b);
   });
 }
@@ -2481,7 +2580,7 @@ function monDetailPane(){
   /* Bulk Notification Emails has no selectable rows - the detail pane would
      only ever show its empty prompt, which reads like something is broken.
      Leave the column blank instead; the width stays so the layout holds. */
-  if(state.view === 'bulk') return '';
+  if(state.view === 'bulk' || state.view === 'bulkreq') return '';
   if(!state.openId) return '<div class="mon-detail-empty">Select a box to see its full detail and actions.</div>';
   var rows=state.rows||[], b=null;
   for(var i=0;i<rows.length;i++){ if(String(rows[i].id)===String(state.openId)){ b=rows[i]; break; } }
@@ -2920,12 +3019,20 @@ function render(){
        its own item rather than another bucket. */
     var h='';
     (function(){
-      var on=state.view==='bulk';
-      var n=state.bulkRows.length?bulkSendable().length:'';
-      h+='<button type="button" class="wn-tri score-hit'+(on?' on':'')+'" data-view="bulk">'+
-         '<span class="wn-tri-dot" style="background:#7A4FBF"></span>'+
-         '<span class="wn-tri-l">Bulk Notification Emails</span>'+
-         '<span class="wn-tri-n">'+n+'</span></button>'+
+      /* Counts are computed per view, and bulkSendable() reads state.view, so
+         borrow it briefly rather than duplicating the filter logic here. */
+      var real=state.view;
+      var mk=function(view,label){
+        state.view=view;
+        var n=state.bulkRows.length?bulkSendable().length:'';
+        state.view=real;
+        return '<button type="button" class="wn-tri score-hit'+(real===view?' on':'')+'" data-view="'+view+'">'+
+               '<span class="wn-tri-dot" style="background:#7A4FBF"></span>'+
+               '<span class="wn-tri-l">'+label+'</span>'+
+               '<span class="wn-tri-n">'+n+'</span></button>';
+      };
+      h+=mk('bulk','Bulk Notification Emails')+
+         mk('bulkreq','Bulk Service Request Emails')+
          '<div class="wn-tri-div"></div>';
     })();
     bk.forEach(function(x,i){ var on=state.view===x[0];
@@ -2935,14 +3042,18 @@ function render(){
 
   (function(){
     var tb=document.getElementById("monTopbar"); if(!tb) return;
-    var VL={action:'Schedule Service',rhythm:'Due by Rhythm',needsempty:'Record Empty',monitor:'Monitor Down',stale:'Stale Scans',scheduled:'Scheduled',clear:'No Action',bulk:'Bulk Notification Emails'};
+    var VL={action:'Schedule Service',rhythm:'Due by Rhythm',needsempty:'Record Empty',monitor:'Monitor Down',stale:'Stale Scans',scheduled:'Scheduled',clear:'No Action',bulk:'Bulk Notification Emails',bulkreq:'Bulk Service Request Emails'};
     var title=VL[state.view]||'Boxes';
     var draft='';
-    if(state.view==='bulk'){
+    if(state.view==='bulk' || state.view==='bulkreq'){
       var bOn = bulkSendable();
+      var word = state.view==='bulkreq' ? 'request' : 'notification';
       if(state.bulkRows.length){
+        var pend = (state.view==='bulkreq') ? bulkPortalPending() : [];
         draft='<button class="draft-all" id="blkGo"'+(bOn.length?'':' disabled')+'>'+
-          'Review '+bOn.length+' notification'+(bOn.length===1?'':'s')+' \u2197</button>'+
+          'Review '+bOn.length+' '+word+(bOn.length===1?'':'s')+' \u2197</button>'+
+          (pend.length ? '<button class="draft-all blk-portal-btn" id="blkPortal">'+
+              'Mark '+pend.length+' portal box'+(pend.length===1?'':'es')+' booked</button>' : '')+
           '<span class="draft-hint">Opens the send queue \u2014 nothing goes out from this page.</span>';
       }
     }
@@ -2953,7 +3064,7 @@ function render(){
           '<span class="draft-hint">'+mailable.length+(mailable.length===1?' box':' boxes')+' \u2014 opens every request and notice for review. Nothing sends until you say so.</span>';
       }
     }
-    var bhead = (state.view === 'bulk') ? ''
+    var bhead = (state.view === 'bulk' || state.view === 'bulkreq') ? ''
               : '<span class="mtb-empty-h">Select a box to see its detail.</span>';
     if(state.openId){
       var ob=null,rw=state.rows||[];
@@ -3025,7 +3136,7 @@ function render(){
      Its own early return. This view is not a slice of the scan - the rows
      come from David's pull request workbook - so none of the bucket
      precedence below applies to it. */
-  if(state.view === "bulk"){
+  if(state.view === "bulk" || state.view === "bulkreq"){
     listEl.innerHTML = monWrap(bulkHtml());
     wireScorecard();
     wireSearch();

@@ -706,6 +706,7 @@ function buildQueue(){
   var notG = {};
   var blocked = [];
   ids.forEach(function(id){
+    if(state.requestsOnly) return;
     var c = state.contacts[id] || {};
     var r = state.rows[id] || {};
     var ch = channelOf(r);
@@ -763,7 +764,7 @@ function buildQueue(){
      ledger:false tells sendAll to send it with no boxId/event. */
   var corpG = {};
   ids.forEach(function(id){
-    if(state.noticesOnly) return;
+    if(state.noticesOnly || state.requestsOnly) return;
     if(!isRaleys(id)) return;
     var c = state.contacts[id] || {};
     var r = state.rows[id] || {};
@@ -1080,7 +1081,12 @@ function parseUrl(){
        - the portal wait below is skipped, because the pull request report
          IS the evidence the pickup exists. On the Schedule Service path
          nothing is booked until a person books it, so that guard stays. */
-  state.noticesOnly = (p.get("only") || "") === "notice";
+  var only = (p.get("only") || "");
+  state.noticesOnly  = only === "notice";
+  /* only=request - the Bulk Service Request Emails hand-off. Haulers only:
+     no customer notice and no corporate master. Portal boxes need no special
+     case, they simply have no service recipient and fall out on their own. */
+  state.requestsOnly = only === "request";
   var b = p.get("b") || "";
   b.split(",").forEach(function(pair){
     var bits = pair.split(":");
