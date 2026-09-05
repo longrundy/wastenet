@@ -479,10 +479,14 @@ function confirmButton(link){
 
 /* The values, as markup. Date bold, every location bold - the two things a
    hauler is actually scanning for. */
-function htmlVals(dateLong, boxLines, link, poLines){
+function htmlVals(dateLong, boxLines, link, poLines, noteLines){
   poLines = poLines || [];
+  noteLines = noteLines || [];
   var list = boxLines.map(function(l, i){
     var line = '<span style="color:#3B6D11;font-weight:bold;">\u2022 ' + esc(l) + '</span>';
+    if(noteLines[i]){
+      line += '<br><span style="color:#444441;display:inline-block;padding-left:18px;">' + esc(noteLines[i]) + '</span>';
+    }
     if(poLines[i]){
       line += '<br><span style="color:#444441;display:inline-block;padding-left:18px;">PO ' + esc(poLines[i]) + '</span>';
     }
@@ -596,20 +600,50 @@ function buildQueue(){
      Returns parallel arrays (green description line + its PO) plus a plain-text
      version with the PO indented under each line. PO is opt-in: notices pass
      nothing, so stores never see a PO; requests and corporate ask for it. */
-  function boxListParts(idList, opts){
+  /* David's per-box body carries the things Myrna and Herb need to place the
+   call - phone numbers, account references, sometimes a contact name - typed
+   as one line under the "compactor(s):" heading. A batched email used to
+   throw that away, because it swaps to a generic template that cannot know
+   about boxes it was not written for. So lift the line out and carry it with
+   the box wherever the box goes.
+
+   Taken verbatim, never parsed. Splitting "Rob 830-203-0421 / 210-651-7800"
+   into fields is how names and extensions get orphaned. */
+function noteLineFor(id){
+  var c = state.contacts[id] || {};
+  var body = String(c.bodyTemplate || "");
+  if(!body) return "";
+  var lines = body.split("\n");
+  var out = [], arming = false;
+  for(var i = 0; i < lines.length; i++){
+    var flat = lines[i].trim();
+    if(arming){
+      if(!flat) break;
+      out.push(flat);
+      continue;
+    }
+    if(/compactor\(s\)\s*:/i.test(flat)) arming = true;
+  }
+  return out.join(" ").trim();
+}
+
+function boxListParts(idList, opts){
     opts = opts || {};
-    var descs = [], pos = [];
+    var descs = [], pos = [], notes = [];
     idList.forEach(function(id){
       var r = state.rows[id] || {};
       var d = (r.desc || ("Box " + id));
       if(opts.withBoxNum) d += "  \u2014  box " + id;
       descs.push(d);
       pos.push(opts.withPO ? (poFor[id] || "") : "");
+      notes.push(opts.withNote ? noteLineFor(id) : "");
     });
     var plain = descs.map(function(d, i){
-      return "\u2022 " + d + (pos[i] ? "\n    PO " + pos[i] : "");
+      return "\u2022 " + d +
+             (notes[i] ? "\n    " + notes[i] : "") +
+             (pos[i] ? "\n    PO " + pos[i] : "");
     }).join("\n");
-    return { descs: descs, pos: pos, plain: plain };
+    return { descs: descs, pos: pos, notes: notes, plain: plain };
   }
 
   /* ---- 1. Service requests: grouped by RECIPIENT + date ----
@@ -626,11 +660,14 @@ function buildQueue(){
   ids.forEach(function(id){
     if(state.noticesOnly) return;
     var c = state.contacts[id] || {};
-    var to = addrs(c.serviceToRecipients);
+    /* Master Box List column G (Haulers) is THE source of truth for who a
+       service request goes to. Service Email Content column D is no longer
+       consulted at all. No Cc either - nobody is copied on a service request. */
+    var to = addrs(c.toRecipients);
     if(!to.length) return;
     var dt = pickupFor(id);
     var k = addrKey(to) + "|" + dt;
-    (reqG[k] = reqG[k] || { to:to, cc:addrs(c.serviceCcRecipients), date:dt, ids:[] }).ids.push(id);
+    (reqG[k] = reqG[k] || { to:to, cc:[], date:dt, ids:[] }).ids.push(id);
   });
 
   Object.keys(reqG).forEach(function(k){
@@ -642,7 +679,7 @@ function buildQueue(){
        tab - David wrote those per box and they say things a generic template
        cannot. Several boxes use the Batch template, because a per-box body
        cannot list boxes it does not know about. */
-    var bl = boxListParts(g.ids, { withBoxNum:true, withPO:true });
+    var bl = boxListParts(g.ids, { withBoxNum:true, withPO:true, withNote:true });
     var tSub, tBody;
     if(multi){
       var t = state.templates["batch"] || {};
@@ -663,7 +700,7 @@ function buildQueue(){
       "service description": bl.plain,
       "confirm link": link
     });
-    var inner = fillHtml(tBody, htmlVals(fmtLong(g.date), bl.descs, link, bl.pos));
+    var inner = fillHtml(tBody, htmlVals(fmtLong(g.date), bl.descs, link, bl.pos, bl.notes));
 
     /* PO BEFORE the confirm block, so on David's per-box bodies - which type
        the site in as literal text with no [box list] slot - it lands right
