@@ -482,16 +482,19 @@ function confirmButton(link){
 function htmlVals(dateLong, boxLines, link, poLines, noteLines){
   poLines = poLines || [];
   noteLines = noteLines || [];
+  /* Hanging indent: padding-left moves the whole block right, text-indent pulls
+     the first line back so the bullet sits alone in the margin. A wrapped line
+     then lines up under the text instead of under the bullet. Plain CSS on a
+     block element - the one form of indent Outlook's Word engine honours. */
   var list = boxLines.map(function(l, i){
-    var line = '<span style="color:#3B6D11;font-weight:bold;">\u2022 ' + esc(l) + '</span>';
-    if(noteLines[i]){
-      line += '<span style="color:#3B6D11;font-weight:bold;">  \u00b7  ' + esc(noteLines[i]) + '</span>';
-    }
+    var txt = esc(l) + (noteLines[i] ? '  \u00b7  ' + esc(noteLines[i]) : '');
+    var line = '<div style="color:#3B6D11;font-weight:bold;padding-left:16px;text-indent:-16px;">' +
+               '\u2022 ' + txt + '</div>';
     if(poLines[i]){
-      line += '<br><span style="color:#444441;display:inline-block;padding-left:18px;">PO ' + esc(poLines[i]) + '</span>';
+      line += '<div style="color:#444441;padding-left:16px;">PO ' + esc(poLines[i]) + '</div>';
     }
     return line;
-  }).join("<br>");
+  }).join("");
   return {
     // Same green as the locations. The date and the sites are the two things a
     // hauler actually scans for - they should read as one set, not two.
