@@ -1418,7 +1418,7 @@ function lockOut(msg){
   if(inp){ inp.value = ""; inp.focus(); }
 }
 
-var state = { rows: [], scanTitle: "", openId: null, staleOpen: false, view: "bulk",
+var state = { rows: [], scanTitle: "", openId: null, staleOpen: false, view: "bulkreq",
   /* Bulk Notifications. Reads David's Master Pull Request Report through the
      bulk_tabs / bulk_rows endpoints - a DIFFERENT workbook from the scan, so
      none of this touches state.rows. bulkUnchecked holds ids he has ticked
@@ -3031,8 +3031,8 @@ function render(){
                '<span class="wn-tri-l">'+label+'</span>'+
                '<span class="wn-tri-n">'+n+'</span></button>';
       };
-      h+=mk('bulk','Bulk Notification Emails')+
-         mk('bulkreq','Bulk Service Request Emails')+
+      h+=mk('bulkreq','Bulk Service Request Emails')+
+         mk('bulk','Bulk Notification Emails')+
          '<div class="wn-tri-div"></div>';
     })();
     bk.forEach(function(x,i){ var on=state.view===x[0];
