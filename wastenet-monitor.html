@@ -1327,7 +1327,7 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
   <div class="rt-scanhdr"><span id="railCount">—</span> boxes · last scan</div>
 </div><nav class="wn-triage" id="railTriage"></nav><div class="wn-rail__search">
   <div class="rt-search" id="headerTools"></div>
-</div><nav class="wn-triage" id="railBulk"></nav><div class="wn-rail__foot">Design preview · v-shell</div></aside>
+</div><div class="wn-rail__foot">Design preview · v-shell</div></aside>
 <div class="lock" id="lock">
   <div class="lock-card">
     <div class="lock-brand"><img class="wn-lock-logo" src="WastenetLogoSway.webp?v=2026-09-04" alt="WasteNet"></div>
@@ -2881,22 +2881,26 @@ function render(){
   (function(){
     var rt=document.getElementById("railTriage"); if(!rt) return;
     var bk=[['rhythm','#7A4FBF','Due by Rhythm',counts.rhythm],['action','#A32D2D','Schedule Service',counts.action],['needsempty','#0F8C86','Record Empty',counts.needsempty],['monitor','#5B6470','Monitor Down',counts.monitor],['stale','#BA7517','Stale Scans',counts.stale],['scheduled','#378ADD','Scheduled',counts.scheduled],['clear','#639922','No Action',counts.clear]];
+    /* Bulk Notification Emails rides at the top of the rail, above Due by
+       Rhythm, with a divider under it - it is a different kind of thing from
+       the scan buckets below (a different workbook entirely), so it reads as
+       its own item rather than another bucket. */
     var h='';
+    (function(){
+      var on=state.view==='bulk';
+      var n=state.bulkRows.length?bulkSendable().length:'';
+      h+='<button type="button" class="wn-tri score-hit'+(on?' on':'')+'" data-view="bulk">'+
+         '<span class="wn-tri-dot" style="background:#7A4FBF"></span>'+
+         '<span class="wn-tri-l">Bulk Notification Emails</span>'+
+         '<span class="wn-tri-n">'+n+'</span></button>'+
+         '<div class="wn-tri-div"></div>';
+    })();
     bk.forEach(function(x,i){ var on=state.view===x[0];
       h+='<button type="button" class="wn-tri score-hit'+(on?' on':'')+'" data-view="'+x[0]+'"><span class="wn-tri-dot" style="background:'+x[1]+'"></span><span class="wn-tri-l">'+x[2]+'</span><span class="wn-tri-n">'+x[3]+'</span></button>';
       if(i===0) h+='<div class="wn-tri-div"></div>'; });
     rt.innerHTML=h;
   })();
-  (function(){
-    var rb=document.getElementById("railBulk"); if(!rb) return;
-    var on=state.view==='bulk';
-    rb.innerHTML='<div class="wn-tri-div"></div>'+
-      '<button type="button" class="wn-tri score-hit'+(on?' on':'')+'" data-view="bulk">'+
-        '<span class="wn-tri-dot" style="background:#7A4FBF"></span>'+
-        '<span class="wn-tri-l">Bulk Notification Emails</span>'+
-        '<span class="wn-tri-n">'+(state.bulkRows.length?bulkSendable().length:'')+'</span>'+
-      '</button>';
-  })();
+
   (function(){
     var tb=document.getElementById("monTopbar"); if(!tb) return;
     var VL={action:'Schedule Service',rhythm:'Due by Rhythm',needsempty:'Record Empty',monitor:'Monitor Down',stale:'Stale Scans',scheduled:'Scheduled',clear:'No Action',bulk:'Bulk Notification Emails'};
