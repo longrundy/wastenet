@@ -2472,6 +2472,10 @@ function monWrap(html){
          '<aside class="mon-detail">'+monDetailPane()+'</aside></div>';
 }
 function monDetailPane(){
+  /* Bulk Notification Emails has no selectable rows - the detail pane would
+     only ever show its empty prompt, which reads like something is broken.
+     Leave the column blank instead; the width stays so the layout holds. */
+  if(state.view === 'bulk') return '';
   if(!state.openId) return '<div class="mon-detail-empty">Select a box to see its full detail and actions.</div>';
   var rows=state.rows||[], b=null;
   for(var i=0;i<rows.length;i++){ if(String(rows[i].id)===String(state.openId)){ b=rows[i]; break; } }
@@ -2943,7 +2947,8 @@ function render(){
           '<span class="draft-hint">'+mailable.length+(mailable.length===1?' box':' boxes')+' \u2014 opens every request and notice for review. Nothing sends until you say so.</span>';
       }
     }
-    var bhead='<span class="mtb-empty-h">Select a box to see its detail.</span>';
+    var bhead = (state.view === 'bulk') ? ''
+              : '<span class="mtb-empty-h">Select a box to see its detail.</span>';
     if(state.openId){
       var ob=null,rw=state.rows||[];
       for(var i=0;i<rw.length;i++){ if(String(rw[i].id)===String(state.openId)){ ob=rw[i]; break; } }
