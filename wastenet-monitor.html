@@ -1411,7 +1411,7 @@ function lockOut(msg){
   if(inp){ inp.value = ""; inp.focus(); }
 }
 
-var state = { rows: [], scanTitle: "", openId: null, staleOpen: false, view: "action",
+var state = { rows: [], scanTitle: "", openId: null, staleOpen: false, view: "bulk",
   /* Bulk Notifications. Reads David's Master Pull Request Report through the
      bulk_tabs / bulk_rows endpoints - a DIFFERENT workbook from the scan, so
      none of this touches state.rows. bulkUnchecked holds ids he has ticked
@@ -2896,8 +2896,7 @@ function render(){
          '<div class="wn-tri-div"></div>';
     })();
     bk.forEach(function(x,i){ var on=state.view===x[0];
-      h+='<button type="button" class="wn-tri score-hit'+(on?' on':'')+'" data-view="'+x[0]+'"><span class="wn-tri-dot" style="background:'+x[1]+'"></span><span class="wn-tri-l">'+x[2]+'</span><span class="wn-tri-n">'+x[3]+'</span></button>';
-      if(i===0) h+='<div class="wn-tri-div"></div>'; });
+      h+='<button type="button" class="wn-tri score-hit'+(on?' on':'')+'" data-view="'+x[0]+'"><span class="wn-tri-dot" style="background:'+x[1]+'"></span><span class="wn-tri-l">'+x[2]+'</span><span class="wn-tri-n">'+x[3]+'</span></button>'; });
     rt.innerHTML=h;
   })();
 
