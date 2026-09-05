@@ -485,7 +485,7 @@ function htmlVals(dateLong, boxLines, link, poLines, noteLines){
   var list = boxLines.map(function(l, i){
     var line = '<span style="color:#3B6D11;font-weight:bold;">\u2022 ' + esc(l) + '</span>';
     if(noteLines[i]){
-      line += '<br><span style="color:#444441;display:inline-block;padding-left:18px;">' + esc(noteLines[i]) + '</span>';
+      line += '<span style="color:#3B6D11;font-weight:bold;">  \u00b7  ' + esc(noteLines[i]) + '</span>';
     }
     if(poLines[i]){
       line += '<br><span style="color:#444441;display:inline-block;padding-left:18px;">PO ' + esc(poLines[i]) + '</span>';
@@ -624,7 +624,35 @@ function noteLineFor(id){
     }
     if(/compactor\(s\)\s*:/i.test(flat)) arming = true;
   }
-  return out.join(" ").trim();
+  var note = out.join(" ").trim();
+  if(!note) return "";
+
+  /* Trim what the CES description already says, so the line adds only what is
+     missing - the phone, and any contact name. Two narrow rules, both anchored
+     on the description so nothing is guessed:
+       1. the leading site label, up to the "..." David types as a separator;
+       2. a trailing [account ref] whose digits already appear in the CES text.
+     Anything else is left alone. "Rob 830-203-0421" keeps Rob. */
+  var desc = String((state.rows[id] || {}).desc || "");
+  var cut = note.split(/\.\s*\.\s*\.|\.{2,}|…/);
+  if(cut.length > 1 && cut.slice(1).join("").trim()) note = cut.slice(1).join(" ").trim();
+
+  var descDigits = desc.replace(/\D/g, "");
+  note = note.replace(/\[([^\]]+)\]\s*$/, function(whole, inner){
+    if(!/^[\d\s\-\/#.]+$/.test(inner)) return whole;      // not a bare account ref
+    var d = inner.replace(/\D/g, "");
+    return (d && descDigits.indexOf(d) !== -1) ? "" : whole;
+  });
+
+  note = note.replace(/\s{2,}/g, " ").trim().replace(/^[>\/&,\-\s]+|[>\/&,\-\s]+$/g, "");
+
+  /* Only worth printing if it carries a PHONE NUMBER. Most per-box bodies just
+     repeat the site name on that line, which the CES description already says -
+     appending those would add noise to every email to make one better. The
+     pattern insists on both separators and refuses a longer digit run, so
+     account refs like "165-1206485" are not mistaken for phone numbers. */
+  var PHONE = /(?:\(\d{3}\)\s?\d{3}-\d{4}|\d{3}-\d{3}-\d{4})(?!\d)/;
+  return PHONE.test(note) ? note : "";
 }
 
 function boxListParts(idList, opts){
@@ -639,8 +667,7 @@ function boxListParts(idList, opts){
       notes.push(opts.withNote ? noteLineFor(id) : "");
     });
     var plain = descs.map(function(d, i){
-      return "\u2022 " + d +
-             (notes[i] ? "\n    " + notes[i] : "") +
+      return "\u2022 " + d + (notes[i] ? "  \u00b7  " + notes[i] : "") +
              (pos[i] ? "\n    PO " + pos[i] : "");
     }).join("\n");
     return { descs: descs, pos: pos, notes: notes, plain: plain };
