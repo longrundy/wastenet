@@ -935,10 +935,15 @@ function abbrev(desc){
    name. The preview header keeps the full text, because there you are
    checking one message in detail rather than picking one out of a list. */
 function shortDescFor(e){
-  return e.ids.map(function(id){
-    var r = state.rows[id] || {};
-    return abbrev(r.desc || ("Box " + id));
-  }).join(", ");
+  /* One name, then a count. Listing five abbreviated names still overflows
+     the card and nobody reads past the first anyway - the box count and the
+     full list are both a click away in the preview. */
+  var ids = e.ids || [];
+  if(!ids.length) return "";
+  var r = state.rows[ids[0]] || {};
+  var first = abbrev(r.desc || ("Box " + ids[0]));
+  if(ids.length === 1) return first;
+  return first + "  + " + (ids.length - 1) + " more location" + (ids.length === 2 ? "" : "s");
 }
 
 function cardHtml(e){
