@@ -23,6 +23,15 @@
     '&boxId=' + encodeURIComponent(params.get('b') || '') +
     '&tab=' + encodeURIComponent(params.get('t') || '') +
     '&token=' + encodeURIComponent(params.get('k') || '');
+  /* d = the pickup date we asked for, per box (id:yyyy-MM-dd, comma separated).
+     It has to be forwarded too: the confirmation page pre-fills its editable
+     date field from it, and that date exists nowhere else - sending a request
+     writes a ledger row rather than a Sch Date, and the date itself comes from
+     the pull request workbook, not the scan. Dropped here, the hauler sees an
+     empty date box. Absent on older links, which is fine - the page falls back
+     to whatever the scan holds, exactly as it did before. */
+  var d = params.get('d');
+  if (d) dest += '&d=' + encodeURIComponent(d);
   window.location.replace(dest);
 </script>
 </head>
