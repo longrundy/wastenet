@@ -491,10 +491,16 @@ function htmlVals(dateLong, boxLines, link, poLines, noteLines, breakLines){
      are also the one layout primitive every mail client agrees on. */
   var rows = boxLines.map(function(l, i){
     var txt = esc(l) + (noteLines[i] ? '  \u00b7  ' + esc(noteLines[i]) : '');
-    /* A spacer row between customers - height only, no rule. A visible line
-       would read as a section heading and invite the question "what is this
-       section?"; whitespace just lets the eye group them. */
-    var r = breakLines[i] ? '<tr><td colspan="2" style="height:10px;line-height:10px;font-size:0;">&nbsp;</td></tr>' : '';
+    /* A hairline rule between customers. Whitespace alone was too weak once
+       the lines themselves wrap - the gap read as ordinary line spacing. The
+       rule is pale and full-width so it separates without looking like a
+       heading. Padding sits either side of it so the groups breathe. */
+    var r = breakLines[i]
+      ? '<tr><td colspan="2" style="padding:9px 0 0;">' +
+          '<div style="border-top:1px solid #D8DFD2;font-size:0;line-height:0;">&nbsp;</div>' +
+        '</td></tr>' +
+        '<tr><td colspan="2" style="height:9px;line-height:9px;font-size:0;">&nbsp;</td></tr>'
+      : '';
     r += '<tr>' +
       '<td valign="top" style="color:#3B6D11;font-weight:bold;padding:0 6px 0 0;line-height:1.65;">\u2022</td>' +
       '<td style="color:#3B6D11;font-weight:bold;line-height:1.65;">' + txt + '</td></tr>';
@@ -710,7 +716,7 @@ function boxListParts(idList, opts){
       breaks.push(!!firstOfGroup[descs.length - 1]);
     });
     var plain = descs.map(function(d, i){
-      return (breaks[i] ? "\n" : "") +
+      return (breaks[i] ? "\n" + new Array(29).join("\u2500") + "\n" : "") +
              "\u2022 " + d + (notes[i] ? "  \u00b7  " + notes[i] : "") +
              (pos[i] ? "\n    PO " + pos[i] : "");
     }).join("\n");
