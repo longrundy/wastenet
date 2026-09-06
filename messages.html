@@ -479,9 +479,10 @@ function confirmButton(link){
 
 /* The values, as markup. Date bold, every location bold - the two things a
    hauler is actually scanning for. */
-function htmlVals(dateLong, boxLines, link, poLines, noteLines){
+function htmlVals(dateLong, boxLines, link, poLines, noteLines, breakLines){
   poLines = poLines || [];
   noteLines = noteLines || [];
+  breakLines = breakLines || [];
   /* Hanging indent done with a two-cell table rather than text-indent. The
      CSS version has to guess the width of the bullet glyph, and any guess is
      wrong in some font - too small and the wrap sits left of the text, too
@@ -490,7 +491,11 @@ function htmlVals(dateLong, boxLines, link, poLines, noteLines){
      are also the one layout primitive every mail client agrees on. */
   var rows = boxLines.map(function(l, i){
     var txt = esc(l) + (noteLines[i] ? '  \u00b7  ' + esc(noteLines[i]) : '');
-    var r = '<tr>' +
+    /* A spacer row between customers - height only, no rule. A visible line
+       would read as a section heading and invite the question "what is this
+       section?"; whitespace just lets the eye group them. */
+    var r = breakLines[i] ? '<tr><td colspan="2" style="height:10px;line-height:10px;font-size:0;">&nbsp;</td></tr>' : '';
+    r += '<tr>' +
       '<td valign="top" style="color:#3B6D11;font-weight:bold;padding:0 6px 0 0;line-height:1.65;">\u2022</td>' +
       '<td style="color:#3B6D11;font-weight:bold;line-height:1.65;">' + txt + '</td></tr>';
     if(poLines[i]){
@@ -665,7 +670,36 @@ function noteLineFor(id){
 
 function boxListParts(idList, opts){
     opts = opts || {};
-    var descs = [], pos = [], notes = [];
+    /* Group the boxes by customer so a five-box email reads as "the two
+       Gaylords, then the Costco, then the two Raley's" instead of one
+       undifferentiated run. The key is the leading name of the description -
+       "Gaylord (CT 3)..." and "Gaylord (CT 9)..." share it, and the Raley's
+       banners all start "R-", which is why the prefix is taken before any
+       digit. Order within a group is untouched, and groups appear in the
+       order their first box did, so nothing jumps around. */
+    var groupKey = function(id){
+      var r = state.rows[id] || {};
+      var d = String(r.desc || "").trim();
+      var m = d.match(/^[A-Za-z][A-Za-z'&.\- ]*/);
+      var k = (m ? m[0] : d).toUpperCase().replace(/[^A-Z]/g, "");
+      return k || ("BOX" + id);
+    };
+    var seen = {}, order = [];
+    idList.forEach(function(id){
+      var k = groupKey(id);
+      if(!seen[k]){ seen[k] = []; order.push(k); }
+      seen[k].push(id);
+    });
+    var grouped = [], firstOfGroup = {};
+    order.forEach(function(k, gi){
+      seen[k].forEach(function(id, ix){
+        if(ix === 0 && gi > 0) firstOfGroup[grouped.length] = true;
+        grouped.push(id);
+      });
+    });
+    idList = grouped;
+
+    var descs = [], pos = [], notes = [], breaks = [];
     idList.forEach(function(id){
       var r = state.rows[id] || {};
       var d = (r.desc || ("Box " + id));
@@ -673,12 +707,14 @@ function boxListParts(idList, opts){
       descs.push(d);
       pos.push(opts.withPO ? (poFor[id] || "") : "");
       notes.push(opts.withNote ? noteLineFor(id) : "");
+      breaks.push(!!firstOfGroup[descs.length - 1]);
     });
     var plain = descs.map(function(d, i){
-      return "\u2022 " + d + (notes[i] ? "  \u00b7  " + notes[i] : "") +
+      return (breaks[i] ? "\n" : "") +
+             "\u2022 " + d + (notes[i] ? "  \u00b7  " + notes[i] : "") +
              (pos[i] ? "\n    PO " + pos[i] : "");
     }).join("\n");
-    return { descs: descs, pos: pos, notes: notes, plain: plain };
+    return { descs: descs, pos: pos, notes: notes, breaks: breaks, plain: plain };
   }
 
   /* ---- 1. Service requests: grouped by RECIPIENT + date ----
@@ -735,7 +771,7 @@ function boxListParts(idList, opts){
       "service description": bl.plain,
       "confirm link": link
     });
-    var inner = fillHtml(tBody, htmlVals(fmtLong(g.date), bl.descs, link, bl.pos, bl.notes));
+    var inner = fillHtml(tBody, htmlVals(fmtLong(g.date), bl.descs, link, bl.pos, bl.notes, bl.breaks));
 
     /* PO BEFORE the confirm block, so on David's per-box bodies - which type
        the site in as literal text with no [box list] slot - it lands right
