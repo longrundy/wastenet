@@ -482,19 +482,24 @@ function confirmButton(link){
 function htmlVals(dateLong, boxLines, link, poLines, noteLines){
   poLines = poLines || [];
   noteLines = noteLines || [];
-  /* Hanging indent: padding-left moves the whole block right, text-indent pulls
-     the first line back so the bullet sits alone in the margin. A wrapped line
-     then lines up under the text instead of under the bullet. Plain CSS on a
-     block element - the one form of indent Outlook's Word engine honours. */
-  var list = boxLines.map(function(l, i){
+  /* Hanging indent done with a two-cell table rather than text-indent. The
+     CSS version has to guess the width of the bullet glyph, and any guess is
+     wrong in some font - too small and the wrap sits left of the text, too
+     large and it overshoots. A table column is measured by the renderer, so
+     wrapped lines land exactly under the first character every time. Tables
+     are also the one layout primitive every mail client agrees on. */
+  var rows = boxLines.map(function(l, i){
     var txt = esc(l) + (noteLines[i] ? '  \u00b7  ' + esc(noteLines[i]) : '');
-    var line = '<div style="color:#3B6D11;font-weight:bold;padding-left:16px;text-indent:-16px;">' +
-               '\u2022 ' + txt + '</div>';
+    var r = '<tr>' +
+      '<td valign="top" style="color:#3B6D11;font-weight:bold;padding:0 6px 0 0;line-height:1.65;">\u2022</td>' +
+      '<td style="color:#3B6D11;font-weight:bold;line-height:1.65;">' + txt + '</td></tr>';
     if(poLines[i]){
-      line += '<div style="color:#444441;padding-left:16px;">PO ' + esc(poLines[i]) + '</div>';
+      r += '<tr><td></td><td style="color:#444441;line-height:1.65;">PO ' + esc(poLines[i]) + '</td></tr>';
     }
-    return line;
+    return r;
   }).join("");
+  var list = '<table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">' +
+             rows + '</table>';
   return {
     // Same green as the locations. The date and the sites are the two things a
     // hauler actually scans for - they should read as one set, not two.
