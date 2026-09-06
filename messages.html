@@ -326,8 +326,16 @@ function confirmToken(boxId, tab){
 }
 function confirmLink(boxIds, tab){
   var b = boxIds.join(",");
+  /* Carry the date we asked for, per box. The confirm page has nowhere else
+     to get it: sending writes a ledger row rather than a Sch Date, and the
+     pickup date comes from the pull request workbook, not the scan. Without
+     it the hauler sees an empty date field. */
+  var d = boxIds.map(function(id){ return id + ":" + (pickupFor(id) || ""); })
+                .filter(function(x){ return x.indexOf(":") !== x.length - 1; })
+                .join(",");
   return CONFIRM_BASE + "?b=" + encodeURIComponent(b) +
-         "&t=" + encodeURIComponent(tab) + "&k=" + confirmToken(b, tab);
+         "&t=" + encodeURIComponent(tab) + "&k=" + confirmToken(b, tab) +
+         (d ? "&d=" + encodeURIComponent(d) : "");
 }
 
 /* Addresses are typed by people into spreadsheet cells, so they arrive
