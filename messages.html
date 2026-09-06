@@ -937,9 +937,17 @@ function boxListParts(idList, opts){
     });
   });
 
+  /* Alphabetical by the name actually printed on the card, so someone looking
+     for Riviera goes to the R's. It used to sort on date + recipient address -
+     both invisible on the card, which made the order look random and left you
+     reading every row to find one site. Date still groups first so a day's
+     work stays together; the tie-break keeps it stable. */
   q.sort(function(a,b){
     if(a.kind !== b.kind) return a.kind === "request" ? -1 : 1;
-    return (a.date + a.to.join()).localeCompare(b.date + b.to.join());
+    if(a.date !== b.date) return a.date < b.date ? -1 : 1;
+    var an = shortDescFor(a).toLowerCase(), bn = shortDescFor(b).toLowerCase();
+    if(an !== bn) return an < bn ? -1 : 1;
+    return a.to.join().localeCompare(b.to.join());
   });
 
   state.queue = q;
