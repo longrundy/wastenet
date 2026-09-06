@@ -905,6 +905,19 @@ function descFor(e){
   }).join(", ");
 }
 
+/* The gray list is a column of cards you scan down, so it gets the short
+   name the Monitoring Dashboard uses - the scan description carries the
+   abbreviated name and the full one separated by " \u00b7 ". The preview
+   header keeps the full text, because there you are checking one message
+   in detail rather than picking one out of a list. */
+function shortDescFor(e){
+  return e.ids.map(function(id){
+    var r = state.rows[id] || {};
+    var full = r.desc || ("Box " + id);
+    return String(full).split(" \u00b7 ")[0] || full;
+  }).join(", ");
+}
+
 function cardHtml(e){
   var on = !!state.checked[e.id];
   var done = state.sent[e.id];
@@ -918,7 +931,7 @@ function cardHtml(e){
       '<span class="qc-chk' + (done ? " on dead" : (on ? " on" : "")) + '" data-chk="' + esc(e.id) + '">' +
         (on || done ? "\u2713" : "") + '</span>' +
       '<div class="qc-mid">' +
-        '<div class="qc-to">' + esc(descFor(e)) + '</div>' +
+        '<div class="qc-to">' + esc(shortDescFor(e)) + '</div>' +
         '<div class="qc-sub">' + esc(e.subject) + '</div>' +
       '</div>' + right +
     '</div>' +
