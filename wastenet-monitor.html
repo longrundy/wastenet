@@ -1312,6 +1312,8 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
 .blk-pill-done{color:#3B6D11;background:#E8F2DC;}
 .blk-pill-portal{color:#854F0B;background:#FAEEDA;}
 .blk-pill-conf{color:#fff;background:#3B6D11;}
+.blk-pill-moved{color:#fff;background:#EF9F27;}
+.blk-was{display:block;font-size:11px;color:var(--ink-2);text-decoration:line-through;}
 .blk-right{flex:0 0 auto;text-align:right;min-width:96px;}
 .blk-date{font-size:13px;font-weight:700;color:var(--ink);}
 .blk-row-sent{background:#F6F7F4;}
@@ -2300,13 +2302,35 @@ function bulkUncheckedMap(){
    would be a duplicate.
    Matching on the DATE, not just the box, is deliberate: a box notified for
    last Tuesday genuinely does need telling about this Tuesday. */
+/* The date these pages should actually use.
+ *
+ * Normally it is the one computed from David's pull request workbook. But a
+ * hauler can change it when they confirm, and that change lands in the ledger
+ * and on the scan tab - never back in the workbook. Without preferring it
+ * here, the notification page keeps offering the day we asked for and tells
+ * the customer the wrong one. The hauler's date wins because they are the one
+ * doing the pickup. */
+function bulkAgreedDate(r){
+  if(!r || !r.ok) return r ? r.pickup : "";
+  var told = (state.ledgerById || {})[normBoxId(r.id)] || {};
+  var agreed = told.agreed ? toYmd(told.agreed) : "";
+  return agreed || r.pickup;
+}
+function bulkDateMoved(r){
+  var a = bulkAgreedDate(r);
+  return !!(a && r && r.pickup && a !== r.pickup);
+}
+
 function bulkAlreadySent(r){
   if(!r || !r.ok || !r.pickup) return false;
   var told = (state.ledgerById || {})[normBoxId(r.id)] || {};
   /* "scheduled" covers both a request emailed to a hauler and a portal
      booking recorded by hand - either way the hauler side is done. */
   var d = bulkKind() === 'request' ? told.scheduled : told.notified;
-  return !!d && toYmd(d) === r.pickup;
+  /* Compared against the AGREED date: a customer told Tuesday has not been
+     told about the Wednesday the hauler moved it to, so the box correctly
+     re-arms for a fresh notice. */
+  return !!d && toYmd(d) === bulkAgreedDate(r);
 }
 
 /* Confirmed = the hauler clicked their link, or a portal accepted the booking.
@@ -2316,7 +2340,7 @@ function bulkAlreadySent(r){
 function bulkConfirmed(r){
   if(!r || !r.ok || !r.pickup) return false;
   var told = (state.ledgerById || {})[normBoxId(r.id)] || {};
-  return !!told.confirmed && toYmd(told.confirmed) === r.pickup;
+  return !!told.confirmed && toYmd(told.confirmed) === bulkAgreedDate(r);
 }
 
 /* The scan row for a box, so these pages can show the same abbreviated name
@@ -2329,11 +2353,23 @@ function bulkScanRow(id){
   return null;
 }
 
-/* A request needs a hauler to send to. Portal boxes have no service
-   recipient by design - there is nobody to email, you book it yourself -
-   so they are not sendable on the request page. */
+/* Can a service request actually be emailed for this box?
+   No for a portal box - that pickup is booked on the hauler's own site, so a
+   request email would be asking twice. Decided by Service Method, NOT by
+   whether column G is empty: those addresses are worth keeping for the times
+   you do email that hauler, a missed pickup for instance, and a blank cell is
+   a poor way to record "this one goes through a portal".
+   No, too, when there is simply nobody on file to write to. */
+function bulkIsPortal(r){
+  var sc = bulkScanRow(r.id);
+  var hc = String((sc && sc.haulCode) || r.code || '').toUpperCase();
+  var sm = String((sc && sc.srvcMthd) || (sc && sc.channel) || '').toLowerCase();
+  if(hc.indexOf('MYRNA') !== -1) return false;
+  return sm.indexOf('portal') !== -1;
+}
 function bulkHasRecipient(r){
   if(bulkKind() !== 'request') return true;
+  if(bulkIsPortal(r)) return false;
   var c = (state.boxContacts || {})[normBoxId(r.id)] || {};
   var to = c.serviceToRecipients || c.toRecipients || '';
   return /[^@\s;,]+@[^@\s;,]+\.[A-Za-z]{2,}/.test(String(to));
@@ -2343,7 +2379,7 @@ function bulkHasRecipient(r){
    These are the ones the single "mark booked" button covers. */
 function bulkPortalPending(){
   return (state.bulkRows || []).filter(function(r){
-    return r.ok && !bulkHasRecipient(r) && !bulkAlreadySent(r);
+    return r.ok && bulkIsPortal(r) && !bulkAlreadySent(r);
   });
 }
 
@@ -2488,8 +2524,10 @@ function bulkHtml(){
 
       var pills = "";
       if(sent) pills += '<span class="blk-pill blk-pill-done">'+(isReq?'already requested':'already sent')+'</span>';
-      if(noTo) pills += '<span class="blk-pill blk-pill-portal">portal</span>';
+      if(noTo) pills += '<span class="blk-pill blk-pill-portal">'+
+        (bulkIsPortal(r) ? 'portal' : 'no hauler email')+'</span>';
       if(isReq && bulkConfirmed(r)) pills += '<span class="blk-pill blk-pill-conf">confirmed</span>';
+      if(bulkDateMoved(r)) pills += '<span class="blk-pill blk-pill-moved">hauler moved date</span>';
 
       h += '<label class="blk-row'+(off?' blk-row-sent':'')+'">'+
         '<input type="checkbox" class="blk-ck" data-blk="'+esc(r.id)+'"'+(ck?' checked':'')+
@@ -2501,7 +2539,9 @@ function bulkHtml(){
             (code?' \u00b7 '+esc(code):'')+(chan?' \u00b7 '+esc(chan):'')+
           '</span>'+pills+'</span>'+
         '</span>'+
-        '<span class="blk-right"><span class="blk-date">'+esc(bulkFmtDate(r.pickup))+'</span></span>'+
+        '<span class="blk-right"><span class="blk-date">'+esc(bulkFmtDate(bulkAgreedDate(r)))+'</span>'+
+          (bulkDateMoved(r) ? '<span class="blk-was">was '+esc(bulkFmtDate(r.pickup))+'</span>' : '')+
+        '</span>'+
       '</label>';
     });
     h += '</div>';

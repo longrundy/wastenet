@@ -749,6 +749,15 @@ function boxListParts(idList, opts){
   ids.forEach(function(id){
     if(state.noticesOnly) return;
     var c = state.contacts[id] || {};
+    var r = state.rows[id] || {};
+    /* A portal box is never sent an automatic service request, whatever is in
+       column G. Those pickups are booked on the hauler's own site, so emailing
+       them to arrange one would be asking twice for the same thing.
+       Keyed off Service Method rather than "column G is empty", because the
+       address is worth having for the times you DO email that hauler - a
+       missed pickup, say - and an empty cell is a poor way to record
+       "this one is booked in a portal". */
+    if(channelOf(r) === "portal") return;
     /* Master Box List column G (Haulers) is THE source of truth for who a
        service request goes to. Service Email Content column D is no longer
        consulted at all. No Cc either - nobody is copied on a service request. */
