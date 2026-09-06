@@ -905,16 +905,39 @@ function descFor(e){
   }).join(", ");
 }
 
+/* Lifted verbatim from the Monitoring Dashboard so both lists shorten a name
+   the same way. It is not a simple truncation: it drops bracketed codes and
+   "Formerly" tails, keeps the customer and unit before the first " - ", and
+   appends either a short street or the account number so two sites with the
+   same name stay distinguishable. */
+function abbrev(desc){
+  if(!desc) return "(no description)";
+  var d = String(desc);
+  var acctM = d.match(/\((\d{2,5})\)/);            // account/unit number, e.g. (601)
+  var acct = acctM ? acctM[1] : "";
+  // strip trailing bracket codes and "Formerly" tails
+  d = d.replace(/\s*\[[^\]]*\]\s*/g, " ").replace(/\s*-\s*Formerly.*$/i,"").trim();
+  // take before the first " - " (usually customer + unit), fall back to whole
+  var parts = d.split(" - ");
+  var head = parts[0].trim();
+  var appendedLoc = false;
+  // if there's a street-ish second part, append a shortened form
+  if(parts.length > 1){
+    var loc = parts[1].replace(/,.*$/,"").replace(/^\(\d{2,5}\)\s*/,"").trim(); // drop city/state + leading acct
+    if(loc && loc.length <= 26){ head = head + " · " + loc; appendedLoc = true; }
+  }
+  // when the name would otherwise stand alone, append the account number so
+  // same-named sites (e.g. two "Metro National"s) are distinguishable
+  if(acct && !appendedLoc) head = head + " · " + acct;
+  return head.length > 46 ? head.slice(0,44).trim() + "…" : head;
+}
 /* The gray list is a column of cards you scan down, so it gets the short
-   name the Monitoring Dashboard uses - the scan description carries the
-   abbreviated name and the full one separated by " \u00b7 ". The preview
-   header keeps the full text, because there you are checking one message
-   in detail rather than picking one out of a list. */
+   name. The preview header keeps the full text, because there you are
+   checking one message in detail rather than picking one out of a list. */
 function shortDescFor(e){
   return e.ids.map(function(id){
     var r = state.rows[id] || {};
-    var full = r.desc || ("Box " + id);
-    return String(full).split(" \u00b7 ")[0] || full;
+    return abbrev(r.desc || ("Box " + id));
   }).join(", ");
 }
 
