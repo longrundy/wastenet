@@ -1,242 +1,42 @@
 <!DOCTYPE html>
-<!-- wastenet index · build 2026-07-20-a · dark-green front door, matches rail (#153a22) -->
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WasteNet</title>
-<link rel="icon" type="image/png" href="favicon.png">
-<link rel="apple-touch-icon" href="favicon-180.png">
-<style>
-  :root{
-    --green:#5CAA16; --green-dark:#3B6D11; --green-darker:#27500A;
-    --green-tint:#EAF3DE; --green-tint-2:#F4FAEC; --green-border:#C0DD97;
-    --amber:#EF9F27; --amber-dark:#854F0B;
-    --red:#E24B4A; --red-dark:#A32D2D; --red-darker:#791F1F; --red-tint:#FCEBEB;
-    --ink:#1A1D1A; --ink-2:#525A60; --ink-3:#8A8F8A;
-    --line:#E4E7E0; --line-strong:#CFD4CA;
-    --card:#FFFFFF; --panel:#F6F7F3; --page:#FAFBF8;
-    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-
-    /* ---- RAIL PALETTE ----
-       The left rail on the dashboards is the anchor for this page's look, so
-       the front door is built from the rail's own colours rather than the
-       light product surface. These match wastenet-monitor.html's .wn-rail. */
-    --rail:#153a22;        /* rail background - the page field */
-    --rail-deep:#102c19;   /* a touch darker, for depth at the edges */
-    --rail-panel:#1c4a2c;  /* rail hover/active - discs and pressed states */
-    --rail-line:#265c39;   /* rail hairline borders */
-    --rail-line-2:#2f6b44; /* slightly brighter border, for inputs */
-    --sage:#a9cbb4;        /* readable secondary text on dark */
-    --sage-dim:#8fbf9c;    /* rail icon sage */
-    --sage-dimmer:#6f9179; /* rail foot text */
-    --on-rail:#EAF3EE;     /* near-white heading text on dark */
-
-    /* ---- SHAPE ----
-       Chrome is rectangular, tokens are round. These six values are identical
-       in wastenet-monitor.html and wastenet-accounting.html. */
-    --r-input:6px;    /* text fields */
-    --r-ctl:8px;      /* buttons, selects, dropdown triggers, search, inner panels */
-    --r-menu:10px;    /* popovers */
-    --r-card:12px;    /* containers, cards, list wrappers */
-    --r-pill:999px;   /* status chips and filter toggles */
-    --h-ctl:30px;     /* every toolbar control is this tall */
-  }
-  *{box-sizing:border-box;}
-  html,body{margin:0; padding:0; height:100%;}
-  body{
-    font-family:var(--font); color:var(--on-rail);
-    background:var(--rail);
-    /* A whisper of depth so the flat green doesn't read as a solid block, while
-       staying unmistakably the rail colour at the centre where the logo sits. */
-    background-image:radial-gradient(120% 90% at 50% 0%, #1a4a2b 0%, var(--rail) 46%, var(--rail-deep) 100%);
-    font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased;
-    min-height:100%; display:flex; align-items:flex-start; justify-content:center;
-    padding:24px;
-  }
-
-  /* The stage is anchored from the TOP, not vertically centred - centring the
-     whole block shifts the logo up ~45px on unlock, when the small access-code
-     box is replaced by the two taller picker cards. Pinning it keeps the logo
-     in one place across both states. 13vh sits it high; -24px cancels the
-     body's top padding so the maths reads as "logo top = 13vh". */
-  .stage{width:min(560px,100%); text-align:center; margin-top:calc(13vh - 24px);}
-  .logo{width:200px; height:auto; margin:0 auto 34px; display:block;}
-
-  /* lock */
-  .lock-card{
-    width:min(340px,100%); margin:0 auto; padding:24px;
-    background:rgba(255,255,255,0.045);
-    border:0.5px solid var(--rail-line); border-radius:var(--r-card);
-    box-shadow:0 10px 30px rgba(0,0,0,0.30);
-    backdrop-filter:blur(2px);
-  }
-  .lock-sub{font-size:13px; color:var(--sage); margin-bottom:16px;}
-  .lock-in{
-    width:100%; padding:11px 12px; font-size:15px; font-family:var(--font);
-    color:var(--on-rail); background:rgba(0,0,0,0.22);
-    border:1px solid var(--rail-line-2); border-radius:var(--r-input); outline:none;
-    transition:border-color .12s, box-shadow .12s;
-  }
-  .lock-in::placeholder{color:var(--sage-dimmer);}
-  .lock-in:focus{border-color:var(--green); box-shadow:0 0 0 3px rgba(92,170,22,0.20);}
-  .lock-btn{
-    width:100%; margin-top:12px; padding:11px; font-size:14px; font-weight:600;
-    border-radius:var(--r-input); border:none; cursor:pointer;
-    background:var(--green); color:#fff; font-family:var(--font);
-    transition:background .12s, box-shadow .12s;
-  }
-  .lock-btn:hover{background:#4f9814; box-shadow:0 4px 14px rgba(92,170,22,0.30);}
-  .lock-err{
-    margin-top:12px; padding:8px 10px; font-size:12.5px; font-weight:600;
-    background:rgba(226,75,74,0.16); border:0.5px solid var(--red);
-    border-radius:var(--r-input); color:#F3B9B7;
-  }
-
-  /* choices */
-  .picker{display:none;}
-  .picker.show{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px;
-               max-width:496px; margin:0 auto;}
-
-  /* Square, and centred rather than top-aligned - the two descriptions differ
-     in length, and a top-aligned block leaves the shorter door looking
-     half-empty. Centring keeps them level. */
-  .pick{
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    aspect-ratio:1 / 1;
-    text-align:center; text-decoration:none; cursor:pointer;
-    background:rgba(255,255,255,0.045);
-    border:0.5px solid var(--rail-line); border-radius:var(--r-card);
-    padding:20px; font-family:var(--font);
-    box-shadow:0 6px 20px rgba(0,0,0,0.22);
-    transition:border-color .16s ease, background .16s ease, transform .16s ease, box-shadow .16s ease;
-    -webkit-tap-highlight-color:transparent;
-  }
-  .pick:hover{
-    border-color:var(--green); background:rgba(255,255,255,0.075);
-    transform:translateY(-2px); box-shadow:0 12px 28px rgba(0,0,0,0.34);
-  }
-
-  .disc{
-    width:56px; height:56px; border-radius:50%; margin:0 auto 14px; flex:0 0 auto;
-    background:var(--rail-panel); border:1px solid var(--rail-line-2);
-    display:flex; align-items:center; justify-content:center;
-    color:var(--sage-dim);
-    transition:background .16s ease, border-color .16s ease, color .16s ease;
-  }
-  .pick:hover .disc{background:var(--green); border-color:var(--green); color:#fff;}
-  .disc svg{width:26px; height:26px; display:block;}
-
-  .pick-t{font-size:15px; font-weight:600; color:var(--on-rail); margin-bottom:5px;}
-  .pick-d{font-size:12.5px; color:var(--sage-dim); line-height:1.5;}
-
-  @media (max-width:480px){
-    /* One column on a phone - and NOT square. A 1:1 card at full phone width is
-       a ~350px block, so the second door falls below the fold. Let height
-       follow content instead. */
-    .picker.show{grid-template-columns:1fr; max-width:none;}
-    .pick{aspect-ratio:auto; padding:26px 20px 22px;}
-    .logo{width:165px;}
-  }
-</style>
-</head>
-<body>
-
-<div class="stage">
-
-  <img class="logo" src="WastenetLogoSway.webp?v=2026-09-04" alt="WasteNet">
-
-  <div class="lock-card" id="lockCard">
-    <div class="lock-sub">Enter the access code to continue.</div>
-    <input class="lock-in" id="lockIn" type="password" placeholder="Access code" autofocus>
-    <button class="lock-btn" id="lockBtn">Unlock</button>
-    <div class="lock-err" id="lockErr" style="display:none;"></div>
-  </div>
-
-  <div class="picker" id="picker">
-
-    <a class="pick" href="wastenet-monitor.html">
-      <div class="disc">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="2.5" y="4" width="19" height="13" rx="1.6"/>
-          <path d="M9 20.5h6"/>
-          <path d="M12 17v3.5"/>
-          <path d="M5.5 13.2l3-4.6 3 3.4 3-5 3 4.4 1 1.8" stroke-width="1.5"/>
-        </svg>
-      </div>
-      <div class="pick-t">Monitoring Dashboard</div>
-      <div class="pick-d">Fill levels, service scheduling, and the daily action list.</div>
-    </a>
-
-    <a class="pick" href="wastenet-accounting.html">
-      <div class="disc">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="3.5" y="3.9" width="17" height="16.6" rx="1.6"/>
-          <rect x="6.2" y="6.3" width="11.6" height="3.5" rx="0.7" stroke-width="1.4"/>
-          <circle cx="7.7" cy="13" r="0.8" fill="currentColor" stroke="none"/>
-          <circle cx="12" cy="13" r="0.8" fill="currentColor" stroke="none"/>
-          <circle cx="16.3" cy="13" r="0.8" fill="currentColor" stroke="none"/>
-          <circle cx="7.7" cy="16.8" r="0.8" fill="currentColor" stroke="none"/>
-          <circle cx="12" cy="16.8" r="0.8" fill="currentColor" stroke="none"/>
-          <circle cx="16.3" cy="16.8" r="0.8" fill="currentColor" stroke="none"/>
-        </svg>
-      </div>
-      <div class="pick-t">Accounting Dashboard</div>
-      <div class="pick-d">Receivables, invoice aging, and agent commissions.</div>
-    </a>
-
-  </div>
-
-</div>
-
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WasteNet - Opening confirmation page…</title>
+<!--
+  This tiny page exists ONLY to make the confirmation links in
+  WasteNet's Service emails short and branded. The email carries
+    https://dashboard.wastenetinc.com/confirm?b=BOXID&t=TABNAME&k=TOKEN
+  and this page immediately forwards the visitor to the real Apps
+  Script confirmation page (the one with the box details, name field,
+  and Confirm button). Nothing is confirmed by loading this page - it
+  just translates the short link into the long one. If the Apps Script
+  is ever redeployed to a NEW URL, update SHEET_URL below to match
+  (same value as the SHEET_URL constant in the dashboard's index.html).
+-->
 <script>
-/* ============================================================
-   WasteNet front door.
-
-   This page loads no data of its own, so the code entered here
-   isn't validated against anything yet - it's simply remembered
-   in sessionStorage and sent by whichever dashboard you open
-   next, where the Apps Script checks it server-side. A wrong
-   code therefore fails on THAT page's lock screen, not this one.
-
-   Gating here is for convenience, not security: unlock once and
-   both dashboards open for the rest of the session.
-
-   The legacy dashboard still lives at wastenet-legacy.html - it
-   just isn't linked from here any more.
-   ============================================================ */
-
-var STORE = "wastenet_dashboard_key";
-
-var lockCard = document.getElementById("lockCard");
-var picker   = document.getElementById("picker");
-var lockIn   = document.getElementById("lockIn");
-var lockBtn  = document.getElementById("lockBtn");
-
-function haveKey(){
-  try { return !!sessionStorage.getItem(STORE); }
-  catch(e){ return false; }
-}
-
-function showPicker(){
-  lockCard.style.display = "none";
-  picker.classList.add("show");
-}
-
-function unlock(){
-  var v = (lockIn.value || "").trim();
-  if(!v) return;
-  try { sessionStorage.setItem(STORE, v); } catch(e){}
-  showPicker();
-}
-
-lockBtn.onclick = unlock;
-lockIn.onkeydown = function(e){ if(e.key === "Enter") unlock(); };
-
-if(haveKey()) showPicker();
-else lockIn.focus();
+  var SHEET_URL = 'https://script.google.com/macros/s/AKfycbwc3siwl0OTP2O5WzNZCDn4cj3MDVRfcVxJW0TZtoPnAKLwhYSwmW_m1h7ib6Yf_Dvk9w/exec';
+  var params = new URLSearchParams(window.location.search);
+  var dest = SHEET_URL +
+    '?action=confirm_page' +
+    '&boxId=' + encodeURIComponent(params.get('b') || '') +
+    '&tab=' + encodeURIComponent(params.get('t') || '') +
+    '&token=' + encodeURIComponent(params.get('k') || '');
+  /* d = the pickup date we asked for, per box (id:yyyy-MM-dd, comma separated).
+     It has to be forwarded too: the confirmation page pre-fills its editable
+     date field from it, and that date exists nowhere else - sending a request
+     writes a ledger row rather than a Sch Date, and the date itself comes from
+     the pull request workbook, not the scan. Dropped here, the hauler sees an
+     empty date box. Absent on older links, which is fine - the page falls back
+     to whatever the scan holds, exactly as it did before. */
+  var d = params.get('d');
+  if (d) dest += '&d=' + encodeURIComponent(d);
+  window.location.replace(dest);
 </script>
+</head>
+<body style="font-family: Arial, Helvetica, sans-serif; color: #525A60; background: #FAFBF8; text-align: center; padding-top: 60px;">
+  Opening the WasteNet confirmation page&hellip;
+  <noscript><p>Please enable JavaScript, or reply to the original email to confirm. Thank you!</p></noscript>
 </body>
 </html>
