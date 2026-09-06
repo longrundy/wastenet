@@ -1305,16 +1305,19 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
 .blk-row-warn{cursor:default;}
 .blk-row-warn:hover{background:#fff;}
 .blk-ck{width:15px;height:15px;flex:0 0 auto;accent-color:var(--green);}
-.blk-main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px;}
-.blk-loc{font-size:13px;color:var(--ink);}
-.blk-sub{font-size:12px;color:var(--ink-2);}
+.blk-main{flex:1 1 auto;min-width:0;}
+.blk-main .row-name{font-size:14px;font-weight:500;}
+.blk-main .row-meta{margin-top:5px;}
+.blk-pill{font-size:10px;font-weight:700;padding:1px 7px;border-radius:var(--r-pill);white-space:nowrap;}
+.blk-pill-done{color:#3B6D11;background:#E8F2DC;}
+.blk-pill-portal{color:#854F0B;background:#FAEEDA;}
+.blk-pill-conf{color:#fff;background:#3B6D11;}
 .blk-right{flex:0 0 auto;text-align:right;min-width:96px;}
 .blk-date{font-size:13px;font-weight:700;color:var(--ink);}
 .blk-row-sent{background:#F6F7F4;}
-.blk-row-sent .blk-loc,.blk-row-sent .blk-date{color:var(--ink-2);}
+.blk-row-sent .row-name-text,.blk-row-sent .blk-date{color:var(--ink-2);}
 .blk-row-sent .blk-ck{cursor:default;}
-.blk-sent{color:#3B6D11;font-weight:700;}
-.blk-noto{color:#854F0B;font-weight:700;}
+
 .blk-portal-btn{margin-left:8px;background:#fff !important;color:var(--ink) !important;
   border:0.5px solid var(--line) !important;}
 .blk-colhead{font-size:11.5px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;
@@ -2306,6 +2309,26 @@ function bulkAlreadySent(r){
   return !!d && toYmd(d) === r.pickup;
 }
 
+/* Confirmed = the hauler clicked their link, or a portal accepted the booking.
+   Date-gated like every other mark: a confirmation for last Tuesday says
+   nothing about this Tuesday. Shown on the request page only - on the notice
+   page the customer is being told, not agreeing. */
+function bulkConfirmed(r){
+  if(!r || !r.ok || !r.pickup) return false;
+  var told = (state.ledgerById || {})[normBoxId(r.id)] || {};
+  return !!told.confirmed && toYmd(told.confirmed) === r.pickup;
+}
+
+/* The scan row for a box, so these pages can show the same abbreviated name
+   and the same #id · hauler · channel line as every other bucket. */
+function bulkScanRow(id){
+  var rows = state.rows || [];
+  for(var i = 0; i < rows.length; i++){
+    if(String(rows[i].id) === String(id)) return rows[i];
+  }
+  return null;
+}
+
 /* A request needs a hauler to send to. Portal boxes have no service
    recipient by design - there is nobody to email, you book it yourself -
    so they are not sendable on the request page. */
@@ -2430,6 +2453,7 @@ function bulkHtml(){
        collects at the top instead of being scattered through the list. */
     var parked = function(r){ return bulkAlreadySent(r) || !bulkHasRecipient(r); };
     var sentN = ready.filter(bulkAlreadySent).length;
+    var confN = ready.filter(bulkConfirmed).length;
     var noToN = ready.filter(function(r){ return !bulkHasRecipient(r); }).length;
     ready = ready.map(function(r, i){ return { r:r, i:i, s:parked(r)?1:0 }; })
                  .sort(function(a, b){ return (a.s - b.s) || (a.i - b.i); })
@@ -2437,7 +2461,8 @@ function bulkHtml(){
     h += '<div class="blk-head"><span class="blk-title">Ready to notify</span>'+
          '<span class="blk-count">'+on.length+' of '+ready.length+' selected'+
            (sentN?' \u00b7 '+sentN+(bulkKind()==='request'?' already requested':' already sent'):'')+
-           (noToN?' \u00b7 '+noToN+' portal':'')+'</span>'+
+           (noToN?' \u00b7 '+noToN+' portal':'')+
+           (bulkKind()==='request' && confN ? ' \u00b7 '+confN+' confirmed' : '')+'</span>'+
          '<span class="blk-spacer"></span>'+
          '<button type="button" class="blk-link" id="blkAll">Check all</button>'+
          '<button type="button" class="blk-link" id="blkNone">Uncheck all</button>'+
@@ -2450,14 +2475,32 @@ function bulkHtml(){
       var noTo = !bulkHasRecipient(r);
       var off  = sent || noTo;
       var ck   = !off && !un[r.id];
-      var tag  = sent ? '<span class="blk-sent">'+(isReq?'already requested':'already notified')+'</span>'
-               : noTo ? '<span class="blk-noto">portal \u2014 no hauler to email</span>' : '';
+      var sc   = bulkScanRow(r.id);
+
+      /* Same shape as every other bucket: abbreviated name in bold, then
+         #id · hauler code · channel underneath. The scan's description
+         carries both the short name and the full one separated by " \u00b7 ",
+         so take the first part exactly as rowHtml does. */
+      var full = (sc && sc.desc) || r.loc || ("Box " + r.id);
+      var name = String(full).split(" \u00b7 ")[0] || full;
+      var code = (sc && sc.haulCode) || r.code || "";
+      var chan = (sc && sc.channel) || "";
+
+      var pills = "";
+      if(sent) pills += '<span class="blk-pill blk-pill-done">'+(isReq?'already requested':'already sent')+'</span>';
+      if(noTo) pills += '<span class="blk-pill blk-pill-portal">portal</span>';
+      if(isReq && bulkConfirmed(r)) pills += '<span class="blk-pill blk-pill-conf">confirmed</span>';
+
       h += '<label class="blk-row'+(off?' blk-row-sent':'')+'">'+
         '<input type="checkbox" class="blk-ck" data-blk="'+esc(r.id)+'"'+(ck?' checked':'')+
           (off?' disabled':'')+'>'+
-        '<span class="blk-main"><span class="blk-loc">'+esc(r.loc || ("Box "+r.id))+'</span>'+
-        '<span class="blk-sub">Box '+esc(r.id)+' \u00b7 '+esc(r.code)+
-          (tag?' \u00b7 '+tag:'')+'</span></span>'+
+        '<span class="blk-main">'+
+          '<span class="row-name"><span class="row-name-text">'+esc(name)+'</span></span>'+
+          '<span class="row-meta"><span class="row-id">'+
+            '<span class="box-id-strong">#'+esc(r.id)+'</span>'+
+            (code?' \u00b7 '+esc(code):'')+(chan?' \u00b7 '+esc(chan):'')+
+          '</span>'+pills+'</span>'+
+        '</span>'+
         '<span class="blk-right"><span class="blk-date">'+esc(bulkFmtDate(r.pickup))+'</span></span>'+
       '</label>';
     });
