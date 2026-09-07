@@ -136,6 +136,7 @@
   .ph-row{display:flex; align-items:center; gap:6px; margin-top:8px; flex-wrap:wrap;}
   .ph-lab{font-size:11px; color:var(--ink-3);}
   .ph{font-size:11px; font-family:ui-monospace,Menlo,Consolas,monospace; background:#E6F1FB; color:#0C447C; padding:2px 7px; border-radius:4px;}
+  .fmt{font-size:11px; font-family:ui-monospace,Menlo,Consolas,monospace; background:#F1EFE8; color:#2C2C2A; padding:2px 7px; border-radius:4px;}
 
   .btnrow{display:flex; gap:8px; margin-top:16px; align-items:center;}
   .btn{font-family:var(--font); font-size:13px; height:var(--h-ctl); padding:0 16px; border-radius:var(--r-ctl); border:0.5px solid var(--line-strong); background:var(--card); color:var(--ink); cursor:pointer;}
@@ -547,6 +548,18 @@ function newTemplate(){
   toast("New template \u2014 write it, then Save to keep it.");
 }
 
+/* The formatting cheat sheet under a body box. Unlike the placeholder row this
+   is unconditional - markup works in every template and every service email,
+   and these are exactly the boxes where nobody would otherwise find out it
+   exists. Marker spelling must match wnApplyMarkup in logic.js. */
+function fmtRowHtml(){
+  return '<div class="ph-row"><span class="ph-lab">Formatting:</span>' +
+         '<span class="fmt">**bold**</span>' +
+         '<span class="fmt">_italic_</span>' +
+         '<span class="fmt">* bullet</span>' +
+         '<span class="ph-lab">\u2014 type these; the preview shows the result</span></div>';
+}
+
 function renderTemplateMode(){
   var t=state.templates[state.current] || { subjectTemplate:"", bodyTemplate:"" };
   var phs=placeholdersFor(state.current);
@@ -560,6 +573,7 @@ function renderTemplateMode(){
     '<div class="field-label">Body</div>'+
     '<textarea id="bodytext" style="height:340px;">'+esc(t.bodyTemplate)+'</textarea>'+
     phHtml+
+    fmtRowHtml()+
     '<div class="btnrow">'+
       '<button class="btn primary" id="saveBtn">Save template</button>'+
       '<span class="hint" style="margin-left:auto;">Saved changes go live immediately</span>'+
@@ -689,6 +703,7 @@ function renderBlankMode(){
     '<input type="text" id="subj" class="mb12" placeholder="Subject line">'+
     '<div class="field-label">Body</div>'+
     '<textarea id="bodytext" style="height:300px;" placeholder="Type your message"></textarea>'+
+    fmtRowHtml()+
     '<div class="btnrow">'+
       '<button class="btn primary" id="sendBtn">Send</button>'+
       '<span class="hint" style="margin-left:auto;">Sends with the WasteNet footer \u00b7 copied to office@ for the record</span>'+
@@ -908,6 +923,7 @@ function renderSvcEditor(){
     '<input type="text" id="subj" class="mb12" value="'+esc(b.subject)+'">'+
     '<div class="field-label">Body</div>'+
     '<textarea id="bodytext" style="height:300px;">'+esc(b.body)+'</textarea>'+
+    fmtRowHtml()+
     '<div class="btnrow">'+
       '<button class="btn primary" id="svcSaveBtn">Save service email</button>'+
       '<button class="btn" id="previewBtn">Preview</button>'+

@@ -617,6 +617,9 @@ html.embed .cmodal{left:0 !important;}
   .cmp-picker-h{font-size:12px; font-weight:600; color:var(--green-darker); margin-bottom:10px;}
   .cmp-yr-row{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
   .cmp-lab{font-size:12px; color:var(--ink-2);}
+  .fmt-row{display:flex; align-items:center; gap:6px; margin-top:6px; flex-wrap:wrap;}
+  .fmt-lab{font-size:11px; color:var(--ink-3);}
+  .fmt-tag{font-size:11px; font-family:ui-monospace,Menlo,Consolas,monospace; background:#F1EFE8; color:#2C2C2A; padding:2px 7px; border-radius:4px;}
   .cmp-year{font-family:var(--font); font-size:12.5px; border:1px solid var(--line-strong); border-radius:6px; height:28px; padding:0 8px; background:var(--card);}
   .cmp-months{display:grid; grid-template-columns:repeat(6,1fr); gap:7px;}
   .cmp-mo{font-size:12px; text-align:center; padding:7px 2px; border-radius:6px; border:0.5px solid var(--line-strong); background:var(--card); color:var(--ink-2); cursor:pointer; font-family:var(--font);}
@@ -4819,7 +4822,10 @@ function loadComposeType(type){
     '<div class="cmp-rfield" data-f="bcc"><span class="rlabel">Bcc</span><div class="cmp-rbox" id="cmp-bcc-box"></div></div>'+
     picker+
     '<div class="cmp-field"><label>Subject</label><input class="cmp-input" id="cmpSubj" value="'+esc(subject)+'"></div>'+
-    '<div class="cmp-field"><label>Body</label><textarea class="cmp-input cmp-textarea" id="cmpBody">'+esc(body)+'</textarea></div>';
+    '<div class="cmp-field"><label>Body</label><textarea class="cmp-input cmp-textarea" id="cmpBody">'+esc(body)+'</textarea>'+
+      '<div class="fmt-row"><span class="fmt-lab">Formatting:</span>'+
+      '<span class="fmt-tag">**bold**</span><span class="fmt-tag">_italic_</span><span class="fmt-tag">* bullet</span>'+
+      '<span class="fmt-lab">\u2014 type these; the preview shows the result</span></div></div>';
 
   document.getElementById("cmpSubj").addEventListener("input", refreshComposePreview);
   document.getElementById("cmpBody").addEventListener("input", refreshComposePreview);
