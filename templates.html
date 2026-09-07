@@ -484,17 +484,25 @@ function audienceNote(pill){
    supply it. ([box list] and [service description] are synonyms for it and
    keep working; listing all three would imply they differ.)
 
-   [pickup date] is Notice and Batch only. In the compose overlay it resolves
+   [pickup date] is Notice, Batch and Missed. In the compose overlay it resolves
    through suggestedPickupFor(), which returns the box's NEXT projected pickup
-   and null when the box has no schedule rule. On a Missed, Emptied, Usage or
-   DNA email - all of which are about something that already happened - a
-   forward-looking date would be worse than no date at all.
+   and null when the box has no schedule rule. Notice and Batch are built around
+   a forthcoming date, so it fits. Missed is listed by request - see the caveat
+   below. It stays OFF Emptied, Usage, DNA and Repair, which are about something
+   that already happened; a forward-looking date there would be worse than none.
+
+   CAVEAT ON MISSED. The value is the next projected pickup, not the date that
+   was missed, and it is empty when the box has no schedule rule. Wording like
+   "Missed Service Date: [pickup date]" can therefore show a future date, or
+   ship the literal text. If that becomes a problem the fix is a placeholder fed
+   from the service tab's actual date, not a change here.
 
    [confirm link] is deliberately absent. Only the batch/notify flow builds the
    link, so anywhere else it would send as literal text. */
 function placeholdersFor(pill){
   if(pill === "Notice")  return ["[pickup date]", "[box description]"];
   if(pill === "Batch")   return ["[pickup date]", "[service description]"];
+  if(pill === "Missed")  return ["[box description]", "[pickup date]"];
   if(pill === "Weights") return ["[box description]", "[year]", "[months]"];
   return ["[box description]"];
 }
