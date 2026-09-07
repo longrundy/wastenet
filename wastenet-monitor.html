@@ -1388,7 +1388,7 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
 
 <!-- ONE copy of the explanations, shared by all three pages. Not inlined -
      an inlined copy is a copy, and copies drift. This is the whole point. -->
-<script src="logic.js?v=2026-07-15-menu"></script>
+<script src="logic.js?v=2026-09-07-markup"></script>
 <script>
 /* ============================================================
    WasteNet Box Monitor — Phase 1 monitoring view
@@ -4531,6 +4531,12 @@ function boldLiteralSites(html){
 }
 function composeFill(text, vals){
   var out = esc(String(text || ""));
+  /* Plain-text markup (**bold**, _italic_, "* " bullets) - see
+     wnApplyMarkup in logic.js. It runs here, on escaped text and BEFORE
+     the placeholder swap below, so it can never rewrite the HTML that
+     htmlVals injects. The guard keeps a failed logic.js load from
+     breaking every send: worst case the markers show through. */
+  if (typeof wnApplyMarkup === "function") out = wnApplyMarkup(out);
   Object.keys(vals).forEach(function(k){ out = out.split("[" + k + "]").join(vals[k]); });
   out = boldLiteralSites(out);
   return out.replace(/\n/g, "<br>");

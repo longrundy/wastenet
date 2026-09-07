@@ -436,8 +436,84 @@ if (typeof document !== 'undefined') {
   else wnInitNav();
 }
 
+/* ==================================================================
+   BODY MARKUP  -  wnApplyMarkup
+
+   The email body boxes hold plain text. The renderers escape that text
+   before anything else, so typed HTML can never reach a recipient. This
+   is the one sanctioned way to get formatting out of a plain-text body.
+
+   Syntax:
+     **bold**        ->  <b>
+     _italic_        ->  <i>
+     "* " line start ->  a real <ul>/<li> list
+
+   WHERE IT RUNS. Immediately after esc(), and BEFORE placeholder
+   substitution. That order is the whole safety argument: the values
+   htmlVals() injects for [box description] and [pickup date] are real
+   HTML, and this function must never see them. Run it later and it
+   would start rewriting the markup of the email itself.
+
+   WHY "* " AND NOT "- ". Existing bodies - the Missed template, and
+   every per-box row in Service Email Content - already use "- " as a
+   literal hyphen. Making "- " meaningful would silently restyle mail
+   nobody edited. "* " collides with nothing.
+
+   Underline is deliberately absent. Underlined text in email reads as
+   a dead link.
+   ================================================================== */
+
+/* Inline marks, applied to one line of ALREADY-ESCAPED text.
+
+   Bold requires a non-space after the opening ** so a lone "**" and the
+   bullet marker are both left alone.
+
+   Italic is deliberately fussy. A bare /_..._/ would eat snake_case and
+   the local part of an address like first_last@site.com. The opening _
+   must therefore sit at the start of the line or after a space or an
+   opening bracket, and the closing _ must be followed by the end of the
+   line, a space, or closing punctuation. */
+function wnInlineMarks(line) {
+  var s = String(line == null ? "" : line);
+  s = s.replace(/\*\*(?=\S)([^*\n]*[^*\s])\*\*/g, "<b>$1</b>");
+  s = s.replace(/(^|[\s(\[])_(?=\S)([^_\n]*[^_\s])_(?=$|[\s).,;:!?\]])/g, "$1<i>$2</i>");
+  return s;
+}
+
+function wnApplyMarkup(escaped) {
+  var lines = String(escaped == null ? "" : escaped).split("\n");
+  var out = [], bullets = null;
+
+  function flush() {
+    if (!bullets) return;
+    out.push('<ul style="margin:8px 0;padding-left:22px;">' + bullets.join("") + "</ul>");
+    bullets = null;
+  }
+
+  for (var i = 0; i < lines.length; i++) {
+    var m = /^[ \t]*\*[ \t]+(.*)$/.exec(lines[i]);
+    if (m) {
+      if (!bullets) bullets = [];
+      bullets.push('<li style="margin:0 0 4px;">' + wnInlineMarks(m[1]) + "</li>");
+      continue;
+    }
+    flush();
+    out.push(wnInlineMarks(lines[i]));
+  }
+  flush();
+
+  /* The caller turns every remaining \n into <br>. A <ul> is already a
+     block, so a <br> hard against either edge of one just opens a gap.
+     Drop exactly one newline on each side - a blank line the writer
+     actually typed still survives as the paragraph break they meant. */
+  return out.join("\n")
+            .replace(/\n(<ul style=)/g, "$1")
+            .replace(/(<\/ul>)\n/g, "$1");
+}
+
 if (typeof module !== 'undefined') module.exports = {
   LOGIC: LOGIC, logicPanelHtml: logicPanelHtml,
   WN_PAGES: WN_PAGES, wnNavMenu: wnNavMenu, wnNavHtml: wnNavHtml,
-  wnCurrentId: wnCurrentId, wnTriggerLabel: wnTriggerLabel
+  wnCurrentId: wnCurrentId, wnTriggerLabel: wnTriggerLabel,
+  wnApplyMarkup: wnApplyMarkup, wnInlineMarks: wnInlineMarks
 };

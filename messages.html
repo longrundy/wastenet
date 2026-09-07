@@ -226,7 +226,7 @@ body{padding-left:280px;}
   </div>
 </div>
 
-<script src="logic.js?v=2026-07-15-menu"></script>
+<script src="logic.js?v=2026-09-07-markup"></script>
 <script>
 var API = "https://script.google.com/macros/s/AKfycbwc3siwl0OTP2O5WzNZCDn4cj3MDVRfcVxJW0TZtoPnAKLwhYSwmW_m1h7ib6Yf_Dvk9w/exec";
 var KEY = (function(){
@@ -401,6 +401,12 @@ function fill(text, vals){
    placeholders are still there to find. */
 function fillHtml(text, vals){
   var out = esc(String(text || ""));
+  /* Plain-text markup (**bold**, _italic_, "* " bullets) - see
+     wnApplyMarkup in logic.js. It runs here, on escaped text and BEFORE
+     the placeholder swap below, so it can never rewrite the HTML that
+     htmlVals injects. The guard keeps a failed logic.js load from
+     breaking every send: worst case the markers show through. */
+  if (typeof wnApplyMarkup === "function") out = wnApplyMarkup(out);
   Object.keys(vals).forEach(function(k){
     out = out.split("[" + k + "]").join(vals[k]);   // values are pre-built markup
   });
