@@ -727,6 +727,21 @@ function boxListParts(idList, opts){
     idList.forEach(function(id){
       var r = state.rows[id] || {};
       var d = (r.desc || ("Box " + id));
+
+      /* The hauler's own account number for this site, off Master Box List.
+         It leads the line because that is where it sits in David's per-box
+         bodies, which is the form haulers already recognise from single-box
+         sends. Without this a batched request identifies the site only by
+         street address - the per-box body that carries the number is not
+         used once two boxes share a hauler and date, so the number simply
+         went missing on exactly the sends covering the most sites.
+
+         Deliberately NOT read from the per-box body: those bodies also hold
+         internal notes ("Myrna and Herb, please call...") that must never
+         reach an outside hauler. Only this one structured field crosses over. */
+      var acct = String((state.contacts[id] || {}).haulerAccount || "").trim();
+      if(acct) d = acct + "  \u00b7  " + d;
+
       if(opts.withBoxNum) d += "  \u2014  box " + id;
       descs.push(d);
       pos.push(opts.withPO ? (poFor[id] || "") : "");
