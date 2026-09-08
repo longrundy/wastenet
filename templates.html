@@ -883,6 +883,11 @@ function loadService(){
         var row = cmap[b.id] || {};
         b.subject  = String(row.subjectTemplate || "");
         b.body     = String(row.bodyTemplate || "");
+        /* Master Box List column G. THE field the send groups on - not
+           serviceToRecipients, which the request flow no longer consults.
+           Kept here so the editor can tell you when this body will be
+           passed over in favour of the Batch template. */
+        b.haulers  = String(row.toRecipients || "");
         b.customer = customerKey(b.desc);
       });
       boxes.sort(function(a, b){
@@ -932,6 +937,46 @@ function renderSvcList(){
   host.innerHTML = html;
 }
 
+/* Same parsing as the send path (addrs + addrKey in messages.html). If these
+   two ever drift, the warning starts lying, which is worse than no warning. */
+function svcAddrKey(sRaw){
+  return String(sRaw || "").split(/[;,\n]/)
+    .map(function(x){ return x.trim(); })
+    .filter(function(x){ return x && x.indexOf("@") !== -1; })
+    .map(function(a){ return a.toLowerCase(); })
+    .sort().join(";");
+}
+
+/* Boxes sharing this box's exact hauler address set. A request groups by
+   recipients AND pickup date, so sharing recipients does not mean this box
+   WILL be batched - only that it can be, on any day two of them come due
+   together. The wording below says exactly that and no more: the editor
+   has no pickup dates to reason about, and a confident guess that goes
+   stale is how the missing account numbers went unnoticed for months. */
+function svcPeers(b){
+  var key = svcAddrKey(b && b.haulers);
+  if(!key) return [];
+  var out = [];
+  (state.svc || []).forEach(function(o){
+    if(o.id === b.id) return;
+    if(svcAddrKey(o.haulers) === key) out.push(o);
+  });
+  return out;
+}
+
+function svcBatchNoticeHtml(b){
+  var peers = svcPeers(b);
+  if(!peers.length) return "";
+  var n = peers.length;
+  return '<div class="audience">' +
+    'This box shares its hauler with <b>' + n + ' other box' + (n === 1 ? '' : 'es') + '</b>. ' +
+    'Whenever more than one of them is requested for the <b>same pickup date</b>, the request is ' +
+    'sent as one batched email using the <b>Batch</b> template &mdash; the wording below is ' +
+    'not used. The site line and the Hauler Account number still go out. ' +
+    'A single-box request uses this wording in full.' +
+    '</div>';
+}
+
 function renderSvcEditor(){
   var host=document.getElementById("greenCol"); if(!host) return;
   var gt=document.getElementById("greenTitle");
@@ -946,6 +991,7 @@ function renderSvcEditor(){
     '<div class="rc-iv-card">'+
     '<div class="svc-boxhead">Box '+esc(b.id)+' \u2014 '+esc(b.desc)+'</div>'+
     '<div class="svc-boxsub">'+esc(b.customer)+(svcNeeds(b)?' \u00b7 no custom wording yet':'')+'</div>'+
+    svcBatchNoticeHtml(b)+
     '<div class="ph-row"><span class="ph-lab">Placeholders:</span><span class="ph">[pickup date]</span><span class="ph">[box description]</span><span class="ph-lab">\u2014 keep these; they fill in automatically when a request sends</span></div>'+
     '<div class="field-label">Subject</div>'+
     '<input type="text" id="subj" class="mb12" value="'+esc(b.subject)+'">'+
