@@ -957,7 +957,7 @@ function svcPeers(b){
   var key = svcAddrKey(b && b.haulers);
   if(!key) return [];
   var out = [];
-  (state.svc || []).forEach(function(o){
+  (state.svcBoxes || []).forEach(function(o){
     if(o.id === b.id) return;
     if(svcAddrKey(o.haulers) === key) out.push(o);
   });
