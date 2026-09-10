@@ -2857,13 +2857,6 @@ function wireLedgerPanel(){
 }
 
 function wireBulk(){
-  Array.prototype.forEach.call(document.querySelectorAll("[data-lg]"), function(el){
-    el.addEventListener("click", function(ev){
-      ev.preventDefault(); ev.stopPropagation();   // do not toggle the row's checkbox
-      var id = this.getAttribute("data-lg");
-      if(String(state.ledgerOpenId) === String(id)) ledgerClose(); else ledgerOpen(id);
-    });
-  });
   wireLedgerPanel();
 
   var sel = document.getElementById("blkTab");
@@ -4726,6 +4719,19 @@ document.addEventListener("click", function(e){
   var rb = e.target.closest ? e.target.closest("#slimRefreshBtn") : null;
   if(rb){ e.stopPropagation(); load(); }
 });
+/* Request-history buttons on the bulk rows. Delegated for the same reason
+   as the slim bar above: the row list is rebuilt on every render - including
+   the render that the ledger fetch itself triggers - so a handler bound to
+   the button element survives only until the next repaint. */
+document.addEventListener("click", function(e){
+  var b = e.target.closest ? e.target.closest("[data-lg]") : null;
+  if(!b) return;
+  e.preventDefault();
+  e.stopPropagation();               // the row is a <label>; do not toggle its checkbox
+  var id = b.getAttribute("data-lg");
+  if(String(state.ledgerOpenId) === String(id)) ledgerClose(); else ledgerOpen(id);
+});
+
 // close dropdown on outside click
 document.addEventListener("click", function(){
   if(state.dropOpen){
