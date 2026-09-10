@@ -1315,14 +1315,7 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
 .lg-x{flex:0 0 auto;border:none;background:transparent;color:var(--ink-3);
   font-size:19px;line-height:1;cursor:pointer;padding:0 2px;font-family:inherit;}
 .lg-msg{padding:22px 16px;font-size:12.5px;color:var(--ink-3);}
-.lg-btns{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 16px 0;}
-.lg-btn{font-family:inherit;font-size:12px;padding:6px 12px;border-radius:6px;
-  border:0.5px solid var(--line-strong);background:#fff;color:var(--ink);cursor:pointer;}
-.lg-btn:hover{border-color:#5CAA16;}
-.lg-btn-main{background:#3B6D11;border-color:#3B6D11;color:#fff;}
-.lg-btn-main:hover{background:#2F570D;border-color:#2F570D;}
-.lg-copied{font-size:11px;color:#3B6D11;}
-.lg-sec{padding:14px 16px 6px;font-size:10px;letter-spacing:.08em;
+.lg-sec{padding:16px 16px 6px;font-size:10px;letter-spacing:.08em;
   text-transform:uppercase;color:var(--ink-3);}
 .lg-time{padding:0 16px 16px;border-left:none;}
 .lg-item{position:relative;padding:0 0 14px 14px;border-left:2px solid var(--line);}
@@ -2691,91 +2684,10 @@ function ledgerWhen(ts){
   hh = hh%12; if(hh===0) hh=12;
   return dow+", "+mo+" "+d.getDate()+", "+d.getFullYear()+" at "+hh+":"+m[5]+" "+ap+" ET";
 }
-/* Same instant as ledgerWhen, spelled out. The proof block goes to a hauler
-   who may be arguing about which day; abbreviations invite that argument. */
-function ledgerWhenLong(ts){
-  var m = String(ts||"").match(/^(\d+)\/(\d+)\/(\d+)\s+(\d+):(\d+)(?::(\d+))?$/);
-  if(!m) return String(ts||"");
-  var d = new Date(+m[3], +m[1]-1, +m[2], +m[4], +m[5]);
-  if(isNaN(d.getTime())) return String(ts||"");
-  var hh = d.getHours(), ap = hh>=12 ? "PM" : "AM";
-  hh = hh%12; if(hh===0) hh=12;
-  return ledgerLongDate(m[3]+"-"+("0"+m[1]).slice(-2)+"-"+("0"+m[2]).slice(-2)) +
-         " at " + hh + ":" + m[5] + " " + ap + " ET";
-}
-
 /* "2026-09-09" -> "Wednesday, September 9, 2026". Spelled out in full: this
    text goes to a hauler who may be disputing which date was meant. */
-function ledgerLongDate(ymd){
-  var p = String(ymd||"").split("-");
-  if(p.length !== 3) return String(ymd||"");
-  var d = new Date(+p[0], +p[1]-1, +p[2]);
-  if(isNaN(d.getTime())) return String(ymd||"");
-  var dow=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d.getDay()];
-  var mo =["January","February","March","April","May","June","July","August",
-           "September","October","November","December"][d.getMonth()];
-  return dow+", "+mo+" "+d.getDate()+", "+d.getFullYear();
-}
-function ledgerAddrs(detail){
-  var t = String(detail||"").replace(/^\s*to\s+/i,"").trim();
-  return t.split(/[;,]/).map(function(x){ return x.trim(); }).filter(Boolean);
-}
-function ledgerBy(detail){ return String(detail||"").replace(/^\s*by\s+/i,"").trim(); }
 function ledgerIsReq(r){ return /REQUEST SENT/i.test(r.event); }
 function ledgerIsConf(r){ return /CONFIRM/i.test(r.event); }
-
-/* PROOF text. Deliberately narrow: the request, and the FIRST confirmation
-   that followed it for the same pickup date. Both rows carry their own
-   pickupDate in the ledger, so "asked for the 9th" and "agreed to the 9th"
-   are two independently recorded facts, not one value printed twice - which
-   is the whole point when a hauler disputes it. */
-function ledgerProofText(id, rows){
-  var b = bulkRowById(id), sc = bulkScanRow(id);
-  var name = (sc && sc.desc) || (b && b.loc) || ("Box " + id);
-  var req = null, conf = null;
-  for(var i = rows.length - 1; i >= 0; i--){          // oldest first
-    var r = rows[i];
-    if(!req && ledgerIsReq(r)) req = r;
-    else if(req && !conf && ledgerIsConf(r) && r.pickupDate === req.pickupDate) conf = r;
-  }
-  if(!req) return "";
-  var L = [];
-  L.push("Box " + id + " \u2014 " + String(name).split(" \u00b7 ")[0]);
-  L.push("");
-  L.push("SERVICE REQUESTED FOR:  " + ledgerLongDate(req.pickupDate));
-  L.push("");
-  L.push("Request sent:      " + ledgerWhenLong(req.timestamp));
-  var to = ledgerAddrs(req.detail);
-  to.forEach(function(a, i){ L.push((i===0?"                   to ":"                      ") + a + (i<to.length-1?",":"")); });
-  L.push("                   Service date requested: " + ledgerLongDate(req.pickupDate));
-  L.push("");
-  if(conf){
-    L.push("Confirmation received: " + ledgerWhenLong(conf.timestamp));
-    L.push("                   by \"" + ledgerBy(conf.detail) + "\", via the confirmation link");
-    L.push("                   in the request email above");
-    L.push("                   Service date confirmed: " + ledgerLongDate(conf.pickupDate));
-  } else {
-    L.push("No confirmation was received for this request.");
-  }
-  L.push("");
-  L.push("Source: WasteNet Request Ledger");
-  return L.join("\n");
-}
-
-/* FULL history. Everything on file for the box, oldest first. */
-function ledgerFullText(id, rows){
-  var b = bulkRowById(id), sc = bulkScanRow(id);
-  var name = (sc && sc.desc) || (b && b.loc) || ("Box " + id);
-  var L = ["Box " + id + " \u2014 " + String(name).split(" \u00b7 ")[0], ""];
-  rows.slice().reverse().forEach(function(r){
-    L.push(ledgerWhen(r.timestamp) + "   " + r.event +
-           (r.pickupDate ? "   (for " + ledgerLongDate(r.pickupDate) + ")" : ""));
-    if(r.detail) L.push("    " + r.detail);
-    L.push("");
-  });
-  L.push("Source: WasteNet Request Ledger");
-  return L.join("\n");
-}
 
 function bulkRowById(id){
   var rows = state.bulkRows || [];
@@ -2805,12 +2717,6 @@ function ledgerPanelHtml(){
   var rows = state.ledgerRowsById[id] || [];
   if(!rows.length) return h + '<div class="lg-msg">No ledger entries for this box yet.</div>';
 
-  var hasProof = !!ledgerProofText(id, rows);
-  h += '<div class="lg-btns">'+
-       (hasProof ? '<button type="button" class="lg-btn lg-btn-main" id="lgProof">Copy proof</button>' : '')+
-       '<button type="button" class="lg-btn" id="lgFull">Copy full history</button>'+
-       '<span class="lg-copied" id="lgCopied"></span></div>';
-
   h += '<div class="lg-sec">Request ledger</div><div class="lg-time">';
   rows.forEach(function(r, i){
     var kind = ledgerIsConf(r) ? "conf" : (ledgerIsReq(r) ? "req" : "note");
@@ -2825,35 +2731,9 @@ function ledgerPanelHtml(){
   return h + '</div>';
 }
 
-function ledgerCopy(text, btnId){
-  var note = document.getElementById("lgCopied");
-  function done(ok){ if(note){ note.textContent = ok ? "Copied" : "Press Ctrl+C"; setTimeout(function(){ if(note) note.textContent=""; }, 2500); } }
-  if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(function(){ done(true); }, function(){ fallback(); });
-  } else fallback();
-  function fallback(){
-    /* execCommand is deprecated but still the only path when the page is not
-       a secure context or permission is refused. A visible textarea would
-       shift the layout, so it is positioned off-screen and removed at once. */
-    var ta = document.createElement("textarea");
-    ta.value = text; ta.setAttribute("readonly","");
-    ta.style.position="fixed"; ta.style.top="-1000px";
-    document.body.appendChild(ta); ta.select();
-    var ok = false;
-    try { ok = document.execCommand("copy"); } catch(e){ ok = false; }
-    document.body.removeChild(ta);
-    done(ok);
-  }
-}
-
 function wireLedgerPanel(){
   var x = document.getElementById("lgClose");
   if(x) x.onclick = ledgerClose;
-  var id = state.ledgerOpenId, rows = state.ledgerRowsById[id] || [];
-  var p = document.getElementById("lgProof");
-  if(p) p.onclick = function(){ ledgerCopy(ledgerProofText(id, rows)); };
-  var f = document.getElementById("lgFull");
-  if(f) f.onclick = function(){ ledgerCopy(ledgerFullText(id, rows)); };
 }
 
 function wireBulk(){
