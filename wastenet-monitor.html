@@ -1300,6 +1300,41 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
   font-family:var(--font);padding:2px 4px;}
 .blk-link:hover{text-decoration:underline;}
 .blk-list{border:0.5px solid var(--line);border-radius:0 0 12px 12px;overflow:hidden;background:#fff;}
+
+/* ---- request ledger detail panel ---- */
+.blk-info{flex:0 0 auto;width:19px;height:19px;margin:0 8px 0 4px;border-radius:50%;
+  border:1px solid var(--line-strong);background:#fff;color:var(--ink-3);
+  font-size:11px;font-weight:700;line-height:1;cursor:pointer;font-family:inherit;}
+.blk-info:hover{border-color:#5CAA16;color:#3B6D11;}
+.blk-info.on{border-color:#5CAA16;background:#EDF6E2;color:#3B6D11;}
+.lg-head{display:flex;align-items:flex-start;gap:8px;padding:14px 16px;
+  border-bottom:0.5px solid var(--line);}
+.lg-head-main{flex:1;min-width:0;}
+.lg-name{font-size:14px;font-weight:600;color:var(--ink);line-height:1.35;}
+.lg-sub{font-size:11px;color:var(--ink-3);margin-top:3px;}
+.lg-x{flex:0 0 auto;border:none;background:transparent;color:var(--ink-3);
+  font-size:19px;line-height:1;cursor:pointer;padding:0 2px;font-family:inherit;}
+.lg-msg{padding:22px 16px;font-size:12.5px;color:var(--ink-3);}
+.lg-btns{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 16px 0;}
+.lg-btn{font-family:inherit;font-size:12px;padding:6px 12px;border-radius:6px;
+  border:0.5px solid var(--line-strong);background:#fff;color:var(--ink);cursor:pointer;}
+.lg-btn:hover{border-color:#5CAA16;}
+.lg-btn-main{background:#3B6D11;border-color:#3B6D11;color:#fff;}
+.lg-btn-main:hover{background:#2F570D;border-color:#2F570D;}
+.lg-copied{font-size:11px;color:#3B6D11;}
+.lg-sec{padding:14px 16px 6px;font-size:10px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-3);}
+.lg-time{padding:0 16px 16px;border-left:none;}
+.lg-item{position:relative;padding:0 0 14px 14px;border-left:2px solid var(--line);}
+.lg-item:last-child{padding-bottom:2px;}
+.lg-dot{position:absolute;left:-5px;top:3px;width:8px;height:8px;border-radius:50%;
+  background:#B4B2A9;}
+.lg-new .lg-dot{background:#5CAA16;}
+.lg-ev{font-size:11.5px;font-weight:600;color:var(--ink);}
+.lg-conf .lg-ev{color:#3B6D11;}
+.lg-note .lg-ev{color:#7A6A2F;}   /* CUSTOMER NOTIFIED - a different flow */
+.lg-when{font-size:10.5px;color:var(--ink-2);margin-top:2px;}
+.lg-det{font-size:10.5px;color:var(--ink-2);margin-top:3px;word-break:break-word;}
 .blk-list-warn{border-color:#EF9F27;}
 .blk-row{display:flex;align-items:center;gap:10px;padding:10px 12px;
   border-bottom:0.5px solid var(--line);cursor:pointer;}
@@ -1434,6 +1469,10 @@ var state = { rows: [], scanTitle: "", openId: null, staleOpen: false, view: "bu
   bulkTabs: [], bulkGid: "", bulkTabName: "", bulkBase: "", bulkRows: [],
   bulkUnchecked: {}, bulkReqUnchecked: {},
   bulkLoading: false, bulkTabsLoaded: false, bulkError: null,
+  /* Request Ledger detail panel (Bulk Service Request Emails). ledgerRowsById
+     caches per box for the session - the ledger is append-only history, so a
+     second look at the same box during one sitting cannot have changed. */
+  ledgerOpenId: null, ledgerRowsById: {}, ledgerBusy: false, ledgerErr: null,
   tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, staffNotesById: {}, staffNotesUpdById: {}, emptyMarkedById: {}, ledgerById: {}, overrideById: {}, portalById: {}, actionBoxes: [], moveOpenId: null, moveBusy: false, showDismissed: false, bookOpenId: null, bookBusy: false, notesOpenId: null,
   /* Pull History (collapsible detail section). The per-box pull list comes from
      the SAME box_performance payload the Box Performance page reads - there is
@@ -2542,6 +2581,12 @@ function bulkHtml(){
             (code?' \u00b7 '+esc(code):'')+(chan?' \u00b7 '+esc(chan):'')+
           '</span>'+pills+'</span>'+
         '</span>'+
+        /* The row is a <label>, so ANY click inside it toggles the checkbox -
+           that is deliberate, selecting boxes is this page's main job. The
+           info button therefore stops the event rather than relying on
+           position, and is a real <button> so it is keyboard reachable. */
+        '<button type="button" class="blk-info'+(String(state.ledgerOpenId)===String(r.id)?' on':'')+
+          '" data-lg="'+esc(r.id)+'" title="Request history">i</button>'+
         '<span class="blk-right"><span class="blk-date">'+esc(bulkFmtDate(bulkAgreedDate(r)))+'</span>'+
           (bulkDateMoved(r) ? '<span class="blk-was">was '+esc(bulkFmtDate(r.pickup))+'</span>' : '')+
         '</span>'+
@@ -2605,7 +2650,222 @@ function fetchBulkRows(gid){
   });
 }
 
+/* ---------------------------------------------------------------
+   REQUEST LEDGER DETAIL  -  what actually happened for one box.
+
+   The pills on a bulk row ("already requested", "confirmed") are booleans
+   off ledger_marks. This panel is the evidence behind them: every ledger
+   entry for the box, with timestamps, recipients and who confirmed.
+
+   Written for one job in particular - emailing a hauler proof that a
+   service was requested for a date and that they confirmed that date -
+   so the copy buttons produce text you can paste straight into Outlook.
+   --------------------------------------------------------------- */
+
+function ledgerOpen(id){
+  state.ledgerOpenId = String(id);
+  state.ledgerErr = null;
+  if(state.ledgerRowsById[state.ledgerOpenId]){ render(); return; }
+  state.ledgerBusy = true;
+  render();
+  jsonp({ action:"ledger_rows", boxId:id, limit:50, key:KEY }, function(d){
+    state.ledgerBusy = false;
+    if(d && d.ok && d.rows){ state.ledgerRowsById[String(id)] = d.rows; }
+    else { state.ledgerErr = (d && d.error) || "Could not load the ledger."; }
+    render();
+  });
+}
+function ledgerClose(){ state.ledgerOpenId = null; state.ledgerErr = null; render(); }
+
+/* "9/8/2026 7:52:45" -> "Tue, Sep 8, 2026 at 7:52 AM ET". The ledger already
+   formatted it to Eastern server-side; this is presentation only. Anything
+   unparseable is passed through rather than guessed at. */
+function ledgerWhen(ts){
+  var m = String(ts||"").match(/^(\d+)\/(\d+)\/(\d+)\s+(\d+):(\d+)(?::(\d+))?$/);
+  if(!m) return String(ts||"");
+  var d = new Date(+m[3], +m[1]-1, +m[2], +m[4], +m[5]);
+  if(isNaN(d.getTime())) return String(ts||"");
+  var dow=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()];
+  var mo =["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()];
+  var hh = d.getHours(), ap = hh>=12 ? "PM" : "AM";
+  hh = hh%12; if(hh===0) hh=12;
+  return dow+", "+mo+" "+d.getDate()+", "+d.getFullYear()+" at "+hh+":"+m[5]+" "+ap+" ET";
+}
+/* Same instant as ledgerWhen, spelled out. The proof block goes to a hauler
+   who may be arguing about which day; abbreviations invite that argument. */
+function ledgerWhenLong(ts){
+  var m = String(ts||"").match(/^(\d+)\/(\d+)\/(\d+)\s+(\d+):(\d+)(?::(\d+))?$/);
+  if(!m) return String(ts||"");
+  var d = new Date(+m[3], +m[1]-1, +m[2], +m[4], +m[5]);
+  if(isNaN(d.getTime())) return String(ts||"");
+  var hh = d.getHours(), ap = hh>=12 ? "PM" : "AM";
+  hh = hh%12; if(hh===0) hh=12;
+  return ledgerLongDate(m[3]+"-"+("0"+m[1]).slice(-2)+"-"+("0"+m[2]).slice(-2)) +
+         " at " + hh + ":" + m[5] + " " + ap + " ET";
+}
+
+/* "2026-09-09" -> "Wednesday, September 9, 2026". Spelled out in full: this
+   text goes to a hauler who may be disputing which date was meant. */
+function ledgerLongDate(ymd){
+  var p = String(ymd||"").split("-");
+  if(p.length !== 3) return String(ymd||"");
+  var d = new Date(+p[0], +p[1]-1, +p[2]);
+  if(isNaN(d.getTime())) return String(ymd||"");
+  var dow=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d.getDay()];
+  var mo =["January","February","March","April","May","June","July","August",
+           "September","October","November","December"][d.getMonth()];
+  return dow+", "+mo+" "+d.getDate()+", "+d.getFullYear();
+}
+function ledgerAddrs(detail){
+  var t = String(detail||"").replace(/^\s*to\s+/i,"").trim();
+  return t.split(/[;,]/).map(function(x){ return x.trim(); }).filter(Boolean);
+}
+function ledgerBy(detail){ return String(detail||"").replace(/^\s*by\s+/i,"").trim(); }
+function ledgerIsReq(r){ return /REQUEST SENT/i.test(r.event); }
+function ledgerIsConf(r){ return /CONFIRM/i.test(r.event); }
+
+/* PROOF text. Deliberately narrow: the request, and the FIRST confirmation
+   that followed it for the same pickup date. Both rows carry their own
+   pickupDate in the ledger, so "asked for the 9th" and "agreed to the 9th"
+   are two independently recorded facts, not one value printed twice - which
+   is the whole point when a hauler disputes it. */
+function ledgerProofText(id, rows){
+  var b = bulkRowById(id), sc = bulkScanRow(id);
+  var name = (sc && sc.desc) || (b && b.loc) || ("Box " + id);
+  var req = null, conf = null;
+  for(var i = rows.length - 1; i >= 0; i--){          // oldest first
+    var r = rows[i];
+    if(!req && ledgerIsReq(r)) req = r;
+    else if(req && !conf && ledgerIsConf(r) && r.pickupDate === req.pickupDate) conf = r;
+  }
+  if(!req) return "";
+  var L = [];
+  L.push("Box " + id + " \u2014 " + String(name).split(" \u00b7 ")[0]);
+  L.push("");
+  L.push("SERVICE REQUESTED FOR:  " + ledgerLongDate(req.pickupDate));
+  L.push("");
+  L.push("Request sent:      " + ledgerWhenLong(req.timestamp));
+  var to = ledgerAddrs(req.detail);
+  to.forEach(function(a, i){ L.push((i===0?"                   to ":"                      ") + a + (i<to.length-1?",":"")); });
+  L.push("                   Service date requested: " + ledgerLongDate(req.pickupDate));
+  L.push("");
+  if(conf){
+    L.push("Confirmation received: " + ledgerWhenLong(conf.timestamp));
+    L.push("                   by \"" + ledgerBy(conf.detail) + "\", via the confirmation link");
+    L.push("                   in the request email above");
+    L.push("                   Service date confirmed: " + ledgerLongDate(conf.pickupDate));
+  } else {
+    L.push("No confirmation was received for this request.");
+  }
+  L.push("");
+  L.push("Source: WasteNet Request Ledger");
+  return L.join("\n");
+}
+
+/* FULL history. Everything on file for the box, oldest first. */
+function ledgerFullText(id, rows){
+  var b = bulkRowById(id), sc = bulkScanRow(id);
+  var name = (sc && sc.desc) || (b && b.loc) || ("Box " + id);
+  var L = ["Box " + id + " \u2014 " + String(name).split(" \u00b7 ")[0], ""];
+  rows.slice().reverse().forEach(function(r){
+    L.push(ledgerWhen(r.timestamp) + "   " + r.event +
+           (r.pickupDate ? "   (for " + ledgerLongDate(r.pickupDate) + ")" : ""));
+    if(r.detail) L.push("    " + r.detail);
+    L.push("");
+  });
+  L.push("Source: WasteNet Request Ledger");
+  return L.join("\n");
+}
+
+function bulkRowById(id){
+  var rows = state.bulkRows || [];
+  for(var i=0;i<rows.length;i++){ if(String(rows[i].id) === String(id)) return rows[i]; }
+  return null;
+}
+
+function ledgerPanelHtml(){
+  var id = state.ledgerOpenId;
+  var b = bulkRowById(id), sc = bulkScanRow(id);
+  var name = (sc && sc.desc) || (b && b.loc) || ("Box " + id);
+  var code = (sc && sc.haulCode) || (b && b.code) || "";
+  var chan = (sc && sc.channel) || "";
+
+  var h = '<div class="lg-head">'+
+      '<div class="lg-head-main">'+
+        '<div class="lg-name">'+esc(String(name).split(" \u00b7 ")[0])+'</div>'+
+        '<div class="lg-sub"><span class="box-id-strong">#'+esc(id)+'</span>'+
+          (code?' \u00b7 '+esc(code):'')+(chan?' \u00b7 '+esc(chan):'')+'</div>'+
+      '</div>'+
+      '<button type="button" class="lg-x" id="lgClose" title="Close">\u00d7</button>'+
+    '</div>';
+
+  if(state.ledgerBusy) return h + '<div class="lg-msg"><span class="spinner"></span>Loading history\u2026</div>';
+  if(state.ledgerErr)  return h + '<div class="lg-msg">'+esc(state.ledgerErr)+'</div>';
+
+  var rows = state.ledgerRowsById[id] || [];
+  if(!rows.length) return h + '<div class="lg-msg">No ledger entries for this box yet.</div>';
+
+  var hasProof = !!ledgerProofText(id, rows);
+  h += '<div class="lg-btns">'+
+       (hasProof ? '<button type="button" class="lg-btn lg-btn-main" id="lgProof">Copy proof</button>' : '')+
+       '<button type="button" class="lg-btn" id="lgFull">Copy full history</button>'+
+       '<span class="lg-copied" id="lgCopied"></span></div>';
+
+  h += '<div class="lg-sec">Request ledger</div><div class="lg-time">';
+  rows.forEach(function(r, i){
+    var kind = ledgerIsConf(r) ? "conf" : (ledgerIsReq(r) ? "req" : "note");
+    h += '<div class="lg-item lg-'+kind+(i===0?' lg-new':'')+'">'+
+      '<div class="lg-dot"></div>'+
+      '<div class="lg-ev">'+esc(r.event)+'</div>'+
+      '<div class="lg-when">'+esc(ledgerWhen(r.timestamp))+
+        (r.pickupDate?' \u00b7 for '+esc(bulkFmtDate(r.pickupDate)):'')+'</div>'+
+      (r.detail?'<div class="lg-det">'+esc(r.detail)+'</div>':'')+
+    '</div>';
+  });
+  return h + '</div>';
+}
+
+function ledgerCopy(text, btnId){
+  var note = document.getElementById("lgCopied");
+  function done(ok){ if(note){ note.textContent = ok ? "Copied" : "Press Ctrl+C"; setTimeout(function(){ if(note) note.textContent=""; }, 2500); } }
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){ done(true); }, function(){ fallback(); });
+  } else fallback();
+  function fallback(){
+    /* execCommand is deprecated but still the only path when the page is not
+       a secure context or permission is refused. A visible textarea would
+       shift the layout, so it is positioned off-screen and removed at once. */
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.setAttribute("readonly","");
+    ta.style.position="fixed"; ta.style.top="-1000px";
+    document.body.appendChild(ta); ta.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch(e){ ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+}
+
+function wireLedgerPanel(){
+  var x = document.getElementById("lgClose");
+  if(x) x.onclick = ledgerClose;
+  var id = state.ledgerOpenId, rows = state.ledgerRowsById[id] || [];
+  var p = document.getElementById("lgProof");
+  if(p) p.onclick = function(){ ledgerCopy(ledgerProofText(id, rows)); };
+  var f = document.getElementById("lgFull");
+  if(f) f.onclick = function(){ ledgerCopy(ledgerFullText(id, rows)); };
+}
+
 function wireBulk(){
+  Array.prototype.forEach.call(document.querySelectorAll("[data-lg]"), function(el){
+    el.addEventListener("click", function(ev){
+      ev.preventDefault(); ev.stopPropagation();   // do not toggle the row's checkbox
+      var id = this.getAttribute("data-lg");
+      if(String(state.ledgerOpenId) === String(id)) ledgerClose(); else ledgerOpen(id);
+    });
+  });
+  wireLedgerPanel();
+
   var sel = document.getElementById("blkTab");
   if(sel) sel.addEventListener("change", function(){
     state.bulkGid = this.value;
@@ -2666,7 +2926,12 @@ function monDetailPane(){
   /* Bulk Notification Emails has no selectable rows - the detail pane would
      only ever show its empty prompt, which reads like something is broken.
      Leave the column blank instead; the width stays so the layout holds. */
-  if(state.view === 'bulk' || state.view === 'bulkreq') return '';
+  if(state.view === 'bulk' || state.view === 'bulkreq'){
+    /* Bulk Notifications still has nothing to show. Bulk Service Requests now
+       does, but only once a row's info button has been pressed - an empty
+       prompt on every load would read like something failed to load. */
+    return state.ledgerOpenId ? ledgerPanelHtml() : '';
+  }
   if(!state.openId) return '<div class="mon-detail-empty">Select a box to see its full detail and actions.</div>';
   var rows=state.rows||[], b=null;
   for(var i=0;i<rows.length;i++){ if(String(rows[i].id)===String(state.openId)){ b=rows[i]; break; } }
