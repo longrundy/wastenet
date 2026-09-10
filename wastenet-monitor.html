@@ -1316,6 +1316,7 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
   font-size:19px;line-height:1;cursor:pointer;padding:0 2px;font-family:inherit;}
 .lg-msg{padding:22px 16px;font-size:12.5px;color:var(--ink-3);}
 .lg-none{padding:14px 16px 4px;}
+.lg-older{padding:0 16px 16px;font-size:10.5px;color:var(--ink-3);}
 .lg-more{display:block;width:calc(100% - 32px);margin:10px 16px 16px;padding:8px 10px;
   font-family:inherit;font-size:11.5px;color:var(--ink-2);text-align:left;
   background:#fff;border:0.5px dashed var(--line-strong);border-radius:6px;cursor:pointer;}
@@ -2728,9 +2729,31 @@ function ledgerPanelHtml(){
      one has been handled - and read quickly, it says the opposite. History
      stays available, but it has to be asked for. */
   var thisDate = bulkAgreedDate(b) || (b && b.pickup) || "";
-  var now = [], past = [];
+
+  /* History is bounded to a fortnight before this row's date. A weekly box
+     books roughly three ledger entries per service, so a year of history is
+     ~150 rows - an unreadable scroll, and nobody chasing a missed pickup
+     cares what happened last spring. The window is anchored to the ROW's
+     date rather than today, so the same row reads the same way whenever it
+     is opened. Older entries are counted, not drawn. */
+  var LEDGER_WINDOW_DAYS = 14;
+  function ymdOf(r){
+    if(r.pickupDate && /^\d{4}-\d{2}-\d{2}$/.test(r.pickupDate)) return r.pickupDate;
+    var m = String(r.timestamp||"").match(/^(\d+)\/(\d+)\/(\d+)/);
+    return m ? m[3]+"-"+("0"+m[1]).slice(-2)+"-"+("0"+m[2]).slice(-2) : "";
+  }
+  function daysBefore(ymd){
+    if(!ymd || !thisDate) return 0;
+    var a = new Date(ymd+"T00:00:00"), z = new Date(thisDate+"T00:00:00");
+    if(isNaN(a.getTime()) || isNaN(z.getTime())) return 0;
+    return Math.round((z - a) / 86400000);
+  }
+
+  var now = [], past = [], older = 0;
   rows.forEach(function(r){
-    if(thisDate && r.pickupDate === thisDate) now.push(r); else past.push(r);
+    if(thisDate && r.pickupDate === thisDate){ now.push(r); return; }
+    var d = daysBefore(ymdOf(r));
+    if(d > LEDGER_WINDOW_DAYS) older++; else past.push(r);
   });
 
   function items(list){
@@ -2757,10 +2780,17 @@ function ledgerPanelHtml(){
   if(past.length){
     h += '<button type="button" class="lg-more" data-lgall="1">'+
       (state.ledgerShowAll ? '\u2013  Hide earlier history'
-                           : '+  Show full history on this box ('+past.length+' earlier '+
-                             (past.length===1?'entry':'entries')+')')+
+                           : '+  Show recent history ('+past.length+' entr'+
+                             (past.length===1?'y':'ies')+' in the '+
+                             LEDGER_WINDOW_DAYS+' days before this date)')+
       '</button>';
     if(state.ledgerShowAll) h += items(past);
+  }
+  /* Say the older entries exist rather than pretending the box has no past -
+     someone who needs them knows to open the Request Ledger tab. */
+  if(older && (state.ledgerShowAll || !past.length)){
+    h += '<div class="lg-older">'+older+' older entr'+(older===1?'y':'ies')+
+         ' not shown \u00b7 see the Request Ledger tab</div>';
   }
   return h;
 }
