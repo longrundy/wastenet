@@ -885,10 +885,13 @@ body{padding-left:236px;}
 #summary{display:none !important;}
 .wn-triage{padding:6px 10px 10px;border-bottom:1px solid #265c39;}
 .wn-triage-bulk{padding:8px 10px;}
-/* Group label for the scan-driven buckets. A fresh class rather than
-   .wn-tri-h, which a later stylesheet sets to display:none. */
-.wn-rail__grp{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#5d8168;
-  padding:14px 12px 6px;}
+/* The fold toggle borrows .wn-tri wholesale, so it matches the two bulk items
+   in font, size, padding and hover. The caret sits where their coloured dot
+   does, keeping the labels on one vertical line. */
+.wn-triage-auto{padding:8px 10px;}
+.wn-tri-caret{width:9px;flex:0 0 auto;color:#8fb89b;font-size:10px;line-height:1;text-align:center;}
+.wn-tri-auto.open{color:#fff;}
+.wn-tri-auto.open .wn-tri-caret{color:#5CAA16;}
 /* Last block in the rail before the footer - no divider needed under it. */
 .wn-triage-last{border-bottom:none;}
 .wn-rail__search{border-bottom:1px solid #265c39;}
@@ -1375,13 +1378,13 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
 <body>
 <aside class="wn-rail"><div class="wn-rail__brand"><img src="WastenetLogoSway.webp?v=2026-09-04" alt="WasteNet"><div class="wn-rail__menu" data-wn-nav data-label="Monitoring Dashboard"></div></div><nav class="wn-triage wn-triage-bulk" id="railBulk"></nav><div class="wn-rail__search">
   <div class="rt-search" id="headerTools"></div>
-</div><div class="wn-rail__grp">Future automation</div><div class="wn-rail__scan">
+</div><nav class="wn-triage wn-triage-auto"><button type="button" class="wn-tri wn-tri-auto" id="railAuto" data-autotoggle="1" aria-expanded="false"><span class="wn-tri-caret" id="railAutoCaret">▸</span><span class="wn-tri-l">Future automation</span></button></nav><div id="railAutoBody" style="display:none"><div class="wn-rail__scan">
   <div class="date-nav rt-datewrap">
     <button class="date-label" id="dateLabel" title="Pick a scan date"><span id="scanInfo">Loading…</span> <span class="date-caret">▾</span></button>
     <div class="date-drop" id="dateDrop"></div>
   </div>
   <div class="rt-scanhdr"><span id="railCount">—</span> boxes · last scan</div>
-</div><nav class="wn-triage wn-triage-last" id="railTriage"></nav><div class="wn-rail__foot">Design preview · v-shell</div></aside>
+</div><nav class="wn-triage wn-triage-last" id="railTriage"></nav></div><div class="wn-rail__foot">Design preview · v-shell</div></aside>
 <div class="lock" id="lock">
   <div class="lock-card">
     <div class="lock-brand"><img class="wn-lock-logo" src="WastenetLogoSway.webp?v=2026-09-04" alt="WasteNet"></div>
@@ -1477,6 +1480,10 @@ var state = { rows: [], scanTitle: "", openId: null, staleOpen: false, view: "bu
      caches per box for the session - the ledger is append-only history, so a
      second look at the same box during one sitting cannot have changed. */
   ledgerOpenId: null, ledgerRowsById: {}, ledgerBusy: false, ledgerErr: null, ledgerShowAll: false,
+  /* The scan-driven buckets and the scan picker are folded away by default -
+     they are not part of the day-to-day bulk email work, so the rail opens
+     showing only the two things that are. */
+  autoOpen: false,
   tabs: [], currentTab: null, isLatest: true, dropOpen: false, search: "", searchOpen: false, setSchedById: {}, schedRuleById: {}, staffNotesById: {}, staffNotesUpdById: {}, emptyMarkedById: {}, ledgerById: {}, overrideById: {}, portalById: {}, actionBoxes: [], moveOpenId: null, moveBusy: false, showDismissed: false, bookOpenId: null, bookBusy: false, notesOpenId: null,
   /* Pull History (collapsible detail section). The per-box pull list comes from
      the SAME box_performance payload the Box Performance page reads - there is
@@ -3309,6 +3316,20 @@ function render(){
        the scan buckets below (a different workbook entirely), so it reads as
        its own item rather than another bucket. */
     var h='';
+    /* Fold state for the Future automation group. The rail markup is static,
+       so render only flips the wrapper and the caret. */
+    (function(){
+      var body=document.getElementById("railAutoBody");
+      var btn=document.getElementById("railAuto");
+      var car=document.getElementById("railAutoCaret");
+      if(body) body.style.display = state.autoOpen ? "" : "none";
+      if(car) car.textContent = state.autoOpen ? "\u25be" : "\u25b8";
+      if(btn){
+        btn.setAttribute("aria-expanded", state.autoOpen ? "true" : "false");
+        btn.className = "wn-tri wn-tri-auto" + (state.autoOpen ? " open" : "");
+      }
+    })();
+
     /* The two bulk items render into #railBulk, directly under the Monitoring
        Dashboard menu and above the scan block - they come from a different
        workbook and are not scan buckets, so they sit apart from the counts
@@ -4701,6 +4722,16 @@ document.addEventListener("click", function(e){
   var rb = e.target.closest ? e.target.closest("#slimRefreshBtn") : null;
   if(rb){ e.stopPropagation(); load(); }
 });
+/* Future automation fold. Delegated: the button is static markup, but this
+   keeps it beside the other rail handlers rather than inside render. */
+document.addEventListener("click", function(e){
+  if(!e.target.closest) return;
+  if(!e.target.closest("[data-autotoggle]")) return;
+  e.preventDefault();
+  state.autoOpen = !state.autoOpen;
+  render();
+});
+
 /* Request-history buttons on the bulk rows. Delegated for the same reason
    as the slim bar above: the row list is rebuilt on every render - including
    the render that the ledger fetch itself triggers - so a handler bound to
