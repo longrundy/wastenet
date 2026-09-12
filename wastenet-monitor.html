@@ -1302,11 +1302,11 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
 .blk-list{border:0.5px solid var(--line);border-radius:0 0 12px 12px;overflow:hidden;background:#fff;}
 
 /* ---- request ledger detail panel ---- */
-.blk-info{flex:0 0 auto;width:19px;height:19px;margin:0 8px 0 4px;border-radius:50%;
-  border:1px solid var(--line-strong);background:#fff;color:var(--ink-3);
-  font-size:11px;font-weight:700;line-height:1;cursor:pointer;font-family:inherit;}
-.blk-info:hover{border-color:#5CAA16;color:#3B6D11;}
-.blk-info.on{border-color:#5CAA16;background:#EDF6E2;color:#3B6D11;}
+/* Which row's history is on the right. Without this the panel looks
+   detached from the list. */
+.blk-row-open{background:#EDF6E2;}
+.blk-row-open:hover{background:#EDF6E2;}
+.blk-row .blk-ck{cursor:pointer;}
 .lg-head{display:flex;align-items:flex-start;gap:8px;padding:14px 16px;
   border-bottom:0.5px solid var(--line);}
 .lg-head-main{flex:1;min-width:0;}
@@ -2570,7 +2570,13 @@ function bulkHtml(){
       if(isReq && bulkConfirmed(r)) pills += '<span class="blk-pill blk-pill-conf">confirmed</span>';
       if(bulkDateMoved(r)) pills += '<span class="blk-pill blk-pill-moved">hauler moved date</span>';
 
-      h += '<label class="blk-row'+(off?' blk-row-sent':'')+'">'+
+      /* A <div>, not a <label>, and that is the whole point: a label toggles
+         its checkbox from ANY click inside it, which is what used to make the
+         row-click and the panel fight each other. Now the checkbox is the only
+         thing that selects, and clicking the row opens the history panel. */
+      h += '<div class="blk-row'+(off?' blk-row-sent':'')+
+          (String(state.ledgerOpenId)===String(r.id)?' blk-row-open':'')+
+          '" data-lg="'+esc(r.id)+'">'+
         '<input type="checkbox" class="blk-ck" data-blk="'+esc(r.id)+'"'+(ck?' checked':'')+
           (off?' disabled':'')+'>'+
         '<span class="blk-main">'+
@@ -2580,16 +2586,10 @@ function bulkHtml(){
             (code?' \u00b7 '+esc(code):'')+(chan?' \u00b7 '+esc(chan):'')+
           '</span>'+pills+'</span>'+
         '</span>'+
-        /* The row is a <label>, so ANY click inside it toggles the checkbox -
-           that is deliberate, selecting boxes is this page's main job. The
-           info button therefore stops the event rather than relying on
-           position, and is a real <button> so it is keyboard reachable. */
-        '<button type="button" class="blk-info'+(String(state.ledgerOpenId)===String(r.id)?' on':'')+
-          '" data-lg="'+esc(r.id)+'" title="Request history">i</button>'+
         '<span class="blk-right"><span class="blk-date">'+esc(bulkFmtDate(bulkAgreedDate(r)))+'</span>'+
           (bulkDateMoved(r) ? '<span class="blk-was">was '+esc(bulkFmtDate(r.pickup))+'</span>' : '')+
         '</span>'+
-      '</label>';
+      '</div>';
     });
     h += '</div>';
   }
@@ -4668,10 +4668,12 @@ document.addEventListener("click", function(e){
    the render that the ledger fetch itself triggers - so a handler bound to
    the button element survives only until the next repaint. */
 document.addEventListener("click", function(e){
-  var b = e.target.closest ? e.target.closest("[data-lg]") : null;
+  if(!e.target.closest) return;
+  /* The checkbox selects; it must never also open the panel. Everything else
+     in the row opens it. */
+  if(e.target.closest(".blk-ck")) return;
+  var b = e.target.closest("[data-lg]");
   if(!b) return;
-  e.preventDefault();
-  e.stopPropagation();               // the row is a <label>; do not toggle its checkbox
   var id = b.getAttribute("data-lg");
   if(String(state.ledgerOpenId) === String(id)) ledgerClose(); else ledgerOpen(id);
 });
