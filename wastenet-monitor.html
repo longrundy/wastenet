@@ -1307,21 +1307,18 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
 .blk-row-open{background:#EDF6E2;}
 .blk-row-open:hover{background:#EDF6E2;}
 .blk-row .blk-ck{cursor:pointer;}
-.lg-head{display:flex;align-items:flex-start;gap:8px;padding:14px 16px;
-  border-bottom:0.5px solid var(--line);}
-.lg-head-main{flex:1;min-width:0;}
-.lg-name{font-size:14px;font-weight:600;color:var(--ink);line-height:1.35;}
-.lg-sub{font-size:11px;color:var(--ink-3);margin-top:3px;}
-.lg-x{flex:0 0 auto;border:none;background:transparent;color:var(--ink-3);
-  font-size:19px;line-height:1;cursor:pointer;padding:0 2px;font-family:inherit;}
 .lg-msg{padding:22px 16px;font-size:12.5px;color:var(--ink-3);}
+.mtb-lgtitle{display:flex;align-items:baseline;gap:6px;}
+.mtb-lgx{margin-left:auto;border:none;background:transparent;color:var(--ink-3);
+  font-size:18px;line-height:1;cursor:pointer;padding:0 2px;font-family:inherit;}
+.mtb-lgx:hover{color:var(--ink);}
 .lg-none{padding:14px 16px 4px;}
 .lg-older{padding:0 16px 16px;font-size:10.5px;color:var(--ink-3);}
 .lg-more{display:block;width:calc(100% - 32px);margin:10px 16px 16px;padding:8px 10px;
   font-family:inherit;font-size:11.5px;color:var(--ink-2);text-align:left;
   background:#fff;border:0.5px dashed var(--line-strong);border-radius:6px;cursor:pointer;}
 .lg-more:hover{border-color:#5CAA16;color:#3B6D11;}
-.lg-sec{padding:16px 16px 6px;font-size:10px;letter-spacing:.08em;
+.lg-sec{padding:14px 16px 6px;font-size:10px;letter-spacing:.08em;
   text-transform:uppercase;color:var(--ink-3);}
 .lg-time{padding:0 16px 16px;border-left:none;}
 .lg-item{position:relative;padding:0 0 14px 14px;border-left:2px solid var(--line);}
@@ -2704,25 +2701,17 @@ function bulkRowById(id){
 
 function ledgerPanelHtml(){
   var id = state.ledgerOpenId;
-  var b = bulkRowById(id), sc = bulkScanRow(id);
-  var name = (sc && sc.desc) || (b && b.loc) || ("Box " + id);
-  var code = (sc && sc.haulCode) || (b && b.code) || "";
-  var chan = (sc && sc.channel) || "";
+  var b = bulkRowById(id);
 
-  var h = '<div class="lg-head">'+
-      '<div class="lg-head-main">'+
-        '<div class="lg-name">'+esc(String(name).split(" \u00b7 ")[0])+'</div>'+
-        '<div class="lg-sub"><span class="box-id-strong">#'+esc(id)+'</span>'+
-          (code?' \u00b7 '+esc(code):'')+(chan?' \u00b7 '+esc(chan):'')+'</div>'+
-      '</div>'+
-      '<button type="button" class="lg-x" id="lgClose" title="Close">\u00d7</button>'+
-    '</div>';
+  /* No header here - the box's identity lives in the topbar cell above
+     (see the bhead block in render). This pane is history only. */
+  var h = '';
 
-  if(state.ledgerBusy) return h + '<div class="lg-msg"><span class="spinner"></span>Loading history\u2026</div>';
-  if(state.ledgerErr)  return h + '<div class="lg-msg">'+esc(state.ledgerErr)+'</div>';
+  if(state.ledgerBusy) return '<div class="lg-msg"><span class="spinner"></span>Loading history\u2026</div>';
+  if(state.ledgerErr)  return '<div class="lg-msg">'+esc(state.ledgerErr)+'</div>';
 
   var rows = state.ledgerRowsById[id] || [];
-  if(!rows.length) return h + '<div class="lg-msg">No ledger entries for this box yet.</div>';
+  if(!rows.length) return '<div class="lg-msg">No ledger entries for this box yet.</div>';
 
   /* Only what belongs to the pickup date this row is about. A request sent
      last week for a date already serviced says nothing about whether THIS
@@ -3354,6 +3343,26 @@ function render(){
     }
     var bhead = (state.view === 'bulk' || state.view === 'bulkreq') ? ''
               : '<span class="mtb-empty-h">Select a box to see its detail.</span>';
+
+    /* On the bulk views this cell used to sit empty above the ledger panel,
+       while the panel repeated the box name in a header of its own - two
+       headers for one box. The identity belongs up here, where the detail
+       header already lives on every other view; the panel below is then just
+       the history. */
+    if((state.view === 'bulk' || state.view === 'bulkreq') && state.ledgerOpenId){
+      var lb = bulkRowById(state.ledgerOpenId), lsc = bulkScanRow(state.ledgerOpenId);
+      var lname = (lsc && lsc.desc) || (lb && lb.loc) || ('Box ' + state.ledgerOpenId);
+      var lcode = (lsc && lsc.haulCode) || (lb && lb.code) || '';
+      var lchan = (lsc && lsc.channel) || '';
+      bhead = '<div class="mtb-title mtb-lgtitle">'+
+                esc(String(lname).split(' \u00b7 ')[0])+
+                ' <span class="mtb-num">#'+esc(state.ledgerOpenId)+'</span>'+
+                '<button type="button" class="mtb-lgx" id="lgClose" title="Close">\u00d7</button>'+
+              '</div>'+
+              '<div class="mtb-sub">'+
+                (lcode?esc(lcode):'')+(lcode&&lchan?' \u00b7 ':'')+(lchan?esc(lchan):'')+
+              '</div>';
+    }
     if(state.openId){
       var ob=null,rw=state.rows||[];
       for(var i=0;i<rw.length;i++){ if(String(rw[i].id)===String(state.openId)){ ob=rw[i]; break; } }
