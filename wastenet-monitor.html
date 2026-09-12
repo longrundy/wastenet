@@ -884,11 +884,11 @@ body{padding-left:236px;}
 <style id="wn-mon-rail">
 #summary{display:none !important;}
 .wn-triage{padding:6px 10px 10px;border-bottom:1px solid #265c39;}
+.wn-triage-bulk{padding:8px 10px;}
 .wn-tri-h{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:#5d8168;padding:12px 8px 6px;}
 .wn-tri{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;cursor:pointer;padding:9px 10px;border-radius:8px;color:#c1d3c6;font-family:inherit;font-size:13.5px;text-align:left;border-left:2px solid transparent;}
 .wn-tri:hover{background:#1c4a2c;color:#fff;}
 .wn-tri.on{background:#1c4a2c;color:#fff;border-left-color:#5CAA16;font-weight:600;}
-.wn-tri-div{height:1px;background:#265c39;margin:7px 10px;}
 .wn-tri-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;}
 .wn-tri-l{flex:1;}
 .wn-tri-n{font-variant-numeric:tabular-nums;color:#8fbf9c;font-weight:600;font-size:12.5px;}
@@ -1365,7 +1365,7 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
 </style>
 </head>
 <body>
-<aside class="wn-rail"><div class="wn-rail__brand"><img src="WastenetLogoSway.webp?v=2026-09-04" alt="WasteNet"><div class="wn-rail__menu" data-wn-nav data-label="Monitoring Dashboard"></div></div><div class="wn-rail__scan">
+<aside class="wn-rail"><div class="wn-rail__brand"><img src="WastenetLogoSway.webp?v=2026-09-04" alt="WasteNet"><div class="wn-rail__menu" data-wn-nav data-label="Monitoring Dashboard"></div></div><nav class="wn-triage wn-triage-bulk" id="railBulk"></nav><div class="wn-rail__scan">
   <div class="date-nav rt-datewrap">
     <button class="date-label" id="dateLabel" title="Pick a scan date"><span id="scanInfo">Loading…</span> <span class="date-caret">▾</span></button>
     <div class="date-drop" id="dateDrop"></div>
@@ -3295,7 +3295,12 @@ function render(){
        the scan buckets below (a different workbook entirely), so it reads as
        its own item rather than another bucket. */
     var h='';
+    /* The two bulk items render into #railBulk, directly under the Monitoring
+       Dashboard menu and above the scan block - they come from a different
+       workbook and are not scan buckets, so they sit apart from the counts
+       below and above the "last scan" line those counts belong to. */
     (function(){
+      var rb=document.getElementById("railBulk"); if(!rb) return;
       /* Counts are computed per view, and bulkSendable() reads state.view, so
          borrow it briefly rather than duplicating the filter logic here. */
       var real=state.view;
@@ -3308,9 +3313,8 @@ function render(){
                '<span class="wn-tri-l">'+label+'</span>'+
                '<span class="wn-tri-n">'+n+'</span></button>';
       };
-      h+=mk('bulkreq','Bulk Service Request Emails')+
-         mk('bulk','Bulk Notification Emails')+
-         '<div class="wn-tri-div"></div>';
+      rb.innerHTML = mk('bulkreq','Bulk Service Request Emails')+
+                     mk('bulk','Bulk Notification Emails');
     })();
     bk.forEach(function(x,i){ var on=state.view===x[0];
       h+='<button type="button" class="wn-tri score-hit'+(on?' on':'')+'" data-view="'+x[0]+'"><span class="wn-tri-dot" style="background:'+x[1]+'"></span><span class="wn-tri-l">'+x[2]+'</span><span class="wn-tri-n">'+x[3]+'</span></button>'; });
