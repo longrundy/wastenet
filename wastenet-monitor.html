@@ -2568,7 +2568,7 @@ function bulkHtml(){
       var chan = (sc && sc.channel) || "";
 
       var pills = "";
-      if(sent) pills += '<span class="blk-pill blk-pill-done">'+(isReq?'already requested':'already sent')+'</span>';
+      if(sent) pills += '<span class="blk-pill blk-pill-done">'+(isReq?'requested':'already sent')+'</span>';
       if(noTo) pills += '<span class="blk-pill blk-pill-portal">'+
         (bulkIsPortal(r) ? 'portal' : 'no hauler email')+'</span>';
       if(isReq && bulkConfirmed(r)) pills += '<span class="blk-pill blk-pill-conf">confirmed</span>';
@@ -2656,7 +2656,7 @@ function fetchBulkRows(gid){
 /* ---------------------------------------------------------------
    REQUEST LEDGER DETAIL  -  what actually happened for one box.
 
-   The pills on a bulk row ("already requested", "confirmed") are booleans
+   The pills on a bulk row ("requested", "confirmed") are booleans
    off ledger_marks. This panel is the evidence behind them: every ledger
    entry for the box, with timestamps, recipients and who confirmed.
 
