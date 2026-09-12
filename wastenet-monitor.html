@@ -889,7 +889,9 @@ body{padding-left:236px;}
    in font, size, padding and hover. The caret sits where their coloured dot
    does, keeping the labels on one vertical line. */
 .wn-triage-auto{padding:8px 10px;}
-.wn-tri-caret{width:9px;flex:0 0 auto;color:#8fb89b;font-size:10px;line-height:1;text-align:center;}
+/* On the right, in the slot the counts use - so this label starts on the
+   same left edge as every other item in the rail. */
+.wn-tri-caret{flex:0 0 auto;color:#8fb89b;font-size:10px;line-height:1;}
 .wn-tri-auto.open{color:#fff;}
 .wn-tri-auto.open .wn-tri-caret{color:#5CAA16;}
 /* Last block in the rail before the footer - no divider needed under it. */
@@ -899,7 +901,6 @@ body{padding-left:236px;}
 .wn-tri{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;cursor:pointer;padding:9px 10px;border-radius:8px;color:#c1d3c6;font-family:inherit;font-size:13.5px;text-align:left;border-left:2px solid transparent;}
 .wn-tri:hover{background:#1c4a2c;color:#fff;}
 .wn-tri.on{background:#1c4a2c;color:#fff;border-left-color:#5CAA16;font-weight:600;}
-.wn-tri-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;}
 .wn-tri-l{flex:1;}
 .wn-tri-n{font-variant-numeric:tabular-nums;color:#8fbf9c;font-weight:600;font-size:12.5px;}
 .wn-tri.on .wn-tri-n{color:#fff;}
@@ -1378,7 +1379,7 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
 <body>
 <aside class="wn-rail"><div class="wn-rail__brand"><img src="WastenetLogoSway.webp?v=2026-09-04" alt="WasteNet"><div class="wn-rail__menu" data-wn-nav data-label="Monitoring Dashboard"></div></div><nav class="wn-triage wn-triage-bulk" id="railBulk"></nav><div class="wn-rail__search">
   <div class="rt-search" id="headerTools"></div>
-</div><nav class="wn-triage wn-triage-auto"><button type="button" class="wn-tri wn-tri-auto" id="railAuto" data-autotoggle="1" aria-expanded="false"><span class="wn-tri-caret" id="railAutoCaret">▸</span><span class="wn-tri-l">Future automation</span></button></nav><div id="railAutoBody" style="display:none"><div class="wn-rail__scan">
+</div><nav class="wn-triage wn-triage-auto"><button type="button" class="wn-tri wn-tri-auto" id="railAuto" data-autotoggle="1" aria-expanded="false"><span class="wn-tri-l">Future Automation</span><span class="wn-tri-caret" id="railAutoCaret">▸</span></button></nav><div id="railAutoBody" style="display:none"><div class="wn-rail__scan">
   <div class="date-nav rt-datewrap">
     <button class="date-label" id="dateLabel" title="Pick a scan date"><span id="scanInfo">Loading…</span> <span class="date-caret">▾</span></button>
     <div class="date-drop" id="dateDrop"></div>
@@ -3310,7 +3311,9 @@ function render(){
 
   (function(){
     var rt=document.getElementById("railTriage"); if(!rt) return;
-    var bk=[['rhythm','#7A4FBF','Due by Rhythm',counts.rhythm],['action','#A32D2D','Schedule Service',counts.action],['needsempty','#0F8C86','Record Empty',counts.needsempty],['monitor','#5B6470','Monitor Down',counts.monitor],['stale','#BA7517','Stale Scans',counts.stale],['scheduled','#378ADD','Scheduled',counts.scheduled],['clear','#639922','No Action',counts.clear]];
+    /* No colour dots: seven hues carried no meaning anyone was reading, and
+       the label plus count says it all. The colours went with them. */
+    var bk=[['rhythm','Due by Rhythm',counts.rhythm],['action','Schedule Service',counts.action],['needsempty','Record Empty',counts.needsempty],['monitor','Monitor Down',counts.monitor],['stale','Stale Scans',counts.stale],['scheduled','Scheduled',counts.scheduled],['clear','No Action',counts.clear]];
     /* Bulk Notification Emails rides at the top of the rail, above Due by
        Rhythm, with a divider under it - it is a different kind of thing from
        the scan buckets below (a different workbook entirely), so it reads as
@@ -3344,15 +3347,14 @@ function render(){
         var n=state.bulkRows.length?bulkSendable().length:'';
         state.view=real;
         return '<button type="button" class="wn-tri score-hit'+(real===view?' on':'')+'" data-view="'+view+'">'+
-               '<span class="wn-tri-dot" style="background:#7A4FBF"></span>'+
                '<span class="wn-tri-l">'+label+'</span>'+
                '<span class="wn-tri-n">'+n+'</span></button>';
       };
       rb.innerHTML = mk('bulkreq','Bulk Service Request Emails')+
                      mk('bulk','Bulk Notification Emails');
     })();
-    bk.forEach(function(x,i){ var on=state.view===x[0];
-      h+='<button type="button" class="wn-tri score-hit'+(on?' on':'')+'" data-view="'+x[0]+'"><span class="wn-tri-dot" style="background:'+x[1]+'"></span><span class="wn-tri-l">'+x[2]+'</span><span class="wn-tri-n">'+x[3]+'</span></button>'; });
+    bk.forEach(function(x){ var on=state.view===x[0];
+      h+='<button type="button" class="wn-tri score-hit'+(on?' on':'')+'" data-view="'+x[0]+'"><span class="wn-tri-l">'+x[1]+'</span><span class="wn-tri-n">'+x[2]+'</span></button>'; });
     rt.innerHTML=h;
   })();
 
