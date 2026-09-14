@@ -1320,6 +1320,32 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
 .blk-row-open:hover{background:#EDF6E2;}
 .blk-row .blk-ck{cursor:pointer;}
 .lg-msg{padding:22px 16px;font-size:12.5px;color:var(--ink-3);}
+.rcp-g{margin-bottom:12px;}
+.rcp-g:last-of-type{margin-bottom:6px;}
+.rcp-h{display:flex;align-items:baseline;gap:6px;margin-bottom:5px;}
+.rcp-l{font-size:11.5px;font-weight:600;color:var(--ink);}
+.rcp-n{font-size:10px;color:var(--ink-3);}
+.rcp-empty{font-size:10.5px;color:var(--ink-3);margin-bottom:4px;}
+.rcp-chips{display:flex;flex-wrap:wrap;gap:5px;align-items:center;}
+.rcp-c{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;
+  background:var(--panel);color:var(--ink);padding:3px 4px 3px 8px;border-radius:4px;}
+.rcp-x{border:none;background:transparent;color:var(--ink-3);font-size:13px;line-height:1;
+  cursor:pointer;padding:0 2px;font-family:inherit;}
+.rcp-x:hover{color:#A32D2D;}
+.rcp-add{font-size:10.5px;color:#3B6D11;background:transparent;border:0.5px dashed var(--line-strong);
+  border-radius:4px;padding:3px 8px;cursor:pointer;font-family:inherit;}
+.rcp-add:hover{border-color:#5CAA16;}
+.rcp-add-wrap{display:inline-flex;align-items:center;gap:4px;}
+.rcp-in{font-family:inherit;font-size:10.5px;height:24px;padding:0 6px;min-width:170px;
+  border:0.5px solid var(--line-strong);border-radius:4px;background:#fff;color:var(--ink);}
+.rcp-ok,.rcp-cancel{font-family:inherit;font-size:10.5px;height:24px;padding:0 8px;
+  border-radius:4px;cursor:pointer;border:0.5px solid var(--line-strong);background:#fff;}
+.rcp-ok{background:#3B6D11;border-color:#3B6D11;color:#fff;}
+.rcp-undo{font-size:10.5px;color:var(--ink-2);margin-bottom:8px;}
+.rcp-undo-b{font-family:inherit;font-size:10.5px;color:#3B6D11;background:transparent;
+  border:none;cursor:pointer;text-decoration:underline;padding:0 2px;}
+.rcp-foot{font-size:10px;color:var(--ink-3);line-height:1.5;padding-top:8px;
+  border-top:0.5px solid var(--line);}
 .mtb-lgtitle{display:flex;align-items:baseline;gap:6px;}
 .mtb-lgx{margin-left:auto;border:none;background:transparent;color:var(--ink-3);
   font-size:18px;line-height:1;cursor:pointer;padding:0 2px;font-family:inherit;}
@@ -1481,6 +1507,7 @@ var state = { rows: [], scanTitle: "", openId: null, staleOpen: false, view: "bu
      caches per box for the session - the ledger is append-only history, so a
      second look at the same box during one sitting cannot have changed. */
   ledgerOpenId: null, ledgerRowsById: {}, ledgerBusy: false, ledgerErr: null, ledgerShowAll: false,
+  recipOpenId: null, recipAddFor: null, recipBusy: false, recipErr: null, recipUndo: null,
   /* The scan-driven buckets and the scan picker are folded away by default -
      they are not part of the day-to-day bulk email work, so the rail opens
      showing only the two things that are. */
@@ -2903,6 +2930,73 @@ function monAutoPick(){
   state._autopick=true; render(); state._autopick=false;
 }
 
+function recipAddrs(v){
+  return String(v || "").split(/[;,\n]/)
+    .map(function(x){ return x.trim(); })
+    .filter(function(x){ return x && x.indexOf("@") !== -1; });
+}
+
+/* The four lists, in the order that answers the common question first.
+   'note' says what is actually sent to that list - David's customer asked
+   "who do you have on the email when you send notifications", and the answer
+   is the Customers list, which nothing on this page used to say out loud. */
+var RECIP_GROUPS = [
+  { key:"customer", role:"customer",  label:"Customers",      note:"notices go here" },
+  { key:"hauler",   role:"hauler",    label:"Haulers",        note:"service requests go here" },
+  { key:"corp",     role:"corporate", label:"Corporate",      note:"" },
+  { key:"staff",    role:"staff",     label:"WasteNet staff", note:"" }
+];
+
+function recipSectionHtml(boxId, rcp){
+  var h = "";
+  if(state.recipBusy) h += '<div class="dsec-note"><span class="spinner"></span>Saving\u2026</div>';
+  if(state.recipErr)  h += '<div class="dsec-note err">'+esc(state.recipErr)+'</div>';
+  if(state.recipUndo && state.recipUndo.boxId === String(boxId)){
+    h += '<div class="rcp-undo">Removed '+esc(state.recipUndo.email)+
+         ' <button type="button" class="rcp-undo-b" data-rundo="1">Undo</button></div>';
+  }
+  RECIP_GROUPS.forEach(function(g){
+    var list = recipAddrs(rcp[g.key]);
+    h += '<div class="rcp-g">'+
+      '<div class="rcp-h"><span class="rcp-l">'+esc(g.label)+'</span>'+
+        (g.note ? '<span class="rcp-n">'+esc(g.note)+'</span>' : '')+'</div>';
+    if(!list.length && !(state.recipAddFor === boxId+"|"+g.role)){
+      h += '<div class="rcp-empty">none</div>';
+    }
+    h += '<div class="rcp-chips">';
+    list.forEach(function(a){
+      h += '<span class="rcp-c">'+esc(a)+
+           '<button type="button" class="rcp-x" title="Remove from this box" '+
+             'data-rrem="'+esc(a)+'" data-rbox="'+esc(boxId)+'">\u00d7</button></span>';
+    });
+    if(state.recipAddFor === boxId+"|"+g.role){
+      h += '<span class="rcp-add-wrap"><input type="email" class="rcp-in" id="rcpIn" '+
+           'placeholder="name@company.com" autocomplete="off">'+
+           '<button type="button" class="rcp-ok" data-radd-ok="'+esc(g.role)+'" '+
+             'data-rbox="'+esc(boxId)+'">Add</button>'+
+           '<button type="button" class="rcp-cancel" data-radd-cancel="1">Cancel</button></span>';
+    } else {
+      h += '<button type="button" class="rcp-add" data-radd-open="'+esc(g.role)+'" '+
+           'data-rbox="'+esc(boxId)+'">+ add</button>';
+    }
+    h += '</div></div>';
+  });
+  h += '<div class="rcp-foot">Changes save to the Master Box List straight away. '+
+       'Removing an address takes it off every list on this box.</div>';
+  return h;
+}
+
+/* One call per change, straight to edit_contact - the same endpoint the
+   Contacts page uses, so there is one write path rather than two. */
+function recipEdit(params, after){
+  state.recipBusy = true; state.recipErr = null; render();
+  jsonp(Object.assign({ action:"edit_contact", key:KEY }, params), function(d){
+    state.recipBusy = false;
+    if(d && d.ok){ if(after) after(); fetchBoxContacts(); }
+    else { state.recipErr = (d && d.error) || "That change did not save."; render(); }
+  });
+}
+
 function detailHtml(b){
   var open = state.openId === b.id;
   var decisionClass = (b.need.indexOf("YES")!==-1) ? "yes" : "no";
@@ -3020,6 +3114,19 @@ function detailHtml(b){
     else                        pullsBody = pullTableHtml(pulls);
   }
   secs += section("pulls", "Pull History", pullsHas, pullsMeta, pullsOpen, pullsBody);
+
+  /* Recipients - who every email for this box actually goes to, and the only
+     place to change it without opening the sheet. All four lists are always
+     drawn, labelled, empty ones included: showing just one of them would read
+     as "this is everybody", which is exactly the question this answers. */
+  var recOpen = (state.recipOpenId === b.id);
+  var rcp = boxRecip(b.id);
+  var recCount = ["hauler","customer","corp","staff"].reduce(function(n,k){
+    return n + recipAddrs(rcp[k]).length; }, 0);
+  var recBody = recOpen ? recipSectionHtml(b.id, rcp) : "";
+  secs += section("recip", "Recipients", true,
+    recCount ? (recCount + (recCount===1 ? " address" : " addresses")) : "none on file",
+    recOpen, recBody);
 
   // "Draft an email" and "Move this box" now live as icons on the row itself
   // (envelope + move), so the detail panel no longer carries them.
@@ -3479,13 +3586,17 @@ function render(){
   }
 
   var html = "";
-  var q = state.search.trim().toLowerCase();
+  var q = state.search.trim().toLowerCase();   // read by the bulk guard below
 
   /* ----- BULK NOTIFICATIONS -------------------------------------------
      Its own early return. This view is not a slice of the scan - the rows
      come from David's pull request workbook - so none of the bucket
      precedence below applies to it. */
-  if(state.view === "bulk" || state.view === "bulkreq"){
+  /* A live search outranks the view. updateResults() paints matches directly,
+     without going through render, so a search could be showing while
+     state.view was still a bulk view - and the first render after that (a row
+     click, say) would take this early return and throw the results away. */
+  if((state.view === "bulk" || state.view === "bulkreq") && !q){
     listEl.innerHTML = monWrap(bulkHtml());
     wireScorecard();
     wireSearch();
@@ -4290,6 +4401,9 @@ function wireRows(){
       var kind = bt.getAttribute("data-sec");
       if(kind === "notes"){
         state.notesOpenId = (state.notesOpenId===id) ? null : id;
+      } else if(kind === "recip"){
+        state.recipOpenId = (state.recipOpenId===id) ? null : id;
+        state.recipAddFor = null; state.recipErr = null; state.recipUndo = null;
       } else if(kind === "pulls"){
         var closing = (state.pullsOpenId===id);
         state.pullsOpenId = closing ? null : id;
@@ -4724,6 +4838,57 @@ document.addEventListener("click", function(e){
   var rb = e.target.closest ? e.target.closest("#slimRefreshBtn") : null;
   if(rb){ e.stopPropagation(); load(); }
 });
+/* Recipient editing. Delegated, and every branch stops propagation - these
+   controls sit inside a row whose own click handler would otherwise collapse
+   the box out from under them. */
+document.addEventListener("click", function(e){
+  if(!e.target.closest) return;
+  var t;
+
+  if((t = e.target.closest("[data-radd-open]"))){
+    e.preventDefault(); e.stopPropagation();
+    state.recipAddFor = t.getAttribute("data-rbox")+"|"+t.getAttribute("data-radd-open");
+    state.recipErr = null; render();
+    var i = document.getElementById("rcpIn"); if(i) i.focus();
+    return;
+  }
+  if(e.target.closest("[data-radd-cancel]")){
+    e.preventDefault(); e.stopPropagation();
+    state.recipAddFor = null; state.recipErr = null; render(); return;
+  }
+  if((t = e.target.closest("[data-radd-ok]"))){
+    e.preventDefault(); e.stopPropagation();
+    var inp = document.getElementById("rcpIn");
+    var val = inp ? inp.value.trim() : "";
+    if(!val || val.indexOf("@") === -1){
+      state.recipErr = "Enter a full email address."; render(); return;
+    }
+    recipEdit({ op:"add", role:t.getAttribute("data-radd-ok"),
+                email:val, boxId:t.getAttribute("data-rbox") },
+      function(){ state.recipAddFor = null; state.recipUndo = null; });
+    return;
+  }
+  if((t = e.target.closest("[data-rrem]"))){
+    e.preventDefault(); e.stopPropagation();
+    var em = t.getAttribute("data-rrem"), bx = t.getAttribute("data-rbox");
+    /* No confirm dialog - an undo line is faster and just as recoverable,
+       and the add path can put it back on the right list. */
+    recipEdit({ op:"remove", email:em, boxId:bx },
+      function(){ state.recipUndo = { boxId:String(bx), email:em }; });
+    return;
+  }
+  if(e.target.closest("[data-rundo]")){
+    e.preventDefault(); e.stopPropagation();
+    var u = state.recipUndo; if(!u) return;
+    /* Undo re-adds to Customers: 'remove' strips an address from every list,
+       so the original role is not recoverable. Say so rather than guess
+       silently - the chip lands somewhere visible and can be moved. */
+    recipEdit({ op:"add", role:"customer", email:u.email, boxId:u.boxId },
+      function(){ state.recipUndo = null; });
+    return;
+  }
+});
+
 /* Future automation fold. Delegated: the button is static markup, but this
    keeps it beside the other rail handlers rather than inside render. */
 document.addEventListener("click", function(e){
