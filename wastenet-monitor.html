@@ -1320,6 +1320,9 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
 .blk-row-open:hover{background:#EDF6E2;}
 .blk-row .blk-ck{cursor:pointer;}
 .lg-msg{padding:22px 16px;font-size:12.5px;color:var(--ink-3);}
+.search-all{display:block;width:100%;margin-top:6px;padding:5px 8px;font-family:inherit;
+  font-size:11px;text-align:left;color:#a9c6b1;background:transparent;border:none;cursor:pointer;}
+.search-all:hover,.search-all.on{color:#fff;}
 .svc-lab{display:block;font-size:10px;letter-spacing:.06em;text-transform:uppercase;
   color:var(--ink-3);margin:8px 0 4px;}
 .svc-in{width:100%;font-family:inherit;font-size:11.5px;height:28px;padding:0 8px;
@@ -1533,6 +1536,7 @@ var state = { rows: [], scanTitle: "", openId: null, staleOpen: false, view: "bu
   ledgerOpenId: null, ledgerRowsById: {}, ledgerBusy: false, ledgerErr: null, ledgerShowAll: false,
   recipOpenId: null, recipAddFor: null, recipBusy: false, recipErr: null, recipUndo: null,
   statsClosedId: null,
+  showAll: false,
   svcOpenId: null, svcDraft: null, svcBusy: false, svcErr: null, svcSaved: null,
   /* The scan-driven buckets and the scan picker are folded away by default -
      they are not part of the day-to-day bulk email work, so the rail opens
@@ -2930,7 +2934,7 @@ function monDetailPane(){
   /* Same guard as render's: a live search outranks the view. Without it a
      search made from a bulk view lists matches but the pane stays blank,
      because this branch answers for the bulk view the user has left. */
-  if((state.view === 'bulk' || state.view === 'bulkreq') && !state.search.trim()){
+  if((state.view === 'bulk' || state.view === 'bulkreq') && !state.search.trim() && !state.showAll){
     /* Bulk Notifications still has nothing to show. Bulk Service Requests now
        does, but only once a row has been clicked - an empty prompt on every
        load would read like something failed to load. */
@@ -3488,7 +3492,13 @@ function render(){
     '<div class="search-box"><i class="search-ico">⌕</i>'+
     '<input type="text" id="searchInput" placeholder="Search boxes\u2026" value="'+esc(state.search)+'" autocomplete="off">'+
     (state.search ? '<button class="search-x" id="searchClose" aria-label="Clear search">\u00d7</button>' : '')+
-    '</div>';
+    '</div>'+
+    /* Deliberate, not automatic. Listing all 431 on focus would mean an
+       accidental click renders the whole fleet with no way to dismiss it
+       except typing or clicking away. */
+    (state.showAll
+      ? '<button type="button" class="search-all on" id="searchAll">\u00d7 &nbsp;Showing all boxes</button>'
+      : '<button type="button" class="search-all" id="searchAll">Show all boxes</button>');
   var _rc = document.getElementById("railCount"); if(_rc) _rc.textContent = total;
   var summaryEl = document.getElementById("summary");
   summaryEl.className = "summary scorecard";
@@ -3676,6 +3686,9 @@ function render(){
 
   var html = "";
   var q = state.search.trim().toLowerCase();   // read by the bulk guard below
+  /* "Show all" is a search with a filter that keeps everything - one code
+     path, so rows, the detail pane and the bulk guards behave identically. */
+  var listAll = state.showAll && !q;
 
   /* ----- BULK NOTIFICATIONS -------------------------------------------
      Its own early return. This view is not a slice of the scan - the rows
@@ -3685,7 +3698,7 @@ function render(){
      without going through render, so a search could be showing while
      state.view was still a bulk view - and the first render after that (a row
      click, say) would take this early return and throw the results away. */
-  if((state.view === "bulk" || state.view === "bulkreq") && !q){
+  if((state.view === "bulk" || state.view === "bulkreq") && !q && !listAll){
     listEl.innerHTML = monWrap(bulkHtml());
     wireScorecard();
     wireSearch();
@@ -3694,8 +3707,8 @@ function render(){
   }
 
   // ----- SEARCH: flat list of matches across ALL boxes, each tagged with its bucket -----
-  if(q){
-    var matches = state.rows.filter(function(b){
+  if(q || listAll){
+    var matches = listAll ? state.rows.slice() : state.rows.filter(function(b){
       // Inactive (N/A) boxes ARE searchable - if a box is in the scan you
       // should be able to find it. They're tagged with their bucket in the
       // results (bucketOf handles N/A), so results still show what each is.
@@ -3708,7 +3721,9 @@ function render(){
     if(matches.length===0){
       html += '<div class="empty-state" style="padding:40px 20px;"><div class="big">No matches</div>Nothing matches “'+esc(state.search)+'”. Try a box number, site name, or hauler code.</div>';
     } else {
-      html += '<div class="section-note">'+matches.length+' match'+(matches.length===1?'':'es')+' for “'+esc(state.search)+'” · across all boxes</div>';
+      html += (listAll
+        ? '<div class="section-note">'+matches.length+' boxes · every box in the latest scan</div>'
+        : '<div class="section-note">'+matches.length+' match'+(matches.length===1?'':'es')+' for “'+esc(state.search)+'” · across all boxes</div>');
       html += '<div class="plain-list">'+ matches.map(function(b){ return rowHtml(b, false, bucketOf(b)); }).join("") +'</div>';
     }
     listEl.innerHTML = monWrap(html);
@@ -3942,8 +3957,20 @@ function wireSearch(){
   if(openBtn) openBtn.addEventListener("click", function(){ state.searchOpen = true; render(); setTimeout(function(){ var i=document.getElementById("searchInput"); if(i) i.focus(); }, 0); });
   var input = document.getElementById("searchInput");
   if(input){
-    input.addEventListener("input", function(){ state.search = input.value; updateResults(); });
+    input.addEventListener("input", function(){
+      state.search = input.value;
+      /* Typing narrows, so the full list steps aside rather than fighting it. */
+      if(state.showAll){ state.showAll = false; render(); return; }
+      updateResults();
+    });
   }
+  var allBtn = document.getElementById("searchAll");
+  if(allBtn) allBtn.addEventListener("click", function(){
+    state.showAll = !state.showAll;
+    if(state.showAll){ state.search = ""; state.searchOpen = true; }
+    render();
+  });
+
   var closeBtn = document.getElementById("searchClose");
   if(closeBtn) closeBtn.addEventListener("click", function(){ state.search=""; state.searchOpen=false; render(); });
   // Slim-bar copies of the same controls (distinct IDs, identical actions).
