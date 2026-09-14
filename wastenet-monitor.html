@@ -2901,10 +2901,13 @@ function monDetailPane(){
   /* Bulk Notification Emails has no selectable rows - the detail pane would
      only ever show its empty prompt, which reads like something is broken.
      Leave the column blank instead; the width stays so the layout holds. */
-  if(state.view === 'bulk' || state.view === 'bulkreq'){
+  /* Same guard as render's: a live search outranks the view. Without it a
+     search made from a bulk view lists matches but the pane stays blank,
+     because this branch answers for the bulk view the user has left. */
+  if((state.view === 'bulk' || state.view === 'bulkreq') && !state.search.trim()){
     /* Bulk Notifications still has nothing to show. Bulk Service Requests now
-       does, but only once a row's info button has been pressed - an empty
-       prompt on every load would read like something failed to load. */
+       does, but only once a row has been clicked - an empty prompt on every
+       load would read like something failed to load. */
     return state.ledgerOpenId ? ledgerPanelHtml() : '';
   }
   if(!state.openId) return '<div class="mon-detail-empty">Select a box to see its full detail and actions.</div>';
