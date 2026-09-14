@@ -1320,6 +1320,30 @@ input[data-emptycheck]:checked::after{content:"";position:absolute;left:4.5px;to
 .blk-row-open:hover{background:#EDF6E2;}
 .blk-row .blk-ck{cursor:pointer;}
 .lg-msg{padding:22px 16px;font-size:12.5px;color:var(--ink-3);}
+.svc-lab{display:block;font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-3);margin:8px 0 4px;}
+.svc-in{width:100%;font-family:inherit;font-size:11.5px;height:28px;padding:0 8px;
+  border:0.5px solid var(--line-strong);border-radius:4px;background:#fff;color:var(--ink);}
+.svc-ta{width:100%;font-family:inherit;font-size:11.5px;line-height:1.6;min-height:120px;
+  padding:7px 8px;border:0.5px solid var(--line-strong);border-radius:4px;background:#fff;
+  color:var(--ink);resize:vertical;}
+.svc-fmt{font-size:10px;color:var(--ink-3);margin-top:6px;}
+.svc-fmt code{font-family:ui-monospace,Menlo,Consolas,monospace;background:var(--panel);
+  padding:1px 4px;border-radius:3px;}
+.svc-actions{display:flex;align-items:center;gap:8px;margin-top:10px;}
+.svc-save{font-family:inherit;font-size:11px;padding:6px 12px;border-radius:5px;
+  background:#3B6D11;border:0.5px solid #3B6D11;color:#fff;cursor:pointer;}
+.svc-save[disabled]{background:var(--panel);border-color:var(--line);color:var(--ink-3);cursor:default;}
+.svc-revert{font-family:inherit;font-size:11px;padding:6px 10px;border-radius:5px;
+  background:#fff;border:0.5px solid var(--line-strong);color:var(--ink);cursor:pointer;}
+.svc-ok{font-size:10.5px;color:#3B6D11;margin-bottom:4px;}
+.svc-foot{font-size:10px;color:var(--ink-3);line-height:1.5;margin-top:10px;
+  padding-top:8px;border-top:0.5px solid var(--line);}
+.dsend{display:flex;align-items:center;gap:9px;padding:12px 0 2px;}
+.dsend-b{font-family:inherit;font-size:11.5px;padding:7px 13px;border-radius:6px;
+  background:#fff;border:0.5px solid var(--line-strong);color:var(--ink);cursor:pointer;}
+.dsend-b:hover{border-color:#5CAA16;color:#3B6D11;}
+.dsend-n{font-size:10px;color:var(--ink-3);}
 .rcp-g{margin-bottom:12px;}
 .rcp-g:last-of-type{margin-bottom:6px;}
 .rcp-h{display:flex;align-items:baseline;gap:6px;margin-bottom:5px;}
@@ -1508,6 +1532,8 @@ var state = { rows: [], scanTitle: "", openId: null, staleOpen: false, view: "bu
      second look at the same box during one sitting cannot have changed. */
   ledgerOpenId: null, ledgerRowsById: {}, ledgerBusy: false, ledgerErr: null, ledgerShowAll: false,
   recipOpenId: null, recipAddFor: null, recipBusy: false, recipErr: null, recipUndo: null,
+  statsClosedId: null,
+  svcOpenId: null, svcDraft: null, svcBusy: false, svcErr: null, svcSaved: null,
   /* The scan-driven buckets and the scan picker are folded away by default -
      they are not part of the day-to-day bulk email work, so the rail opens
      showing only the two things that are. */
@@ -2933,6 +2959,35 @@ function monAutoPick(){
   state._autopick=true; render(); state._autopick=false;
 }
 
+function svcSectionHtml(boxId, subj, body){
+  /* The draft is held in state, not read off the DOM, so a render triggered
+     by anything else (a contacts refetch, a scan poll) cannot silently throw
+     away half-typed wording. */
+  var d = (state.svcDraft && state.svcDraft.boxId === String(boxId)) ? state.svcDraft : null;
+  var vs = d ? d.subject : subj;
+  var vb = d ? d.body : body;
+  var dirty = d && (d.subject !== subj || d.body !== body);
+  var h = "";
+  if(state.svcErr) h += '<div class="dsec-note err">'+esc(state.svcErr)+'</div>';
+  if(state.svcSaved === String(boxId) && !dirty) h += '<div class="svc-ok">Saved</div>';
+  h += '<label class="svc-lab">Subject</label>'+
+       '<input type="text" class="svc-in" id="svcSubj" data-sbox="'+esc(boxId)+'" value="'+esc(vs)+'">'+
+       '<label class="svc-lab">Body</label>'+
+       '<textarea class="svc-ta" id="svcBody" data-sbox="'+esc(boxId)+'">'+esc(vb)+'</textarea>'+
+       '<div class="svc-fmt">Formatting: <code>**bold**</code> <code>_italic_</code> '+
+         '<code>* bullet</code> \u00b7 placeholders <code>[pickup date]</code> '+
+         '<code>[box description]</code></div>'+
+       '<div class="svc-actions">'+
+         '<button type="button" class="svc-save" data-ssave="'+esc(boxId)+'"'+(dirty?'':' disabled')+'>'+
+           (state.svcBusy ? 'Saving\u2026' : 'Save service email')+'</button>'+
+         (dirty ? '<button type="button" class="svc-revert" data-srevert="1">Discard</button>' : '')+
+       '</div>'+
+       '<div class="svc-foot">Used when this box is requested on its own. When it shares a '+
+         'hauler and date with other boxes the Batch template is used instead \u2014 only the '+
+         'site line and account number carry over.</div>';
+  return h;
+}
+
 function recipAddrs(v){
   return String(v || "").split(/[;,\n]/)
     .map(function(x){ return x.trim(); })
@@ -3029,6 +3084,21 @@ function detailHtml(b){
     '</div>';
   };
 
+  var chevSvg = function(isOpen){
+    return '<svg class="dsec-chev'+(isOpen?' open':'')+'" viewBox="0 0 24 24" width="12" height="12" fill="none" '+
+      'stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+  };
+
+  var section = function(kind, title, hasContent, metaHtml, isOpen, bodyHtml){
+    var head = hasContent
+      ? '<button type="button" class="dsec-h" data-sec="'+kind+'" data-sec-id="'+esc(b.id)+'" aria-expanded="'+(isOpen?'true':'false')+'">'+
+          chevSvg(isOpen)+'<span class="dsec-t">'+title+'</span><span class="dsec-m">'+metaHtml+'</span></button>'
+      : '<div class="dsec-h is-empty"><span class="dsec-chev-sp"></span>'+
+          '<span class="dsec-t">'+title+'</span><span class="dsec-m">'+metaHtml+'</span></div>';
+    return '<div class="dsec'+(isOpen?' open':'')+'">'+head+
+      ((hasContent && isOpen) ? '<div class="dsec-b">'+bodyHtml+'</div>' : '')+'</div>';
+  };
+
   var stats =
     '<div class="dstats">'+
       stat("Fullness", b.pct==null?"—":Math.round(b.pct)+"%", b.trig!=null?"/ trig "+Math.round(b.trig):"", battery(b.pct, b.trig))+
@@ -3062,19 +3132,6 @@ function detailHtml(b){
      empty section reads as empty from the header meta ("none") instead of
      making you click to find nothing. An empty section is drawn as a plain
      div rather than a button, so it isn't clickable. */
-  var chevSvg = function(isOpen){
-    return '<svg class="dsec-chev'+(isOpen?' open':'')+'" viewBox="0 0 24 24" width="12" height="12" fill="none" '+
-      'stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
-  };
-  var section = function(kind, title, hasContent, metaHtml, isOpen, bodyHtml){
-    var head = hasContent
-      ? '<button type="button" class="dsec-h" data-sec="'+kind+'" data-sec-id="'+esc(b.id)+'" aria-expanded="'+(isOpen?'true':'false')+'">'+
-          chevSvg(isOpen)+'<span class="dsec-t">'+title+'</span><span class="dsec-m">'+metaHtml+'</span></button>'
-      : '<div class="dsec-h is-empty"><span class="dsec-chev-sp"></span>'+
-          '<span class="dsec-t">'+title+'</span><span class="dsec-m">'+metaHtml+'</span></div>';
-    return '<div class="dsec'+(isOpen?' open':'')+'">'+head+
-      ((hasContent && isOpen) ? '<div class="dsec-b">'+bodyHtml+'</div>' : '')+'</div>';
-  };
 
   // WN Staff Notes from the daily Box Management pull - troubleshooting
   // reference, not daily-glance. The note text preserves line breaks (it often
@@ -3127,17 +3184,46 @@ function detailHtml(b){
   var recCount = ["hauler","customer","corp","staff"].reduce(function(n,k){
     return n + recipAddrs(rcp[k]).length; }, 0);
   var recBody = recOpen ? recipSectionHtml(b.id, rcp) : "";
+  /* This box's own service email wording - the subject and body that go out
+     when it is requested alone. Editable here so a correction does not mean
+     leaving the page for the Templates tab; it writes to the same Service
+     Email Content row through the same endpoint that page uses. */
+  var svcOpen = (state.svcOpenId === b.id);
+  var svcC = (state.boxContacts || {})[normBoxId(b.id)] || {};
+  var svcSubj = String(svcC.subjectTemplate || "");
+  var svcBody = String(svcC.bodyTemplate || "");
+  var svcHas = !!(svcSubj.trim() || svcBody.trim());
+  var svcMeta = svcHas ? "custom wording" : "none \u2014 batch template is used";
+  secs += section("svc", "Service email", true, svcMeta, svcOpen,
+    svcOpen ? svcSectionHtml(b.id, svcSubj, svcBody) : "");
+
   secs += section("recip", "Recipients", true,
     recCount ? (recCount + (recCount===1 ? " address" : " addresses")) : "none on file",
     recOpen, recBody);
 
-  // "Draft an email" and "Move this box" now live as icons on the row itself
-  // (envelope + move), so the detail panel no longer carries them.
-  var draftRow = "";
+  /* Send from the pane. The envelope on the row does the same thing, but a
+     box reached by search is read here, not scanned for in the list - having
+     to go back to the row to act on it is the gap this closes. Same overlay,
+     same templates, same blank option. */
+  var draftRow = '<div class="dsend">'+
+    '<button type="button" class="dsend-b" data-dsend="'+esc(b.id)+'">Draft an email\u2026</button>'+
+    '<span class="dsend-n">templates or a blank message</span></div>';
+
+  /* The at-a-glance block is a section like the rest now, so every part of
+     this panel folds the same way. It alone defaults to OPEN - collapsing it
+     too would open a box to nothing but headers, and this is the part you
+     look at without meaning to. state.statsClosedId records the boxes where
+     it has been deliberately shut, so the default survives selection. */
+  var statsOpen = (state.statsClosedId !== b.id);
+  var statsMeta = (b.pct==null ? "" : Math.round(b.pct)+"% full") +
+    ((b.pct!=null && b.days!=null) ? " \u00b7 " : "") +
+    (b.days==null ? "" : b.days+"d since empty");
+  var overview = section("stats", "Overview", true, statsMeta || decisionText,
+    statsOpen, stats + rows);
 
   return '<div class="detail'+(open?' show':'')+'" data-detail="'+esc(b.id)+'">'+
     '<div class="detail-inner">'+
-      stats + rows + secs + draftRow +
+      overview + secs + draftRow +
     '</div>'+
   '</div>';
 }
@@ -4404,6 +4490,11 @@ function wireRows(){
       var kind = bt.getAttribute("data-sec");
       if(kind === "notes"){
         state.notesOpenId = (state.notesOpenId===id) ? null : id;
+      } else if(kind === "svc"){
+        state.svcOpenId = (state.svcOpenId===id) ? null : id;
+        state.svcDraft = null; state.svcErr = null; state.svcSaved = null;
+      } else if(kind === "stats"){
+        state.statsClosedId = (state.statsClosedId===id) ? null : id;
       } else if(kind === "recip"){
         state.recipOpenId = (state.recipOpenId===id) ? null : id;
         state.recipAddFor = null; state.recipErr = null; state.recipUndo = null;
@@ -4841,6 +4932,56 @@ document.addEventListener("click", function(e){
   var rb = e.target.closest ? e.target.closest("#slimRefreshBtn") : null;
   if(rb){ e.stopPropagation(); load(); }
 });
+/* Service email editing. Typing updates state rather than being read back off
+   the DOM at save time, so an unrelated render cannot lose it. */
+document.addEventListener("input", function(e){
+  if(!e.target.closest) return;
+  var el = e.target.closest("#svcSubj, #svcBody");
+  if(!el) return;
+  var box = el.getAttribute("data-sbox");
+  var subjEl = document.getElementById("svcSubj");
+  var bodyEl = document.getElementById("svcBody");
+  state.svcDraft = { boxId:String(box),
+                     subject: subjEl ? subjEl.value : "",
+                     body:    bodyEl ? bodyEl.value : "" };
+  state.svcSaved = null;
+  /* Enable/disable the save button in place - a full render here would move
+     the caret to the end of the field on every keystroke. */
+  var btn = document.querySelector("[data-ssave]");
+  if(btn) btn.disabled = false;
+});
+
+document.addEventListener("click", function(e){
+  if(!e.target.closest) return;
+  var t;
+  if((t = e.target.closest("[data-ssave]"))){
+    e.preventDefault(); e.stopPropagation();
+    var d = state.svcDraft; if(!d) return;
+    state.svcBusy = true; state.svcErr = null; render();
+    jsonp({ action:"save_service_content", key:KEY, boxId:d.boxId,
+            subject:d.subject, body:d.body }, function(r){
+      state.svcBusy = false;
+      if(r && r.ok){
+        state.svcSaved = d.boxId; state.svcDraft = null;
+        fetchBoxContacts();            // re-read so the section shows what was stored
+      } else {
+        state.svcErr = (r && r.error) || "That did not save.";
+        render();
+      }
+    });
+    return;
+  }
+  if(e.target.closest("[data-srevert]")){
+    e.preventDefault(); e.stopPropagation();
+    state.svcDraft = null; state.svcErr = null; render(); return;
+  }
+  if((t = e.target.closest("[data-dsend]"))){
+    e.preventDefault(); e.stopPropagation();
+    openCompose(t.getAttribute("data-dsend"));
+    return;
+  }
+});
+
 /* Recipient editing. Delegated, and every branch stops propagation - these
    controls sit inside a row whose own click handler would otherwise collapse
    the box out from under them. */
