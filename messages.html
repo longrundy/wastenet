@@ -766,26 +766,31 @@ function boxListParts(idList, opts){
      A box gets a request iff it HAS a service recipient. Portal boxes have
      none - by design, there is no hauler to email - so they fall out here
      rather than needing a special case. */
+    /* Per-hauler exception - one email per HAUL CODE.
+     WM asked not to receive several locations in one email. For any recipient
+     list containing an address below, the box's haul code joins the grouping
+     key, so each code becomes its own email with its own confirm link. Every
+     other hauler is untouched. To give another hauler the same treatment, add
+     their address here - nothing else changes. A box with no haul code falls
+     back to grouping by recipient + date, exactly as before. */
+  var SPLIT_BY_HAUL_CODE = ["wmtxhauls@wm.com"];
+
   var reqG = {};
   ids.forEach(function(id){
     if(state.noticesOnly) return;
     var c = state.contacts[id] || {};
     var r = state.rows[id] || {};
-    /* A portal box is never sent an automatic service request, whatever is in
-       column G. Those pickups are booked on the hauler's own site, so emailing
-       them to arrange one would be asking twice for the same thing.
-       Keyed off Service Method rather than "column G is empty", because the
-       address is worth having for the times you DO email that hauler - a
-       missed pickup, say - and an empty cell is a poor way to record
-       "this one is booked in a portal". */
     if(channelOf(r) === "portal") return;
-    /* Master Box List column G (Haulers) is THE source of truth for who a
-       service request goes to. Service Email Content column D is no longer
-       consulted at all. No Cc either - nobody is copied on a service request. */
     var to = addrs(c.toRecipients);
     if(!to.length) return;
     var dt = pickupFor(id);
-    var k = addrKey(to) + "|" + dt;
+    var splitByCode = to.some(function(a){
+      return SPLIT_BY_HAUL_CODE.indexOf(String(a).toLowerCase().trim()) !== -1;
+    });
+    var hcKey = splitByCode
+      ? String(r.haulCode || "").trim().replace(/\.0$/, "").toUpperCase()
+      : "";
+    var k = addrKey(to) + "|" + dt + (hcKey ? "|hc:" + hcKey : "");
     (reqG[k] = reqG[k] || { to:to, cc:[], date:dt, ids:[] }).ids.push(id);
   });
 
