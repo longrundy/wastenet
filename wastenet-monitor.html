@@ -3009,6 +3009,41 @@ var RECIP_GROUPS = [
   { key:"staff",    role:"staff",     label:"WasteNet staff", note:"" }
 ];
 
+/* Suggestions for the + add box: every address already on the Master Box
+   List, so a known address is picked rather than retyped. Built from the
+   contacts this page has already loaded - no extra fetch, and it can never
+   be staler than the panel around it. Addresses already on THIS list are
+   left out, and the ones used in the same role elsewhere are listed first,
+   so adding a hauler offers haulers before customers. Typing a brand-new
+   address still works exactly as before - this only offers, never limits. */
+var RECIP_FIELD = { customer:"ccRecipients", hauler:"toRecipients",
+                    corp:"corpRecipients",   staff:"staffRecipients" };
+
+function recipSuggestHtml(sameKey, already){
+  var have = {};
+  (already || []).forEach(function(a){ have[a.toLowerCase()] = true; });
+  var first = {}, rest = {};
+  Object.keys(state.boxContacts || {}).forEach(function(id){
+    var c = state.boxContacts[id] || {};
+    Object.keys(RECIP_FIELD).forEach(function(k){
+      recipAddrs(c[RECIP_FIELD[k]]).forEach(function(a){
+        var low = a.toLowerCase();
+        if(have[low]) return;
+        if(k === sameKey) first[low] = a;
+        else if(!(low in first)) rest[low] = a;
+      });
+    });
+  });
+  var out = Object.keys(first).sort().map(function(k){ return first[k]; });
+  Object.keys(rest).sort().forEach(function(k){
+    if(!(k in first)) out.push(rest[k]);
+  });
+  if(!out.length) return "";
+  return '<datalist id="rcpSuggest">'+
+    out.map(function(a){ return '<option value="'+esc(a)+'">'; }).join("")+
+    '</datalist>';
+}
+
 function recipSectionHtml(boxId, rcp){
   var h = "";
   if(state.recipBusy) h += '<div class="dsec-note"><span class="spinner"></span>Saving\u2026</div>';
@@ -3033,7 +3068,8 @@ function recipSectionHtml(boxId, rcp){
     });
     if(state.recipAddFor === boxId+"|"+g.role){
       h += '<span class="rcp-add-wrap"><input type="email" class="rcp-in" id="rcpIn" '+
-           'placeholder="name@company.com" autocomplete="off">'+
+           'placeholder="name@company.com" autocomplete="off" list="rcpSuggest">'+
+           recipSuggestHtml(g.key, list)+
            '<button type="button" class="rcp-ok" data-radd-ok="'+esc(g.role)+'" '+
              'data-rbox="'+esc(boxId)+'">Add</button>'+
            '<button type="button" class="rcp-cancel" data-radd-cancel="1">Cancel</button></span>';
