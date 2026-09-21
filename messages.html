@@ -623,20 +623,53 @@ function buildQueue(){
       var dt = pickupFor(id);
       (byDate[dt] = byDate[dt] || []).push(id);
     });
+    /* A PO, once it has gone out on any email, is FIXED. It is saved on the
+       ledger with that send, and every later email for the same box and
+       pickup date - the store notice, the corporate list, a resend - reads
+       it back instead of recomputing. Recomputing is what made this unsafe:
+       letters are handed out in store order across whichever stores are in
+       THIS batch, so a notice sent in a different batch from the request
+       could give a store a different letter than the hauler got.
+       New POs still use the same format and order, but skip any letter
+       already issued for that date, so two stores can never share a PO. */
+    var saved = state.savedPo || {};
+    var usedByDate = {};
+    Object.keys(saved).forEach(function(sid){
+      var sp = saved[sid];
+      if(!sp || !sp.po || !sp.date) return;
+      (usedByDate[sp.date] = usedByDate[sp.date] || {})[sp.po] = true;
+    });
     Object.keys(byDate).forEach(function(dt){
       var stem = yymmdd(dt);
+      var used = usedByDate[dt] || {};
+      var n = 0;
       byDate[dt].slice().sort(function(a,b){
         var na = raleysStoreNum(a); na = (na == null ? Infinity : na);
         var nb = raleysStoreNum(b); nb = (nb == null ? Infinity : nb);
         return (na - nb) || String(a).localeCompare(String(b), undefined, { numeric:true });
-      }).forEach(function(id, idx){ poFor[id] = stem + poLetter(idx); });
+      }).forEach(function(id){
+        var sp = saved[id];
+        if(sp && sp.po && sp.date === dt){ poFor[id] = sp.po; return; }
+        var po;
+        do { po = stem + poLetter(n++); } while(used[po]);
+        used[po] = true;
+        poFor[id] = po;
+      });
     });
   })();
 
+  /* "id:PO,id:PO" for the boxes on one email that have a PO - sent with the
+     email so the ledger row for each box records the PO it went out with. */
+  function poParam(idList){
+    return idList.filter(function(id){ return poFor[id]; })
+      .map(function(id){ return id + ":" + poFor[id]; }).join(",");
+  }
+
   /* One box list, one shape - used by requests, notices and corporate alike.
      Returns parallel arrays (green description line + its PO) plus a plain-text
-     version with the PO indented under each line. PO is opt-in: notices pass
-     nothing, so stores never see a PO; requests and corporate ask for it. */
+     version with the PO indented under each line. PO is opt-in per email type:
+     requests, corporate AND store notices all ask for it (Raley's stores now
+     see their PO too); only Raley's boxes have one, so nobody else is affected. */
   /* David's per-box body carries the things Myrna and Herb need to place the
    call - phone numbers, account references, sometimes a contact name - typed
    as one line under the "compactor(s):" heading. A batched email used to
@@ -849,7 +882,7 @@ function boxListParts(idList, opts){
       id: "req|" + k, kind: "request",
       to: g.to, cc: g.cc, ids: g.ids, date: g.date,
       subject: subject, body: body, html: emailShell(inner), link: link,
-      event: "REQUEST SENT",
+      event: "REQUEST SENT", po: poParam(g.ids),
       label: g.ids.map(function(id){ return channelOf(state.rows[id] || {}); })
                .indexOf("phone") !== -1 ? "call list" : "request"
     });
@@ -893,7 +926,7 @@ function boxListParts(idList, opts){
   Object.keys(notG).forEach(function(k){
     var g = notG[k];
     var t = state.templates["notice"] || {};
-    var bl = boxListParts(g.ids);
+    var bl = boxListParts(g.ids, { withPO:true });
     // No confirm link on a notice. The customer is not the one confirming - the
     // hauler is - and a button that quietly confirmed on a customer's click
     // would let a site manager confirm a pickup no hauler ever agreed to.
@@ -905,7 +938,7 @@ function boxListParts(idList, opts){
       subject: fill(t.subject, vals),
       body: fill(t.body, vals),
       html: emailShell(fillHtml(t.body, htmlVals(fmtLong(g.date), bl.descs, "", bl.pos))),
-      event: "CUSTOMER NOTIFIED", label: "notice"
+      event: "CUSTOMER NOTIFIED", po: poParam(g.ids), label: "notice"
     });
   });
 
@@ -1255,7 +1288,9 @@ function sendAll(){
       // sends with no boxId/event so it writes no ledger row - the per-store
       // notices are what light the Notified marks.
       boxId: e.ledger === false ? "" : e.ids.join(","),
-      event: e.ledger === false ? "" : e.event, pickupDate: e.date, tab: state.tab
+      event: e.ledger === false ? "" : e.event, pickupDate: e.date, tab: state.tab,
+      // Raley's POs on this email, so the ledger saves them - see buildQueue.
+      pos: e.ledger === false ? "" : (e.po || "")
     }, function(data){
       if(data && data.ok){
         state.sent[e.id] = "ok";
@@ -1315,12 +1350,16 @@ function parseUrl(){
    to build the queue at all, and say plainly which load failed. */
 function ready(){
   state.loaded++;
-  if(state.loaded < 3) return;   // scan + contacts + templates
+  if(state.loaded < 4) return;   // scan + contacts + templates + saved POs
 
   var missing = [];
   if(!Object.keys(state.rows).length)     missing.push("the scan");
   if(!Object.keys(state.contacts).length) missing.push("contacts");
   if(!state.templates["notice"] && !state.templates["batch"]) missing.push("email templates");
+  /* Without the saved POs a Raley's email could go out with a freshly
+     computed PO that disagrees with the one already sent - so this is a
+     loading failure like the others, not something to guess past. */
+  if(!state.poLoaded) missing.push("saved Raley's POs");
 
   if(missing.length){
     document.getElementById("grayCol").innerHTML =
@@ -1335,6 +1374,23 @@ function ready(){
 }
 
 function loadAll(){
+  /* Raley's POs already issued, off the ledger (see buildQueue). */
+  jsonp({ action:"ledger_marks", key:KEY }, function(data){
+    var m = {};
+    if(data && data.ok && data.marks){
+      Object.keys(data.marks).forEach(function(id){
+        var k = String(id); if(k.slice(-2) === ".0") k = k.slice(0, -2);
+        var mk = data.marks[id] || {};
+        if(mk.po && mk.poDate) m[k] = { po: String(mk.po), date: String(mk.poDate) };
+      });
+      state.savedPo = m;
+      state.poLoaded = true;
+    } else {
+      setBanner(esc((data && data.error) || "Could not load saved Raley's POs."), "err");
+    }
+    ready();
+  });
+
   jsonp({ action:"tab", name:state.tab, key:KEY }, function(data){
     if(data && data.ok && data.rows){
       data.rows.forEach(function(r){
@@ -1396,6 +1452,7 @@ function boot(){
     KEY = v;
     document.getElementById("lock").classList.add("hide");
     state.loaded = 0; state.rows = {}; state.contacts = {}; state.templates = {};
+    state.savedPo = {}; state.poLoaded = false;
     document.getElementById("grayCol").innerHTML =
       '<div class="empty"><span class="spinner"></span>Building the drafts&hellip;</div>';
     loadAll();
