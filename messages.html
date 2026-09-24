@@ -773,6 +773,12 @@ function boxListParts(idList, opts){
          internal notes ("Myrna and Herb, please call...") that must never
          reach an outside hauler. Only this one structured field crosses over. */
       var acct = String((state.contacts[id] || {}).haulerAccount || "").trim();
+      /* Sheets will read a hand-typed account like "4-12-16" as a DATE, and
+         the cell then reads back as "Tue Apr 12 2016 00:00:00 GMT-0400".
+         Two of those went out to Republic in front of the site name. The
+         column is plain text now, but a date-shaped value must never reach a
+         hauler again: drop it and show the site alone rather than nonsense. */
+      if(/\d{2}:\d{2}:\d{2}|GMT|^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s/.test(acct)) acct = "";
       if(acct) d = acct + "  \u00b7  " + d;
 
       if(opts.withBoxNum) d += "  \u2014  box " + id;
