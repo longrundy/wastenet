@@ -2437,11 +2437,21 @@ function bulkAlreadySent(r){
   var told = (state.ledgerById || {})[normBoxId(r.id)] || {};
   /* "scheduled" covers both a request emailed to a hauler and a portal
      booking recorded by hand - either way the hauler side is done. */
-  var d = bulkKind() === 'request' ? told.scheduled : told.notified;
-  /* Compared against the AGREED date: a customer told Tuesday has not been
-     told about the Wednesday the hauler moved it to, so the box correctly
-     re-arms for a fresh notice. */
-  return !!d && toYmd(d) === bulkAgreedDate(r);
+  if(bulkKind() === 'request'){
+    /* A hauler who MOVED the date already has our request - moving it is how
+       they answered it. So a request counts as sent if it went out for the
+       date we asked for, whether or not the hauler then moved it. Comparing
+       only against the agreed date re-armed a duplicate request the moment a
+       hauler moved a date (box 57: asked Mon Oct 5, hauler moved to Tue Oct
+       6, and the box asked to be sent again). A request for a date that is
+       neither the asked nor the agreed one is a new cycle and still re-arms. */
+    return !!told.scheduled &&
+      (toYmd(told.scheduled) === r.pickup || toYmd(told.scheduled) === bulkAgreedDate(r));
+  }
+  /* Notices stay gated on the AGREED date: a customer told Tuesday has not
+     been told about the Wednesday the hauler moved it to, so the box
+     correctly re-arms for a fresh notice. */
+  return !!told.notified && toYmd(told.notified) === bulkAgreedDate(r);
 }
 
 /* Confirmed = the hauler clicked their link, or a portal accepted the booking.
