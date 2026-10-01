@@ -2425,7 +2425,22 @@ function bulkAgreedDate(r){
   if(!r || !r.ok) return r ? r.pickup : "";
   var told = (state.ledgerById || {})[normBoxId(r.id)] || {};
   var agreed = told.agreed ? toYmd(told.agreed) : "";
+  /* An agreed date that has already PASSED belongs to a finished cycle. Box
+     836 was moved to Thu Sep 17 back in September; two weeks later that date
+     was still striking out the Fri Oct 2 pickup and badging the box
+     "confirmed / hauler moved date" for a service long since done. The server
+     clears an agreed date when a newer request or confirmation arrives - this
+     covers the gap until that next send happens.
+
+     Deliberately compared against TODAY and not against r.pickup: a hauler
+     moving a pickup EARLIER inside the current cycle (asked Oct 5, agreed Oct
+     2) is a real answer to the current request and has to keep working. */
+  if(agreed && agreed < todayYmd()) agreed = "";
   return agreed || r.pickup;
+}
+function todayYmd(){
+  var d = new Date(), p = function(n){ return (n < 10 ? "0" : "") + n; };
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
 }
 function bulkDateMoved(r){
   var a = bulkAgreedDate(r);
