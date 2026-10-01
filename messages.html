@@ -425,6 +425,23 @@ function fillHtml(text, vals){
  *
  * The durable fix is on the sheet, not here: replace those literal sites with
  * [box list] and the email follows CES for free. Until then, this. */
+/* The plain-text twin of boldLiteralSites' arming rule: find the literal
+   site line in a per-box body and put the hauler's account number in front
+   of it, the same "ACCT  ·  site" shape a generated box list uses. */
+var SITE_SPAN_OPEN = '<span style="color:#3B6D11;font-weight:bold;">\u2022 ';
+function prefixSiteLine(text, acct){
+  var lines = String(text).split("\n"), armed = false;
+  for(var i = 0; i < lines.length; i++){
+    var flat = lines[i].trim();
+    if(armed && flat){
+      lines[i] = lines[i].replace(flat, acct + "  \u00b7  " + flat);
+      return lines.join("\n");
+    }
+    if(/compactor/i.test(flat) && /:\s*$/.test(flat)) armed = true;
+  }
+  return text;
+}
+
 function boldLiteralSites(html){
   var lines = html.split("\n");
   var out = [], arming = false;
@@ -871,6 +888,21 @@ function boxListParts(idList, opts){
        box lists use. boldLiteralSites has already run inside fillHtml above, so
        this appended span is never swept into the green. Skipped when the box
        list already carried the PO (batched requests), so it never doubles up. */
+    /* A ONE-BOX request uses David's per-box body, which types the site in as
+       literal text - so the hauler account never got inserted the way it is on
+       a generated box list, and box 592's OPS-109010 sat on the Master Box List
+       without ever reaching the hauler. Put it in front of that site line here.
+       Skipped when the body already contains the number (a body that types it
+       in, or a generated list that already carried it), so it never doubles. */
+    if(!multi){
+      var acct1 = String((state.contacts[g.ids[0]] || {}).haulerAccount || "").trim();
+      if(/\d{2}:\d{2}:\d{2}|GMT|^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s/.test(acct1)) acct1 = "";
+      if(acct1 && body.indexOf(acct1) === -1){
+        body  = prefixSiteLine(body, acct1);
+        inner = inner.replace(SITE_SPAN_OPEN, SITE_SPAN_OPEN + esc(acct1) + "  \u00b7  ");
+      }
+    }
+
     var poMiss = g.ids.filter(function(id){ return poFor[id] && body.indexOf(poFor[id]) === -1; });
     poMiss.forEach(function(id){
       body += "\n    PO " + poFor[id];
