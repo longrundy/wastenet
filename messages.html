@@ -822,14 +822,16 @@ function boxListParts(idList, opts){
      A box gets a request iff it HAS a service recipient. Portal boxes have
      none - by design, there is no hauler to email - so they fall out here
      rather than needing a special case. */
-    /* Per-hauler exception - one email per HAUL CODE.
-     WM asked not to receive several locations in one email. For any recipient
-     list containing an address below, the box's haul code joins the grouping
-     key, so each code becomes its own email with its own confirm link. Every
-     other hauler is untouched. To give another hauler the same treatment, add
-     their address here - nothing else changes. A box with no haul code falls
-     back to grouping by recipient + date, exactly as before. */
-  var SPLIT_BY_HAUL_CODE = ["wmtxhauls@wm.com"];
+    /* Per-hauler exception - ONE COMPACTOR PER EMAIL.
+     WM reported that when an email lists several compactors they often see
+     only the first one and service just that box, so for any recipient list
+     containing an address below, each box becomes its own email with its own
+     subject, body and confirm link. This replaces the earlier haul-code split
+     for them - one box per email is finer than one code per email, and the
+     code grouping is no longer doing anything. Every other hauler still gets
+     one email per recipient per date. To give another hauler the same
+     treatment, add their address here; nothing else changes. */
+  var SPLIT_ONE_BOX_PER_EMAIL = ["wmtxhauls@wm.com"];
 
   var reqG = {};
   ids.forEach(function(id){
@@ -840,13 +842,10 @@ function boxListParts(idList, opts){
     var to = addrs(c.toRecipients);
     if(!to.length) return;
     var dt = pickupFor(id);
-    var splitByCode = to.some(function(a){
-      return SPLIT_BY_HAUL_CODE.indexOf(String(a).toLowerCase().trim()) !== -1;
+    var oneBox = to.some(function(a){
+      return SPLIT_ONE_BOX_PER_EMAIL.indexOf(String(a).toLowerCase().trim()) !== -1;
     });
-    var hcKey = splitByCode
-      ? String(r.haulCode || "").trim().replace(/\.0$/, "").toUpperCase()
-      : "";
-    var k = addrKey(to) + "|" + dt + (hcKey ? "|hc:" + hcKey : "");
+    var k = addrKey(to) + "|" + dt + (oneBox ? "|box:" + id : "");
     (reqG[k] = reqG[k] || { to:to, cc:[], date:dt, ids:[] }).ids.push(id);
   });
 
